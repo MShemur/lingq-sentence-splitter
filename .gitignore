@@ -1,0 +1,9 @@
+# secrets
+lingq_key.txt
+.env
+# local history from the first runs on this PC
+backup/
+report-*.txt
+Dürer_Venedig_LingQ.txt
+__pycache__/
+*.lnk
