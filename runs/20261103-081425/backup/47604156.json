@@ -1,0 +1,4859 @@
+{
+ "id": 47604156,
+ "lang": "de",
+ "title": "1: Part",
+ "paragraphs": [
+  {
+   "index": 1,
+   "style": "h1",
+   "sentences": [
+    {
+     "index": 1,
+     "text": "1: Part",
+     "cleanText": "1: Part",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "1: Часть",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 2,
+     "text": "Der Mythos vom Troianischen Krieg steht am Anfang der europäischen Geistes- und Literaturgeschichte; er wurde dank der Mas des Homer fester Bestandteil unseres kulturellen Gedächtnisses.",
+     "cleanText": "Der Mythos vom Troianischen Krieg steht am Anfang der europäischen Geistes- und Literaturgeschichte; er wurde dank der Mas des Homer fester Bestandteil unseres kulturellen Gedächtnisses.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Миф о Троянской войне стоит у истоков европейской интеллектуальной и литературной истории; благодаря «Мас» Гомера он стал неотъемлемой частью нашей культурной памяти.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 3,
+     "text": "Ganz im Banne der Mas stehend, wagte lange Zeit niemand, die Geschichtlichkeit des Troianischen Krieges, wie ihn Homer schilderte, anzuzweifeln.",
+     "cleanText": "Ganz im Banne der Mas stehend, wagte lange Zeit niemand, die Geschichtlichkeit des Troianischen Krieges, wie ihn Homer schilderte, anzuzweifeln.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Долгое время, находясь всецело под властью «Мас», никто не осмеливался сомневаться в историчности Троянской войны в том виде, как её описал Гомер.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 4,
+     "text": "Und als Heinrich Schliemann auch noch jene sagenumwobene Stadt unter dem Schutt des Hügels Hisarlık fand und den archäologischen Befund in schon recht abenteuerlicher Weise mit den Versen Homers in Einklang zu bringen suchte, trieb er sozusagen mit dem Spaten in der Hand die wenigen Zweifler in den Hintergrund der wissenschaftlichen Diskussion.",
+     "cleanText": "Und als Heinrich Schliemann auch noch jene sagenumwobene Stadt unter dem Schutt des Hügels Hisarlık fand und den archäologischen Befund in schon recht abenteuerlicher Weise mit den Versen Homers in Einklang zu bringen suchte, trieb er sozusagen mit dem Spaten in der Hand die wenigen Zweifler in den Hintergrund der wissenschaftlichen Diskussion.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "А когда Генрих Шлиман ещё и обнаружил окутанный легендами город под обломками холма Гисарлык и попытался — уже довольно авантюрным образом — согласовать археологические данные со стихами Гомера, он, можно сказать, с лопатой в руках оттеснил немногочисленных скептиков на задворки научной дискуссии.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 5,
+     "text": "Homer und Schliemann werfen bis heute lange Schatten, und noch immer ist auch unter modernen Wissenschaftlern die Neigung groß, ,den Troianischen Krieg ausgraben' zu wollen.",
+     "cleanText": "Homer und Schliemann werfen bis heute lange Schatten, und noch immer ist auch unter modernen Wissenschaftlern die Neigung groß, ,den Troianischen Krieg ausgraben' zu wollen.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Гомер и Шлиман и по сей день отбрасывают длинные тени, и даже среди современных учёных всё ещё велико стремление «раскопать Троянскую войну».",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 6,
+     "text": "Dieter Hertel, der Autor des vorliegenden Buches, ist dieser Versuchung nicht erlegen und versucht erst gar nicht, einen Zugang zu den neun Schichten des untergegangenen Troia auf dem trügerischen Weg über die Sage zu finden, sondern über die sachliche Analyse der archäologischen Funde.",
+     "cleanText": "Dieter Hertel, der Autor des vorliegenden Buches, ist dieser Versuchung nicht erlegen und versucht erst gar nicht, einen Zugang zu den neun Schichten des untergegangenen Troia auf dem trügerischen Weg über die Sage zu finden, sondern über die sachliche Analyse der archäologischen Funde.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Дитер Хертель, автор этой книги, не поддался этому искушению и даже не пытается найти доступ к девяти слоям погибшей Трои по обманчивому пути через предание, а обращается к объективному анализу археологических находок.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 7,
+     "text": "Die Archäologie darf aber nicht als Geschichtsschreibung mit anderen Mitteln' mißverstanden werden; sie verfolgt vielmehr eigene Fragestellungen, auf die sie mit ihren eigenen Methoden Antworten zu finden sucht.",
+     "cleanText": "Die Archäologie darf aber nicht als Geschichtsschreibung mit anderen Mitteln' mißverstanden werden; sie verfolgt vielmehr eigene Fragestellungen, auf die sie mit ihren eigenen Methoden Antworten zu finden sucht.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Однако археологию не следует ошибочно понимать как «историописание иными средствами»; она ставит собственные вопросы и стремится найти на них ответы собственными методами.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 8,
+     "text": "Indem der Autor Troia aus dem Dickicht der literarischen und wissenschaftlichen Mythen befreit, die archäologischen Funde beschreibt und daraus seine Schlüsse zieht, präsentiert er eine ungewohnte, aber spannende Geschichte der Stadt - und wenn man genau hinschaut, kann man sogar erkennen, wo in den Versen Homers wirklich einmal ein Fünkchen Geschichtlichkeit hervorleuchtet.",
+     "cleanText": "Indem der Autor Troia aus dem Dickicht der literarischen und wissenschaftlichen Mythen befreit, die archäologischen Funde beschreibt und daraus seine Schlüsse zieht, präsentiert er eine ungewohnte, aber spannende Geschichte der Stadt - und wenn man genau hinschaut, kann man sogar erkennen, wo in den Versen Homers wirklich einmal ein Fünkchen Geschichtlichkeit hervorleuchtet.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Освобождая Трою из дебрей литературных и научных мифов, описывая археологические находки и делая на их основе выводы, автор представляет необычную, но увлекательную историю города — и, если присмотреться, можно даже заметить, где в стихах Гомера и впрямь проблескивает искра исторической правды.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 9,
+     "text": "Dieter Hertel lehrt als Professor für Klassische Archäologie an der Ludwig-Maximilians-Universität München.",
+     "cleanText": "Dieter Hertel lehrt als Professor für Klassische Archäologie an der Ludwig-Maximilians-Universität München.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Дитер Хертель — профессор классической археологии Мюнхенского университета имени Людвига и Максимилиана.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 10,
+     "text": "Seine Forschungsschwerpunkte liegen im Bereich der römischen Portraitkunst und der Archäologie Nordwest-Kleinasiens.",
+     "cleanText": "Seine Forschungsschwerpunkte liegen im Bereich der römischen Portraitkunst und der Archäologie Nordwest-Kleinasiens.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Основные направления его исследований — римское портретное искусство и археология северо-западной Малой Азии.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 11,
+     "text": "Er hat selbst an mehreren Grabungskampagnen in Troia teilgenommen und zahlreiche einschlägige Veröffentlichungen zu Troia vorgelegt.",
+     "cleanText": "Er hat selbst an mehreren Grabungskampagnen in Troia teilgenommen und zahlreiche einschlägige Veröffentlichungen zu Troia vorgelegt.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Он лично участвовал в нескольких археологических экспедициях в Трое и опубликовал множество работ, посвящённых Трое.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 12,
+     "text": "Dieter Hertel",
+     "cleanText": "Dieter Hertel",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Дитер Хертель",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 4,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 13,
+     "text": "TROIA Archäologie, Geschichte, Mythos",
+     "cleanText": "TROIA Archäologie, Geschichte, Mythos",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "ТРОЯ: археология, история, миф",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 5,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 14,
+     "text": "Verlag C.H.Beck",
+     "cleanText": "Verlag C.H.Beck",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Издательство C.H.Beck",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 6,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 15,
+     "text": "Mit 4 Karten und 16 Abbildungen, davon 3 in Farbe",
+     "cleanText": "Mit 4 Karten und 16 Abbildungen, davon 3 in Farbe",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "С 4 картами и 16 иллюстрациями, 3 из них цветные",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 7,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 16,
+     "text": "Die Deutsche Bibliothek - CIP-Einheitsaufnahme Hertel, Dieter: Troia : Archäologie, Geschichte, Mythos / Dieter Hertel.",
+     "cleanText": "Die Deutsche Bibliothek - CIP-Einheitsaufnahme Hertel, Dieter: Troia : Archäologie, Geschichte, Mythos / Dieter Hertel.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Немецкая библиотека — CIP-стандартная запись: Хертель, Дитер: Троя: археология, история, миф / Дитер Хертель.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 17,
+     "text": "Orig.",
+     "cleanText": "Orig.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Ориг.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 18,
+     "text": "Ausg.",
+     "cleanText": "Ausg.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Изд.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 19,
+     "text": "- München : Beck, 2001 (C.H.Beck Wissen in der Beck'schen Reihe ; 2166) ISBN 3 406 44766 X",
+     "cleanText": "- München : Beck, 2001 (C.H.Beck Wissen in der Beck'schen Reihe ; 2166) ISBN 3 406 44766 X",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "— Мюнхен : Beck, 2001 (Знания C.H.Beck в серии Beck ; 2166) ISBN 3 406 44766 X",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 8,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 20,
+     "text": "Originalausgabe ISBN 3 406 44766 X Umschlagmotiv: Handpferd, Athen, Akropolis-Museum, Marmor (520-510 v.",
+     "cleanText": "Originalausgabe ISBN 3 406 44766 X Umschlagmotiv: Handpferd, Athen, Akropolis-Museum, Marmor (520-510 v.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Первое издание ISBN 3 406 44766 X Изображение на обложке: конь на поводу, Афины, Музей Акрополя, мрамор (520–510 гг. до н. э.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 21,
+     "text": "Chr.)",
+     "cleanText": "Chr.)",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "э.)",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 22,
+     "text": "© Editions Gallimard, La Phototheque/Paris Umschlagentwurf von Uwe Göbel, München © Verlag C.H.",
+     "cleanText": "© Editions Gallimard, La Phototheque/Paris Umschlagentwurf von Uwe Göbel, München © Verlag C.H.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "© Editions Gallimard, La Phototheque/Париж Дизайн обложки: Уве Гёбель, Мюнхен © Издательство C.H.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 23,
+     "text": "Beck oHG, München 2001 Satz: Kösel, Kempten Druck und Bindung: Freiburger Graphische Betriebe Printed in Germany www.beck.de",
+     "cleanText": "Beck oHG, München 2001 Satz: Kösel, Kempten Druck und Bindung: Freiburger Graphische Betriebe Printed in Germany www.beck.de",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Beck oHG, Мюнхен, 2001 Набор: Kösel, Кемптен Печать и переплёт: Freiburger Graphische Betriebe Напечатано в Германии www.beck.de",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 9,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 24,
+     "text": "Inhalt Vorwort .............................................................................",
+     "cleanText": "Inhalt Vorwort .............................................................................",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Содержание. Предисловие .............................................................................",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 10,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 25,
+     "text": "6",
+     "cleanText": "6",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 11,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 26,
+     "text": "I. Einleitung ..................................................................",
+     "cleanText": "I. Einleitung ..................................................................",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "I. Введение ..................................................................",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 12,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 27,
+     "text": "7",
+     "cleanText": "7",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 13,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 28,
+     "text": "II.",
+     "cleanText": "II.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "II.",
+       "type": ""
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 29,
+     "text": "Forschungsgeschichte: Die Sage vom Troianischen Krieg.",
+     "cleanText": "Forschungsgeschichte: Die Sage vom Troianischen Krieg.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "История исследований: предание о Троянской войне.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 30,
+     "text": "Ein ‚Dauerbrenner in der Abendländischen Geistesgeschichte' .....................................................",
+     "cleanText": "Ein ‚Dauerbrenner in der Abendländischen Geistesgeschichte' .....................................................",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "«Неугасающая тема в истории западной мысли» .....................................................",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 14,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 31,
+     "text": "14",
+     "cleanText": "14",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 15,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 32,
+     "text": "III.",
+     "cleanText": "III.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "III.",
+       "type": ""
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 33,
+     "text": "Troia-Ilion: Die Lage der Stadt in ihrer naturräumlichen Umgebung .............................................",
+     "cleanText": "Troia-Ilion: Die Lage der Stadt in ihrer naturräumlichen Umgebung .............................................",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Троя-Илион: расположение города в его природном окружении .............................................",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 16,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 34,
+     "text": "32",
+     "cleanText": "32",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 17,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 35,
+     "text": "IV.",
+     "cleanText": "IV.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "IV.",
+       "type": ""
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 36,
+     "text": "Die berühmten sogenannten neun Schichten oder Städte .........................................................................",
+     "cleanText": "Die berühmten sogenannten neun Schichten oder Städte .........................................................................",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Знаменитые так называемые девять слоёв или городов .........................................................................",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 18,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 37,
+     "text": "35",
+     "cleanText": "35",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 19,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 38,
+     "text": "V. Das Problem von Geschichte und Mythos in der Sage vom Troianischen Krieg ................................... 101 VI.",
+     "cleanText": "V. Das Problem von Geschichte und Mythos in der Sage vom Troianischen Krieg ................................... 101 VI.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "V. Проблема истории и мифа в сказании о Троянской войне ................................... 101 VI.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 39,
+     "text": "Weiterleben und Rezeptionsgeschichte der Troia-Sage in antiker und nachantiker Zeit ............. 118 VII.",
+     "cleanText": "Weiterleben und Rezeptionsgeschichte der Troia-Sage in antiker und nachantiker Zeit ............. 118 VII.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Дальнейшая жизнь и история рецепции сказания о Трое в античную и постантичную эпохи ............. 118 VII.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 40,
+     "text": "Nachwort: Die Rolle der Ilias zwischen Literatur, Geschichtsbuch und historischer Quelle .................. 122 Kommentierte Bibliographie ............................................. 124 Ausgewähltes Personen- und Ortsregister, Zeittafel ........ 128",
+     "cleanText": "Nachwort: Die Rolle der Ilias zwischen Literatur, Geschichtsbuch und historischer Quelle .................. 122 Kommentierte Bibliographie ............................................. 124 Ausgewähltes Personen- und Ortsregister, Zeittafel ........ 128",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Послесловие: роль «Илиады» между литературным произведением, исторической книгой и историческим источником .................. 122 Комментированная библиография ............................................. 124 Избранный именной и географический указатель, хронологическая таблица ........ 128",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 20,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 41,
+     "text": "Vorwort Das vorliegende Buch ist die Frucht jahrelanger Beschäftigung mit dem Thema.",
+     "cleanText": "Vorwort Das vorliegende Buch ist die Frucht jahrelanger Beschäftigung mit dem Thema.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Предисловие. Эта книга — результат многолетней работы над данной темой.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 42,
+     "text": "Ohne die tatkräftige Hilfe der Deutschen Forschungsgemeinschaft, des Museums für Vor- und Frühgeschichte und des Deutschen Archäologischen Instituts in Berlin sowie seiner Abteilungen in Athen und Istanbul hätten die Arbeiten nicht durchgeführt werden können.",
+     "cleanText": "Ohne die tatkräftige Hilfe der Deutschen Forschungsgemeinschaft, des Museums für Vor- und Frühgeschichte und des Deutschen Archäologischen Instituts in Berlin sowie seiner Abteilungen in Athen und Istanbul hätten die Arbeiten nicht durchgeführt werden können.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Без деятельной помощи Немецкого научно-исследовательского сообщества, Музея доисторической и ранней истории и Немецкого археологического института в Берлине, а также его отделений в Афинах и Стамбуле, эти работы не могли бы быть выполнены.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 43,
+     "text": "Das heißt auch, daß ich vielen Kollegen zu Dank verpflichtet bin, insbesondere gilt dies für Justus Cobet von der Universität Essen und den zuständigen Lektor des Beck Verlages, Stefan von der Lahr, beide Althistoriker, ohne deren nicht erlahmende Unterstützung der Band nicht zustande gekommen wäre.",
+     "cleanText": "Das heißt auch, daß ich vielen Kollegen zu Dank verpflichtet bin, insbesondere gilt dies für Justus Cobet von der Universität Essen und den zuständigen Lektor des Beck Verlages, Stefan von der Lahr, beide Althistoriker, ohne deren nicht erlahmende Unterstützung der Band nicht zustande gekommen wäre.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Это означает также, что я многим коллегам обязан благодарностью; в особенности это относится к Юстусу Кобету из Эссенского университета и ответственному редактору издательства Beck Стефану фон дер Лару — обоим историкам античности, без неустанной поддержки которых эта книга не увидела бы свет.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 44,
+     "text": "München, im Februar 2001",
+     "cleanText": "München, im Februar 2001",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Мюнхен, февраль 2001 года",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 21,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 45,
+     "text": "Dieter Hertel",
+     "cleanText": "Dieter Hertel",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Дитер Хертель",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 22,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 46,
+     "text": "I. Einleitung Die Geschichte vom Krieg um Troia faszinierte die Menschen, seit Homers Ilias davon erzählt, die Frage nach seiner Geschichtlichkeit aber seit dem Aufkommen der modernen Quellenkritik am Ende des 18.",
+     "cleanText": "I. Einleitung Die Geschichte vom Krieg um Troia faszinierte die Menschen, seit Homers Ilias davon erzählt, die Frage nach seiner Geschichtlichkeit aber seit dem Aufkommen der modernen Quellenkritik am Ende des 18.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "I. Введение. История Троянской войны завораживала людей с тех пор, как о ней рассказал Гомер в «Илиаде», однако вопрос о её историчности — с возникновением современной критики источников в конце XVIII",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 47,
+     "text": "Jhs.",
+     "cleanText": "Jhs.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "в.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 48,
+     "text": "Die Ausgrabungen Schliemanns zwischen 1870 und 1890, W. Dörpfelds 1893/94 und des Amerikaners C.W.",
+     "cleanText": "Die Ausgrabungen Schliemanns zwischen 1870 und 1890, W. Dörpfelds 1893/94 und des Amerikaners C.W.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Раскопки Шлимана в период с 1870 по 1890 год, В. Дёрпфельда в 1893/94 годах и американца К. У. ",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 49,
+     "text": "Biegen von 1932 bis 1938 in Troia trugen dazu bei, das Interesse an diesem Thema wachzuhalten und noch zu steigern.",
+     "cleanText": "Biegen von 1932 bis 1938 in Troia trugen dazu bei, das Interesse an diesem Thema wachzuhalten und noch zu steigern.",
+     "phrases": [
+      {
+       "text": "trugen dazu bei",
+       "translations": [
+        {
+         "language": "ru",
+         "text": "способствовали"
+        }
+       ]
+      }
+     ],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Раскопки, проводившиеся в Трое с 1932 по 1938 год, помогли поддерживать и даже усиливать интерес к этой теме.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 50,
+     "text": "Die Wiederaufnahme der Grabungen durch M. Korfmann im Jahre 1988 verlieh dem Ort am Skamander (Abb.",
+     "cleanText": "Die Wiederaufnahme der Grabungen durch M. Korfmann im Jahre 1988 verlieh dem Ort am Skamander (Abb.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Возобновление раскопок М. Корфманом в 1988 году вновь привлекло большое внимание к месту на берегу Скамандра (рис.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 51,
+     "text": "2) neuerlich große Aktualität.",
+     "cleanText": "2) neuerlich große Aktualität.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "2).",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 52,
+     "text": "Wie kaum ein anderer Sachverhalt aus der Geschichte der Alten Welt wurde er zum Betätigungsfeld der verschiedensten Disziplinen der Altertums- und Geschichtswissenschaft, von Klassischer Philologie, Alter Geschichte, Klassischer Archäologie, Vorgeschichte, Indogermanistik und Hethitologie.",
+     "cleanText": "Wie kaum ein anderer Sachverhalt aus der Geschichte der Alten Welt wurde er zum Betätigungsfeld der verschiedensten Disziplinen der Altertums- und Geschichtswissenschaft, von Klassischer Philologie, Alter Geschichte, Klassischer Archäologie, Vorgeschichte, Indogermanistik und Hethitologie.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Как и едва ли какой-либо другой сюжет из истории Древнего мира, он стал предметом исследования самых разных дисциплин, изучающих античность и историю: классической филологии, истории Древнего мира, классической археологии, доистории, индоевропеистики и хеттологии.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 53,
+     "text": "Und wie kaum ein anderes Thema der historischen Kulturwissenschaften entwickelte er sich zum Tummelplatz weitreichender Spekulationen.",
+     "cleanText": "Und wie kaum ein anderes Thema der historischen Kulturwissenschaften entwickelte er sich zum Tummelplatz weitreichender Spekulationen.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "И, как едва ли какая-либо другая тема исторических наук о культуре, он превратился в поле для широкомасштабных спекуляций.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 54,
+     "text": "Die moderne Beschäftigung mit dem Troianischen Krieg, mit einem Mythos oder einer Sage, d.h.",
+     "cleanText": "Die moderne Beschäftigung mit dem Troianischen Krieg, mit einem Mythos oder einer Sage, d.h.",
+     "phrases": [
+      {
+       "text": "d h",
+       "translations": [
+        {
+         "language": "ru",
+         "text": "то есть"
+        }
+       ]
+      }
+     ],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Современное исследование Троянской войны — мифа или предания, то есть",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 55,
+     "text": "einer Erzählung, deren Entstehung und Ausgestaltung von vielerlei unterschiedlichen Interessen geleitet war und meist von kriegerischen Taten von Helden und/oder Göttern handelt, die sich als tatsächliches Geschehen in einer weit zurückliegenden, als ,großartig' gedachten Vergangenheit gibt, konzentrierte sich im allgemeinen darauf, die Geschichtlichkeit des Berichteten nachzuweisen oder sie zu bestreiten.",
+     "cleanText": "einer Erzählung, deren Entstehung und Ausgestaltung von vielerlei unterschiedlichen Interessen geleitet war und meist von kriegerischen Taten von Helden und/oder Göttern handelt, die sich als tatsächliches Geschehen in einer weit zurückliegenden, als ,großartig' gedachten Vergangenheit gibt, konzentrierte sich im allgemeinen darauf, die Geschichtlichkeit des Berichteten nachzuweisen oder sie zu bestreiten.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "рассказа, возникновение и развитие которого определялись множеством различных интересов и который обычно повествует о военных подвигах героев и/или богов, — представляет его как описание событий, действительно происходивших в далёком прошлом, мыслимом как «великое», и в целом было сосредоточено на том, чтобы доказать историчность изложенного или оспорить её.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 56,
+     "text": "So entstanden selbst wiederum neue Mythen, also von Sehnsüchten und Interessen des modernen Menschen gespeiste, nicht hinterfragte Wunschbilder von historischen Sachverhalten, wie z.B.",
+     "cleanText": "So entstanden selbst wiederum neue Mythen, also von Sehnsüchten und Interessen des modernen Menschen gespeiste, nicht hinterfragte Wunschbilder von historischen Sachverhalten, wie z.B.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 57,
+     "text": "jenes, daß der Troianische Krieg tatsächlich, und zwar am Ende der späten Bronzezeit, im 13. oder 12.",
+     "cleanText": "jenes, daß der Troianische Krieg tatsächlich, und zwar am Ende der späten Bronzezeit, im 13. oder 12.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 58,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 59,
+     "text": "*, und zumindest in den Grund* Die Zeitangaben, die sich auf die Ära vor Christi Geburt beziehen, sind ohne die Angabe ,v. Chr.' wiedergegeben (z.B.",
+     "cleanText": "*, und zumindest in den Grund* Die Zeitangaben, die sich auf die Ära vor Christi Geburt beziehen, sind ohne die Angabe ,v. Chr.' wiedergegeben (z.B.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 60,
+     "text": "12.",
+     "cleanText": "12.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 61,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 62,
+     "text": "= 12.",
+     "cleanText": "= 12.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 63,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 64,
+     "text": "v.",
+     "cleanText": "v.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 65,
+     "text": "Chr.",
+     "cleanText": "Chr.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 66,
+     "text": "),",
+     "cleanText": "),",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 23,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 67,
+     "text": "zügen, wie ihn die Sage beschreibt, stattgefunden habe, womit in der Regel gemeint ist, daß Troia von mykenischen Griechen eingenommen worden sei.",
+     "cleanText": "zügen, wie ihn die Sage beschreibt, stattgefunden habe, womit in der Regel gemeint ist, daß Troia von mykenischen Griechen eingenommen worden sei.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 68,
+     "text": "Ein anderer moderner Mythos, der in diesem Zusammenhang aufkam, lautete, die Grabungstätigkeit des Archäologen bedürfe der kritischen Methoden der Geschichtswissenschaft nicht und sei von sich aus ein sicherer Weg, die Geschichtlichkeit von Sagen zu beweisen oder zu widerlegen.",
+     "cleanText": "Ein anderer moderner Mythos, der in diesem Zusammenhang aufkam, lautete, die Grabungstätigkeit des Archäologen bedürfe der kritischen Methoden der Geschichtswissenschaft nicht und sei von sich aus ein sicherer Weg, die Geschichtlichkeit von Sagen zu beweisen oder zu widerlegen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 69,
+     "text": "Die ,Handgreiflichkeit' dieser Ergebnisse einer solchen .Wissenschaft des Spatens', die angeblich unmittelbare und eindeutige Aussagekraft der zutage geförderten Denkmäler, wurde gegen die ernüchternde, Distanz schaffende Quellenanalyse des Historikers ausgespielt.",
+     "cleanText": "Die ,Handgreiflichkeit' dieser Ergebnisse einer solchen .Wissenschaft des Spatens', die angeblich unmittelbare und eindeutige Aussagekraft der zutage geförderten Denkmäler, wurde gegen die ernüchternde, Distanz schaffende Quellenanalyse des Historikers ausgespielt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 70,
+     "text": "Solche Auffassungen vertraten, obgleich mit unterschiedlichem Nachdruck, auch die Ausgräber von Troia; der vermeintliche ,Autoritätsbeweis' bewirkte, beabsichtigt oder nicht, eine gesteigerte Akzeptanz derartiger Positionen nicht nur bei dem interessierten Laien, sondern sogar in der Fachwelt.",
+     "cleanText": "Solche Auffassungen vertraten, obgleich mit unterschiedlichem Nachdruck, auch die Ausgräber von Troia; der vermeintliche ,Autoritätsbeweis' bewirkte, beabsichtigt oder nicht, eine gesteigerte Akzeptanz derartiger Positionen nicht nur bei dem interessierten Laien, sondern sogar in der Fachwelt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 71,
+     "text": "Nur ungern oder gar nicht setzte sich mancher Ausgräber mit den Stimmen kritischer Forscher, meist Vertretern der Alten Geschichte, auseinander: Die ,Waffe' des Ausgräbers, der ,Spaten', sollte ohne Umschweife den Sieg über den räsonierenden Verstand davontragen, und es mutet grotesk an, daß man immer wieder auf Heinrich Schliemann wie auf eine Symbolfigur wies, obwohl jene, die die Zeit nach Christi Geburt betreffen - soweit es sich um das erste Jahrtausend handelt - sind mit ,n. Chr.' gekennzeichnet, alle anderen in der üblichen Schreibweise gedruckt (z. B.",
+     "cleanText": "Nur ungern oder gar nicht setzte sich mancher Ausgräber mit den Stimmen kritischer Forscher, meist Vertretern der Alten Geschichte, auseinander: Die ,Waffe' des Ausgräbers, der ,Spaten', sollte ohne Umschweife den Sieg über den räsonierenden Verstand davontragen, und es mutet grotesk an, daß man immer wieder auf Heinrich Schliemann wie auf eine Symbolfigur wies, obwohl jene, die die Zeit nach Christi Geburt betreffen - soweit es sich um das erste Jahrtausend handelt - sind mit ,n. Chr.' gekennzeichnet, alle anderen in der üblichen Schreibweise gedruckt (z. B.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 72,
+     "text": "20.",
+     "cleanText": "20.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 73,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 74,
+     "text": "); wenn keine genauen Angaben gemacht werden, so ist stets ,ca.' zu ergänzen.",
+     "cleanText": "); wenn keine genauen Angaben gemacht werden, so ist stets ,ca.' zu ergänzen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 75,
+     "text": "Die Kürzel [Großbuchstabe(n) Leertaste Zahl(en) (z.B.",
+     "cleanText": "Die Kürzel [Großbuchstabe(n) Leertaste Zahl(en) (z.B.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 76,
+     "text": "A 5 oder JK 3/4)] bezeichnen die Planquadrate auf den Plänen von Troia (Abb.",
+     "cleanText": "A 5 oder JK 3/4)] bezeichnen die Planquadrate auf den Plänen von Troia (Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 77,
+     "text": "4.",
+     "cleanText": "4.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 78,
+     "text": "13 b und 14), so daß die Fundstellen bzw.",
+     "cleanText": "13 b und 14), so daß die Fundstellen bzw.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 79,
+     "text": "Bauwerke leicht aufgefunden werden können.",
+     "cleanText": "Bauwerke leicht aufgefunden werden können.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 80,
+     "text": "Bei den Maß- und Entfernungsangaben ist immer ,ca.' zu ergänzen; Jh.",
+     "cleanText": "Bei den Maß- und Entfernungsangaben ist immer ,ca.' zu ergänzen; Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 81,
+     "text": "= Jahrhundert, Jt.",
+     "cleanText": "= Jahrhundert, Jt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 82,
+     "text": "= Jahrtausend.",
+     "cleanText": "= Jahrtausend.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 83,
+     "text": "Da der Name Hellespont bei Homer und bis ins 5.",
+     "cleanText": "Da der Name Hellespont bei Homer und bis ins 5.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 84,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 85,
+     "text": "in der Regel nicht nur die heute Dardanellen genannte Meerenge (Abb.",
+     "cleanText": "in der Regel nicht nur die heute Dardanellen genannte Meerenge (Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 86,
+     "text": "2.3), sondern außerdem die gesamte nördliche Ägäis (Abb.",
+     "cleanText": "2.3), sondern außerdem die gesamte nördliche Ägäis (Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 87,
+     "text": "1) bezeichnete, wird im folgenden zur Kennzeichnung dieser Meerenge nur die Bezeichnung Dardanellen verwendet.",
+     "cleanText": "1) bezeichnete, wird im folgenden zur Kennzeichnung dieser Meerenge nur die Bezeichnung Dardanellen verwendet.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 88,
+     "text": "Ansonsten werden, wenn nicht anders vermerkt, die antiken Namen für Orte, Flüsse usw.",
+     "cleanText": "Ansonsten werden, wenn nicht anders vermerkt, die antiken Namen für Orte, Flüsse usw.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 89,
+     "text": "verwendet.",
+     "cleanText": "verwendet.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 24,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 90,
+     "text": "dessen problematisches Vorgehen dies sachlich keineswegs gerechtfertigt erscheinen läßt.",
+     "cleanText": "dessen problematisches Vorgehen dies sachlich keineswegs gerechtfertigt erscheinen läßt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 91,
+     "text": "Dieses Verfahren konnte sich dennoch des Beifalls einer breiten Öffentlichkeit gewiß sein.",
+     "cleanText": "Dieses Verfahren konnte sich dennoch des Beifalls einer breiten Öffentlichkeit gewiß sein.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 92,
+     "text": "Der Medienaufwand im Zuge der gegenwärtigen Aktivitäten in Troia trug das Seinige dazu bei.",
+     "cleanText": "Der Medienaufwand im Zuge der gegenwärtigen Aktivitäten in Troia trug das Seinige dazu bei.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 93,
+     "text": "Es mutet bedenklich an, wenn auch heute noch die Ausgräber vor Ort die Hoffnung hegen, ,eines Tages mit dem Spaten wider Erwarten auf eindeutige Beweisstücke (für die Geschichtlichkeit des Mythos) zu stoßen' (J. Cobet).",
+     "cleanText": "Es mutet bedenklich an, wenn auch heute noch die Ausgräber vor Ort die Hoffnung hegen, ,eines Tages mit dem Spaten wider Erwarten auf eindeutige Beweisstücke (für die Geschichtlichkeit des Mythos) zu stoßen' (J. Cobet).",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 94,
+     "text": "So soll der folgende Text, wie es einem Wissen-Band gemäß ist, unsere Kenntnisse zum Thema Troia allgemeinverständlich, aber auch angemessen kritisch darstellen.",
+     "cleanText": "So soll der folgende Text, wie es einem Wissen-Band gemäß ist, unsere Kenntnisse zum Thema Troia allgemeinverständlich, aber auch angemessen kritisch darstellen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 95,
+     "text": "Das Problem der Geschichtlichkeit des Troianischen Krieges soll hier, aufklärerischem Denken verpflichtet, auf philologischem, althistorischem und archäologischem Wege angegangen werden, denn nur eine interdisziplinäre und ,ganzheitliche' Betrachtung kann Erfolg bei der Klärung der aufgetretenen Fragen versprechen.",
+     "cleanText": "Das Problem der Geschichtlichkeit des Troianischen Krieges soll hier, aufklärerischem Denken verpflichtet, auf philologischem, althistorischem und archäologischem Wege angegangen werden, denn nur eine interdisziplinäre und ,ganzheitliche' Betrachtung kann Erfolg bei der Klärung der aufgetretenen Fragen versprechen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 96,
+     "text": "Die seit Aufklärung und Historismus entwickelten und bis heute zunehmend verfeinerten Methoden von Klassischer Philologie und Alter Geschichte sowie eine die bisherigen Grabungsergebnisse kritisch durchleuchtende archäologische Vorgehensweise stellen die Basis der nachfolgenden Ausführungen dar.",
+     "cleanText": "Die seit Aufklärung und Historismus entwickelten und bis heute zunehmend verfeinerten Methoden von Klassischer Philologie und Alter Geschichte sowie eine die bisherigen Grabungsergebnisse kritisch durchleuchtende archäologische Vorgehensweise stellen die Basis der nachfolgenden Ausführungen dar.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 97,
+     "text": "Das Resultat sei bereits hier kurz vorweggenommen: Weder unter philologischem und althistorischem noch unter archäologischem Blickwinkel kann von einem historischen Kern' der Sage die Rede sein.",
+     "cleanText": "Das Resultat sei bereits hier kurz vorweggenommen: Weder unter philologischem und althistorischem noch unter archäologischem Blickwinkel kann von einem historischen Kern' der Sage die Rede sein.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 98,
+     "text": "Nicht ein dem Mythos mehr oder minder entsprechendes Geschehen in der späten Bronzezeit, sondern eine jüngere, ganz anders geartete, geringfügige und sich in ähnlicher Weise an anderen Orten Nordwestkleinasiens abspielende Begebenheit der frühen griechischen Geschichte kommt als Grundlage der Sagenbildung in Betracht: die Besiedlung Troias durch aus Mittelgriechenland stammende Griechen.",
+     "cleanText": "Nicht ein dem Mythos mehr oder minder entsprechendes Geschehen in der späten Bronzezeit, sondern eine jüngere, ganz anders geartete, geringfügige und sich in ähnlicher Weise an anderen Orten Nordwestkleinasiens abspielende Begebenheit der frühen griechischen Geschichte kommt als Grundlage der Sagenbildung in Betracht: die Besiedlung Troias durch aus Mittelgriechenland stammende Griechen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 99,
+     "text": "Von den vielen Schichten, in denen Troia im Laufe der Jahrhunderte immer wieder nach Zerstörungen neu erbaut wurde, bildeten nicht die Schichten Troia VI aus dem Zeitraum 1700-1300 und VIIa aus dem 13.",
+     "cleanText": "Von den vielen Schichten, in denen Troia im Laufe der Jahrhunderte immer wieder nach Zerstörungen neu erbaut wurde, bildeten nicht die Schichten Troia VI aus dem Zeitraum 1700-1300 und VIIa aus dem 13.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 100,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 101,
+     "text": "den Schauplatz aufsehenerregender kriegerischer Ereig9",
+     "cleanText": "den Schauplatz aufsehenerregender kriegerischer Ereig9",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 25,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 102,
+     "text": "nisse; diese spielten sich vielmehr im Zuge eines von der Welt unbemerkten Infiltrationsprozesses griechischer Siedler ab, der nach dem Ende der letzten bronzezeitlichen Schicht, von Troia VIIb 2, im 11.",
+     "cleanText": "nisse; diese spielten sich vielmehr im Zuge eines von der Welt unbemerkten Infiltrationsprozesses griechischer Siedler ab, der nach dem Ende der letzten bronzezeitlichen Schicht, von Troia VIIb 2, im 11.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 103,
+     "text": "Jh., einsetzte.",
+     "cleanText": "Jh., einsetzte.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 104,
+     "text": "Erst im Verlauf dieses Vorgangs kam es infolge besonderer Rahmenbedingungen zur Entwicklung der von Homer gestalteten weltberühmten Sage.",
+     "cleanText": "Erst im Verlauf dieses Vorgangs kam es infolge besonderer Rahmenbedingungen zur Entwicklung der von Homer gestalteten weltberühmten Sage.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 105,
+     "text": "Die Ausbildung dieses Mythos, der fester Bestandteil unseres kulturellen Gedächtnisses wurde, war von Anfang an durch und durch griechisch geprägt.",
+     "cleanText": "Die Ausbildung dieses Mythos, der fester Bestandteil unseres kulturellen Gedächtnisses wurde, war von Anfang an durch und durch griechisch geprägt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 106,
+     "text": "Sie wurde von Faktoren bestimmt, die erst mit der Besiedlung Troias durch Griechen, im 11. und im 10.",
+     "cleanText": "Sie wurde von Faktoren bestimmt, die erst mit der Besiedlung Troias durch Griechen, im 11. und im 10.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 107,
+     "text": "Jh., wirksam wurden, und ist ohne die Entfaltung der frühen griechischen Kultur in Westkleinasien und auf den vorgelagerten Inseln nicht denkbar.",
+     "cleanText": "Jh., wirksam wurden, und ist ohne die Entfaltung der frühen griechischen Kultur in Westkleinasien und auf den vorgelagerten Inseln nicht denkbar.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 108,
+     "text": "Der Leser sollte, wenn er versucht, sich Klarheit über den tatsächlichen Geschehensverlauf zu verschaffen, sich dabei stets bewußt sein, daß die Ilias Homers - also jenes dichterische Großwerk, das am Anfang der abendländischen Literatur steht - sehr viel jünger ist als die Ereignisse, um die es hier geht.",
+     "cleanText": "Der Leser sollte, wenn er versucht, sich Klarheit über den tatsächlichen Geschehensverlauf zu verschaffen, sich dabei stets bewußt sein, daß die Ilias Homers - also jenes dichterische Großwerk, das am Anfang der abendländischen Literatur steht - sehr viel jünger ist als die Ereignisse, um die es hier geht.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 109,
+     "text": "Es entstand erst um 750, und auch wenn das eine oder andere reale Ereignis, das im 11. und 10.",
+     "cleanText": "Es entstand erst um 750, und auch wenn das eine oder andere reale Ereignis, das im 11. und 10.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 110,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 111,
+     "text": "stattgefunden hatte, den Ausgangspunkt der Sagentradition gebildet haben kann, so lag dem Gestalter dieses Epos doch nichts ferner, als eine chronikartige Wiedergabe uralter Geschehnisse zu bieten.",
+     "cleanText": "stattgefunden hatte, den Ausgangspunkt der Sagentradition gebildet haben kann, so lag dem Gestalter dieses Epos doch nichts ferner, als eine chronikartige Wiedergabe uralter Geschehnisse zu bieten.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 112,
+     "text": "Ihm ging es vielmehr um die Behandlung von brennenden Problemen aus seiner Lebenswelt; und so bezieht das Werk, das im Erzählzusammenhang des Troianischen Krieges steht, sein kulturelles Kolorit fast ausschließlich aus der Zeit Homers, also aus dem 8.",
+     "cleanText": "Ihm ging es vielmehr um die Behandlung von brennenden Problemen aus seiner Lebenswelt; und so bezieht das Werk, das im Erzählzusammenhang des Troianischen Krieges steht, sein kulturelles Kolorit fast ausschließlich aus der Zeit Homers, also aus dem 8.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 113,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "век.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 114,
+     "text": "Da Homer wohl eine Zeitlang an Fürstenhöfen in der Troas lebte, stattete er sein Epos mit anscheinend recht genauen Angaben zur lokalen Geographie und zu den Baulichkeiten der Stadt und ihrer Umgebung aus.",
+     "cleanText": "Da Homer wohl eine Zeitlang an Fürstenhöfen in der Troas lebte, stattete er sein Epos mit anscheinend recht genauen Angaben zur lokalen Geographie und zu den Baulichkeiten der Stadt und ihrer Umgebung aus.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Поскольку Гомер, вероятно, некоторое время жил при дворах троянских правителей, он снабдил свою эпическую поэму, по-видимому, весьма точными сведениями о местной географии, а также о постройках города и его окрестностей.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 115,
+     "text": "Bevor die Hauptprobleme bei der archäologischen Erforschung Troias dargestellt werden, verdienen sowohl die Ilias als auch die anderen schriftlichen Quellen zur Sage eine kurze Würdigung: Die Ilias ist wohl ein von dem Dichter Homer am Ende seines Lebens, in Versform - in sogenannten Hexametern - verschriftlichtes Großepos, dem gewiß ältere, abwei10",
+     "cleanText": "Bevor die Hauptprobleme bei der archäologischen Erforschung Troias dargestellt werden, verdienen sowohl die Ilias als auch die anderen schriftlichen Quellen zur Sage eine kurze Würdigung: Die Ilias ist wohl ein von dem Dichter Homer am Ende seines Lebens, in Versform - in sogenannten Hexametern - verschriftlichtes Großepos, dem gewiß ältere, abwei10",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Прежде чем изложить основные проблемы археологического исследования Трои, следует кратко оценить как «Илиаду», так и другие письменные источники предания: «Илиада», по всей вероятности, — большая эпическая поэма, записанная поэтом Гомером в конце жизни стихами — так называемыми гекзаметрами; ей наверняка предшествовали более ранние, отличавшиеся варианты того же стихотворного размера, созданные этим поэтом; только один раздел, так называемый «Каталог кораблей» (2, 484–762), из которого можно узнать, откуда прибыли греки, чтобы отправиться в Трою, мог в более краткой форме быть письменно зафиксированной частью одной из этих предшествующих поэм.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 26,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 116,
+     "text": "chende Fassungen gleichen Versmaßes dieses Dichters vorangegangen sind; nur ein Abschnitt, der sogenannte Schiffskatalog (2, 484-762), aus dem man erfährt, von wo überall die Griechen kamen, um nach Troia aufzubrechen, könnte, in kürzerer Gestalt, schriftlich fixierter Bestandteil eines dieser Vorgängerepen gewesen sein.",
+     "cleanText": "chende Fassungen gleichen Versmaßes dieses Dichters vorangegangen sind; nur ein Abschnitt, der sogenannte Schiffskatalog (2, 484-762), aus dem man erfährt, von wo überall die Griechen kamen, um nach Troia aufzubrechen, könnte, in kürzerer Gestalt, schriftlich fixierter Bestandteil eines dieser Vorgängerepen gewesen sein.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Ей, в свою очередь, вероятно, предшествовали еще более древние эпические поэмы, содержание которых Гомер использовал в своем творчестве.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 117,
+     "text": "Ihnen dürften wiederum noch ältere Epen vorausgegangen sein, deren Inhalte von Homer verarbeitet wurden.",
+     "cleanText": "Ihnen dürften wiederum noch ältere Epen vorausgegangen sein, deren Inhalte von Homer verarbeitet wurden.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Одновременно с Гомером, вероятно, и другие поэты создавали эпические поэмы о Трое, существенно различавшиеся по содержанию.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 118,
+     "text": "Gleichzeitig mit Homer schufen vermutlich andere Dichter gleichfalls Epen zu Troia, die sich inhaltlich durchaus unterschieden.",
+     "cleanText": "Gleichzeitig mit Homer schufen vermutlich andere Dichter gleichfalls Epen zu Troia, die sich inhaltlich durchaus unterschieden.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Вероятно, они дали Гомеру немало идей для создания его собственного произведения.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 119,
+     "text": "Sie dürften Homer manche Anregung für die Ausgestaltung seines eigenen Werkes geliefert haben.",
+     "cleanText": "Sie dürften Homer manche Anregung für die Ausgestaltung seines eigenen Werkes geliefert haben.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Кроме того, похоже, он заимствовал мотивы из произведений на совершенно иные темы.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 120,
+     "text": "Ebenso scheint er Motive aus Dichtungen mit ganz anderer Thematik übernommen zu haben.",
+     "cleanText": "Ebenso scheint er Motive aus Dichtungen mit ganz anderer Thematik übernommen zu haben.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 121,
+     "text": "Bei allen diesen Vorlagen handelte es sich um mündlich und in Hexametern abgefaßte Gedichte.",
+     "cleanText": "Bei allen diesen Vorlagen handelte es sich um mündlich und in Hexametern abgefaßte Gedichte.",
+     "phrases": [
+      {
+       "text": "handelte es sich um",
+       "translations": [
+        {
+         "language": "ru",
+         "text": "это были"
+        }
+       ]
+      }
+     ],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Все эти образцы представляли собой устные стихотворения, написанные гекзаметром.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 122,
+     "text": "Die auf den Dichter gekommene Tradition, seine älteren Versuche und die Integration von Stoffen und Motiven zeitgleicher Epen dürften ebenso wie eine gewisse Unübersichtlichkeit, die die Form des Großepos zwangsläufig mit sich brachte - immerhin umfaßt die Ilias rund 16000 Verse -, die zahlreichen, nicht zu übersehenden Unstimmigkeiten und Widersprüche der Ilias verursacht haben.",
+     "cleanText": "Die auf den Dichter gekommene Tradition, seine älteren Versuche und die Integration von Stoffen und Motiven zeitgleicher Epen dürften ebenso wie eine gewisse Unübersichtlichkeit, die die Form des Großepos zwangsläufig mit sich brachte - immerhin umfaßt die Ilias rund 16000 Verse -, die zahlreichen, nicht zu übersehenden Unstimmigkeiten und Widersprüche der Ilias verursacht haben.",
+     "phrases": [
+      {
+       "text": "mit sich brachte",
+       "translations": [
+        {
+         "language": "ru",
+         "text": "принесла с собой"
+        }
+       ]
+      }
+     ],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Традиция, дошедшая до поэта, его ранние опыты и включение сюжетов и мотивов современных ему эпосов, а также некоторая неупорядоченность, неизбежно присущая форме большого эпоса, — ведь «Илиада» насчитывает около 16 000 стихов, — вероятно, привели к многочисленным, бросающимся в глаза несоответствиям и противоречиям в «Илиаде».",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 123,
+     "text": "Dennoch kann dieses Epos als schöpferisches, vom Willen zu inhaltlicher und stilistischer Stimmigkeit getragenes Werk gelten.",
+     "cleanText": "Dennoch kann dieses Epos als schöpferisches, vom Willen zu inhaltlicher und stilistischer Stimmigkeit getragenes Werk gelten.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Тем не менее этот эпос можно считать творческим произведением, созданным под влиянием стремления к содержательной и стилистической цельности.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 124,
+     "text": "Allerdings ist nicht der gesamte uns bekannte Iliastext ,homerisch', denn der 10.",
+     "cleanText": "Allerdings ist nicht der gesamte uns bekannte Iliastext ,homerisch', denn der 10.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Однако не весь известный нам текст «Илиады» является «гомеровским», поскольку 10-я",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 125,
+     "text": "Gesang, der vom Späherunternehmen des Troianers Dolon erzählt, wurde erst im 7. oder 6.",
+     "cleanText": "Gesang, der vom Späherunternehmen des Troianers Dolon erzählt, wurde erst im 7. oder 6.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "песнь, повествующая о разведывательной вылазке троянца Долона, была создана лишь в VII или VI",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 126,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "веке.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 127,
+     "text": "hinzugefügt, und es gibt gute Gründe, auch mit weit kürzeren Textzusätzen aus späterer Zeit zu rechnen; die betreffenden Textstellen können aber im Rahmen dieses Buches nicht vorgestellt und erörtert werden.",
+     "cleanText": "hinzugefügt, und es gibt gute Gründe, auch mit weit kürzeren Textzusätzen aus späterer Zeit zu rechnen; die betreffenden Textstellen können aber im Rahmen dieses Buches nicht vorgestellt und erörtert werden.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "добавлено, и есть веские основания предполагать также наличие гораздо более коротких текстовых вставок позднейшего времени; однако соответствующие места текста невозможно представить и обсудить в рамках этой книги.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 128,
+     "text": "Thema der Ilias ist übrigens nicht der Troianische Krieg in seiner Gesamtheit, sondern nur eine Episode aus dem 10.",
+     "cleanText": "Thema der Ilias ist übrigens nicht der Troianische Krieg in seiner Gesamtheit, sondern nur eine Episode aus dem 10.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Кстати, темой «Илиады» является не Троянская война в целом, а лишь один эпизод из десятого.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 129,
+     "text": "Jahr der Kampfhandlungen.",
+     "cleanText": "Jahr der Kampfhandlungen.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "года военных действий.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 130,
+     "text": "Dabei handelt es sich um den ,Zorn des Achilleus' und seine schwerwiegenden Folgen für Griechen und Troianer: Der Griechenheld zieht sich, in seiner Ehre getroffen, vom Kampf zurück, als ihm der Oberbefehlshaber des griechischen Heeres, Agamemnon, seine Kriegsbeute, eine",
+     "cleanText": "Dabei handelt es sich um den ,Zorn des Achilleus' und seine schwerwiegenden Folgen für Griechen und Troianer: Der Griechenheld zieht sich, in seiner Ehre getroffen, vom Kampf zurück, als ihm der Oberbefehlshaber des griechischen Heeres, Agamemnon, seine Kriegsbeute, eine",
+     "phrases": [
+      {
+       "text": "handelt es sich um",
+       "translations": [
+        {
+         "language": "ru",
+         "text": "речь идет о"
+        }
+       ]
+      },
+      {
+       "text": "zieht sich",
+       "translations": [
+        {
+         "language": "ru",
+         "text": "отступает"
+        }
+       ]
+      }
+     ],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Речь идет о «гневе Ахилла» и его тяжелых последствиях для греков и троянцев: греческий герой, задетый в своем достоинстве, отходит от сражения, когда главнокомандующий греческим войском Агамемнон отнимает у него военную добычу — прекрасную рабыню,",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 27,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 131,
+     "text": "schöne Sklavin, wegnimmt.",
+     "cleanText": "schöne Sklavin, wegnimmt.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "прекрасную рабыню.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 132,
+     "text": "Im Verlauf der Ilias droht nun den Griechen der Untergang, bis sich Achilleus nach dem Tod seines besten Freundes Patroklos besinnt, den Kampf wieder aufnimmt und den größten Helden der Troianer, Hektor, im Zweikampf tötet.",
+     "cleanText": "Im Verlauf der Ilias droht nun den Griechen der Untergang, bis sich Achilleus nach dem Tod seines besten Freundes Patroklos besinnt, den Kampf wieder aufnimmt und den größten Helden der Troianer, Hektor, im Zweikampf tötet.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "В ходе «Илиады» грекам грозит гибель, пока после смерти своего лучшего друга Патрокла Ахилл не одумывается, не возвращается к битве и не убивает в поединке величайшего героя троянцев Гектора.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 133,
+     "text": "Der Dichter kennt jedoch eine Fülle von Ereignissen aus der Zeit vor und nach der Episode vom Zorn des Achilleus, wie aus vielen mehr oder minder beiläufigen Äußerungen hervorgeht - so z. B. das Urteil des Paris als Auslöser oder die List vom Hölzernen Pferd als Ende des Krieges.",
+     "cleanText": "Der Dichter kennt jedoch eine Fülle von Ereignissen aus der Zeit vor und nach der Episode vom Zorn des Achilleus, wie aus vielen mehr oder minder beiläufigen Äußerungen hervorgeht - so z. B. das Urteil des Paris als Auslöser oder die List vom Hölzernen Pferd als Ende des Krieges.",
+     "phrases": [],
+     "translations": [
+      {
+       "language": "ru",
+       "text": "Однако поэту известно множество событий, относящихся ко времени до и после эпизода гнева Ахилла, что следует из многих более или менее попутных упоминаний, — например, суд Париса как повод к войне или хитрость с деревянным конём как её завершение.",
+       "type": "gemini"
+      }
+     ],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 134,
+     "text": "Zeitlich folgte auf die Ilias die Odyssee, ebenfalls ein Großepos, ca.",
+     "cleanText": "Zeitlich folgte auf die Ilias die Odyssee, ebenfalls ein Großepos, ca.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 135,
+     "text": "730/20 aufgezeichnet, in dessen Zentrum die Irrfahrten und die Heimkehr des Odysseus sowie die damit verbundenen politischen und menschlichen Spannungen stehen.",
+     "cleanText": "730/20 aufgezeichnet, in dessen Zentrum die Irrfahrten und die Heimkehr des Odysseus sowie die damit verbundenen politischen und menschlichen Spannungen stehen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 136,
+     "text": "Zugleich enthält sie zahlreiche Hinweise auf die auf das Iliasgeschehen folgenden Ereignisse, darunter die Eroberung Troias durch die Griechen.",
+     "cleanText": "Zugleich enthält sie zahlreiche Hinweise auf die auf das Iliasgeschehen folgenden Ereignisse, darunter die Eroberung Troias durch die Griechen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 137,
+     "text": "Die Odyssee wurde vielleicht von einem Sohn oder Schüler Homers gedichtet, kurz der Odysseedichter genannt.",
+     "cleanText": "Die Odyssee wurde vielleicht von einem Sohn oder Schüler Homers gedichtet, kurz der Odysseedichter genannt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 138,
+     "text": "Die Entstehung dieses Epos muß man sich prinzipiell ähnlich wie jene der Ilias vorstellen.",
+     "cleanText": "Die Entstehung dieses Epos muß man sich prinzipiell ähnlich wie jene der Ilias vorstellen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 139,
+     "text": "Obwohl hier die Ansicht vertreten wird, daß Ilias und Odyssee nicht auf einen, sondern auf zwei Dichter zurückgehen, wird im Laufe der Untersuchung, wie es in der Forschung üblich ist, der Kürze halber immer wieder auch einfach von ,homerischen Epen' gesprochen.",
+     "cleanText": "Obwohl hier die Ansicht vertreten wird, daß Ilias und Odyssee nicht auf einen, sondern auf zwei Dichter zurückgehen, wird im Laufe der Untersuchung, wie es in der Forschung üblich ist, der Kürze halber immer wieder auch einfach von ,homerischen Epen' gesprochen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 140,
+     "text": "Im 7. und 6.",
+     "cleanText": "Im 7. und 6.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 141,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 142,
+     "text": "wurden von nicht sicher identifizierten Dichtern umfangmäßig viel kleinere und weniger problemorientierte Epen verfaßt.",
+     "cleanText": "wurden von nicht sicher identifizierten Dichtern umfangmäßig viel kleinere und weniger problemorientierte Epen verfaßt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 143,
+     "text": "Es handelt sich dabei um die ,Kyprien', welche die Geschehnisse bis zum Zorn des Achilleus erzählen: die ,Aithiopis', die von den Ereignissen nach dessen Zorn bis zum Selbstmord des sogenannten Großen Aias berichtet, die Jliupersis' mit der Darstellung der Eroberung Troias, die Rosten', welche die Rückfahrt der Griechenhelden behandeln, und die ,Kleine Ilias', die eventuell ein epischer Abriß der gesamten Troia-Sage gewesen ist.",
+     "cleanText": "Es handelt sich dabei um die ,Kyprien', welche die Geschehnisse bis zum Zorn des Achilleus erzählen: die ,Aithiopis', die von den Ereignissen nach dessen Zorn bis zum Selbstmord des sogenannten Großen Aias berichtet, die Jliupersis' mit der Darstellung der Eroberung Troias, die Rosten', welche die Rückfahrt der Griechenhelden behandeln, und die ,Kleine Ilias', die eventuell ein epischer Abriß der gesamten Troia-Sage gewesen ist.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 144,
+     "text": "Leider sind diese Dichtungen nur in Fragmenten und knappen Zusammenfassungen späterer antiker Autoren erhalten.",
+     "cleanText": "Leider sind diese Dichtungen nur in Fragmenten und knappen Zusammenfassungen späterer antiker Autoren erhalten.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 145,
+     "text": "Themen des Troianischen Krieges und aus seinem Umfeld wurden aber in der Antike",
+     "cleanText": "Themen des Troianischen Krieges und aus seinem Umfeld wurden aber in der Antike",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 28,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 146,
+     "text": "nicht nur im Rahmen der hier aufgeführten Werke aufgegriffen und bearbeitet; der wirkungsmächtige Stoff forderte auch die schöpferischen Kräfte der attischen Tragiker Aischylos, Sophokles und Euripides (5.",
+     "cleanText": "nicht nur im Rahmen der hier aufgeführten Werke aufgegriffen und bearbeitet; der wirkungsmächtige Stoff forderte auch die schöpferischen Kräfte der attischen Tragiker Aischylos, Sophokles und Euripides (5.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 147,
+     "text": "Jh.)",
+     "cleanText": "Jh.)",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 148,
+     "text": "ebenso wie die des ,Zweiten Homer', des augusteischen Dichters Vergil in seiner Aeneis (ca.",
+     "cleanText": "ebenso wie die des ,Zweiten Homer', des augusteischen Dichters Vergil in seiner Aeneis (ca.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 149,
+     "text": "30/20), heraus.",
+     "cleanText": "30/20), heraus.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 150,
+     "text": "Wie Vergil so dichteten auch Diktys (4.",
+     "cleanText": "Wie Vergil so dichteten auch Diktys (4.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 151,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 152,
+     "text": "n.",
+     "cleanText": "n.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 153,
+     "text": "Chr.)",
+     "cleanText": "Chr.)",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 154,
+     "text": "und Dares (5.",
+     "cleanText": "und Dares (5.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 155,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 156,
+     "text": "n.",
+     "cleanText": "n.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 157,
+     "text": "Chr.)",
+     "cleanText": "Chr.)",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 158,
+     "text": "in lateinischer Sprache und von den beiden zuletzt Erwähnten stammen sogar Gesamtdarstellungen des Troianischen Krieges in Romanform.",
+     "cleanText": "in lateinischer Sprache und von den beiden zuletzt Erwähnten stammen sogar Gesamtdarstellungen des Troianischen Krieges in Romanform.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 159,
+     "text": "Damit sind bei weitem nicht alle genannt, die sich von dem großartigen Stoff zu eigenem Schaffen anregen ließen, aber den jüngeren wie den älteren Dichtern sowie Homer selbst ist eines gemeinsam: Die Inhalte, mit denen sie arbeiteten, wurden stets umgestaltet und verändert und den individuellen Interessen der Dichter und ihrer Lebenswelt untergeordnet.",
+     "cleanText": "Damit sind bei weitem nicht alle genannt, die sich von dem großartigen Stoff zu eigenem Schaffen anregen ließen, aber den jüngeren wie den älteren Dichtern sowie Homer selbst ist eines gemeinsam: Die Inhalte, mit denen sie arbeiteten, wurden stets umgestaltet und verändert und den individuellen Interessen der Dichter und ihrer Lebenswelt untergeordnet.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 160,
+     "text": "Ein Beweiswert für irgendein historisches Geschehen kommt keinem dieser Texte zu.",
+     "cleanText": "Ein Beweiswert für irgendein historisches Geschehen kommt keinem dieser Texte zu.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 29,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 161,
+     "text": "II.",
+     "cleanText": "II.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 162,
+     "text": "Forschungsgeschichte: Die Sage vom Troianischen Krieg.",
+     "cleanText": "Forschungsgeschichte: Die Sage vom Troianischen Krieg.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 163,
+     "text": "Ein .Dauerbrenner in der Abendländischen Geistesgeschichte' Die philologische Forschung* Die Sage vom Troianischen Krieg wurde im griechischsprachigen byzantinischen Reich unmittelbar in Form der homerischen Epen, aber auch über Bearbeitungen des darin verwendeten Sagenstoffes aus dem 6.",
+     "cleanText": "Ein .Dauerbrenner in der Abendländischen Geistesgeschichte' Die philologische Forschung* Die Sage vom Troianischen Krieg wurde im griechischsprachigen byzantinischen Reich unmittelbar in Form der homerischen Epen, aber auch über Bearbeitungen des darin verwendeten Sagenstoffes aus dem 6.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 164,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 165,
+     "text": "n. Chr.",
+     "cleanText": "n. Chr.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 166,
+     "text": "und dem 12.",
+     "cleanText": "und dem 12.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 167,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 168,
+     "text": "vermittelt.",
+     "cleanText": "vermittelt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 169,
+     "text": "Im Westen Europas, der durch die Herrschaft der Römer zum latinisierten und romanisierten Kulturkreis des Abendlandes gehörte, vollzog sich die Verbreitung besonders über die eben genannten Autoren.",
+     "cleanText": "Im Westen Europas, der durch die Herrschaft der Römer zum latinisierten und romanisierten Kulturkreis des Abendlandes gehörte, vollzog sich die Verbreitung besonders über die eben genannten Autoren.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 170,
+     "text": "Die beginnende Renaissance suchte jedoch die Texte im griechischen Osten: Schon 1353 hatte Petrarca ein Exemplar der homerischen Epen als Geschenk aus Konstantinopel erhalten und 1360 ließ er sie ins Lateinische übersetzen.",
+     "cleanText": "Die beginnende Renaissance suchte jedoch die Texte im griechischen Osten: Schon 1353 hatte Petrarca ein Exemplar der homerischen Epen als Geschenk aus Konstantinopel erhalten und 1360 ließ er sie ins Lateinische übersetzen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 171,
+     "text": "1403/8 brachte Guarino von Verona ca.",
+     "cleanText": "1403/8 brachte Guarino von Verona ca.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 172,
+     "text": "60 Handschriften in den Westen.",
+     "cleanText": "60 Handschriften in den Westen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 173,
+     "text": "Nach der Eroberung Konstantinopels im Jahre 1453 gelangten weitere Texte der Ilias und Odyssee nach West- und Nordeuropa und stießen bald auf ein großes Echo.",
+     "cleanText": "Nach der Eroberung Konstantinopels im Jahre 1453 gelangten weitere Texte der Ilias und Odyssee nach West- und Nordeuropa und stießen bald auf ein großes Echo.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 174,
+     "text": "Die Epen wurden als von Homer geschaffene, große Dichtung verehrt, die Sage vom Troianischen Krieg selbstverständlich als historisches Geschehen angesehen.",
+     "cleanText": "Die Epen wurden als von Homer geschaffene, große Dichtung verehrt, die Sage vom Troianischen Krieg selbstverständlich als historisches Geschehen angesehen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 175,
+     "text": "Mit den 1795 erschienenen ,Prolegomena ad Homerum' (Vorbemerkungen zu einer Neuausgabe des Homer-Textes) von F. A. Wolf schlug die Stunde der kritischen Homerforschung.",
+     "cleanText": "Mit den 1795 erschienenen ,Prolegomena ad Homerum' (Vorbemerkungen zu einer Neuausgabe des Homer-Textes) von F. A. Wolf schlug die Stunde der kritischen Homerforschung.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 176,
+     "text": "Wolf, ältere Ansätze und die kritische Analyse des Alten Testaments (J. G. Eichhorn, Historisch-kritische Einleitung in das Alte Testament [3 Bde, 1780-83]) aufgreifend, ging aufgrund der sachlichen, gedanklichen und sprachlichen Unebenheiten der homerischen Epen davon aus, daß sie keine * Die Klassische Philologie befaßt sich mit der Erforschung der Sprache und Literatur der Griechen und Römer.",
+     "cleanText": "Wolf, ältere Ansätze und die kritische Analyse des Alten Testaments (J. G. Eichhorn, Historisch-kritische Einleitung in das Alte Testament [3 Bde, 1780-83]) aufgreifend, ging aufgrund der sachlichen, gedanklichen und sprachlichen Unebenheiten der homerischen Epen davon aus, daß sie keine * Die Klassische Philologie befaßt sich mit der Erforschung der Sprache und Literatur der Griechen und Römer.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 30,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 177,
+     "text": "einheitlichen Schöpfungen waren, sondern jeweils auf ursprünglich selbständige, fest umrissene dichterische Einheiten kleineren Umfangs zurückgingen.",
+     "cleanText": "einheitlichen Schöpfungen waren, sondern jeweils auf ursprünglich selbständige, fest umrissene dichterische Einheiten kleineren Umfangs zurückgingen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 178,
+     "text": "Nur jeweils eine von ihnen, die größte und bedeutendste, sei von Homer gedichtet worden.",
+     "cleanText": "Nur jeweils eine von ihnen, die größte und bedeutendste, sei von Homer gedichtet worden.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 179,
+     "text": "Erst später, im 6.",
+     "cleanText": "Erst später, im 6.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 180,
+     "text": "Jh., seien diese Kleinepen aufgezeichnet worden, und zwar von einem sog.",
+     "cleanText": "Jh., seien diese Kleinepen aufgezeichnet worden, und zwar von einem sog.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 181,
+     "text": "Redaktor, einem ,Zusammenfüger', der sie in handwerklicher Weise und nur unwesentlich verändert zu Großepen zusammenstellte.",
+     "cleanText": "Redaktor, einem ,Zusammenfüger', der sie in handwerklicher Weise und nur unwesentlich verändert zu Großepen zusammenstellte.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 182,
+     "text": "Das bedeutete, die liebgewordene Vorstellung von einer einzelnen überragenden Dichterpersönlichkeit, dem die Schöpfung der Epen bislang zugeschrieben worden war, aufzugeben.",
+     "cleanText": "Das bedeutete, die liebgewordene Vorstellung von einer einzelnen überragenden Dichterpersönlichkeit, dem die Schöpfung der Epen bislang zugeschrieben worden war, aufzugeben.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 183,
+     "text": "Mit dieser Erkenntnis trat die Forschungsrichtung der ,Analyse' ins Leben, die in unterschiedlicher Ausprägung die Homerphilologie des 19. und frühen 20.Jhs.",
+     "cleanText": "Mit dieser Erkenntnis trat die Forschungsrichtung der ,Analyse' ins Leben, die in unterschiedlicher Ausprägung die Homerphilologie des 19. und frühen 20.Jhs.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 184,
+     "text": "dominieren sollte und noch bis heute nachwirkt.",
+     "cleanText": "dominieren sollte und noch bis heute nachwirkt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 185,
+     "text": "Die Möglichkeit, daß die homerischen Epen ein hohes Maß an geschichtlichen Nachrichten aus alter Zeit enthalten, wurde durch die Analyse in Frage gestellt; meist nahm man nur ein geringfügiges historisches Ereignis der frühen griechischen Geschichte an, das dann später dichterisch ausgestaltet worden sei, wie besonders ausführlich von E. Bethe dargelegt wurde.",
+     "cleanText": "Die Möglichkeit, daß die homerischen Epen ein hohes Maß an geschichtlichen Nachrichten aus alter Zeit enthalten, wurde durch die Analyse in Frage gestellt; meist nahm man nur ein geringfügiges historisches Ereignis der frühen griechischen Geschichte an, das dann später dichterisch ausgestaltet worden sei, wie besonders ausführlich von E. Bethe dargelegt wurde.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 186,
+     "text": "Die Forschungsrichtung, die sich der Analyse in verschiedenen Spielarten entgegenstellte, war der ,Unitarismus': Die Vertreter dieser Richtung waren der Auffassung, daß die ,Ecken und Kanten' der Epen auf einer höheren Ebene durch die dichterische Konzeption zu erklären seien, und versuchten in den Werken einheitliche Schöpfungen Homers und - gegebenenfalls für die Odyssee - des Odysseedichters zu sehen.",
+     "cleanText": "Die Forschungsrichtung, die sich der Analyse in verschiedenen Spielarten entgegenstellte, war der ,Unitarismus': Die Vertreter dieser Richtung waren der Auffassung, daß die ,Ecken und Kanten' der Epen auf einer höheren Ebene durch die dichterische Konzeption zu erklären seien, und versuchten in den Werken einheitliche Schöpfungen Homers und - gegebenenfalls für die Odyssee - des Odysseedichters zu sehen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 187,
+     "text": "Der Unitarismus bestimmte, ausgehend vor allem von den Arbeiten W. Schadewaldts, die Homerphilologie seit den dreißiger Jahren des 20.",
+     "cleanText": "Der Unitarismus bestimmte, ausgehend vor allem von den Arbeiten W. Schadewaldts, die Homerphilologie seit den dreißiger Jahren des 20.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 188,
+     "text": "Jhs.",
+     "cleanText": "Jhs.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 189,
+     "text": "Auch die Unitarier rechneten mit Vorgängerepen und ständiger Neugestaltung der Inhalte, außerdem zeigten sie die Einbindung von Ilias und Odyssee in die Welt des 8.",
+     "cleanText": "Auch die Unitarier rechneten mit Vorgängerepen und ständiger Neugestaltung der Inhalte, außerdem zeigten sie die Einbindung von Ilias und Odyssee in die Welt des 8.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 190,
+     "text": "Jhs.",
+     "cleanText": "Jhs.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 191,
+     "text": "auf.",
+     "cleanText": "auf.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 192,
+     "text": "Dennoch glaubten sie oft, einen nicht (ganz) unbeträchtlichen historischen Kern der Ilias herausfiltern zu können, der für sie ins 13. oder 12.",
+     "cleanText": "Dennoch glaubten sie oft, einen nicht (ganz) unbeträchtlichen historischen Kern der Ilias herausfiltern zu können, der für sie ins 13. oder 12.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 193,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 194,
+     "text": "reichte; dies vertraten so bedeutende Forscherpersönlichkeiten wie Schadewaldt,",
+     "cleanText": "reichte; dies vertraten so bedeutende Forscherpersönlichkeiten wie Schadewaldt,",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 31,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 195,
+     "text": "A. Lesky, U. Holscher und ausgeprochen dezidiert in jüngerer Zeit J. Latacz.",
+     "cleanText": "A. Lesky, U. Holscher und ausgeprochen dezidiert in jüngerer Zeit J. Latacz.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 196,
+     "text": "Nur wenige machten darin eine Ausnahme vor allem A. Heubeck, der der Sage vom Troianischen Krieg die Geschichtlichkeit absprach und den fundamentalen Unterschied zwischen der Welt der Epen und der späten Bronzezeit hervorhob.",
+     "cleanText": "Nur wenige machten darin eine Ausnahme vor allem A. Heubeck, der der Sage vom Troianischen Krieg die Geschichtlichkeit absprach und den fundamentalen Unterschied zwischen der Welt der Epen und der späten Bronzezeit hervorhob.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 197,
+     "text": "Die sich mit dem Unitarismus Schadewaldtscher Prägung berührende ,Neoanalyse' (Neuanalyse), die ebenfalls die Ilias einem Dichter namens Homer zuschrieb, hob im Gegensatz zur alten Analyse nicht die fast unveränderte Übernahme von fest gefügten Einzelliedern, sondern die produktive Verarbeitung von Motiven aus altorientalischer Poesie und mündlicher griechischer Epik neben Homer hervor, deren ,Quellen' Dichtungen waren, die sowohl um Troia als auch um andere Themen kreisten.",
+     "cleanText": "Die sich mit dem Unitarismus Schadewaldtscher Prägung berührende ,Neoanalyse' (Neuanalyse), die ebenfalls die Ilias einem Dichter namens Homer zuschrieb, hob im Gegensatz zur alten Analyse nicht die fast unveränderte Übernahme von fest gefügten Einzelliedern, sondern die produktive Verarbeitung von Motiven aus altorientalischer Poesie und mündlicher griechischer Epik neben Homer hervor, deren ,Quellen' Dichtungen waren, die sowohl um Troia als auch um andere Themen kreisten.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 198,
+     "text": "Der Auffassung, daß man einen historischen Kern aus der Sage vom Troianischen Krieg gewinnen könne, standen die Vertreter dieser Richtung sehr skeptisch gegenüber, was besonders für ihren gegenwärtigen Hauptvertreter, W. Kulimann, gilt.",
+     "cleanText": "Der Auffassung, daß man einen historischen Kern aus der Sage vom Troianischen Krieg gewinnen könne, standen die Vertreter dieser Richtung sehr skeptisch gegenüber, was besonders für ihren gegenwärtigen Hauptvertreter, W. Kulimann, gilt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 199,
+     "text": "Neue Anstöße zum Verständnis der Epenentwicklung brachte die im frühen 20.",
+     "cleanText": "Neue Anstöße zum Verständnis der Epenentwicklung brachte die im frühen 20.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 200,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 201,
+     "text": "einsetzende ,Oral Poetry-Forschung', d.h.",
+     "cleanText": "einsetzende ,Oral Poetry-Forschung', d.h.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 202,
+     "text": "die Untersuchung von seit langem praktizierter und noch lebendiger, mündlicher Heldendichtung.",
+     "cleanText": "die Untersuchung von seit langem praktizierter und noch lebendiger, mündlicher Heldendichtung.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 203,
+     "text": "Lesky hat sie treffend wie folgt charakterisiert: „Der Form nach herrscht Verserzählung vor, deren Einheit nicht die Strophe, sondern der Einzelvers ist.",
+     "cleanText": "Lesky hat sie treffend wie folgt charakterisiert: „Der Form nach herrscht Verserzählung vor, deren Einheit nicht die Strophe, sondern der Einzelvers ist.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 204,
+     "text": "Reden spielen in der Erzählung eine bedeutende Rolle.",
+     "cleanText": "Reden spielen in der Erzählung eine bedeutende Rolle.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 205,
+     "text": "Das einprägsamste Merkmal jedoch ist die beherrschende Rolle typischer Elemente.",
+     "cleanText": "Das einprägsamste Merkmal jedoch ist die beherrschende Rolle typischer Elemente.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 206,
+     "text": "Da ist das stehende Beiwort, die immer wiederkehrende Formel größeren Umfanges, da sind die typischen Szenen wie Rüstung, Ausfahrt, Hochzeit und Leichenfeier.\"",
+     "cleanText": "Da ist das stehende Beiwort, die immer wiederkehrende Formel größeren Umfanges, da sind die typischen Szenen wie Rüstung, Ausfahrt, Hochzeit und Leichenfeier.\"",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 207,
+     "text": "(Zu ergänzen wäre noch ,Kampf, vor allem .Zweikampf herausragender Helden').",
+     "cleanText": "(Zu ergänzen wäre noch ,Kampf, vor allem .Zweikampf herausragender Helden').",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 208,
+     "text": "Die Beobachtung, daß die erwähnten Elemente der Dichtung über lange Zeit hin beibehalten wurden, führte bei vielen Vertretern der Oral Poetry-Forschung zu dem Schluß, die Sprachform des ursprünglichen Werkes sei in ihren wesentlichen Zügen noch faßbar.",
+     "cleanText": "Die Beobachtung, daß die erwähnten Elemente der Dichtung über lange Zeit hin beibehalten wurden, führte bei vielen Vertretern der Oral Poetry-Forschung zu dem Schluß, die Sprachform des ursprünglichen Werkes sei in ihren wesentlichen Zügen noch faßbar.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 209,
+     "text": "Da auch Ilias und Odyssee voll von typischen Elementen dieser Art waren, übertrug man diese Folgerung auf die",
+     "cleanText": "Da auch Ilias und Odyssee voll von typischen Elementen dieser Art waren, übertrug man diese Folgerung auf die",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 32,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 210,
+     "text": "frühe griechische Dichtung (M. Parry).",
+     "cleanText": "frühe griechische Dichtung (M. Parry).",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 211,
+     "text": "Daraus wiederum wurde eine lebendige Erinnerungstradition von der späten Bronzezeit bis auf Homer abgeleitet, d.h.",
+     "cleanText": "Daraus wiederum wurde eine lebendige Erinnerungstradition von der späten Bronzezeit bis auf Homer abgeleitet, d.h.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 212,
+     "text": "es wurde mit der Bewahrung von Eckpunkten des historischen Geschehens über Jahrhunderte hinweg in ganz bestimmten, unverändert gebliebenen Versen der Ilias gerechnet - eine Position, die M. P. Nilsson begründete.",
+     "cleanText": "es wurde mit der Bewahrung von Eckpunkten des historischen Geschehens über Jahrhunderte hinweg in ganz bestimmten, unverändert gebliebenen Versen der Ilias gerechnet - eine Position, die M. P. Nilsson begründete.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 213,
+     "text": "Allerdings ergaben neuere Forschungen zur Oral Poetry, daß sich ein Rückschluß von Homer auf Begebenheiten aus vorhomerischer Zeit verbietet, da man feststellte, daß sich auch die typischen Elemente veränderten oder vergessen, durch neue ersetzt und besonders immer neu zusammengesetzt wurden.",
+     "cleanText": "Allerdings ergaben neuere Forschungen zur Oral Poetry, daß sich ein Rückschluß von Homer auf Begebenheiten aus vorhomerischer Zeit verbietet, da man feststellte, daß sich auch die typischen Elemente veränderten oder vergessen, durch neue ersetzt und besonders immer neu zusammengesetzt wurden.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 214,
+     "text": "Auch wurde wieder ins Zentrum gerückt, was der Oral Poetry schon vor langem aufgefallen war (M. Murko): Selbst dann, wenn einem mündlich weiter vererbten Heldenlied ursprünglich einmal ein historisches Ereignis zugrunde lag, so veränderte sich doch solch ein Heldenlied von Vortrag zu Vortrag unter Einwirkung der sich wandelnden politischen, sozialen und kulturellen Verhältnisse, so daß das auslösende Geschehen nur in weitgehend veränderter Gestalt und ganz neuen Zusammenhängen einverleibt fortlebte.",
+     "cleanText": "Auch wurde wieder ins Zentrum gerückt, was der Oral Poetry schon vor langem aufgefallen war (M. Murko): Selbst dann, wenn einem mündlich weiter vererbten Heldenlied ursprünglich einmal ein historisches Ereignis zugrunde lag, so veränderte sich doch solch ein Heldenlied von Vortrag zu Vortrag unter Einwirkung der sich wandelnden politischen, sozialen und kulturellen Verhältnisse, so daß das auslösende Geschehen nur in weitgehend veränderter Gestalt und ganz neuen Zusammenhängen einverleibt fortlebte.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 215,
+     "text": "Hinzu kam, daß die vor einigen Jahrzehnten ins Leben getretene ,Oral History-Forschung', die die Gedächtnismöglichkeiten des gewöhnlichen' Volkes oder .gemeinen Mannes' untersucht, deutlich machte, daß ein geschichtliches Ereignis in schriftlosen Kulturen und ohne ritualisierte Erinnerungsformen, wie sie beispielsweise die Abendmahlsfeier im christlichen Gottesdienst darstellt, im Normalfall höchstens über drei Generationen, mithin allenfalls neunzig Jahre, bewahrt werden kann.",
+     "cleanText": "Hinzu kam, daß die vor einigen Jahrzehnten ins Leben getretene ,Oral History-Forschung', die die Gedächtnismöglichkeiten des gewöhnlichen' Volkes oder .gemeinen Mannes' untersucht, deutlich machte, daß ein geschichtliches Ereignis in schriftlosen Kulturen und ohne ritualisierte Erinnerungsformen, wie sie beispielsweise die Abendmahlsfeier im christlichen Gottesdienst darstellt, im Normalfall höchstens über drei Generationen, mithin allenfalls neunzig Jahre, bewahrt werden kann.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 216,
+     "text": "Das bedeutet, daß Homer und auch schon den Dichtern, auf deren Lieder er für die Gestaltung der Ilias zurückgegriffen hat, unmöglich noch authentisches historisches Wissen verfügbar war, das die Daten getreulich bewahrte, als ihre Werke entstanden; sie dürfen also nicht einmal als Quellen für Ereignisse aus dem 10. und 11., geschweige denn aus dem 12. und 13.",
+     "cleanText": "Das bedeutet, daß Homer und auch schon den Dichtern, auf deren Lieder er für die Gestaltung der Ilias zurückgegriffen hat, unmöglich noch authentisches historisches Wissen verfügbar war, das die Daten getreulich bewahrte, als ihre Werke entstanden; sie dürfen also nicht einmal als Quellen für Ereignisse aus dem 10. und 11., geschweige denn aus dem 12. und 13.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 217,
+     "text": "Jh., angesehen werden.",
+     "cleanText": "Jh., angesehen werden.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 218,
+     "text": "Die gegenwärtige Situation in der Homerphilologie ist, soweit ich sie überblicke, dadurch gekennzeichnet, daß der uni17",
+     "cleanText": "Die gegenwärtige Situation in der Homerphilologie ist, soweit ich sie überblicke, dadurch gekennzeichnet, daß der uni17",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 33,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 219,
+     "text": "tarische Ansatz zwar das Feld beherrscht, aber viele Unvollkommenheiten der Epen keineswegs , weginterpretiert' werden.",
+     "cleanText": "tarische Ansatz zwar das Feld beherrscht, aber viele Unvollkommenheiten der Epen keineswegs , weginterpretiert' werden.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 220,
+     "text": "Man hat vielmehr erkannt, daß sie von Homer und gegebenenfalls dem Odysseedichter übersehen und daher nicht bereinigt worden sind, was einfach aus den besonderen und schwierigen Entstehungsbedingungen der Epen, so wie sie gerade beschrieben wurden, zu erklären ist (Beispiele: Zeus prophezeit Ilias 8, 469-476 zufolge, daß Achilleus den Hektor im Schiffslager der Griechen beim Leichnam des Patroklos erschlägt, wohingegen Achilleus nach Ilias 22,1 ff.",
+     "cleanText": "Man hat vielmehr erkannt, daß sie von Homer und gegebenenfalls dem Odysseedichter übersehen und daher nicht bereinigt worden sind, was einfach aus den besonderen und schwierigen Entstehungsbedingungen der Epen, so wie sie gerade beschrieben wurden, zu erklären ist (Beispiele: Zeus prophezeit Ilias 8, 469-476 zufolge, daß Achilleus den Hektor im Schiffslager der Griechen beim Leichnam des Patroklos erschlägt, wohingegen Achilleus nach Ilias 22,1 ff.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 221,
+     "text": "Hektor vor der Mauer von Troia tötet, während der tote Patroklos im griechischen Lager aufgebahrt ist; Ilias 5, 576-579 zufolge fällt der Paphlagonenkönig Pylaimenes durch die Hand des Menelaos, nach Ilias 13, 643-659 verläßt aber Pylaimenes Tränen vergießend das Schlachtfeld, weil sein Sohn getötet wurde).",
+     "cleanText": "Hektor vor der Mauer von Troia tötet, während der tote Patroklos im griechischen Lager aufgebahrt ist; Ilias 5, 576-579 zufolge fällt der Paphlagonenkönig Pylaimenes durch die Hand des Menelaos, nach Ilias 13, 643-659 verläßt aber Pylaimenes Tränen vergießend das Schlachtfeld, weil sein Sohn getötet wurde).",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 222,
+     "text": "Und gerade die Neoanalyse, die, wie schon betont, nicht die prinzipielle Einheit des Epos leugnet, liefert mit ihrem Ansatz, daß während des Schaffungsprozesses immer wieder Erzählmotive aus anderen Dichtungen übernommen und dem jeweils aktuellen Stoffbestand eingewoben wurden, eine gute Erklärung für das Vorhandensein vieler Ungereimtheiten.",
+     "cleanText": "Und gerade die Neoanalyse, die, wie schon betont, nicht die prinzipielle Einheit des Epos leugnet, liefert mit ihrem Ansatz, daß während des Schaffungsprozesses immer wieder Erzählmotive aus anderen Dichtungen übernommen und dem jeweils aktuellen Stoffbestand eingewoben wurden, eine gute Erklärung für das Vorhandensein vieler Ungereimtheiten.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 223,
+     "text": "Die althistorische Forschung Die von B. G. Niebuhr zu Beginn des 19.",
+     "cleanText": "Die althistorische Forschung Die von B. G. Niebuhr zu Beginn des 19.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 224,
+     "text": "Jhs.",
+     "cleanText": "Jhs.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 225,
+     "text": "entwickelte Quellenkritik, d.h.",
+     "cleanText": "entwickelte Quellenkritik, d.h.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 226,
+     "text": "die Ermittlung der Zuverlässig- oder Unzuverlässigkeit antiker Schriftquellen, vor allem die Zergliederung der Tradition und die historische Zuordnung der so herauspräparierten Überlieferungsschichten, stellte die Beschäftigung mit der Alten Geschichte auf eine neue Basis.",
+     "cleanText": "die Ermittlung der Zuverlässig- oder Unzuverlässigkeit antiker Schriftquellen, vor allem die Zergliederung der Tradition und die historische Zuordnung der so herauspräparierten Überlieferungsschichten, stellte die Beschäftigung mit der Alten Geschichte auf eine neue Basis.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 227,
+     "text": "Niebuhr, dessen Arbeiten insbesondere den Anfängen der römischen Geschichte gewidmet waren, leugnete den Zeugniswert der homerischen Epen für das darin beschriebene Heldenzeitalter.",
+     "cleanText": "Niebuhr, dessen Arbeiten insbesondere den Anfängen der römischen Geschichte gewidmet waren, leugnete den Zeugniswert der homerischen Epen für das darin beschriebene Heldenzeitalter.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 228,
+     "text": "Und G. Grote äußerte sich in seiner 1846 zum ersten Mal erschienenen Griechischen Geschichte ebenfalls äußerst skeptisch zu dieser Frage.",
+     "cleanText": "Und G. Grote äußerte sich in seiner 1846 zum ersten Mal erschienenen Griechischen Geschichte ebenfalls äußerst skeptisch zu dieser Frage.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 229,
+     "text": "Die meisten Althistoriker des 19. und der ersten Hälfte des 20.",
+     "cleanText": "Die meisten Althistoriker des 19. und der ersten Hälfte des 20.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 230,
+     "text": "Jhs.",
+     "cleanText": "Jhs.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 231,
+     "text": "folgten solchen Einschätzungen.",
+     "cleanText": "folgten solchen Einschätzungen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 34,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 232,
+     "text": "Ein Kenner der griechischen Vor- und Frühgeschichte sowie der Grabungen in Troia, der bedeutende Historiker M. I. Finley, betonte seit den fünfziger Jahren des 20.",
+     "cleanText": "Ein Kenner der griechischen Vor- und Frühgeschichte sowie der Grabungen in Troia, der bedeutende Historiker M. I. Finley, betonte seit den fünfziger Jahren des 20.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 233,
+     "text": "Jhs.",
+     "cleanText": "Jhs.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 234,
+     "text": "wiederholt die Problematik der homerischen Epen als Quellen für die späte Bronzezeit und erwog als eventuell denkbaren historischen Kern' der Ilias eine Zerstörung von Troia, wie wir sie in der Schicht Vila, also um 1200, dokumentiert finden, durch heimatlose, marodierende Gruppen von mykenischen Griechen.",
+     "cleanText": "wiederholt die Problematik der homerischen Epen als Quellen für die späte Bronzezeit und erwog als eventuell denkbaren historischen Kern' der Ilias eine Zerstörung von Troia, wie wir sie in der Schicht Vila, also um 1200, dokumentiert finden, durch heimatlose, marodierende Gruppen von mykenischen Griechen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 235,
+     "text": "F. Hampl betonte, älteren Untersuchungen folgend, die unterschiedliche Herkunft der in der Ilias zusammengeflossenen Heldensagen und maß den gewaltigen Überresten der spätbronzezeitlichen Befestigungsmauer Troias und den Kämpfen landsuchender Griechen in der Troas - im Umland des alten Troia - sagenbildende Kraft zu; dieser Vorgang vollzog sich allerdings erst in der Nachbronzezeit.",
+     "cleanText": "F. Hampl betonte, älteren Untersuchungen folgend, die unterschiedliche Herkunft der in der Ilias zusammengeflossenen Heldensagen und maß den gewaltigen Überresten der spätbronzezeitlichen Befestigungsmauer Troias und den Kämpfen landsuchender Griechen in der Troas - im Umland des alten Troia - sagenbildende Kraft zu; dieser Vorgang vollzog sich allerdings erst in der Nachbronzezeit.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 236,
+     "text": "Auch E. Meyer sah in den Trümmern der alten Stadt einen wichtigen Faktor der Sagenbildung - lag es doch nahe, daß so gewaltige Ruinen den Geist der Nachfahren zu Heldendichtung inspirierten -, glaubte aber im Mythos keinen historischen Kern ausmachen zu können.",
+     "cleanText": "Auch E. Meyer sah in den Trümmern der alten Stadt einen wichtigen Faktor der Sagenbildung - lag es doch nahe, daß so gewaltige Ruinen den Geist der Nachfahren zu Heldendichtung inspirierten -, glaubte aber im Mythos keinen historischen Kern ausmachen zu können.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 237,
+     "text": "J. Cobet bekannte sich 1983 unter kritischer Erörterung der Grabungsresultate ebenfalls zu dieser Grundlinie der Forschung; außerdem wies er auf die an der Stelle der bronzezeitlichen Siedlung angeblich erst um 700 gegründete griechische Stadt Ilion und ihre bis ins 4.",
+     "cleanText": "J. Cobet bekannte sich 1983 unter kritischer Erörterung der Grabungsresultate ebenfalls zu dieser Grundlinie der Forschung; außerdem wies er auf die an der Stelle der bronzezeitlichen Siedlung angeblich erst um 700 gegründete griechische Stadt Ilion und ihre bis ins 4.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 238,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 239,
+     "text": "reichende Geschichte als wichtigen Gegenstand geschichtswissenschaftlicher Forschung hin: Sollte man übersehen dürfen, daß nicht erst unsere Romantiker, sondern auch antike Menschen sich gern eine ,heroische Vergangenheit' konstruierten?",
+     "cleanText": "reichende Geschichte als wichtigen Gegenstand geschichtswissenschaftlicher Forschung hin: Sollte man übersehen dürfen, daß nicht erst unsere Romantiker, sondern auch antike Menschen sich gern eine ,heroische Vergangenheit' konstruierten?",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 240,
+     "text": "Gehört eine solche Erzählung von einer sagenhaften Heldenzeit mit dem gemeinsamen griechischen Feldzug nach Troia nicht vielleicht zu den ,Gründungsmythen' der im 8.",
+     "cleanText": "Gehört eine solche Erzählung von einer sagenhaften Heldenzeit mit dem gemeinsamen griechischen Feldzug nach Troia nicht vielleicht zu den ,Gründungsmythen' der im 8.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 241,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 242,
+     "text": "zu einer Kultur zusammenwachsenden historischen Griechen - Homer als doppelter Anfang: Der ,erste' Text, der von einem ,ersten' großen Ereignis erzählt, der Text als die Spiegelung einer entstehenden kulturellen Identität der Griechen in einer imaginären, vorgestellten' Vergangenheit?",
+     "cleanText": "zu einer Kultur zusammenwachsenden historischen Griechen - Homer als doppelter Anfang: Der ,erste' Text, der von einem ,ersten' großen Ereignis erzählt, der Text als die Spiegelung einer entstehenden kulturellen Identität der Griechen in einer imaginären, vorgestellten' Vergangenheit?",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 243,
+     "text": "Und vermittels einer quellenkritischen Analyse, die die älteren Ansätze ausbaute, gelangte der Verfas19",
+     "cleanText": "Und vermittels einer quellenkritischen Analyse, die die älteren Ansätze ausbaute, gelangte der Verfas19",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 35,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 244,
+     "text": "ser des vorliegenden Buches schließlich 1992 zu der Überzeugung, daß der historische Kern' der Sage vom Troianischen Krieg nur sehr klein sein konnte und in anfangs verlust-, letztlich aber erfolgreichen Kämpfen einer zahlenmäßig kleinen Gruppe von aus Mittelgriechenland stammenden Griechen um Troia, wie die Stadt in der Schicht VII b 2 begegnet, um 1000 besteht.",
+     "cleanText": "ser des vorliegenden Buches schließlich 1992 zu der Überzeugung, daß der historische Kern' der Sage vom Troianischen Krieg nur sehr klein sein konnte und in anfangs verlust-, letztlich aber erfolgreichen Kämpfen einer zahlenmäßig kleinen Gruppe von aus Mittelgriechenland stammenden Griechen um Troia, wie die Stadt in der Schicht VII b 2 begegnet, um 1000 besteht.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 245,
+     "text": "Es bleibt abzuwarten, ob sich die jüngste Auffassung des hethitologisch vorgebildeten Althistorikers P. Högemann trotz mehr als zweihundert Jahren kritischer Troia-Forschung und massiver, wohlbegründeter Zweifel der Fachkollegen wird durchsetzen können, der an die Geschichtlichkeit des legendären Troianischen Krieges glaubt, ihn um 1275 datiert und versucht, ihn in die hethitisch-westkleinasiatische Geschichte einzubetten, wobei tatsächlich Mykener aus Griechenland Troia VI zerstört haben sollen.",
+     "cleanText": "Es bleibt abzuwarten, ob sich die jüngste Auffassung des hethitologisch vorgebildeten Althistorikers P. Högemann trotz mehr als zweihundert Jahren kritischer Troia-Forschung und massiver, wohlbegründeter Zweifel der Fachkollegen wird durchsetzen können, der an die Geschichtlichkeit des legendären Troianischen Krieges glaubt, ihn um 1275 datiert und versucht, ihn in die hethitisch-westkleinasiatische Geschichte einzubetten, wobei tatsächlich Mykener aus Griechenland Troia VI zerstört haben sollen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 246,
+     "text": "Homer erzählt aber eine ganz andere Geschichte, die nichts mit den wenigen und schwachen, aus hethitischen Quellen abgeleiteten Indizien zu tun hat.",
+     "cleanText": "Homer erzählt aber eine ganz andere Geschichte, die nichts mit den wenigen und schwachen, aus hethitischen Quellen abgeleiteten Indizien zu tun hat.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 247,
+     "text": "Die archäologische Forschung In der Antike war man, von wenigen Ausnahmen abgesehen, davon überzeugt, daß das einst von Homer besungene Troia, das bei ihm meist Ilios heißt, an dem Ort der später von Griechen und Römern Ilion bzw.",
+     "cleanText": "Die archäologische Forschung In der Antike war man, von wenigen Ausnahmen abgesehen, davon überzeugt, daß das einst von Homer besungene Troia, das bei ihm meist Ilios heißt, an dem Ort der später von Griechen und Römern Ilion bzw.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 248,
+     "text": "Ilium genannten Stadt gelegen hatte (Abb.",
+     "cleanText": "Ilium genannten Stadt gelegen hatte (Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 249,
+     "text": "2.",
+     "cleanText": "2.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 250,
+     "text": "3).",
+     "cleanText": "3).",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 251,
+     "text": "Dieser war noch um 900 unter dem Namen Ilion Sitz eines byzantinischen Bischofs.",
+     "cleanText": "Dieser war noch um 900 unter dem Namen Ilion Sitz eines byzantinischen Bischofs.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 252,
+     "text": "Jedoch ist unklar, ob man diese Stadt für die Nachfolgesiedlung des sagenhaften Troia hielt.",
+     "cleanText": "Jedoch ist unklar, ob man diese Stadt für die Nachfolgesiedlung des sagenhaften Troia hielt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 253,
+     "text": "Aus Nord- und Westeuropa kommende Reisende suchten jedenfalls seit dem 11.",
+     "cleanText": "Aus Nord- und Westeuropa kommende Reisende suchten jedenfalls seit dem 11.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 254,
+     "text": "Jh.",
+     "cleanText": "Jh.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 255,
+     "text": "Troia in den Ruinen von Alexandreia Troas oder von Sigeion, also an Orten, die an der Westküste der Troas lagen.",
+     "cleanText": "Troia in den Ruinen von Alexandreia Troas oder von Sigeion, also an Orten, die an der Westküste der Troas lagen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 256,
+     "text": "Auch für den türkischen Sultan Mehmed II., den Eroberer von Konstantinopel, der 1462 die Troas besuchte, galt wohl Alexandreia Troas als die homerische Stadt.",
+     "cleanText": "Auch für den türkischen Sultan Mehmed II., den Eroberer von Konstantinopel, der 1462 die Troas besuchte, galt wohl Alexandreia Troas als die homerische Stadt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 257,
+     "text": "Der Drang zur romantischen Vergegenwärtigung des bei den griechischen Dichtern geschilderten Geschehens",
+     "cleanText": "Der Drang zur romantischen Vergegenwärtigung des bei den griechischen Dichtern geschilderten Geschehens",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 36,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 258,
+     "text": "Abb.",
+     "cleanText": "Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 259,
+     "text": "2: Karte der Troas, von Teuthranien, der Halbinsel Chersonesos und der Inseln Imbros, Tenedos und Lesbos.",
+     "cleanText": "2: Karte der Troas, von Teuthranien, der Halbinsel Chersonesos und der Inseln Imbros, Tenedos und Lesbos.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 260,
+     "text": "- Aus: Großer Atlas zur Weltgeschichte, S.",
+     "cleanText": "- Aus: Großer Atlas zur Weltgeschichte, S.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 261,
+     "text": "19, Georg Westermann Verlag, Braunschweig.",
+     "cleanText": "19, Georg Westermann Verlag, Braunschweig.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 262,
+     "text": "Die Flüsse Heptaporos, Seileeis, Pidys und Arisbos sind nicht bezeichnet, wobei letzterer aber an der Stadt Arisbe vorbeifloß.",
+     "cleanText": "Die Flüsse Heptaporos, Seileeis, Pidys und Arisbos sind nicht bezeichnet, wobei letzterer aber an der Stadt Arisbe vorbeifloß.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 37,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 263,
+     "text": "Abb.",
+     "cleanText": "Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 264,
+     "text": "3: Karte der Troas nach der Aufnahme von T. Spratt, vervollständigt 1894.",
+     "cleanText": "3: Karte der Troas nach der Aufnahme von T. Spratt, vervollständigt 1894.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 265,
+     "text": "Der Be§ik Yassı Tepe ist das Vorgebirge ein wenig westlich vom Beúik Sivri Tepe/Beúika Tepe.",
+     "cleanText": "Der Be§ik Yassı Tepe ist das Vorgebirge ein wenig westlich vom Beúik Sivri Tepe/Beúika Tepe.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 266,
+     "text": "Der unmittelbar nördlich von Eski Hisarlık gelegene, aber nicht bezeichnete Hügel ist der Fi÷la Tepe.",
+     "cleanText": "Der unmittelbar nördlich von Eski Hisarlık gelegene, aber nicht bezeichnete Hügel ist der Fi÷la Tepe.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 267,
+     "text": "Karte: Bildarchiv Foto Marburg.",
+     "cleanText": "Karte: Bildarchiv Foto Marburg.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 38,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 268,
+     "text": "um Troia führte im Laufe der Zeit dazu, derartige Identifizierungen in Frage zu stellen.",
+     "cleanText": "um Troia führte im Laufe der Zeit dazu, derartige Identifizierungen in Frage zu stellen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 269,
+     "text": "1785 glaubte J. B. Lechevalier den Ort der Sage auf der ca.",
+     "cleanText": "1785 glaubte J. B. Lechevalier den Ort der Sage auf der ca.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 270,
+     "text": "12 Kilometer südlich der Dardanellen gelegenen Anhöhe ,Ballı Da÷' 2 km südöstlich des Dorfes Bunarbaschi/Pinarbaúı gefunden zu haben - eine Auffassung, die für zwei Generationen die Vorstellungen der gelehrten Welt bestimmen sollte (Abb.",
+     "cleanText": "12 Kilometer südlich der Dardanellen gelegenen Anhöhe ,Ballı Da÷' 2 km südöstlich des Dorfes Bunarbaschi/Pinarbaúı gefunden zu haben - eine Auffassung, die für zwei Generationen die Vorstellungen der gelehrten Welt bestimmen sollte (Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 271,
+     "text": "3).",
+     "cleanText": "3).",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 272,
+     "text": "Die wenig eindrucksvollen Reste im Bereich des viereinhalb Kilometer von den Dardanellen entfernten Schutthügels beim Dorfe Hisarlık hatten bisher bei der Suche nach der Stelle der homerischen Stadt keine Beachtung gefunden, und auch die Frage nach der Lokalisierung des griechisch-römischen IlionIlium hatte noch keine Rolle gespielt.",
+     "cleanText": "Die wenig eindrucksvollen Reste im Bereich des viereinhalb Kilometer von den Dardanellen entfernten Schutthügels beim Dorfe Hisarlık hatten bisher bei der Suche nach der Stelle der homerischen Stadt keine Beachtung gefunden, und auch die Frage nach der Lokalisierung des griechisch-römischen IlionIlium hatte noch keine Rolle gespielt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 273,
+     "text": "1801 konnte E. D. Clarke aufgrund von Funden zahlreicher Münzen, auf denen die Bezeichnung ‚Iliéon' stand - was soviel heißt wie ,Prägung der Hier' -, nachweisen, daß die griechisch-römische Stadt im Bereich von Hisarlık gelegen hatte.",
+     "cleanText": "1801 konnte E. D. Clarke aufgrund von Funden zahlreicher Münzen, auf denen die Bezeichnung ‚Iliéon' stand - was soviel heißt wie ,Prägung der Hier' -, nachweisen, daß die griechisch-römische Stadt im Bereich von Hisarlık gelegen hatte.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 274,
+     "text": "1822 stellte Ch.",
+     "cleanText": "1822 stellte Ch.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 275,
+     "text": "Maclaren in einer Untersuchung der antiken Schriftquellen die These auf, daß die Stelle von Ilion-Ilium mit jener der homerischen Stadt identisch gewesen sei und sie daher bei Hisarlık gelegen haben mußte.",
+     "cleanText": "Maclaren in einer Untersuchung der antiken Schriftquellen die These auf, daß die Stelle von Ilion-Ilium mit jener der homerischen Stadt identisch gewesen sei und sie daher bei Hisarlık gelegen haben mußte.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 276,
+     "text": "Seine Annahme überprüfte er 1847 durch eine Reise in die Troas, woraus 1863 eine Neuausgabe seines Werkes resultierte.",
+     "cleanText": "Seine Annahme überprüfte er 1847 durch eine Reise in die Troas, woraus 1863 eine Neuausgabe seines Werkes resultierte.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 277,
+     "text": "Die von ihm 1822 vertretene These konnte darin erhärtet werden.",
+     "cleanText": "Die von ihm 1822 vertretene These konnte darin erhärtet werden.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 278,
+     "text": "1864 führten J. G. von Hahn, J. Schmidt und E. Ziller auf dem Ballı Da÷ Grabungen durch, die ergaben, daß hier nur eine griechische Siedlung des 7. bis 4.",
+     "cleanText": "1864 führten J. G. von Hahn, J. Schmidt und E. Ziller auf dem Ballı Da÷ Grabungen durch, die ergaben, daß hier nur eine griechische Siedlung des 7. bis 4.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 279,
+     "text": "Jhs., nicht aber eine bedeutend ältere gelegen hatte.",
+     "cleanText": "Jhs., nicht aber eine bedeutend ältere gelegen hatte.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 280,
+     "text": "Die Arbeiten von Maclaren und die erwähnten Grabungen markierten einen entscheidenden Durchbruch in der Lokalisierung.",
+     "cleanText": "Die Arbeiten von Maclaren und die erwähnten Grabungen markierten einen entscheidenden Durchbruch in der Lokalisierung.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 281,
+     "text": "Dennoch konnte sich die Position Lechevaliers auch weiterhin behaupten.",
+     "cleanText": "Dennoch konnte sich die Position Lechevaliers auch weiterhin behaupten.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 282,
+     "text": "Inzwischen bildeten die von T. A. Spratt angefertigte Karte der Troas und die von P.W.",
+     "cleanText": "Inzwischen bildeten die von T. A. Spratt angefertigte Karte der Troas und die von P.W.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 283,
+     "text": "Forchhammer vorgelegte Beschreibung der Örtlichkeiten - auf der Grundlage der 1839 von beiden vor Ort durchgeführten Untersuchungen -, die 1850 erschienen, ein ausgezeichnetes und solides Fundament für wissenschaftliche Reisen und die Diskussion topo24",
+     "cleanText": "Forchhammer vorgelegte Beschreibung der Örtlichkeiten - auf der Grundlage der 1839 von beiden vor Ort durchgeführten Untersuchungen -, die 1850 erschienen, ein ausgezeichnetes und solides Fundament für wissenschaftliche Reisen und die Diskussion topo24",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 39,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 284,
+     "text": "graphischer Fragen (Abb.",
+     "cleanText": "graphischer Fragen (Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 285,
+     "text": "3).",
+     "cleanText": "3).",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 286,
+     "text": "In Kenntnis des neuesten Forschungsstands und mit der Troas bestens vertraut, vertrat F. Calvert, der zeitweise englischer und später ständiger amerikanischer Konsul in der Troas war, spätestens seit 1865 die Auffassung, Troia sei im Bereich von Hisarlık zu suchen.",
+     "cleanText": "In Kenntnis des neuesten Forschungsstands und mit der Troas bestens vertraut, vertrat F. Calvert, der zeitweise englischer und später ständiger amerikanischer Konsul in der Troas war, spätestens seit 1865 die Auffassung, Troia sei im Bereich von Hisarlık zu suchen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 287,
+     "text": "Er erwarb fast die Hälfte des Hügels und veranstaltete Grabungen, wobei er unter anderem auf die Reste des Tempels der Athena Ilias, außerdem auf ältere Schichten und griechische Keramik des 7. und 6.Jhs.",
+     "cleanText": "Er erwarb fast die Hälfte des Hügels und veranstaltete Grabungen, wobei er unter anderem auf die Reste des Tempels der Athena Ilias, außerdem auf ältere Schichten und griechische Keramik des 7. und 6.Jhs.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 288,
+     "text": "stieß.",
+     "cleanText": "stieß.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 289,
+     "text": "Infolge familiärer und dadurch hervorgerufener finanzieller Probleme mußte er jedoch auf eine Fortführung seiner Grabungen verzichten.",
+     "cleanText": "Infolge familiärer und dadurch hervorgerufener finanzieller Probleme mußte er jedoch auf eine Fortführung seiner Grabungen verzichten.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 290,
+     "text": "Als H. Schliemann im Jahre 1868 die Troas besuchte, war also die Frage nach dem Ort der homerischen Stadt schon beantwortet.",
+     "cleanText": "Als H. Schliemann im Jahre 1868 die Troas besuchte, war also die Frage nach dem Ort der homerischen Stadt schon beantwortet.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 291,
+     "text": "Schliemann, in Unkenntnis des erreichten Forschungsstands und ganz im Banne Lechevaliers stehend, grub auf dem Ballı Da÷, wo er die gleiche Erfahrung machte wie seine Vorgänger im Jahre 1864.",
+     "cleanText": "Schliemann, in Unkenntnis des erreichten Forschungsstands und ganz im Banne Lechevaliers stehend, grub auf dem Ballı Da÷, wo er die gleiche Erfahrung machte wie seine Vorgänger im Jahre 1864.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 292,
+     "text": "Nur durch Zufall lernte er Calvert kennen, der ihn auf den Bereich von Hisarlık nicht nur als der Stelle von Ilion-Ilium, sondern auch des alten Troia hinwies, ihm Maclarens Untersuchung empfahl und ihn für seine Theorie gewann.",
+     "cleanText": "Nur durch Zufall lernte er Calvert kennen, der ihn auf den Bereich von Hisarlık nicht nur als der Stelle von Ilion-Ilium, sondern auch des alten Troia hinwies, ihm Maclarens Untersuchung empfahl und ihn für seine Theorie gewann.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 293,
+     "text": "Schliemann - der keineswegs einem Jugendtraum folgte, wie er in seiner eigenen Hagiographie immer behauptete - verfügte über große Reichtümer und war auf der Suche nach einem neuen Lebensinhalt, weshalb er Calverts Anregung zur Duchführung von Großgrabungen auf Hisarlık aufgriff.",
+     "cleanText": "Schliemann - der keineswegs einem Jugendtraum folgte, wie er in seiner eigenen Hagiographie immer behauptete - verfügte über große Reichtümer und war auf der Suche nach einem neuen Lebensinhalt, weshalb er Calverts Anregung zur Duchführung von Großgrabungen auf Hisarlık aufgriff.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 294,
+     "text": "1870 grub er 10 Tage dort, dann meist jeweils mehrere Monate während der Jahre 1871, 1872, 1873, 1876, 1878, 1879, 1882, 1883, 1889 und 1890.",
+     "cleanText": "1870 grub er 10 Tage dort, dann meist jeweils mehrere Monate während der Jahre 1871, 1872, 1873, 1876, 1878, 1879, 1882, 1883, 1889 und 1890.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 295,
+     "text": "Er zeichnete sich zwar durch eine gute Kenntnis der antiken Quellen zur Troas aus, aber ihm fehlte der Zugang zu der inzwischen entwickelten philologischen und althistorischen Forschung.",
+     "cleanText": "Er zeichnete sich zwar durch eine gute Kenntnis der antiken Quellen zur Troas aus, aber ihm fehlte der Zugang zu der inzwischen entwickelten philologischen und althistorischen Forschung.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 296,
+     "text": "Fest von der Glaubwürdigkeit der Sagenüberlieferung überzeugt und unberührt von den methodischen Fortschritten der klassischen Altertumswissenschaft, war er der Meinung, daß dann, wenn die Stelle der homerischen Stadt gefunden sei, damit auch der Nachweis erbracht sein würde,",
+     "cleanText": "Fest von der Glaubwürdigkeit der Sagenüberlieferung überzeugt und unberührt von den methodischen Fortschritten der klassischen Altertumswissenschaft, war er der Meinung, daß dann, wenn die Stelle der homerischen Stadt gefunden sei, damit auch der Nachweis erbracht sein würde,",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 40,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 297,
+     "text": "daß der Troianische Krieg ein tatsächliches Geschehen in alter Zeit gewesen sei.",
+     "cleanText": "daß der Troianische Krieg ein tatsächliches Geschehen in alter Zeit gewesen sei.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 298,
+     "text": "So verquickte er wie viele andere in unreflektierter Weise das Problem der Lokalisierung mit dem der angeblichen Geschichtlichkeit der bei Homer geschilderten Ereignisse.",
+     "cleanText": "So verquickte er wie viele andere in unreflektierter Weise das Problem der Lokalisierung mit dem der angeblichen Geschichtlichkeit der bei Homer geschilderten Ereignisse.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 299,
+     "text": "Weiterhin glaubte er, die Grabungsarchäologie könne klare Indizien dafür erbringen, daß Troia, wie in der Sage geschildert, belagert und erobert worden sei.",
+     "cleanText": "Weiterhin glaubte er, die Grabungsarchäologie könne klare Indizien dafür erbringen, daß Troia, wie in der Sage geschildert, belagert und erobert worden sei.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 300,
+     "text": "Auch besaß er zur Zeit der Aufnahme seiner Grabungen nicht die geringste Erfahrung in der Feldforschung, was zu eklatanten Fehlern in der Grabungstechnik und zu folgenreichen Fehlurteilen führte.",
+     "cleanText": "Auch besaß er zur Zeit der Aufnahme seiner Grabungen nicht die geringste Erfahrung in der Feldforschung, was zu eklatanten Fehlern in der Grabungstechnik und zu folgenreichen Fehlurteilen führte.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 301,
+     "text": "Obwohl von Calvert davor gewarnt, trieb er große Gräben in den Hügel Hisarlık.",
+     "cleanText": "Obwohl von Calvert davor gewarnt, trieb er große Gräben in den Hügel Hisarlık.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 302,
+     "text": "Da er davon überzeugt war, daß die homerische Stadt auf dem Fels gegründet worden sei, trug er die Reste aller von ihm für jünger gehaltenen Schichten rücksichtslos ab.",
+     "cleanText": "Da er davon überzeugt war, daß die homerische Stadt auf dem Fels gegründet worden sei, trug er die Reste aller von ihm für jünger gehaltenen Schichten rücksichtslos ab.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 303,
+     "text": "Die Haltlosigkeit seiner Grabungsmethode ließ zweifellos im Laufe der Jahre nach, perfektioniert wurde seine Vorgehensweise aber nie.",
+     "cleanText": "Die Haltlosigkeit seiner Grabungsmethode ließ zweifellos im Laufe der Jahre nach, perfektioniert wurde seine Vorgehensweise aber nie.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 304,
+     "text": "Darüber hinaus liebte er interpretatorische Schnellschüsse und war keineswegs frei vom Hang zur Selbstinszenierung oder zur Verschleierung von tatsächlichen Befunden.",
+     "cleanText": "Darüber hinaus liebte er interpretatorische Schnellschüsse und war keineswegs frei vom Hang zur Selbstinszenierung oder zur Verschleierung von tatsächlichen Befunden.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 305,
+     "text": "Dennoch gebührt ihm das Verdienst, große finanzielle Mittel in die Grabungen investiert, wichtige Resultate erzielt, einen entscheidenden Beitrag zur Erforschung der Vorgeschichte Nordwestkleinasiens geleistet und das Interesse eines breiten Publikums geweckt zu haben.",
+     "cleanText": "Dennoch gebührt ihm das Verdienst, große finanzielle Mittel in die Grabungen investiert, wichtige Resultate erzielt, einen entscheidenden Beitrag zur Erforschung der Vorgeschichte Nordwestkleinasiens geleistet und das Interesse eines breiten Publikums geweckt zu haben.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 306,
+     "text": "Zu würdigen ist auch, daß ihm rasch die entscheidende siedlungsgeschichtliche Bedeutung von Keramik und Stratigraphie d.h.",
+     "cleanText": "Zu würdigen ist auch, daß ihm rasch die entscheidende siedlungsgeschichtliche Bedeutung von Keramik und Stratigraphie d.h.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 307,
+     "text": "der Untersuchung und Beschreibung der verschiedenen Fundschichten - klar wurde, er die sich gerade entwickelnde Technik der Photographie einsetzte, die Anwendung naturwissenschaftlicher Methoden nicht verschmähte und über die Fähigkeit verfügte, kompetente Mitarbeiter zu gewinnen.",
+     "cleanText": "der Untersuchung und Beschreibung der verschiedenen Fundschichten - klar wurde, er die sich gerade entwickelnde Technik der Photographie einsetzte, die Anwendung naturwissenschaftlicher Methoden nicht verschmähte und über die Fähigkeit verfügte, kompetente Mitarbeiter zu gewinnen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 308,
+     "text": "Als homerische Stadt galt Schliemann bis zu seinem Tode die sogenannte verbrannte Stadt, bis 1882 von ihm als dritte Schicht, dann als zweite gedeutet (Abb.",
+     "cleanText": "Als homerische Stadt galt Schliemann bis zu seinem Tode die sogenannte verbrannte Stadt, bis 1882 von ihm als dritte Schicht, dann als zweite gedeutet (Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 309,
+     "text": "13 a. b - s. Farbteil).",
+     "cleanText": "13 a. b - s. Farbteil).",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 310,
+     "text": "Die in der Campagne des Jahres 1890 erfolgte Entdeckung von gewaltigen Bauresten und mykenischer Keramik der sechsten Schicht beunruhigte ihn zwar, brachte ihn aber dennoch",
+     "cleanText": "Die in der Campagne des Jahres 1890 erfolgte Entdeckung von gewaltigen Bauresten und mykenischer Keramik der sechsten Schicht beunruhigte ihn zwar, brachte ihn aber dennoch",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 41,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 311,
+     "text": "nicht von seiner Meinung ab, die zweite Schicht sei die von Troia - Ilios (Abb.4.13a.",
+     "cleanText": "nicht von seiner Meinung ab, die zweite Schicht sei die von Troia - Ilios (Abb.4.13a.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 312,
+     "text": "b).",
+     "cleanText": "b).",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 313,
+     "text": "Noch im selben Jahr nahm ihm der Tod den Spaten aus der Hand.",
+     "cleanText": "Noch im selben Jahr nahm ihm der Tod den Spaten aus der Hand.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 314,
+     "text": "Obwohl nur schwer für Kritik von außen zugänglich, waren Schliemann seine Mängel als Ausgräber nicht verborgen geblieben.",
+     "cleanText": "Obwohl nur schwer für Kritik von außen zugänglich, waren Schliemann seine Mängel als Ausgräber nicht verborgen geblieben.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 315,
+     "text": "Deshalb nutzte er die Chance, einen auf diesem Felde ausgewiesenen Wissenschaftler zu gewinnen.",
+     "cleanText": "Deshalb nutzte er die Chance, einen auf diesem Felde ausgewiesenen Wissenschaftler zu gewinnen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 316,
+     "text": "Es handelte sich um W. Dörpfeld, der seine Grabungserfahrung 1877-1881 bei den vom Deutschen Reich in Olympia durchgeführten Grabungen erworben hatte.",
+     "cleanText": "Es handelte sich um W. Dörpfeld, der seine Grabungserfahrung 1877-1881 bei den vom Deutschen Reich in Olympia durchgeführten Grabungen erworben hatte.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 317,
+     "text": "Dieser war mit guter humanistischer Bildung ausgestattet und als Architekt ausgebildet, besaß eine scharfe Beobachtungsgabe, sachliches Urteilsvermögen und einen ausgeprägten Sinn für Systematik.",
+     "cleanText": "Dieser war mit guter humanistischer Bildung ausgestattet und als Architekt ausgebildet, besaß eine scharfe Beobachtungsgabe, sachliches Urteilsvermögen und einen ausgeprägten Sinn für Systematik.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 318,
+     "text": "Er nahm seit 1882 an den Grabungen auf Hisarlık teil.",
+     "cleanText": "Er nahm seit 1882 an den Grabungen auf Hisarlık teil.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 319,
+     "text": "Nach dem Tode Schliemanns wurden die Grabungen von ihm in zwei großen Campagnen, 1893 und 1894, fortgeführt und zu einem vorläufigen Abschluß gebracht (dargelegt in dem Werk Troia und Ilion.",
+     "cleanText": "Nach dem Tode Schliemanns wurden die Grabungen von ihm in zwei großen Campagnen, 1893 und 1894, fortgeführt und zu einem vorläufigen Abschluß gebracht (dargelegt in dem Werk Troia und Ilion.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 320,
+     "text": "Ergebnisse der Ausgrabungen in den vorhistorischen und historischen Schichten von Ilion 1870-1894 (publiziert 1902), das die traditionsreiche Idealdarstellung der sogenannten neun Schichten enthält (Abb.",
+     "cleanText": "Ergebnisse der Ausgrabungen in den vorhistorischen und historischen Schichten von Ilion 1870-1894 (publiziert 1902), das die traditionsreiche Idealdarstellung der sogenannten neun Schichten enthält (Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 321,
+     "text": "13 a. b).",
+     "cleanText": "13 a. b).",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 322,
+     "text": "Als Anhänger des Team-Gedankens hatte er sich eine interdisziplinäre Mannschaft zusammengestellt.",
+     "cleanText": "Als Anhänger des Team-Gedankens hatte er sich eine interdisziplinäre Mannschaft zusammengestellt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 323,
+     "text": "Noch mehr als Schliemann stellte er die Technik der Photographie in den Dienst der .Wissenschaft des Spatens'.",
+     "cleanText": "Noch mehr als Schliemann stellte er die Technik der Photographie in den Dienst der .Wissenschaft des Spatens'.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 324,
+     "text": "Die schwierige baugeschichtlich-stratigraphische Situation auf Hisarlık wurde von ihm glänzend bewältigt.",
+     "cleanText": "Die schwierige baugeschichtlich-stratigraphische Situation auf Hisarlık wurde von ihm glänzend bewältigt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 325,
+     "text": "Das ist am leichtesten den von Dörpfeld erstellten Plänen zu entnehmen.",
+     "cleanText": "Das ist am leichtesten den von Dörpfeld erstellten Plänen zu entnehmen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 326,
+     "text": "Die Siedlungsphasen konnten nun viel klarer als vorher geschieden werden.",
+     "cleanText": "Die Siedlungsphasen konnten nun viel klarer als vorher geschieden werden.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 327,
+     "text": "Es zeigte sich, daß es die sogenannte zweite Stadt - und nicht die dritte -, daß es Troia II war, das von einem verheerenden Brand zerstört worden war.",
+     "cleanText": "Es zeigte sich, daß es die sogenannte zweite Stadt - und nicht die dritte -, daß es Troia II war, das von einem verheerenden Brand zerstört worden war.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 328,
+     "text": "1890 konnten neun Schichten oder Städte, und nicht nur sieben wie zuvor, unterschieden werden (Abb.",
+     "cleanText": "1890 konnten neun Schichten oder Städte, und nicht nur sieben wie zuvor, unterschieden werden (Abb.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 329,
+     "text": "13a.",
+     "cleanText": "13a.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 330,
+     "text": "b - s. Farbteil).",
+     "cleanText": "b - s. Farbteil).",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 331,
+     "text": "Außerdem wurden Keramik und Baureste entdeckt, die der sechsten Schicht, also Troia VI, angehörten und aufgrunddessen die Stadt in die Zeit der sog.",
+     "cleanText": "Außerdem wurden Keramik und Baureste entdeckt, die der sechsten Schicht, also Troia VI, angehörten und aufgrunddessen die Stadt in die Zeit der sog.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 332,
+     "text": "mykenischen Kultur Griechenlands datiert werden konnte, die",
+     "cleanText": "mykenischen Kultur Griechenlands datiert werden konnte, die",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 42,
+   "style": "p",
+   "sentences": [
+    {
+     "index": 333,
+     "text": "damals zwischen 1500 und 1000 angesetzt wurde.",
+     "cleanText": "damals zwischen 1500 und 1000 angesetzt wurde.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 334,
+     "text": "Dörpfeld erkannte schnell, daß Troia II seine Rolle als Kandidat für die Gleichsetzung mit jener Stadt, von der die homerischen Epen erzählen, ausgespielt hatte - war es doch viel zu alt, und wies es doch keine Spuren einer kulturellen Verbindung zum griechischen Festland, insbesondere zu Mykene und den anderen von Homer erwähnten Orten, auf.",
+     "cleanText": "Dörpfeld erkannte schnell, daß Troia II seine Rolle als Kandidat für die Gleichsetzung mit jener Stadt, von der die homerischen Epen erzählen, ausgespielt hatte - war es doch viel zu alt, und wies es doch keine Spuren einer kulturellen Verbindung zum griechischen Festland, insbesondere zu Mykene und den anderen von Homer erwähnten Orten, auf.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 335,
+     "text": "Diese Einsicht verfestigte sich bei Dörpfeld in den Campagnen der Jahre 1893 und 1894.",
+     "cleanText": "Diese Einsicht verfestigte sich bei Dörpfeld in den Campagnen der Jahre 1893 und 1894.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 336,
+     "text": "Da ihm klar war, daß spätere Archäologen die Grabungsmethodik verfeinern würden, ließ er eine größere Zahl von Erdkegeln und Arealen unangetastet.",
+     "cleanText": "Da ihm klar war, daß spätere Archäologen die Grabungsmethodik verfeinern würden, ließ er eine größere Zahl von Erdkegeln und Arealen unangetastet.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 337,
+     "text": "So sehr sich Dörpfeld in vielem von Schliemann unterschied, in einem Punkt gab es zwischen ihnen nur unwesentliche Differenzen: Wie Schliemann war Dörpfeld davon überzeugt, daß die Sage einen umfangreichen historischen Kern hatte, der für ihn aber am Ende der Bronzezeit, um 1000, lag, und den man mit Hilfe der Grabungsarchäologie nachweisen konnte.",
+     "cleanText": "So sehr sich Dörpfeld in vielem von Schliemann unterschied, in einem Punkt gab es zwischen ihnen nur unwesentliche Differenzen: Wie Schliemann war Dörpfeld davon überzeugt, daß die Sage einen umfangreichen historischen Kern hatte, der für ihn aber am Ende der Bronzezeit, um 1000, lag, und den man mit Hilfe der Grabungsarchäologie nachweisen konnte.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 338,
+     "text": "Nur in der Beurteilung der Genauigkeit der Tradition machte er Abstriche, so etwa im Hinblick auf die Dimensionen von Troia und die Truppenstärke, von der Homer spricht.",
+     "cleanText": "Nur in der Beurteilung der Genauigkeit der Tradition machte er Abstriche, so etwa im Hinblick auf die Dimensionen von Troia und die Truppenstärke, von der Homer spricht.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 339,
+     "text": "Ansonsten hielt er wie Schliemann bis zu seinem Tode im Jahre 1940 an der Meinung fest, daß die von Homer besungene Stadt von Priamos regiert, von Hektor und anderen verteidigt und von einer großen Koalition griechischer Könige und Heere unter der Führung von Agamemnon und unter maßgeblicher Beteiligung von Helden wie Achilleus, Odysseus, Diomedes und vielen anderen bekämpft und nach langer Belagerung eingenommen worden war.",
+     "cleanText": "Ansonsten hielt er wie Schliemann bis zu seinem Tode im Jahre 1940 an der Meinung fest, daß die von Homer besungene Stadt von Priamos regiert, von Hektor und anderen verteidigt und von einer großen Koalition griechischer Könige und Heere unter der Führung von Agamemnon und unter maßgeblicher Beteiligung von Helden wie Achilleus, Odysseus, Diomedes und vielen anderen bekämpft und nach langer Belagerung eingenommen worden war.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 340,
+     "text": "Einen großen Teil der bei seinen Grabungen auf Hisarlık gemachten Funde hatte Schliemann seiner in Athen aufbewahrten Sammlung einverleibt.",
+     "cleanText": "Einen großen Teil der bei seinen Grabungen auf Hisarlık gemachten Funde hatte Schliemann seiner in Athen aufbewahrten Sammlung einverleibt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 341,
+     "text": "Diese wurde von ihm 1881 dem deutschen Volk geschenkt und in Berlin ausgestellt.",
+     "cleanText": "Diese wurde von ihm 1881 dem deutschen Volk geschenkt und in Berlin ausgestellt.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 342,
+     "text": "Die Bedeutung der Sammlung liegt auch heute noch darin, daß sie nicht nur wichtige Funde der Grabungen Schliemanns, sondern auch solche derjenigen Dörpfelds enthält, darunter viele, für die sich noch die Fundkontexte ermitteln lassen.",
+     "cleanText": "Die Bedeutung der Sammlung liegt auch heute noch darin, daß sie nicht nur wichtige Funde der Grabungen Schliemanns, sondern auch solche derjenigen Dörpfelds enthält, darunter viele, für die sich noch die Fundkontexte ermitteln lassen.",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    },
+    {
+     "index": 343,
+     "text": "Die Veröffentlichung von Schliemanns Sammlung Trojanischer Alter28",
+     "cleanText": "Die Veröffentlichung von Schliemanns Sammlung Trojanischer Alter28",
+     "phrases": [],
+     "translations": [],
+     "timestamp": [
+      null,
+      null
+     ],
+     "notes": []
+    }
+   ]
+  },
+  {
+   "index": 43,
+   "style": "p",
+   "sentences": []
+  }
+ ]
+}
