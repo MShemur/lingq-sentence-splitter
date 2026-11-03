@@ -1,0 +1,86 @@
+name: Fix LingQ sentences
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Ссылка на курс или урок LingQ (для restore: путь runs/<время>/backup/<id>.json)"
+        required: true
+        type: string
+      mode:
+        description: "dry-run = только отчёт, apply = записать в LingQ, restore = вернуть урок из копии"
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+          - restore
+
+permissions:
+  contents: write   # apply commits the run's backups to runs/ so lessons can be restored later
+
+concurrency:
+  group: lingq-fix
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LINGQ_API_KEY: ${{ secrets.LINGQ_API_KEY }}
+      TARGET: ${{ inputs.target }}
+      MODE: ${{ inputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ -z "$LINGQ_API_KEY" ]; then
+            echo "::error::Secret LINGQ_API_KEY is not set (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+          case "$MODE" in
+            dry-run) python3 lingq_fix_splits.py "$TARGET" ;;
+            apply)   python3 lingq_fix_splits.py "$TARGET" --apply ;;
+            restore) python3 lingq_fix_splits.py --restore "$TARGET" ;;
+          esac 2>&1 | tee output.txt
+
+      - name: Report
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## $MODE: \`$TARGET\`"
+            echo
+            echo '```'
+            R=$(ls -d runs/*/ 2>/dev/null | sort | tail -1)
+            if [ -n "$R" ] && [ -f "$R/report.txt" ] && [ "$MODE" != restore ]; then
+              head -c 60000 "$R/report.txt"
+            else
+              head -c 60000 output.txt 2>/dev/null
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report and backup
+        if: always() && inputs.mode != 'restore'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lingq-run
+          path: runs/
+          if-no-files-found: ignore
+
+      - name: Save backup to repository
+        if: success() && inputs.mode == 'apply'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add runs/
+          git diff --cached --quiet && exit 0
+          git commit -m "LingQ apply run: $TARGET"
+          git push
