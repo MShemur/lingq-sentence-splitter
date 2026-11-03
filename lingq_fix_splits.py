@@ -37,7 +37,7 @@ ABBREVIATIONS = {
     "Abb", "Abbn", "Taf", "Kat", "Kap", "Bd", "Bde", "Nr", "Inv", "Inv.-Nr", "Sign", "Slg", "Rar",
     "Ink", "fol", "Fol", "Bl", "Dm", "Hrsg", "hrsg", "Aufl", "Anm", "vgl", "Vgl", "s", "S", "Sp",
     "ca", "Ca", "hl", "Hl", "St", "Dr", "Prof", "bzw", "usw", "etc", "evtl", "ggf", "sog", "u",
-    "z", "B", "d", "Ä", "J", "Jh", "Jhs", "Jhdt", "geb", "gest", "verh", "röm", "lat", "griech",
+    "z", "B", "d", "Ä", "J", "Jh", "Jhs", "Jhdt", "Jt", "Jts", "geb", "gest", "verh", "röm", "lat", "griech",
     "dt", "frz", "ital", "mhd", "ahd", "Mio", "Mrd", "Tsd", "v", "Chr", "n", "a", "o", "ff", "f",
     "ders", "Ders", "Hg", "hg", "ebd", "Ebd", "zit", "Zit", "Gr", "A", "Nachf", "Bibl",
     "Mus", "Stadtbibl", "Staatsbibl", "Univ", "Pl", "Abt", "Ms", "Cod", "Cgm", "Clm", "Hs",
@@ -55,7 +55,15 @@ bevor seit bis mit in im am an auf aus bei nach von vor zu zum zur für über un
 um dieser diese dieses diesen diesem jener jene jedes jeder jede alle viele einige manche kein keine
 nicht nur schon immer zwar ja nein na naja okay ok gut genau tja mein meine sein seine ihre unser
 dabei damit darauf darum dafür dazu davon hinzu zudem zunächst schließlich später erst sogar
+ungefähr etwa vermutlich wahrscheinlich vielleicht allerdings jedoch insgesamt bereits ebenso
+gleichzeitig inzwischen hingegen demgegenüber dagegen stattdessen somit folglich anschließend
+zuerst zuvor seitdem damals heutzutage offenbar offensichtlich tatsächlich natürlich jedenfalls
+immerhin übrigens einerseits andererseits erstens zweitens drittens abb vgl
 """.split())
+
+# Abbreviations that may also END a sentence ("... aus dem 8. Jh. Da Homer ..."): treated like
+# ordinals, i.e. merged only if the next fragment does not start like a new sentence.
+AMBIGUOUS = {"Jh", "Jhs", "Jhdt", "Jt", "Jts", "Chr", "usw", "etc", "ff", "f", "ebd", "Ebd", "Aufl"}
 
 
 def req(method, url, data=None, tries=5):
@@ -89,12 +97,14 @@ def ends_with_abbreviation(text, nxt=""):
     if not m:
         return False
     tok = m.group(1).lstrip("([«„\"'")
+    if tok in AMBIGUOUS:
+        return nxt.lstrip()[:1] in "(0123456789" or first_word(nxt) not in SENTENCE_STARTERS
     if tok in ABBREVIATIONS:                    # also covers "d. Ä." / "z. B." / "Inv.-Nr."
         return True
     # ordinal ("19." Jahrhundert, "21." Mai), initials / roman numerals ("Maximilian I.", "F.A.Z."):
     # ambiguous, a real sentence can end like that ("... zum Typ 3."), so look at what follows
     if re.fullmatch(r"\d{1,2}|[A-ZÄÖÜ]|[IVX]{1,4}|([A-ZÄÖÜ]\.)+[A-ZÄÖÜ]", tok):
-        if nxt.lstrip().startswith("("):        # "Theodosius I. (379–395)"
+        if nxt.lstrip()[:1] in "(0123456789":  # "Theodosius I. (379–395)", "(Abb. 1. 2)"
             return True
         return first_word(nxt) not in SENTENCE_STARTERS
     return False
@@ -106,7 +116,7 @@ def should_merge(prev, nxt):
         return False
     if ends_with_abbreviation(p, n):
         return True
-    if n[0] in ")]»,;:" or n[0].islower():      # next one can't start a sentence
+    if n[0] in ")]»,;:*" or n[0].islower():      # next one can't start a sentence
         return True
     if p.endswith(("?", "!")) and p.count("(") > p.count(")"):   # "(?" split inside brackets
         return True
