@@ -2,7 +2,7 @@
 lingq_key.txt
 .env
 # local history from the first runs on this PC
-backup/
+/backup/
 report-*.txt
 Dürer_Venedig_LingQ.txt
 __pycache__/

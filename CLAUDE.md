@@ -15,7 +15,7 @@ The user sends a LingQ course or lesson link, e.g.
 
 1. Dry run (writes nothing to LingQ):
    `python lingq_fix_splits.py "<link>"`
-2. Read `runs/<stamp>/report.txt` and summarize: lessons, number of changes per lesson,
+2. Read `runs/<stamp>/report.md` and summarize: lessons, number of changes per lesson,
    typical abbreviations, and anything suspicious. Suspicious means a merge where the second part
    clearly starts a new sentence, or a sentence that still ends with an abbreviation.
    If an abbreviation is missing, add it to `ABBREVIATIONS` in the script and run again.

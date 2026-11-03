@@ -13,7 +13,7 @@ Usage (TARGET = course/lesson URL, or a numeric course id):
   e.g. https://www.lingq.com/ru/learn/de/web/library/course/2951278
        https://www.lingq.com/ru/learn/de/web/lesson/47481004
 
-Each run writes runs/<stamp>/report.txt and runs/<stamp>/backup/<lesson id>.json.
+Each run writes runs/<stamp>/report.md and runs/<stamp>/backup/<lesson id>.json.
 API key: env var LINGQ_API_KEY, or file lingq_key.txt next to this script.
 """
 import argparse, datetime, json, os, re, sys, time, urllib.request, urllib.error
@@ -44,6 +44,19 @@ ABBREVIATIONS = {
 }
 LAST_TOKEN = re.compile(r"(\S+)\.$")
 
+# Words that typically START a new sentence. After an ordinal ("3.") or a single letter ("A.")
+# we only merge if the next fragment does NOT begin with one of these:
+#   "im 19. | Jahrhundert" -> merge;  "zum Typ 3. | Und Rover ..." -> keep apart.
+SENTENCE_STARTERS = set("""
+der die das den dem des ein eine einer eines einem einen und aber doch oder denn sondern so also
+dann da danach daher deshalb deswegen trotzdem außerdem auch noch nun jetzt heute hier dort
+es er sie ich wir ihr man wer was wie wo wann warum wenn als weil dass ob obwohl während nachdem
+bevor seit bis mit in im am an auf aus bei nach von vor zu zum zur für über unter durch gegen ohne
+um dieser diese dieses diesen diesem jener jene jedes jeder jede alle viele einige manche kein keine
+nicht nur schon immer zwar ja nein na naja okay ok gut genau tja mein meine sein seine ihre unser
+dabei damit darauf darum dafür dazu davon hinzu zudem zunächst schließlich später erst sogar
+""".split())
+
 
 def req(method, url, data=None, tries=5):
     body = json.dumps(data).encode() if data is not None else None
@@ -66,17 +79,24 @@ def req(method, url, data=None, tries=5):
     raise RuntimeError(f"{method} {url}: too many retries")
 
 
-def ends_with_abbreviation(text):
+def first_word(text):
+    m = re.match(r"[\W\d_]*([^\W\d_]+)", text)
+    return m.group(1).lower() if m else ""
+
+
+def ends_with_abbreviation(text, nxt=""):
     m = LAST_TOKEN.search(text.rstrip())
     if not m:
         return False
     tok = m.group(1).lstrip("([«„\"'")
     if tok in ABBREVIATIONS:                    # also covers "d. Ä." / "z. B." / "Inv.-Nr."
         return True
-    if re.fullmatch(r"\d{1,2}", tok):          # ordinal: "19." Jahrhundert, "21." Mai
-        return True
-    if re.fullmatch(r"[A-ZÄÖÜ]", tok):          # initials / roman numeral: "Maximilian I."
-        return True
+    # ordinal ("19." Jahrhundert, "21." Mai), initials / roman numerals ("Maximilian I.", "F.A.Z."):
+    # ambiguous, a real sentence can end like that ("... zum Typ 3."), so look at what follows
+    if re.fullmatch(r"\d{1,2}|[A-ZÄÖÜ]|[IVX]{1,4}|([A-ZÄÖÜ]\.)+[A-ZÄÖÜ]", tok):
+        if nxt.lstrip().startswith("("):        # "Theodosius I. (379–395)"
+            return True
+        return first_word(nxt) not in SENTENCE_STARTERS
     return False
 
 
@@ -84,7 +104,7 @@ def should_merge(prev, nxt):
     p, n = prev.rstrip(), nxt.lstrip()
     if not n:
         return False
-    if ends_with_abbreviation(p):
+    if ends_with_abbreviation(p, n):
         return True
     if n[0] in ")]»,;:" or n[0].islower():      # next one can't start a sentence
         return True
@@ -135,15 +155,15 @@ def fix_paragraphs(paragraphs):
             for k in ("text", "cleanText"):
                 if k in s and clean_text(s[k]) != s[k]:
                     if k == "text":
-                        changes.append(("[CLEANUP] ", s[k]))
+                        changes.append(("cleanup", s[k], ""))
                     s[k] = clean_text(s[k])
         out = []
         for s in p["sentences"]:
             if out and len(norm(out[-1]["text"])) > 10 and norm(s["text"]).startswith(norm(out[-1]["text"])):
-                changes.append(("[DUPLICATE dropped] ", out[-1]["text"]))
+                changes.append(("dup", out[-1]["text"], ""))
                 out[-1] = s                         # LingQ duplicated a fragment: keep the full one
             elif out and should_merge(out[-1]["text"], s["text"]):
-                changes.append((out[-1]["text"], s["text"]))
+                changes.append(("merge", out[-1]["text"], s["text"]))
                 out[-1] = merge_sentences(out[-1], s)
             else:
                 out.append(s)
@@ -206,11 +226,21 @@ def main():
     rdir = os.path.join(HERE, "runs", stamp)
     bdir = os.path.join(rdir, "backup")
     os.makedirs(bdir, exist_ok=True)
-    report = open(os.path.join(rdir, "report.txt"), "w", encoding="utf-8")
 
-    def log(s=""):
-        print(s)
-        report.write(s + "\n")
+    out = []
+
+    def md(t):
+        for ch in chr(92) + "`*_[]<>|#":         # escape markdown specials (backslash first)
+            t = t.replace(ch, chr(92) + ch)
+        return t
+
+    def tail(t, n=55):
+        t = norm(t)
+        return ("…" if len(t) > n else "") + t[-n:]
+
+    def head(t, n=55):
+        t = norm(t)
+        return t[:n] + ("…" if len(t) > n else "")
 
     if lesson:
         d = req("GET", f"{API}/{LANG}/lessons/{lesson}/")
@@ -219,9 +249,8 @@ def main():
         lessons = lesson_list(course)
         if a.lesson:
             lessons = [l for l in lessons if l["id"] in a.lesson]
-    total = 0
-    what = f"lesson {lesson}" if lesson else f"course {course}"
-    log(f"{'APPLY' if a.apply else 'DRY RUN'} [{LANG}] {what}, {len(lessons)} lessons")
+    total, touched, untouched = 0, 0, []
+    print(f"{'APPLY' if a.apply else 'DRY RUN'} [{LANG}] {lesson or course}, {len(lessons)} lessons")
     for l in lessons:
         ed = req("GET", f"{API}/{LANG}/lessons/{l['id']}/editor/")
         json.dump({"id": l["id"], "lang": LANG, "title": l["title"], "paragraphs": ed["paragraphs"]},
@@ -229,17 +258,48 @@ def main():
                   ensure_ascii=False, indent=1)
         paras = json.loads(json.dumps(ed["paragraphs"]))
         changes = fix_paragraphs(paras)
+        print(f"  {l['id']}  {l['title'][:60]}  -> {len(changes)}")
+        if not changes:
+            untouched.append(l["title"])
+            time.sleep(0.5)
+            continue
         total += len(changes)
-        log(f"\n== {l['id']}  {l['title']}  -> {len(changes)} changes")
-        for x, y in changes:
-            log(f"   …{x[-45:]!s}  ⟶  {y[:45]!s}…")
-        if changes and a.apply:
+        touched += 1
+        merges = [c for c in changes if c[0] == "merge"]
+        dups = [c for c in changes if c[0] == "dup"]
+        cleanups = [c for c in changes if c[0] == "cleanup"]
+        url = f"https://www.lingq.com/{LANG}/learn/{LANG}/web/lesson/{l['id']}"
+        out.append(f"### [{md(l['title'])}]({url}): {len(merges)} склеек")
+        for _, x, y in merges:
+            out.append(f"- {md(tail(x))} **‖** {md(head(y))}")
+        for _, x, _ in dups:
+            out.append(f"- 🗑 убран повтор: _{md(head(x, 80))}_")
+        if cleanups:
+            out.append(f"- 🔧 исправлены символы (․ → . , \\[ → [) в {len(cleanups)} предложениях")
+        if a.apply:
             req("PATCH", f"{API}/{LANG}/lessons/{l['id']}/", {"paragraphs": paras})
-            log("   saved")
+            out.append("- ✅ **записано в LingQ**")
             time.sleep(2)
+        out.append("")
         time.sleep(0.5)
-    log(f"\nTotal changes: {total}. Report and backup: {os.path.relpath(rdir, HERE)}")
-    report.close()
+
+    title = "✅ Записано в LingQ" if a.apply else "🔍 Пробный прогон: в LingQ ничего не изменено"
+    what = f"урок {lesson}" if lesson else f"курс {course}"
+    hdr = [f"## {title}", "",
+           f"{what} · уроков: {len(lessons)} · с правками: {touched} · всего правок: {total}", ""]
+    if total and not a.apply:
+        hdr += ["**Как читать:** каждая строка показывает место, где LingQ разрезал одно предложение на два. "
+                "**‖** означает место будущей склейки. Слева конец первого куска, справа начало второго. "
+                "Если по обе стороны от **‖** на самом деле два разных предложения, это ошибка, напишите о ней.",
+                "Если всё в порядке, запустите ещё раз с режимом **apply**.", ""]
+    foot = []
+    if untouched:
+        foot += ["", f"<details><summary>Без изменений: {len(untouched)} уроков</summary>", ""]
+        foot += [f"- {md(t)}" for t in untouched]
+        foot += ["", "</details>"]
+    foot += ["", f"Резервная копия уроков: `{os.path.relpath(bdir, HERE)}`"]
+    open(os.path.join(rdir, "report.md"), "w", encoding="utf-8").write("\n".join(hdr + out + foot) + "\n")
+    print(f"\nTotal changes: {total}. Report: {os.path.relpath(rdir, HERE)}/report.md")
 
 
 if __name__ == "__main__":

@@ -53,18 +53,12 @@ jobs:
         if: always()
         shell: bash
         run: |
-          {
-            echo "## $MODE: \`$TARGET\`"
-            echo
-            echo '```'
-            R=$(ls -d runs/*/ 2>/dev/null | sort | tail -1)
-            if [ -n "$R" ] && [ -f "$R/report.txt" ] && [ "$MODE" != restore ]; then
-              head -c 60000 "$R/report.txt"
-            else
-              head -c 60000 output.txt 2>/dev/null
-            fi
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          R=$(ls -d runs/*/ 2>/dev/null | sort | tail -1)
+          if [ -n "$R" ] && [ -f "$R/report.md" ] && [ "$MODE" != restore ]; then
+            head -c 900000 "$R/report.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            { echo "## $MODE: \`$TARGET\`"; echo; echo '```'; head -c 60000 output.txt 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload report and backup
         if: always() && inputs.mode != 'restore'
