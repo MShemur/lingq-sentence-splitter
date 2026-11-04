@@ -43,7 +43,14 @@ jobs:
             exit 1
           fi
           mkdir -p android/app/signing
-          echo "$KEYSTORE_B64" | base64 -d > android/app/signing/release.p12
+          # tolerate spaces / line breaks picked up while copying the secret
+          printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t' > /tmp/ks.b64
+          echo "secret length (without whitespace): $(wc -c < /tmp/ks.b64)"
+          if ! base64 -d /tmp/ks.b64 > android/app/signing/release.p12; then
+            echo "::error::ANDROID_KEYSTORE_B64 is not valid base64: paste the whole content of ANDROID_KEYSTORE_B64.txt"
+            exit 1
+          fi
+          echo "keystore size: $(wc -c < android/app/signing/release.p12) bytes"
 
       - name: Build APK
         env:
