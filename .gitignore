@@ -7,3 +7,10 @@ report-*.txt
 Dürer_Venedig_LingQ.txt
 __pycache__/
 *.lnk
+# Android build output and the signing key (kept only locally + as GitHub secret)
+android/.gradle/
+android/build/
+android/app/build/
+android/app/signing/
+android/local.properties
+.idea/

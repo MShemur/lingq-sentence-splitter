@@ -40,6 +40,20 @@ Restore a lesson: `python lingq_fix_splits.py --restore runs/<stamp>/backup/<les
   a custom one (`lingq-lesson-fixer/1.0`). If it still happens, report it rather than spoofing a browser.
 - Only Python standard library is used; no install step needed.
 
+## Android app (`android/`)
+
+Kotlin + Jetpack Compose app "LingQ Fix": uploads .txt/.md/.epub or pasted text to a LingQ course,
+fixes sentence splits of new or existing lessons, keeps backups on the phone, updates itself from
+GitHub releases. `Fixer.kt` is a port of the merge rules in `lingq_fix_splits.py`:
+**when you change ABBREVIATIONS / SENTENCE_STARTERS / AMBIGUOUS / should_merge, change both.**
+
+- Built only in CI (`.github/workflows/android.yml`): every push touching `android/` builds a signed
+  APK and publishes release `v1.<run number>` (versionCode = run number). No local SDK needed.
+- Signing key is NOT in git: secrets `ANDROID_KEYSTORE_B64` (base64 of the PKCS12 file) and
+  `ANDROID_KEYSTORE_PASSWORD`; alias `lingqfix`. The original file lives only on the user's PC in
+  `android/app/signing/`. Never generate a new key: Android refuses updates signed with another key.
+- The app downloads releases with a fine-grained GitHub token (Contents: read) entered in its settings.
+
 ## How the API works (verified 2026-11)
 
 - Auth header `Authorization: Token <key>`.
