@@ -7,6 +7,23 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -211,6 +228,38 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         app.say(if (on) "Предложение в закладках" else "Закладка удалена")
     }
 
+    // --- tablet: docked word panel; sentence mode translation fold ---
+
+    /** Wide screen (tablet): page-turn buttons and the docked word panel are available. */
+    var wide by mutableStateOf(false)
+    var docked by mutableStateOf(app.prefs.dockPanel)
+    val panelActive get() = wide && docked
+
+    fun setDock(on: Boolean) {
+        docked = on
+        app.prefs.dockPanel = on
+        if (!on) { popup = null; closePhrase() }
+    }
+
+    var smTranslation by mutableStateOf(app.prefs.smTranslation)
+
+    fun toggleSmTranslation() { smTranslation = !smTranslation; app.prefs.smTranslation = smTranslation }
+
+    /** A tap: translation above the word; with the docked panel the word also shows there. */
+    fun tapWord(ref: WordRef) {
+        tap(ref)
+        if (panelActive) openPopup(ref)
+    }
+
+    /** Chat about one word / several words in their sentence. */
+    fun chatWord(sentId: Int, word: String) {
+        val st = sentById[sentId] ?: return
+        popup = null
+        closePhrase()
+        val sys = Prompts.fill(app.prefs.promptChatWord, "lang" to lang, "target" to target, "word" to word, "sentence" to st.text)
+        app.go(Screen.Chat(ChatSession(app, "Чат о слове «$word»", sys, "$word\n\n${st.text}", kind = "word")))
+    }
+
     // --- several words: long press on a word and drag over the others ---
 
     /** Where each word is on screen, per view ("text" pages, "sent" sentence mode); for hit tests while dragging. */
@@ -270,6 +319,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         val p = Phrase(sent, from, to, text)
         focusSent = sent
         selSent = sent; selFrom = from; selTo = to
+        popup = null
         phrase = p
         phraseBest = chosen[text.lowercase()]
         phraseOptions = emptyList(); phraseNote = ""; phraseError = null; phraseLoading = true
@@ -599,6 +649,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** Double tap: window with all meanings to choose from. */
     fun openPopup(ref: WordRef) {
         run {
+            if (phrase != null) closePhrase()
             focusSent = ref.sent
             popup = ref
             popupHints = null
@@ -640,14 +691,14 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         pins[ref] = m
         // other places where this word is already pinned get the chosen meaning too
         pins.keys.filter { word(it).equals(word(ref), ignoreCase = true) }.forEach { pins[it] = m }
-        popup = null
+        if (!panelActive) popup = null
         persist()
     }
 
     fun unpin(ref: WordRef) {
         pins.remove(ref)
         chosen.remove(word(ref).lowercase())
-        popup = null
+        if (!panelActive) popup = null
         persist()
     }
 
@@ -759,6 +810,8 @@ fun ReaderProgress(s: ReaderSession) {
 @Composable
 fun ReaderScreen(s: ReaderSession) {
     LaunchedEffect(s) { if (s.paragraphs == null) s.load() }
+    val wide = LocalConfiguration.current.screenWidthDp > 600
+    SideEffect { s.wide = wide }
     val paras = s.paragraphs
     val err = s.error
     when {
@@ -769,10 +822,18 @@ fun ReaderScreen(s: ReaderSession) {
         paras == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-        else -> PagedText(s, paras)
+        else -> Row(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxHeight()) { PagedText(s, paras) }
+            if (s.panelActive) {
+                VerticalDivider()
+                DockedPanel(s, Modifier.width(PANEL_WIDTH).fillMaxHeight())
+            }
+        }
     }
-    s.popup?.let { ref -> WordSheet(s, ref) }
-    s.phrase?.let { p -> PhraseSheet(s, p) }
+    if (!s.panelActive) {
+        s.popup?.let { ref -> WordSheet(s, ref) }
+        s.phrase?.let { p -> PhraseSheet(s, p) }
+    }
 }
 
 /** Part of a paragraph that lies on one page. */
@@ -870,7 +931,7 @@ private fun PagedText(s: ReaderSession, paras: List<List<Sent>>) {
     val sentTrStyle = MaterialTheme.typography.bodyMedium
     val widths = remember(s.font, density) { HashMap<String, Int>() }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val padH = with(density) { 16.dp.roundToPx() }
+        val padH = with(density) { sidePad(s).roundToPx() }
         val padV = with(density) { 12.dp.roundToPx() }
         val gap = with(density) { 14.dp.roundToPx() }
         val w = (constraints.maxWidth - 2 * padH).coerceAtLeast(1)
@@ -949,13 +1010,80 @@ private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
         if (i >= 0 && i != pager.currentPage) pager.animateScrollToPage(i)
         s.syncTo = null
     }
-    HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents) }
+    Box(Modifier.fillMaxSize()) {
+        HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = sidePad(s), vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents) }
+            }
         }
+        if (s.wide) TurnButtons(pager)
+    }
+}
+
+private val PANEL_WIDTH = 340.dp
+
+/** Text side padding: room for the page-turn buttons on a tablet. */
+private fun sidePad(s: ReaderSession): Dp = if (s.wide) 64.dp else 16.dp
+
+/** Round translucent ‹ › buttons at the sides (tablet); hidden on the first / last page. */
+@Composable
+private fun BoxScope.TurnButtons(pager: PagerState) {
+    val scope = rememberCoroutineScope()
+    if (pager.currentPage > 0) TurnButton(
+        Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Предыдущая страница",
+        Modifier.align(Alignment.CenterStart).padding(start = 8.dp),
+    ) { scope.launch { pager.animateScrollToPage(pager.currentPage - 1) } }
+    if (pager.currentPage < pager.pageCount - 1) TurnButton(
+        Icons.AutoMirrored.Filled.KeyboardArrowRight, "Следующая страница",
+        Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
+    ) { scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } }
+}
+
+@Composable
+private fun TurnButton(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, modifier: Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick, shape = CircleShape, modifier = modifier.size(44.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+    ) {
+        Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = desc) }
+    }
+}
+
+/** Tablet: the word / phrase window docked at the right; ✕ undocks it. */
+@Composable
+private fun DockedPanel(s: ReaderSession, modifier: Modifier) {
+    Column(modifier.background(MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (s.phrase != null) "Фраза" else "Слово", Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+            )
+            IconButton(onClick = { s.setDock(false) }) { Icon(Icons.Filled.Close, contentDescription = "Открепить панель") }
+        }
+        Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
+            val p = s.phrase
+            val ref = s.popup
+            when {
+                p != null -> PhraseContent(s, p)
+                ref != null -> WordContent(s, ref)
+                else -> Text(
+                    "Нажмите на слово — здесь появятся его значения. Зажмите слово и проведите по соседним — " +
+                        "здесь будет перевод этих слов вместе.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline,
+                )
+            }
+        }
+    }
+}
+
+/** Pin button of the word / phrase window: dock it at the right (tablet only). */
+@Composable
+private fun DockButton(s: ReaderSession) {
+    if (s.wide && !s.docked) IconButton(onClick = { s.setDock(true) }) {
+        Icon(AppIcons.PushPin, contentDescription = "Закрепить справа")
     }
 }
 
@@ -977,13 +1105,16 @@ private fun Paragraph(s: ReaderSession, para: List<Sent>) {
 }
 
 @Composable
-private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f, area: String = "text") {
+private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f, area: String = "text", center: Boolean = false) {
     val size = s.font * scale
     val haptic = LocalHapticFeedback.current
     val selBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = size.sp, lineHeight = (size * 1.35).sp)
     val trStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (size * 0.6).sp, lineHeight = (size * 0.68).sp)
-    FlowRow(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    FlowRow(
+        horizontalArrangement = if (center) Arrangement.Center else Arrangement.Start,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
         for (sent in sents) {
             if (s.isBookmarked(sent.id)) Icon(
                 AppIcons.Bookmark, contentDescription = "Закладка", tint = MaterialTheme.colorScheme.primary,
@@ -1026,7 +1157,7 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f,
 }
 
 @Composable
-private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f) {
+private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, center: Boolean = false) {
     LaunchedEffect(id) { s.ensureSentence(id) }
     val tr = s.sentTr[id]
     Row(
@@ -1040,6 +1171,7 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f) {
             if (tr.isNullOrEmpty()) "…" else tr,
             style = MaterialTheme.typography.bodyMedium.copy(fontSize = (s.font * 0.8f * scale).sp),
             fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = if (center) TextAlign.Center else TextAlign.Start,
             modifier = Modifier.weight(1f),
         )
         BookmarkButton(s, id)
@@ -1116,28 +1248,67 @@ private fun SentencePager(s: ReaderSession) {
                 Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) { BookmarkButton(s, it.id) }
             }
         }
-        HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
-            val sent = list[i]
-            Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                Spacer(Modifier.height(12.dp))
-                SentenceFlow(s, listOf(sent), scale = 1.15f, area = "sent")
-                SentenceTranslation(s, sent.id, scale = 1.1f)
+        Row(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxHeight()) {
+                HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
+                    val sent = list[i]
+                    // sentence and translation in the middle of the page; long ones scroll
+                    BoxWithConstraints(Modifier.fillMaxSize()) {
+                        val minH = maxHeight
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                            Column(
+                                Modifier.fillMaxWidth().heightIn(min = minH)
+                                    .padding(horizontal = if (s.wide) 64.dp else 20.dp, vertical = 20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                SentenceFlow(s, listOf(sent), scale = 1.15f, area = "sent", center = true)
+                                SmTranslationToggle(s)
+                                AnimatedVisibility(
+                                    visible = s.smTranslation,
+                                    enter = expandVertically(tween(300)) + fadeIn(tween(300)),
+                                    exit = shrinkVertically(tween(300)) + fadeOut(tween(300)),
+                                ) {
+                                    SentenceTranslation(s, sent.id, scale = 1.1f, center = true)
+                                }
+                            }
+                        }
+                    }
+                }
+                if (s.wide) TurnButtons(pager)
+            }
+            if (s.panelActive) {
+                VerticalDivider()
+                DockedPanel(s, Modifier.width(PANEL_WIDTH).fillMaxHeight())
             }
         }
     }
 }
 
+/** "Скрыть перевод ⌃" / "Показать перевод ⌄" under the sentence; the choice holds for all sentences. */
+@Composable
+private fun SmTranslationToggle(s: ReaderSession) {
+    val rot by animateFloatAsState(if (s.smTranslation) 180f else 0f, label = "chevron")
+    TextButton(onClick = { s.toggleSmTranslation() }) {
+        Text(if (s.smTranslation) "Скрыть перевод" else "Показать перевод")
+        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, modifier = Modifier.rotate(rot))
+    }
+}
+
 @Composable
 private fun WordSheet(s: ReaderSession, ref: WordRef) {
-    var own by remember(ref) { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = { s.popup = null }) {
-        Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        Box(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
+            WordContent(s, ref)
+        }
+    }
+}
+
+/** Word window contents: in the pop-up sheet (phone) or in the docked panel (tablet). */
+@Composable
+private fun WordContent(s: ReaderSession, ref: WordRef) {
+    var own by remember(ref) { mutableStateOf("") }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val word = s.word(ref)
             val saved = s.chosen[word.lowercase()]
             val best = s.popupBest
@@ -1155,6 +1326,7 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
                 if (saved != null || s.pins.containsKey(ref)) IconButton(onClick = { s.unpin(ref) }) {
                     Icon(Icons.Filled.Close, contentDescription = "Убрать перевод с этого слова")
                 }
+                DockButton(s)
             }
             if (s.popupNote.isNotBlank()) Text(
                 s.popupNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1209,12 +1381,11 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
                     },
                 )
                 AssistChip(
-                    onClick = { s.chatSentence(ref.sent) }, label = { Text("Спросить") },
+                    onClick = { s.chatWord(ref.sent, word) }, label = { Text("Спросить") },
                     leadingIcon = { Icon(AppIcons.Chat, contentDescription = null, Modifier.size(18.dp)) },
                 )
             }
         }
-    }
 }
 
 /**
@@ -1233,7 +1404,7 @@ private suspend fun PointerInputScope.wordGestures(s: ReaderSession, area: Strin
         if (up != null) {
             up.consume()
             val second = withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) { awaitFirstDown() }
-            if (second == null) s.tap(ref)
+            if (second == null) s.tapWord(ref)
             else { second.consume(); waitForUpOrCancellation()?.consume(); s.openPopup(ref) }
             return@awaitEachGesture
         }
@@ -1256,13 +1427,22 @@ private suspend fun PointerInputScope.wordGestures(s: ReaderSession, area: Strin
 /** Window for several words translated together. */
 @Composable
 private fun PhraseSheet(s: ReaderSession, p: Phrase) {
-    var own by remember(p) { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = { s.closePhrase() }) {
-        Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Box(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
+            PhraseContent(s, p)
+        }
+    }
+}
+
+/** Phrase window contents: in the pop-up sheet or in the docked panel. */
+@Composable
+private fun PhraseContent(s: ReaderSession, p: Phrase) {
+    var own by remember(p) { mutableStateOf("") }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(p.text, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                DockButton(s)
+            }
             s.phraseBest?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = GREEN) }
             if (s.phraseLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
             s.phraseError?.let { Text("Ошибка: $it", color = MaterialTheme.colorScheme.error) }
@@ -1301,10 +1481,9 @@ private fun PhraseSheet(s: ReaderSession, p: Phrase) {
                     leadingIcon = { Icon(AppIcons.Translate, contentDescription = null, Modifier.size(18.dp)) },
                 )
                 AssistChip(
-                    onClick = { s.closePhrase(); s.chatSentence(p.sent) }, label = { Text("Спросить") },
+                    onClick = { s.chatWord(p.sent, p.text) }, label = { Text("Спросить") },
                     leadingIcon = { Icon(AppIcons.Chat, contentDescription = null, Modifier.size(18.dp)) },
                 )
             }
         }
-    }
 }

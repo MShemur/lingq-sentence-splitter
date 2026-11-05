@@ -36,6 +36,14 @@ object AppIcons {
         icon("UnfoldLess", "M7.41,18.59L8.83,20 12,16.83 15.17,20l1.41,-1.41L12,14l-4.59,4.59zM16.59,5.41L15.17,4 12,7.17 8.83,4 7.41,5.41 12,10l4.59,-4.59z")
     }
 
+    val PushPin: ImageVector by lazy {
+        icon(
+            "PushPin",
+            "M16,9V4l1,0c0.55,0 1,-0.45 1,-1v0c0,-0.55 -0.45,-1 -1,-1H7C6.45,2 6,2.45 6,3v0c0,0.55 0.45,1 1,1l1,0v5" +
+                "c0,1.66 -1.34,3 -3,3h0v2h5.97v7l1,1l1,-1v-7H19v-2h0C17.34,12 16,10.66 16,9z",
+        )
+    }
+
     val Translate: ImageVector by lazy {
         icon(
             "Translate",

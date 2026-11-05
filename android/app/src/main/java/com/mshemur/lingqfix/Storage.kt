@@ -50,6 +50,17 @@ class Prefs(ctx: Context) {
     var promptChatSentence: String
         get() = read("promptChatSentence", Prompts.CHAT_SENTENCE).ifBlank { Prompts.CHAT_SENTENCE }
         set(v) = p.edit().putString("promptChatSentence", v).apply()
+    var promptChatWord: String
+        get() = read("promptChatWord", Prompts.CHAT_WORD).ifBlank { Prompts.CHAT_WORD }
+        set(v) = p.edit().putString("promptChatWord", v).apply()
+    /** Tablet: word window docked at the right of the reader. */
+    var dockPanel: Boolean
+        get() = read("dockPanel", "0") == "1"
+        set(v) = write("dockPanel", if (v) "1" else "0")
+    /** Sentence mode shows the translation under the sentence. */
+    var smTranslation: Boolean
+        get() = read("smTranslation", "1") == "1"
+        set(v) = write("smTranslation", if (v) "1" else "0")
     var promptChatText: String
         get() = read("promptChatText", Prompts.CHAT_TEXT).ifBlank { Prompts.CHAT_TEXT }
         set(v) = p.edit().putString("promptChatText", v).apply()

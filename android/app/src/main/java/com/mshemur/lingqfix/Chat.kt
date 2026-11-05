@@ -47,6 +47,8 @@ import kotlinx.coroutines.withContext
 class ChatSession(
     private val app: AppState, val title: String, private val system: String, val context: String,
     val wholeText: Boolean = false,
+    /** "text", "sentence" or "word": card label and suggestions. */
+    val kind: String = if (wholeText) "text" else "sentence",
 ) {
     val messages = mutableStateListOf<Gemini.Msg>()
     var input by mutableStateOf("")
@@ -86,6 +88,7 @@ class ChatSession(
 }
 
 private val SUGGESTIONS = listOf("Разбери грамматику", "Объясни трудные слова", "Переведи дословно", "Приведи похожие примеры")
+private val WORD_SUGGESTIONS = listOf("Что значит здесь?", "Другие значения", "Начальная форма и грамматика", "Примеры употребления", "Синонимы")
 
 @Composable
 fun ChatScreen(c: ChatSession) {
@@ -100,7 +103,7 @@ fun ChatScreen(c: ChatSession) {
                 OutlinedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp)) {
                         Text(
-                            if (c.wholeText) "Текст" else "Предложение",
+                            when (c.kind) { "text" -> "Текст"; "word" -> "Слово"; else -> "Предложение" },
                             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
                         )
                         Text(c.context, style = MaterialTheme.typography.bodyMedium, maxLines = 6)
@@ -109,7 +112,7 @@ fun ChatScreen(c: ChatSession) {
             }
             if (c.messages.isEmpty()) item {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SUGGESTIONS.forEach { q ->
+                    (if (c.kind == "word") WORD_SUGGESTIONS else SUGGESTIONS).forEach { q ->
                         SuggestionChip(onClick = { c.input = q; c.send() }, label = { Text(q) })
                     }
                 }
