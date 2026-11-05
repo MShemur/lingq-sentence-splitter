@@ -13,6 +13,11 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- Sentence mode: sentence and its translation centred on the page (horizontally and vertically). Under the
+  sentence a text button "Скрыть перевод ⌃" / "Показать перевод ⌄" folds the translation away and back with an
+  animation (height + fade, chevron turns); the choice holds for all sentences and is kept (`smTranslation`);
+  a hidden translation is not requested. web `SentenceTranslationPage`, styles `.fold`, `.tr-toggle`.
+
 - "Спросить" in the word window and in the phrase window opens a chat about that word / those words (not the
   sentence): new prompt "Чат о слове" ({word} {sentence}, editable in prompts, reset restores it), title
   "Чат о слове «…»", card shows word + sentence, suggestions "Что значит здесь?", "Другие значения",

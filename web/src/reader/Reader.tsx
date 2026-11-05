@@ -558,8 +558,10 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
           <div class="page" key={sent.id}>
             {Math.abs(i - page) <= 2 && (
               <div class="page-inner reader-text" style={{ '--fs': Number(prefs.readerFont.value) * 1.15 + 'px' } as JSX.CSSProperties} {...handlers}>
-                <SentenceFlow s={s} sents={[sent]} />
-                <SentenceTranslationPage s={s} id={sent.id} />
+                <div class="sm-center">
+                  <SentenceFlow s={s} sents={[sent]} />
+                  <SentenceTranslationPage s={s} id={sent.id} />
+                </div>
               </div>
             )}
           </div>
@@ -571,17 +573,32 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
   )
 }
 
-/** In sentence mode the translation is always shown. */
+/** Sentence mode: the translation under the sentence, folds away and back with a button (kept for all sentences). */
 function SentenceTranslationPage({ s, id }: { s: ReaderSession; id: number }) {
-  useEffect(() => { s.ensureSentence(id) }, [id])
+  const open = prefs.smTranslation.value === '1'
+  useEffect(() => { if (open) s.ensureSentence(id) }, [id, open])
   const tr = s.sentTr.value[id]
   return (
-    <div class="sent-tr big">
-      <div class="sent-tr-text">{tr || '…'}</div>
-      <BookmarkButton s={s} id={id} />
-      <RetranslateButton s={s} id={id} />
-      <IconButton icon="chat" label="Чат о предложении" size={20} class="small primary" onClick={() => s.chatSentence(id)} />
-    </div>
+    <>
+      <button
+        class={'tr-toggle' + (open ? ' open' : '')} aria-expanded={open}
+        onClick={() => { prefs.smTranslation.value = open ? '0' : '1' }}
+      >
+        <Icon name="translate" size={18} />
+        <span>{open ? 'Скрыть перевод' : 'Показать перевод'}</span>
+        <Icon name="down" size={20} class="tr-chevron" />
+      </button>
+      <div class={'fold' + (open ? ' open' : '')}>
+        <div class="fold-inner">
+          <div class="sent-tr big">
+            <div class="sent-tr-text">{tr || '…'}</div>
+            <BookmarkButton s={s} id={id} />
+            <RetranslateButton s={s} id={id} />
+            <IconButton icon="chat" label="Чат о предложении" size={20} class="small primary" onClick={() => s.chatSentence(id)} />
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 

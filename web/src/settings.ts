@@ -32,6 +32,8 @@ export const prefs = {
   readerFont: pref('readerFont', '20'),
   /** '1': the word window is docked at the right of the reader and always shown. */
   dockPanel: pref('dockPanel', '0'),
+  /** Sentence mode: '1' = the sentence translation is shown under the sentence. */
+  smTranslation: pref('smTranslation', '1'),
 }
 
 /** Prompt with fallback to the default when the field was emptied. */
