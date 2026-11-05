@@ -59,6 +59,17 @@ class ChatSession(
         input = ""
         error = null
         messages.add(Gemini.Msg(true, q))
+        answer()
+    }
+
+    /** After an error: ask Gemini again for the last question (it is not added twice). */
+    fun retry() {
+        if (sending || messages.lastOrNull()?.user != true) return
+        error = null
+        answer()
+    }
+
+    private fun answer() {
         sending = true
         app.scope.launch {
             try {
@@ -121,7 +132,12 @@ fun ChatScreen(c: ChatSession) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     Text("  Gemini пишет…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                 }
-                c.error?.let { Text("Ошибка: $it", color = MaterialTheme.colorScheme.error) }
+                c.error?.let {
+                    Column {
+                        Text("Ошибка: $it", color = MaterialTheme.colorScheme.error)
+                        androidx.compose.material3.TextButton(onClick = { c.retry() }) { Text("Повторить") }
+                    }
+                }
             }
         }
         Surface(tonalElevation = 2.dp) {

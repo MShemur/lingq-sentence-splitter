@@ -86,6 +86,8 @@ class AppState(val ctx: Context) {
     var updateProgress by mutableStateOf<Float?>(null)
     /** Pop-up "new version" shown once per version per app start. */
     var updateDialog by mutableStateOf(false)
+    /** Stack trace of the last crash, shown once at start. */
+    var crashReport by mutableStateOf(CrashLog.take(ctx))
     private var dialogShownFor = 0
 
     fun go(s: Screen) { stack.add(s) }

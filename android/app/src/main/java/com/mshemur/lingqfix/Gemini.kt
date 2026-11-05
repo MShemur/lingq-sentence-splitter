@@ -46,6 +46,8 @@ class Gemini(private val key: String, private val model: String) {
     companion object {
         const val DEFAULT_MODEL = "gemini-3.8-flash"
         private const val API = "https://generativelanguage.googleapis.com/v1beta"
+        /** Model list of the key, fetched once when a fallback is needed. */
+        @Volatile private var modelList: List<String>? = null
     }
 
     /** Models this key may use for text generation (for the picker in settings). */
@@ -74,14 +76,29 @@ class Gemini(private val key: String, private val model: String) {
     fun generate(system: String?, messages: List<Msg>, json: Boolean = false): String {
         if (key.isBlank()) throw ApiException("Не задан ключ Gemini (⚙ Настройки)")
         val m = model.ifBlank { DEFAULT_MODEL }
-        return try {
-            request(m, system, messages, json, lowThinking = true)
+        fun run(model: String) = try {
+            request(model, system, messages, json, lowThinking = true)
         } catch (e: ApiException) {
             // older/newer models may not know the thinking option: try once without it
             if (e.message.orEmpty().contains("HTTP 400") && e.message.orEmpty().contains("hink", ignoreCase = true))
-                request(m, system, messages, json, lowThinking = false)
+                request(model, system, messages, json, lowThinking = false)
             else throw e
         }
+        return try {
+            run(m)
+        } catch (e: ApiException) {
+            // the chosen model is overloaded ("high demand"): answer with another one rather than fail
+            if (!Regex("HTTP (503|429)").containsMatchIn(e.message.orEmpty())) throw e
+            val other = fallbackModel(m) ?: throw e
+            run(other)
+        }
+    }
+
+    /** Another model while [busy] is overloaded: a flash model first (fast), newest first. */
+    private fun fallbackModel(busy: String): String? {
+        val all = modelList ?: runCatching { models() }.getOrNull()?.also { modelList = it } ?: return null
+        val list = all.filter { it != busy && !Regex("preview|exp|image|tts|live|embed", RegexOption.IGNORE_CASE).containsMatchIn(it) }
+        return list.firstOrNull { "flash" in it && "lite" !in it } ?: list.firstOrNull { "flash" in it } ?: list.firstOrNull()
     }
 
     private fun request(m: String, system: String?, messages: List<Msg>, json: Boolean, lowThinking: Boolean): String {
@@ -110,7 +127,8 @@ class Gemini(private val key: String, private val model: String) {
         var attempt = 0
         while (true) {
             val (code, text) = LingqApi.http.newCall(req).execute().use { r -> r.code to r.body?.string().orEmpty() }
-            if ((code == 429 || code >= 500) && attempt < 3) { attempt++; Thread.sleep(2000L * attempt); continue }
+            // overloaded / rate limited: wait 2, 4, 8 s and try again
+            if ((code == 429 || code >= 500) && attempt < 3) { Thread.sleep(2000L shl attempt); attempt++; continue }
             if (code !in 200..299) {
                 val msg = runCatching { JSONObject(text).getJSONObject("error").optString("message") }.getOrNull()
                 throw ApiException("Gemini: HTTP $code ${msg ?: text.take(200)}")

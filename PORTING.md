@@ -18,8 +18,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- Gemini HTTP 503/429 ("high demand"): retries wait 2/4/8 s, then the request goes to another flash model of the key
-  (`fallbackModel` in `web/src/gemini.ts`); chat shows "Повторить" after an error and re-asks the last question
-  without adding it twice (`ChatSession.retry`, `web/src/chat.ts`).
 
 ## Done
+
+- Android: Gemini 503/429 retries 2/4/8 s + fallback flash model; chat "Повторить" (`Gemini.kt`, `Chat.kt`).

@@ -12,6 +12,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var state: AppState
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        CrashLog.install(applicationContext)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         state = AppState(applicationContext)

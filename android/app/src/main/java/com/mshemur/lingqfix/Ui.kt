@@ -177,6 +177,32 @@ fun App(state: AppState) {
         // sentence mode lies over the whole reader, top bar included
         if (screen is Screen.Reader) SentenceOverlay(screen.session)
         }
+        state.crashReport?.let { report ->
+            val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+            AlertDialog(
+                onDismissRequest = { state.crashReport = null },
+                title = { Text("Приложение упало в прошлый раз") },
+                text = {
+                    Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                        Text("Скопируйте отчёт и пришлите его в чат с Claude — по нему видно, где ошибка.")
+                        Text(
+                            report, Modifier.padding(top = 8.dp),
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                        state.crashReport = null
+                        state.say("Отчёт скопирован")
+                    }) { Text("Копировать") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { state.crashReport = null; shareText(ctx, "LingQ Fix: отчёт о сбое", report) }) { Text("Поделиться") }
+                },
+            )
+        }
         val u = state.update
         if (state.updateDialog && u != null) {
             AlertDialog(
