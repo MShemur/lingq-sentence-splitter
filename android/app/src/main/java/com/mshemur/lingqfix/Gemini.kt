@@ -17,6 +17,12 @@ object Prompts {
 
 {sentence}"""
 
+    const val RETRANSLATE = """Переведи предложение с языка «{lang}» на язык «{target}» заново. Текущий перевод неудачный:
+«{current}»
+Сделай другой, более точный и естественный перевод, который передаёт смысл в контексте. Ответь только новым переводом, без кавычек и пояснений.
+
+{sentence}"""
+
     const val CHAT_SENTENCE = """Ты репетитор языка «{lang}». Ученик читает текст и спрашивает про это предложение:
 «{sentence}»
 Отвечай на языке «{target}», кратко и по делу: значения слов, грамматика, нюансы, примеры."""
@@ -123,6 +129,9 @@ class Gemini(private val key: String, private val model: String) {
         val opts = o.optJSONArray("options")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
         return WordMeaning(o.optString("best"), opts.filter { it.isNotBlank() }, o.optString("note"))
     }
+
+    fun retranslate(prompt: String, lang: String, target: String, sentence: String, current: String): String =
+        generate(null, listOf(Msg(true, Prompts.fill(prompt, "lang" to lang, "target" to target, "sentence" to sentence, "current" to current))))
 
     fun sentence(prompt: String, lang: String, target: String, sentence: String): String =
         generate(null, listOf(Msg(true, Prompts.fill(prompt, "lang" to lang, "target" to target, "sentence" to sentence))))

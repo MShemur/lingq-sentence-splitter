@@ -1,6 +1,12 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.mshemur.lingqfix
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +44,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Conversation with Gemini about the whole text or one sentence ([system] holds that context). */
-class ChatSession(private val app: AppState, val title: String, private val system: String, val context: String) {
+class ChatSession(
+    private val app: AppState, val title: String, private val system: String, val context: String,
+    val wholeText: Boolean = false,
+) {
     val messages = mutableStateListOf<Gemini.Msg>()
     var input by mutableStateOf("")
     var sending by mutableStateOf(false)
@@ -64,6 +73,8 @@ class ChatSession(private val app: AppState, val title: String, private val syst
     }
 }
 
+private val SUGGESTIONS = listOf("Разбери грамматику", "Объясни трудные слова", "Переведи дословно", "Приведи похожие примеры")
+
 @Composable
 fun ChatScreen(c: ChatSession) {
     val list = rememberLazyListState()
@@ -71,42 +82,57 @@ fun ChatScreen(c: ChatSession) {
     Column(Modifier.fillMaxSize()) {
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(), state = list,
-            contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
-                Text(
-                    c.context, maxLines = 4,
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
-                )
+                OutlinedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(
+                            if (c.wholeText) "Текст" else "Предложение",
+                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(c.context, style = MaterialTheme.typography.bodyMedium, maxLines = 6)
+                    }
+                }
+            }
+            if (c.messages.isEmpty()) item {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SUGGESTIONS.forEach { q ->
+                        SuggestionChip(onClick = { c.input = q; c.send() }, label = { Text(q) })
+                    }
+                }
             }
             items(c.messages) { m ->
                 Box(Modifier.fillMaxWidth(), contentAlignment = if (m.user) Alignment.CenterEnd else Alignment.CenterStart) {
-                    SelectionContainer {
-                        Text(
-                            m.text,
-                            Modifier.widthIn(max = 330.dp)
-                                .background(
-                                    if (m.user) MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.surfaceVariant,
-                                    RoundedCornerShape(12.dp),
-                                )
-                                .padding(10.dp),
-                        )
+                    Surface(
+                        color = if (m.user) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shape = if (m.user) RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp) else RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp),
+                        modifier = Modifier.fillMaxWidth(if (m.user) 0.85f else 0.95f).wrapContentWidth(if (m.user) Alignment.End else Alignment.Start),
+                    ) {
+                        SelectionContainer {
+                            Text(m.text, Modifier.padding(horizontal = 14.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyLarge)
+                        }
                     }
                 }
             }
             item {
-                if (c.sending) CircularProgressIndicator(Modifier.padding(8.dp))
+                if (c.sending) Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text("  Gemini пишет…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                }
                 c.error?.let { Text("Ошибка: $it", color = MaterialTheme.colorScheme.error) }
             }
         }
-        Surface(tonalElevation = 3.dp) {
-            Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(tonalElevation = 2.dp) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     c.input, { c.input = it }, Modifier.weight(1f),
-                    placeholder = { Text("Вопрос…") }, maxLines = 5,
+                    placeholder = { Text("Спросите о тексте…") }, maxLines = 5, shape = RoundedCornerShape(24.dp),
                 )
-                FilledIconButton(onClick = { c.send() }, enabled = !c.sending && c.input.isNotBlank(), modifier = Modifier.padding(start = 8.dp)) {
+                FilledIconButton(
+                    onClick = { c.send() }, enabled = !c.sending && c.input.isNotBlank(),
+                    modifier = Modifier.padding(start = 8.dp).size(48.dp),
+                ) {
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить")
                 }
             }

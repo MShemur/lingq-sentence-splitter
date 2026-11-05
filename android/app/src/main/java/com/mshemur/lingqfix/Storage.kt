@@ -44,6 +44,9 @@ class Prefs(ctx: Context) {
     var promptSentence: String
         get() = read("promptSentence", Prompts.SENTENCE).ifBlank { Prompts.SENTENCE }
         set(v) = p.edit().putString("promptSentence", v).apply()
+    var promptRetranslate: String
+        get() = read("promptRetranslate", Prompts.RETRANSLATE).ifBlank { Prompts.RETRANSLATE }
+        set(v) = p.edit().putString("promptRetranslate", v).apply()
     var promptChatSentence: String
         get() = read("promptChatSentence", Prompts.CHAT_SENTENCE).ifBlank { Prompts.CHAT_SENTENCE }
         set(v) = p.edit().putString("promptChatSentence", v).apply()

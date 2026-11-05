@@ -250,6 +250,7 @@ fun SettingsPrompts(state: AppState) {
     val p = state.prefs
     var pWord by remember { mutableStateOf(p.promptWord) }
     var pSent by remember { mutableStateOf(p.promptSentence) }
+    var pRetr by remember { mutableStateOf(p.promptRetranslate) }
     var pChatS by remember { mutableStateOf(p.promptChatSentence) }
     var pChatT by remember { mutableStateOf(p.promptChatText) }
     Page {
@@ -259,10 +260,12 @@ fun SettingsPrompts(state: AppState) {
         )
         OutlinedTextField(pWord, { pWord = it; p.promptWord = it }, Modifier.fillMaxWidth(), label = { Text("Перевод слова") }, minLines = 3)
         OutlinedTextField(pSent, { pSent = it; p.promptSentence = it }, Modifier.fillMaxWidth(), label = { Text("Перевод предложения") }, minLines = 3)
+        OutlinedTextField(pRetr, { pRetr = it; p.promptRetranslate = it }, Modifier.fillMaxWidth(), label = { Text("Повторный перевод ({current} — текущий)") }, minLines = 3)
         OutlinedTextField(pChatS, { pChatS = it; p.promptChatSentence = it }, Modifier.fillMaxWidth(), label = { Text("Чат о предложении") }, minLines = 3)
         OutlinedTextField(pChatT, { pChatT = it; p.promptChatText = it }, Modifier.fillMaxWidth(), label = { Text("Чат о всём тексте") }, minLines = 3)
         OutlinedButton(onClick = {
             pWord = Prompts.WORD; pSent = Prompts.SENTENCE; pChatS = Prompts.CHAT_SENTENCE; pChatT = Prompts.CHAT_TEXT
+            pRetr = Prompts.RETRANSLATE; p.promptRetranslate = pRetr
             p.promptWord = pWord; p.promptSentence = pSent; p.promptChatSentence = pChatS; p.promptChatText = pChatT
             state.say("Стандартные промпты восстановлены")
         }) { Text("Вернуть стандартные") }

@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -272,16 +273,22 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** Sentence ids whose translation is being redone right now. */
     val retranslating = mutableStateMapOf<Int, Boolean>()
 
-    /** LingQ's "translate again" for one sentence (stored in the lesson on LingQ too). */
+    /**
+     * "Translate again": Gemini makes a different translation (told the current one is poor);
+     * without Gemini LingQ's ChatGPT retranslation is used (it is stored in the lesson on LingQ too).
+     */
     fun retranslate(id: Int) {
         val s = sentById[id] ?: return
         if (retranslating[id] == true) return
         retranslating[id] = true
         app.scope.launch {
             try {
-                val r = withContext(Dispatchers.IO) { app.api.retranslate(lang, lesson.id, s.lingqIndex, target) }
-                val t = r[s.lingqIndex] ?: r.values.firstOrNull()
-                if (t.isNullOrBlank()) app.say("LingQ не вернул перевод") else sentTr[id] = t
+                val current = sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") } ?: s.translations[target].orEmpty()
+                val t = withContext(Dispatchers.IO) {
+                    if (app.useGemini) app.gemini().retranslate(app.prefs.promptRetranslate, lang, target, s.text, current)
+                    else app.api.retranslate(lang, lesson.id, s.lingqIndex, target).let { r -> r[s.lingqIndex] ?: r.values.firstOrNull() }
+                }
+                if (t.isNullOrBlank()) app.say("Переводчик не вернул перевод") else sentTr[id] = t.trim()
             } catch (e: Throwable) {
                 app.say(e.message ?: "Ошибка перевода")
             }
@@ -464,14 +471,14 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun chatText() {
         val text = paragraphs.orEmpty().joinToString("\n\n") { p -> p.joinToString(" ") { it.text } }
         val sys = Prompts.fill(app.prefs.promptChatText, "lang" to lang, "target" to target, "text" to text)
-        app.go(Screen.Chat(ChatSession(app, "Чат: $title", sys, title)))
+        app.go(Screen.Chat(ChatSession(app, "Чат о тексте", sys, title, wholeText = true)))
     }
 
     fun chatSentence(id: Int) {
         val s = sentById[id] ?: return
         popup = null
         val sys = Prompts.fill(app.prefs.promptChatSentence, "lang" to lang, "target" to target, "sentence" to s.text)
-        app.go(Screen.Chat(ChatSession(app, "Чат: предложение", sys, s.text)))
+        app.go(Screen.Chat(ChatSession(app, "Чат о предложении", sys, s.text)))
     }
 
     fun word(ref: WordRef) = sentById[ref.sent]?.tokens?.getOrNull(ref.token)?.text.orEmpty()
@@ -488,7 +495,11 @@ fun ReaderActions(s: ReaderSession) {
     var menu by remember { mutableStateOf(false) }
     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-        DropdownMenuItem(text = { Text("💬 Чат с Gemini по всему тексту") }, onClick = { menu = false; s.chatText() })
+        DropdownMenuItem(
+            text = { Text("Чат о тексте") },
+            leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
+            onClick = { menu = false; s.chatText() },
+        )
         HorizontalDivider()
         DropdownMenuItem(text = { Text("Шрифт крупнее  A+") }, onClick = { s.changeFont(+2) })
         DropdownMenuItem(text = { Text("Шрифт мельче  A−") }, onClick = { s.changeFont(-2) })
@@ -616,8 +627,8 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f) {
         Modifier.fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
             .clickable { if (!s.allSentences) s.toggleSentence(id) }
-            .padding(start = 8.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.Top,
+            .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             if (tr.isNullOrEmpty()) "…" else tr,
@@ -626,22 +637,21 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f) {
             modifier = Modifier.weight(1f),
         )
         RetranslateButton(s, id)
-        Text(
-            "💬", style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.clickable { s.chatSentence(id) }.padding(end = 10.dp, start = 2.dp),
-        )
+        IconButton(onClick = { s.chatSentence(id) }, modifier = Modifier.size(36.dp)) {
+            Icon(AppIcons.Chat, contentDescription = "Чат о предложении", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+        }
     }
 }
 
-/** ⟳ = LingQ translates the sentence again (ChatGPT). */
+/** Translate the sentence again (Gemini, or LingQ's ChatGPT). */
 @Composable
 private fun RetranslateButton(s: ReaderSession, id: Int) {
-    if (s.retranslating[id] == true) Box(Modifier.padding(horizontal = 12.dp)) {
-        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-    } else Text(
-        "⟳", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.clickable { s.retranslate(id) }.padding(horizontal = 12.dp),
-    )
+    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+        if (s.retranslating[id] == true) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+        else IconButton(onClick = { s.retranslate(id) }, modifier = Modifier.size(36.dp)) {
+            Icon(Icons.Filled.Refresh, contentDescription = "Перевести заново", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+        }
+    }
 }
 
 /** Sentence mode: one sentence with its translation per page, swipe for the next one. */
@@ -732,8 +742,14 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
             if (!tr.isNullOrEmpty()) Row(verticalAlignment = Alignment.Top) {
                 Text(tr, fontStyle = FontStyle.Italic, modifier = Modifier.weight(1f))
                 RetranslateButton(s, ref.sent)
-            } else TextButton(onClick = { s.toggleSentence(ref.sent) }) { Text("Перевести предложение") }
-            TextButton(onClick = { s.chatSentence(ref.sent) }) { Text("💬 Спросить Gemini про предложение") }
+            } else TextButton(onClick = { s.toggleSentence(ref.sent) }) {
+                Icon(AppIcons.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("Перевести предложение", Modifier.padding(start = 8.dp))
+            }
+            OutlinedButton(onClick = { s.chatSentence(ref.sent) }) {
+                Icon(AppIcons.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("Спросить о предложении", Modifier.padding(start = 8.dp))
+            }
         }
     }
 }
