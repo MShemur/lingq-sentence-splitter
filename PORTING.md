@@ -13,6 +13,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- Narrow screen (phone, width <= 600 dp): no page-turn buttons and no side padding for them; the word panel is
+  never docked there (pin button hidden), the pop-up sheet is used. With the panel docked, sentence mode shows the
+  panel beside the sentence too (otherwise a double tap there opened nothing). web v1.9.
+
 - Sentence mode: sentence and its translation centred on the page (horizontally and vertically). Under the
   sentence a text button "Скрыть перевод ⌃" / "Показать перевод ⌄" folds the translation away and back with an
   animation (height + fade, chevron turns); the choice holds for all sentences and is kept (`smTranslation`);

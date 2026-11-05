@@ -1,6 +1,7 @@
 // Reader screen: text with tappable words, sentence mode, word window. Port of the UI part of Reader.kt.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { Fragment, render, type JSX } from 'preact'
+import { signal } from '@preact/signals'
 import { Icon } from '../icons'
 import { Press } from '../press'
 import { back } from '../app'
@@ -14,7 +15,13 @@ import { ref as wordRef, refSent, type ReaderSession, type Sent, type WordRef } 
 let selecting = false
 document.addEventListener('touchmove', (e) => { if (selecting) e.preventDefault() }, { passive: false })
 
-const docked = () => prefs.dockPanel.value === '1'
+/** Phone-sized screen: no docked panel (and no page-turn buttons, see styles). */
+const narrowQuery = window.matchMedia('(max-width: 600px)')
+const narrow = signal(narrowQuery.matches)
+narrowQuery.addEventListener?.('change', (e) => { narrow.value = e.matches })
+
+/** The word window is docked at the right (not on a phone: the text would get too narrow). */
+const docked = () => prefs.dockPanel.value === '1' && !narrow.value
 
 /**
  * Page turning by swipe, done here instead of the browser's own scrolling: on the iPad the browser would take
@@ -517,10 +524,13 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
   }
   // opened, or the page changed from outside (bookmark): show it
   useLayoutEffect(() => { if (open) snap() }, [open, page])
+  // the page width changes with the window and when the word panel is docked / undocked
   useEffect(() => {
-    const onResize = () => snap()
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    const el = pager.current
+    if (!el) return
+    const ro = new ResizeObserver(() => snap())
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
   useEffect(() => {
     if (!open) return
@@ -552,6 +562,7 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
         </div>
         <div class="sm-right">{cur && <BookmarkButton s={s} id={cur.id} />}</div>
       </div>
+      <div class="sm-main">
       <div class="sm-body">
       <div class="pager" ref={pager} onScroll={onScroll} {...swipe}>
         {list.map((sent, i) => (
@@ -568,6 +579,9 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
         ))}
       </div>
       <TurnButtons at={page} count={list.length} turn={turn} />
+      </div>
+      {/* the docked word panel stays beside the sentence (sentence mode lies over the text view and its panel) */}
+      {docked() && <DockedPanel s={s} />}
       </div>
     </div>
   )
@@ -700,7 +714,7 @@ function PhraseContent({ s, head }: { s: ReaderSession; head?: JSX.Element }) {
   )
 }
 
-const DockButton = () => (
+const DockButton = () => narrow.value ? null : (
   <IconButton icon="pin" label="Закрепить панель справа" onClick={() => { prefs.dockPanel.value = '1' }} />
 )
 

@@ -277,7 +277,8 @@ div.list-item { cursor: default; }
 .sentence-overlay.open { transform: none; opacity: 1; transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s; pointer-events: auto; }
 .sentence-mode { display: flex; flex-direction: column; height: 100%; }
 .sm-header { display: flex; align-items: center; height: calc(64px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 8px 0 4px; flex-shrink: 0; }
-.sm-body { flex: 1; min-height: 0; position: relative; display: flex; }
+.sm-main { flex: 1; min-height: 0; display: flex; }
+.sm-body { flex: 1; min-height: 0; min-width: 0; position: relative; display: flex; }
 .sm-progress { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--outline); }
 .sm-right { width: 48px; display: flex; justify-content: center; }
 /* pages are turned by our own swipe (useSwipe), not by the browser: it would take a long-press drag over */
@@ -391,3 +392,9 @@ div.list-item { cursor: default; }
 
 /* room for the page-turn buttons at the sides (the measuring box gets the same padding) */
 .text-area .reader-text, .sm-body .reader-text { padding-left: max(60px, env(safe-area-inset-left)); padding-right: max(60px, env(safe-area-inset-right)); }
+
+/* phone (narrow screen): no page-turn buttons and no room for them, the text needs the width; swipe still turns */
+@media (max-width: 600px) {
+  .turn-btn { display: none; }
+  .text-area .reader-text, .sm-body .reader-text { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+}
