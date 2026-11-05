@@ -19,7 +19,13 @@ import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -193,32 +199,49 @@ fun SettingsTranslation(state: AppState) {
         Text("Gemini", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         SecretField(gKey, "Ключ Gemini API") { gKey = it; state.applyPrefs { geminiKey = it } }
         TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text("Получить ключ бесплатно") }
-        Box {
-            OutlinedTextField(
-                gModel, { gModel = it.trim(); state.applyPrefs { geminiModel = it } }, Modifier.fillMaxWidth(),
-                label = { Text("Модель") }, singleLine = true,
-                supportingText = { Text("flash — быстро; pro — умнее, медленнее") },
-                trailingIcon = {
-                    TextButton(onClick = {
-                        scope.launch {
-                            try {
-                                models = withContext(Dispatchers.IO) { Gemini(gKey.trim(), gModel).models() }
-                                modelMenu = true
-                            } catch (e: Exception) {
-                                state.say(e.message ?: "Ошибка")
-                            }
-                        }
-                    }) { Text("Выбрать") }
-                },
-            )
-            DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
-                models.forEach { m ->
-                    DropdownMenuItem(text = { Text(m) }, onClick = {
-                        gModel = m; state.applyPrefs { geminiModel = m }; modelMenu = false
-                    })
+        ListItem(
+            headlineContent = { Text("Модель") },
+            supportingContent = { Text(gModel) },
+            trailingContent = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+            modifier = Modifier.clickable {
+                if (gKey.isBlank()) { state.say("Сначала вставьте ключ Gemini"); return@clickable }
+                modelMenu = true
+                models = emptyList()
+                scope.launch {
+                    try {
+                        models = withContext(Dispatchers.IO) { Gemini(gKey.trim(), gModel).models() }
+                    } catch (e: Exception) {
+                        modelMenu = false
+                        state.say(e.message ?: "Ошибка")
+                    }
                 }
-            }
-        }
+            },
+        )
+        Hint("flash — быстро, для перевода слов; pro — умнее, но медленнее")
+        if (modelMenu) AlertDialog(
+            onDismissRequest = { modelMenu = false },
+            title = { Text("Модель Gemini") },
+            text = {
+                if (models.isEmpty()) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                } else LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                    items(models) { m ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .selectable(selected = m == gModel, role = Role.RadioButton) {
+                                    gModel = m; state.applyPrefs { geminiModel = m }; modelMenu = false
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = m == gModel, onClick = null)
+                            Text(m, Modifier.padding(start = 12.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { modelMenu = false }) { Text("Закрыть") } },
+        )
     }
 }
 

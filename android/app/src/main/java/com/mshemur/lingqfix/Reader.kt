@@ -320,6 +320,27 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         return m
     }
 
+    /**
+     * Instant guess from LingQ's meanings: the one whose stem occurs in a sentence translation that is
+     * already at hand (nothing slow is fetched), else the most popular one.
+     */
+    private fun quickGuess(ref: WordRef, hs: List<String>): String? {
+        chosen[word(ref).lowercase()]?.let { return it }
+        val s = sentById[ref.sent] ?: return hs.firstOrNull()
+        val tr = (sentTr[ref.sent]?.takeIf { it.isNotEmpty() } ?: s.translations[target]).orEmpty().lowercase()
+        return pickByTranslation(hs, tr) ?: hs.firstOrNull()
+    }
+
+    private fun pickByTranslation(hs: List<String>, tr: String): String? {
+        if (tr.isBlank()) return null
+        val trWords = Regex("\\p{L}+").findAll(tr).map { it.value }.toList()
+        fun fits(h: String) = Regex("\\p{L}+").findAll(h.lowercase()).any { m ->
+            val w = m.value
+            w.length >= 3 && trWords.any { it.startsWith(w.take(maxOf(3, minOf(w.length - 2, 6)))) }
+        }
+        return hs.take(10).firstOrNull { fits(it) }
+    }
+
     private suspend fun contextual(ref: WordRef, hs: List<String>): String {
         val word = word(ref)
         chosen[word.lowercase()]?.let { return it }
@@ -337,16 +358,39 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** One tap: translation pinned above the word (tap again removes it). */
     fun tap(ref: WordRef) {
-        if (pins.containsKey(ref)) { pins.remove(ref); persist(); return }
+        if (pins.containsKey(ref)) { pins.remove(ref); provisional.remove(ref); persist(); return }
         pins[ref] = ""
+        val saved = chosen[word(ref).lowercase()]
+        if (saved != null) { pins[ref] = saved; persist(); return }
+        if (!app.useGemini) {
+            app.scope.launch {
+                pins[ref] = try { contextual(ref, hints(word(ref))) } catch (e: Throwable) { "⚠" }
+                persist()
+            }
+            return
+        }
+        // Gemini: show LingQ's most likely meaning at once (grey), Gemini's answer replaces it (green)
+        provisional[ref] = true
         app.scope.launch {
-            pins[ref] = try {
-                // Gemini answers alone; LingQ's meanings are only needed without it
-                contextual(ref, if (app.useGemini) emptyList() else hints(word(ref)))
-            } catch (e: Throwable) { "⚠" }
+            val quick = runCatching { quickGuess(ref, hints(word(ref))) }.getOrNull()
+            if (provisional[ref] == true && !quick.isNullOrBlank() && pins.containsKey(ref)) pins[ref] = quick
+        }
+        app.scope.launch {
+            val best = runCatching { ai(ref).best }.getOrNull()
+            if (!pins.containsKey(ref)) return@launch            // removed meanwhile
+            provisional.remove(ref)
+            when {
+                !best.isNullOrBlank() -> pins[ref] = best
+                pins[ref].isNullOrEmpty() -> pins[ref] = "⚠"
+            }
             persist()
         }
     }
+
+    /** Pins that show LingQ's quick guess while Gemini is still thinking. */
+    val provisional = mutableStateMapOf<WordRef, Boolean>()
+    /** Window: Gemini is still thinking. */
+    var popupThinking by mutableStateOf(false)
 
     /** Double tap: window with all meanings to choose from. */
     fun openPopup(ref: WordRef) {
@@ -359,11 +403,23 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
             popupAi = emptyList()
             app.scope.launch {
                 try {
+                    // LingQ's meanings and a quick guess first, Gemini adds its answer when ready
                     val h = runCatching { hints(word(ref)) }.getOrDefault(emptyList())
                     popupHints = h
-                    popupBest = contextual(ref, h)
-                    aiCache[ref]?.let { m -> popupAi = listOf(m.best) + m.options; popupNote = m.note }
+                    if (app.useGemini) {
+                        popupBest = quickGuess(ref, h)
+                        popupThinking = true
+                        val m = runCatching { ai(ref) }.getOrNull()
+                        popupThinking = false
+                        if (popup != ref) return@launch
+                        if (m != null) {
+                            popupBest = chosen[word(ref).lowercase()] ?: m.best.ifBlank { popupBest }
+                            popupAi = listOf(m.best) + m.options
+                            popupNote = m.note
+                        }
+                    } else popupBest = contextual(ref, h)
                 } catch (e: Throwable) {
+                    popupThinking = false
                     popupError = e.message ?: e.toString()
                 }
             }
@@ -529,7 +585,8 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f)
                         val tr = if (t.isWord) s.pins[ref] else null
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             if (tr != null) Text(
-                                tr.ifEmpty { "…" }, style = trStyle, color = GREEN, maxLines = 2,
+                                tr.ifEmpty { "…" }, style = trStyle, maxLines = 2,
+                                color = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else GREEN,
                                 modifier = Modifier.padding(horizontal = 1.dp),
                             )
                             val selected = tr != null || s.popup == ref
@@ -624,6 +681,10 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
             val word = s.word(ref)
             val saved = s.chosen[word.lowercase()]
             Text(word, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            if (s.popupThinking) Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Text("  Gemini уточняет по контексту…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+            }
             if (s.popupNote.isNotBlank()) Text(
                 s.popupNote, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

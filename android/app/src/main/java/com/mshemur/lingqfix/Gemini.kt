@@ -92,7 +92,7 @@ class Gemini(private val key: String, private val model: String) {
         // Flash models answer much faster with little "thinking"
         if (lowThinking && m.contains("flash")) cfg.put(
             "thinkingConfig",
-            if (m.startsWith("gemini-2")) JSONObject().put("thinkingBudget", 0) else JSONObject().put("thinkingLevel", "low"),
+            if (m.startsWith("gemini-2")) JSONObject().put("thinkingBudget", 0) else JSONObject().put("thinkingLevel", "minimal"),
         )
         body.put("generationConfig", cfg)
 
