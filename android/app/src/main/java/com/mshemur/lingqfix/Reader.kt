@@ -5,7 +5,11 @@ package com.mshemur.lingqfix
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -188,18 +192,18 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** Last sentence the user worked with (tapped word, long press); sentence mode opens there. */
     private var focusSent: Int? = null
     /** Paragraphs on screen in the text view, and how far the reader got (top-bar progress). */
-    var visibleParas: IntRange = 0..0
+    var visibleSents: Set<Int> = emptySet()
     var textProgress by mutableFloatStateOf(0f)
+    var pageLabel by mutableStateOf("")
+    /** First sentence of the page being read: the page is kept when pages are rebuilt (pins, font). */
+    var anchor: Int? = null
     /** After sentence mode is collapsed: sentence the text view should show. */
     var syncTo by mutableStateOf<Int?>(null)
 
     /** Sentence mode slides up over the text, at the selected word's sentence or the first one on screen. */
     fun openSentenceMode() {
         if (sentences.isEmpty()) return
-        val paras = paragraphs.orEmpty()
-        fun paraOf(id: Int) = paras.indexOfFirst { p -> p.any { it.id == id } }
-        val id = focusSent?.takeIf { paraOf(it) in visibleParas }
-            ?: paras.getOrNull(visibleParas.first.coerceAtLeast(0))?.firstOrNull()?.id
+        val id = focusSent?.takeIf { it in visibleSents } ?: visibleSents.minOrNull()
         page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0)
         sentenceMode = true
     }
@@ -613,7 +617,13 @@ fun ProgressPill(p: Float) {
 
 @Composable
 fun ReaderProgress(s: ReaderSession) {
-    if (s.paragraphs != null) ProgressPill(s.textProgress)
+    if (s.paragraphs != null) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        ProgressPill(s.textProgress)
+        if (s.pageLabel.isNotEmpty()) Text(
+            s.pageLabel, Modifier.padding(top = 4.dp),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+        )
+    }
 }
 
 @Composable
@@ -629,44 +639,111 @@ fun ReaderScreen(s: ReaderSession) {
         paras == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-        else -> {
-            val listState = rememberLazyListState()
-            LaunchedEffect(listState) {
-                snapshotFlow { listState.layoutInfo }.collect { info ->
-                    val v = info.visibleItemsInfo
-                    if (v.isEmpty() || info.totalItemsCount == 0) return@collect
-                    s.visibleParas = (v.first().index - 1).coerceAtLeast(0)..(v.last().index - 1).coerceAtLeast(0)
-                    s.textProgress = if (!listState.canScrollForward) 1f else (v.last().index + 1f) / info.totalItemsCount
-                }
-            }
-            LaunchedEffect(s.syncTo) {
-                val id = s.syncTo ?: return@LaunchedEffect
-                val p = paras.indexOfFirst { para -> para.any { it.id == id } }
-                if (p >= 0 && p !in s.visibleParas) listState.animateScrollToItem(p + 1)
-                s.syncTo = null
-            }
-            LaunchedEffect(s.jump, paras) {
-                val id = s.jump ?: return@LaunchedEffect
-                val p = paras.indexOfFirst { para -> para.any { it.id == id } }
-                if (p >= 0) listState.scrollToItem(p + 1)
-                s.jump = null
-            }
-            LazyColumn(
-            Modifier.fillMaxSize(), state = listState,
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item {
-                Text(
-                    "Нажатие на слово — перевод над ним, двойное — окошко с вариантами, долгое — перевод предложения.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
-                )
-            }
-            items(paras) { para -> Paragraph(s, para) }
-            }
-        }
+        else -> PagedText(s, paras)
     }
     s.popup?.let { ref -> WordSheet(s, ref) }
+}
+
+/** Part of a paragraph that lies on one page. */
+private class Block(val sents: List<Sent>)
+
+/**
+ * The text split into pages that fit the screen, turned with a swipe like a book. Paragraphs are measured
+ * as they are drawn (pins and shown translations included); a paragraph that does not fit is split at a
+ * sentence boundary. Pages are rebuilt when something changes the height.
+ */
+@Composable
+private fun PagedText(s: ReaderSession, paras: List<List<Sent>>) {
+    SubcomposeLayout(Modifier.fillMaxSize()) { c ->
+        val padH = 16.dp.roundToPx()
+        val padV = 12.dp.roundToPx()
+        val gap = 14.dp.roundToPx()
+        val w = (c.maxWidth - 2 * padH).coerceAtLeast(1)
+        val h = if (c.hasBoundedHeight) c.maxHeight - 2 * padV else Int.MAX_VALUE
+        val mc = Constraints(maxWidth = w)
+        fun height(key: String, sents: List<Sent>) =
+            subcompose(key) { Paragraph(s, sents) }.sumOf { it.measure(mc).height }
+
+        val pages = mutableListOf<List<Block>>()
+        var cur = mutableListOf<Block>()
+        var used = 0
+        fun need(x: Int) = (if (cur.isEmpty()) 0 else gap) + x
+        fun flush() {
+            if (cur.isNotEmpty()) pages += cur
+            cur = mutableListOf(); used = 0
+        }
+        paras.forEachIndexed { pi, para ->
+            var from = 0
+            while (from < para.size) {
+                val rest = para.subList(from, para.size)
+                val hRest = height("m$pi:$from-${para.size}", rest)
+                if (used + need(hRest) <= h) { used += need(hRest); cur += Block(rest); break }
+                // the longest run of sentences that still fits on this page
+                var k = from
+                var hk = 0
+                while (k + 1 < para.size) {
+                    val hh = height("m$pi:$from-${k + 1}", para.subList(from, k + 1))
+                    if (used + need(hh) > h) break
+                    k++; hk = hh
+                }
+                when {
+                    k > from -> { used += need(hk); cur += Block(para.subList(from, k)); from = k; flush() }
+                    cur.isNotEmpty() -> flush()
+                    else -> { cur += Block(listOf(para[from])); from++; flush() }   // taller than a page
+                }
+            }
+        }
+        flush()
+        val placeables = subcompose("pager") { TextPager(s, pages) }.map { it.measure(c) }
+        layout(c.maxWidth, c.maxHeight) { placeables.forEach { it.place(0, 0) } }
+    }
+}
+
+@Composable
+private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
+    val pager = rememberPagerState { pages.size }
+    val latest by rememberUpdatedState(pages)
+    val sig = pages.map { p -> p.first().sents.first().id }   // changes only when the split changes
+    fun pageOf(id: Int) = latest.indexOfFirst { p -> p.any { b -> b.sents.any { it.id == id } } }
+
+    // same text stays on screen when pages are rebuilt
+    LaunchedEffect(sig) {
+        val i = s.anchor?.let { pageOf(it) } ?: -1
+        if (i >= 0 && i != pager.currentPage) pager.scrollToPage(i)
+    }
+    LaunchedEffect(pager) {
+        snapshotFlow { pager.settledPage }.collect { i ->
+            latest.getOrNull(i)?.let { s.anchor = it.first().sents.first().id }
+        }
+    }
+    LaunchedEffect(pager.currentPage, sig) {
+        val p = latest.getOrNull(pager.currentPage) ?: return@LaunchedEffect
+        s.visibleSents = p.flatMap { b -> b.sents.map { it.id } }.toSet()
+        s.textProgress = (pager.currentPage + 1f) / latest.size
+        s.pageLabel = "${pager.currentPage + 1} / ${latest.size}"
+    }
+    // bookmark: go to its page
+    LaunchedEffect(s.jump, sig) {
+        val id = s.jump ?: return@LaunchedEffect
+        val i = pageOf(id)
+        if (i >= 0) { s.anchor = id; pager.scrollToPage(i) }
+        s.jump = null
+    }
+    // sentence mode collapsed: show the page of the sentence it ended on
+    LaunchedEffect(s.syncTo, sig) {
+        val id = s.syncTo ?: return@LaunchedEffect
+        val i = pageOf(id)
+        if (i >= 0 && i != pager.currentPage) pager.animateScrollToPage(i)
+        s.syncTo = null
+    }
+    HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents) }
+        }
+    }
 }
 
 /** A paragraph flows as one text; a shown sentence translation is inserted right after its sentence. */
@@ -781,8 +858,8 @@ private fun RetranslateButton(s: ReaderSession, id: Int) {
 fun SentenceOverlay(s: ReaderSession) {
     AnimatedVisibility(
         visible = s.sentenceMode && s.sentences.isNotEmpty(),
-        enter = slideInVertically(tween(280)) { it } + fadeIn(tween(180)),
-        exit = slideOutVertically(tween(220)) { it } + fadeOut(tween(220)),
+        enter = slideInVertically(tween(320, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(200)),
+        exit = slideOutVertically(tween(480, easing = FastOutSlowInEasing)) { it } + fadeOut(tween(480)),
     ) {
         BackHandler { s.closeSentenceMode() }
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
