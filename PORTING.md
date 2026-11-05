@@ -13,30 +13,31 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- Narrow screen (phone, width <= 600 dp): no page-turn buttons and no side padding for them; the word panel is
+(nothing)
+
+## Done
+
+- android ec96295: Narrow screen (phone, width <= 600 dp): no page-turn buttons and no side padding for them; the word panel is
   never docked there (pin button hidden), the pop-up sheet is used. With the panel docked, sentence mode shows the
   panel beside the sentence too (otherwise a double tap there opened nothing). web v1.9.
 
-- Sentence mode: sentence and its translation centred on the page (horizontally and vertically). Under the
+- android ec96295: Sentence mode: sentence and its translation centred on the page (horizontally and vertically). Under the
   sentence a text button "Скрыть перевод ⌃" / "Показать перевод ⌄" folds the translation away and back with an
   animation (height + fade, chevron turns); the choice holds for all sentences and is kept (`smTranslation`);
   a hidden translation is not requested. web `SentenceTranslationPage`, styles `.fold`, `.tr-toggle`.
 
-- "Спросить" in the word window and in the phrase window opens a chat about that word / those words (not the
+- android ec96295: "Спросить" in the word window and in the phrase window opens a chat about that word / those words (not the
   sentence): new prompt "Чат о слове" ({word} {sentence}, editable in prompts, reset restores it), title
   "Чат о слове «…»", card shows word + sentence, suggestions "Что значит здесь?", "Другие значения",
   "Начальная форма и грамматика", "Примеры употребления", "Синонимы". web `prompts.ts` CHAT_WORD, `session.ts` chatWord.
 
-- Docked word panel: the word window can be pinned at the right of the reader (pin button in the word / phrase
+- android ec96295: Docked word panel: the word window can be pinned at the right of the reader (pin button in the word / phrase
   window; ✕ in the panel header unpins). It stays there: empty with a hint until a word is chosen; a tap on a
   word (not only a double tap) shows the word there, the phrase selection too; choosing a meaning keeps the word
   in the panel. Setting kept (`dockPanel`). Text pages are re-measured for the narrower width.
   web `src/reader/Reader.tsx` (`DockedPanel`, `WordContent`, `PhraseContent`).
-- Page-turn buttons: round translucent ‹ › buttons at the left/right middle of the text pages and of sentence
+- android ec96295: Page-turn buttons: round translucent ‹ › buttons at the left/right middle of the text pages and of sentence
   mode (hidden on the first/last page); the text gets side padding so they do not cover it. web `TurnButtons`.
-
-
-## Done
 
 - Android: Gemini 503/429 retries 2/4/8 s + fallback flash model; chat "Повторить" (`Gemini.kt`, `Chat.kt`).
 
