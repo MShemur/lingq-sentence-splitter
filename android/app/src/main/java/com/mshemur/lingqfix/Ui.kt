@@ -177,6 +177,7 @@ fun App(state: AppState) {
         // sentence mode lies over the whole reader, top bar included
         if (screen is Screen.Reader) SentenceOverlay(screen.session)
         }
+        ModelSwitchDialog(state)
         state.crashReport?.let { report ->
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
             AlertDialog(

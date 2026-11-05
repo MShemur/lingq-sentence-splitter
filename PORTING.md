@@ -11,6 +11,11 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (nothing)
 
+- Gemini limit/overload (HTTP 429/503, RESOURCE_EXHAUSTED, quota) after retries+fallback: a window
+  "Gemini: лимит исчерпан" with "Попробовать другую модель" -> model list -> the choice becomes the current
+  model and the failed request is repeated (word pin, word window, sentence translation, retranslate, chat).
+  Android `ModelSwitch.kt`, `AppState.geminiFailed`.
+
 ## To do on Android
 
 

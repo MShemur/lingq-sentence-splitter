@@ -336,7 +336,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun ensureSentence(id: Int) {
         if (!sentTr[id].isNullOrEmpty() || !loadingSentences.add(id)) return
         app.scope.launch {
-            try { sentenceTranslation(id) } catch (e: Throwable) { sentTr[id] = "⚠ ${e.message}" }
+            try { sentenceTranslation(id) } catch (e: Throwable) {
+                sentTr[id] = "⚠ ${e.message}"
+                app.geminiFailed(e) { sentTr.remove(id); ensureSentence(id) }
+            }
             loadingSentences.remove(id)
         }
     }
@@ -362,6 +365,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 if (t.isNullOrBlank()) app.say("Переводчик не вернул перевод") else sentTr[id] = t.trim()
             } catch (e: Throwable) {
                 app.say(e.message ?: "Ошибка перевода")
+                app.geminiFailed(e) { retranslate(id) }
             }
             retranslating.remove(id)
         }
@@ -456,7 +460,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
             if (provisional[ref] == true && !quick.isNullOrBlank() && pins.containsKey(ref)) pins[ref] = quick
         }
         app.scope.launch {
-            val best = runCatching { ai(ref).best }.getOrNull()
+            val best = runCatching { ai(ref).best }
+                .onFailure { e -> app.geminiFailed(e) { pins.remove(ref); provisional.remove(ref); tap(ref) } }.getOrNull()
             if (!pins.containsKey(ref)) return@launch            // removed meanwhile
             provisional.remove(ref)
             when {
@@ -490,7 +495,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     if (app.useGemini) {
                         popupBest = quickGuess(ref, h)
                         popupThinking = true
-                        val m = runCatching { ai(ref) }.getOrNull()
+                        val m = runCatching { ai(ref) }
+                            .onFailure { e -> app.geminiFailed(e) { if (popup == ref) openPopup(ref) } }.getOrNull()
                         popupThinking = false
                         if (popup != ref) return@launch
                         if (m != null) {

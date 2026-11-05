@@ -88,6 +88,13 @@ class AppState(val ctx: Context) {
     var updateDialog by mutableStateOf(false)
     /** Stack trace of the last crash, shown once at start. */
     var crashReport by mutableStateOf(CrashLog.take(ctx))
+    /** Gemini hit a limit: window offering another model. */
+    var modelSwitch by mutableStateOf<ModelSwitch?>(null)
+
+    /** Called where a Gemini request failed: on a limit error the user may switch the model and [retry]. */
+    fun geminiFailed(e: Throwable, retry: () -> Unit) {
+        if (useGemini && isGeminiLimit(e) && modelSwitch == null) modelSwitch = ModelSwitch(prefs.geminiModel, e.message.orEmpty(), retry)
+    }
     private var dialogShownFor = 0
 
     fun go(s: Screen) { stack.add(s) }

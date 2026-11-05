@@ -78,6 +78,7 @@ class ChatSession(
                 messages.add(Gemini.Msg(false, a))
             } catch (e: Throwable) {
                 error = e.message ?: e.toString()
+                app.geminiFailed(e) { retry() }
             }
             sending = false
         }
