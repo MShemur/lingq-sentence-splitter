@@ -39,8 +39,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
@@ -104,28 +102,26 @@ fun App(state: AppState) {
                             Text("←", style = MaterialTheme.typography.titleLarge)
                         }
                     },
-                    actions = { if (screen is Screen.Reader) ReaderActions(screen.session) },
+                    actions = {
+                        when (screen) {
+                            is Screen.Reader -> ReaderActions(screen.session)
+                            Screen.ReaderCourses -> {
+                                TextButton(onClick = { state.go(Screen.Home) }) { Text("📥 Импорт") }
+                                TextButton(onClick = { state.go(Screen.Settings) }) { Text("⚙") }
+                            }
+                            else -> {}
+                        }
+                    },
                 )
             },
-            bottomBar = {
-                NavigationBar {
-                    Tab.entries.forEach { t ->
-                        NavigationBarItem(
-                            selected = state.tab == t,
-                            onClick = { if (state.tab == t) state.toRoot() else state.tab = t },
-                            icon = { Text(t.icon, style = MaterialTheme.typography.titleLarge) },
-                            label = { Text(t.label) },
-                        )
-                    }
-                }
-            },
+            bottomBar = { if (screen is Screen.Reader) ReaderBottomBar(screen.session) },
             snackbarHost = { SnackbarHost(state.snackbar) },
         ) { pad ->
             // edge-to-edge: the content must shrink above the keyboard itself, otherwise it covers text fields
             Box(Modifier.padding(pad).imePadding().fillMaxSize()) {
                 when (screen) {
                     Screen.Home -> HomeScreen(state)
-                    Screen.ReaderCourses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c, reader = true)) }
+                    Screen.ReaderCourses -> CoursesScreen(state, library = true) { c -> state.go(Screen.Lessons(state.lang, c, reader = true)) }
                     is Screen.Reader -> ReaderScreen(screen.session)
                     Screen.Settings -> SettingsScreen(state)
                     Screen.Courses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c)) }
@@ -153,7 +149,7 @@ fun App(state: AppState) {
 
 private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.Home -> "Импорт и исправление"
-    Screen.ReaderCourses -> "Читалка · ${state.lang}"
+    Screen.ReaderCourses -> "Библиотека · ${state.lang}"
     is Screen.Reader -> s.session.title
     Screen.Settings -> "Настройки"
     Screen.Courses -> "Мои курсы · ${state.lang}"
@@ -211,7 +207,7 @@ private fun HomeScreen(state: AppState) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text("Сначала укажите API-ключ LingQ")
-                    TextButton(onClick = { state.tab = Tab.Settings }) { Text("Открыть настройки") }
+                    TextButton(onClick = { state.go(Screen.Settings) }) { Text("Открыть настройки") }
                 }
             }
         }
@@ -315,10 +311,28 @@ private fun SettingsScreen(state: AppState) {
 // --- Courses / lessons ---------------------------------------------------------------------------
 
 @Composable
-private fun CoursesScreen(state: AppState, onPick: (Course) -> Unit) {
+private fun CoursesScreen(state: AppState, library: Boolean = false, onPick: (Course) -> Unit) {
     var q by remember { mutableStateOf("") }
     LaunchedEffect(state.lang) { state.loadCourses() }
     Column(Modifier.fillMaxSize()) {
+        if (library) Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            state.update?.let { u ->
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Доступна версия ${u.versionName}", Modifier.weight(1f))
+                        val p = state.updateProgress
+                        if (p != null) CircularProgressIndicator(progress = { p })
+                        else Button(onClick = { state.installUpdate() }) { Text("Обновить") }
+                    }
+                }
+            }
+            if (state.apiKey.isBlank()) Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Укажите API-ключ LingQ", Modifier.weight(1f))
+                    TextButton(onClick = { state.go(Screen.Settings) }) { Text("Настройки") }
+                }
+            }
+        }
         Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 q, { q = it }, Modifier.weight(1f),

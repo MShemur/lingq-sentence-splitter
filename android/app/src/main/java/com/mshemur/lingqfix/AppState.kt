@@ -19,8 +19,6 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
-enum class Tab(val label: String, val icon: String) { Reader("Читалка", "📖"), Tools("Импорт", "📥"), Settings("Настройки", "⚙") }
-
 sealed interface Screen {
     data object Home : Screen
     data object Settings : Screen
@@ -60,13 +58,8 @@ class AppState(val ctx: Context) {
     val scope = MainScope()
     val snackbar = SnackbarHostState()
 
-    var tab by mutableStateOf(Tab.Reader)
-    private val stacks = mapOf(
-        Tab.Reader to mutableStateListOf<Screen>(Screen.ReaderCourses),
-        Tab.Tools to mutableStateListOf<Screen>(Screen.Home),
-        Tab.Settings to mutableStateListOf<Screen>(Screen.Settings),
-    )
-    val stack get() = stacks.getValue(tab)
+    /** Main screen = library (reader); import/fix and settings open from its top bar. */
+    val stack = mutableStateListOf<Screen>(Screen.ReaderCourses)
     val screen: Screen get() = stack.last()
 
     var apiKey by mutableStateOf(prefs.apiKey)
@@ -117,7 +110,6 @@ class AppState(val ctx: Context) {
 
     fun openLink(text: String) {
         val t = parseTarget(text) ?: return say("Не понял ссылку")
-        tab = Tab.Tools
         val language = t.lang ?: lang
         when {
             t.lessonId != null -> checkLessons(language, listOf(Lesson(t.lessonId, "")), "Урок ${t.lessonId}")
@@ -133,7 +125,6 @@ class AppState(val ctx: Context) {
 
     fun openImportFile(uri: Uri) {
         val s = ImportSession(this)
-        tab = Tab.Tools
         go(Screen.Import(s))
         s.loadFile(uri)
     }
@@ -143,7 +134,6 @@ class AppState(val ctx: Context) {
         s.pasteMode = true
         s.pasteTitle = title.orEmpty()
         s.pasteText = text
-        tab = Tab.Tools
         go(Screen.Import(s))
     }
 
