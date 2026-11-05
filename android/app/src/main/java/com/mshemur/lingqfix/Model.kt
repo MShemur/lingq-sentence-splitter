@@ -19,22 +19,17 @@ class LessonFix(val lesson: Lesson, val original: JSONArray, val fixed: JSONArra
 
 /** Plain-text report (to share / send for review). */
 fun reportText(header: String, fixes: List<LessonFix>): String = buildString {
-    append(header).append("
-")
-    append("Уроков с правками: ${fixes.size}, правок: ${fixes.sumOf { it.changes.size }}
-")
+    append(header).append("\n")
+    append("Уроков с правками: ${fixes.size}, правок: ${fixes.sumOf { it.changes.size }}\n")
     for (f in fixes) {
-        append("
-## ${f.lesson.title} (id ${f.lesson.id}) — ${f.changes.size}
-")
+        append("\n## ${f.lesson.title} (id ${f.lesson.id}) — ${f.changes.size}\n")
         for (c in f.changes) append(
             when (c.kind) {
                 ChangeKind.MERGE -> "- ${Fixer.tail(c.a)} ‖ ${Fixer.head(c.b)}"
                 ChangeKind.DUP -> "- убран повтор: ${Fixer.head(c.a, 80)}"
                 ChangeKind.CLEANUP -> "- исправлены символы: ${Fixer.head(c.a, 80)}"
             }
-        ).append("
-")
+        ).append("\n")
     }
 }
 
