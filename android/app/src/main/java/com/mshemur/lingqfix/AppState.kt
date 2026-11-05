@@ -264,6 +264,8 @@ class ImportSession(private val app: AppState) {
     var progress by mutableFloatStateOf(0f)
     val log = mutableStateListOf<String>()
     var error by mutableStateOf<String?>(null)
+    /** Lessons whose sentence split was fixed right after the upload (for the report). */
+    val fixes = mutableStateListOf<LessonFix>()
 
     fun loadFile(uri: Uri) {
         loading = true
@@ -306,6 +308,7 @@ class ImportSession(private val app: AppState) {
         finished = false
         error = null
         log.clear()
+        fixes.clear()
         app.scope.launch {
             try {
                 val c = if (newCourse) {
@@ -334,10 +337,15 @@ class ImportSession(private val app: AppState) {
                         if (changes.isNotEmpty()) {
                             app.backups.save(lang, Lesson(id, title), paras)
                             app.api.saveParagraphs(lang, id, fixed)
+                            withContext(Dispatchers.Main) { fixes.add(LessonFix(Lesson(id, title), paras, fixed, changes)) }
                         }
                         changes.size
                     }
-                    log[log.lastIndex] = "✅ $title" + if (fixedCount > 0) " · исправлено склеек: $fixedCount" else ""
+                    log[log.lastIndex] = "✅ $title" + when {
+                        fixedCount > 0 -> " · разбивка исправлена: $fixedCount"
+                        fixedCount == 0 -> " · разбивка в порядке"
+                        else -> ""
+                    }
                     progress = (i + 1f) / jobs.size
                     delay(500)
                 }

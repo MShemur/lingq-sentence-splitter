@@ -371,9 +371,18 @@ private fun ChangeRow(c: Change) {
     Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 2.dp))
 }
 
+/** Opens Android's share sheet with [text] (send the report to yourself / to a chat). */
+private fun shareText(ctx: android.content.Context, subject: String, text: String) {
+    val i = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+        .putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
+        .putExtra(android.content.Intent.EXTRA_TEXT, text)
+    ctx.startActivity(android.content.Intent.createChooser(i, "Отправить отчёт").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
 @Composable
 private fun CheckScreen(s: CheckSession) {
     var confirm by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
     Column(Modifier.fillMaxSize()) {
         if (s.running || s.applying) {
             val p = if (s.running) s.progress else s.savedIds.size.toFloat() / maxOf(1, s.results.size)
@@ -404,6 +413,9 @@ private fun CheckScreen(s: CheckSession) {
                     "Исправлять нечего ✅", style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(top = 16.dp),
                 )
+                if (!s.running && s.results.isNotEmpty()) TextButton(onClick = {
+                    shareText(ctx, "LingQ Fix: ${s.label}", reportText("Проверка: ${s.label} (${s.lang})", s.results.toList()))
+                }) { Text("📤 Поделиться отчётом") }
             }
             s.results.forEach { r ->
                 item(key = "h${r.lesson.id}") {
@@ -444,6 +456,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
         if (uri != null) s.loadFile(uri)
     }
     val clipboard = LocalClipboardManager.current
+    val ctx = LocalContext.current
     var courseMenu by remember { mutableStateOf(false) }
     LaunchedEffect(state.lang) { state.loadCourses() }
     val courses = state.courses.orEmpty()
@@ -559,8 +572,27 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             s.log.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
         s.error?.let { Text("Ошибка: $it", color = MaterialTheme.colorScheme.error) }
-        if (s.finished) s.course?.let { c ->
-            OutlinedButton(onClick = { state.go(Screen.Lessons(state.lang, c)) }) { Text("Открыть курс") }
+        if (s.finished) {
+            HorizontalDivider()
+            Text(
+                if (s.fixes.isEmpty()) "Готово ✅ Разбивка проверена сразу при загрузке, исправлять было нечего."
+                else "Готово ✅ Разбивка исправлена сразу при загрузке, ещё раз проверять не нужно. " +
+                    "Ниже — что склеено (‖ — место склейки). Копии до правки — в «Резервных копиях».",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            s.fixes.forEach { f ->
+                Text(f.lesson.title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+                f.changes.forEach { ChangeRow(it) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (s.fixes.isNotEmpty()) OutlinedButton(onClick = {
+                    shareText(ctx, "LingQ Fix: ${s.course?.title.orEmpty()}",
+                        reportText("Загрузка в курс: ${s.course?.title.orEmpty()}", s.fixes.toList()))
+                }) { Text("📤 Отчёт") }
+                s.course?.let { c ->
+                    OutlinedButton(onClick = { state.go(Screen.Lessons(state.lang, c)) }) { Text("Открыть курс") }
+                }
+            }
         }
         Spacer(Modifier.height(24.dp))
     }

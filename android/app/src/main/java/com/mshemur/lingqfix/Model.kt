@@ -17,6 +17,27 @@ data class Change(val kind: ChangeKind, val a: String, val b: String = "")
 /** Result of checking one lesson: editor paragraphs before and after the fix. */
 class LessonFix(val lesson: Lesson, val original: JSONArray, val fixed: JSONArray, val changes: List<Change>)
 
+/** Plain-text report (to share / send for review). */
+fun reportText(header: String, fixes: List<LessonFix>): String = buildString {
+    append(header).append("
+")
+    append("Уроков с правками: ${fixes.size}, правок: ${fixes.sumOf { it.changes.size }}
+")
+    for (f in fixes) {
+        append("
+## ${f.lesson.title} (id ${f.lesson.id}) — ${f.changes.size}
+")
+        for (c in f.changes) append(
+            when (c.kind) {
+                ChangeKind.MERGE -> "- ${Fixer.tail(c.a)} ‖ ${Fixer.head(c.b)}"
+                ChangeKind.DUP -> "- убран повтор: ${Fixer.head(c.a, 80)}"
+                ChangeKind.CLEANUP -> "- исправлены символы: ${Fixer.head(c.a, 80)}"
+            }
+        ).append("
+")
+    }
+}
+
 fun String.extractUrl(): String = Regex("https?://\\S+").find(this)?.value ?: this.trim()
 
 /** Same rules as parse_target() in lingq_fix_splits.py. */
