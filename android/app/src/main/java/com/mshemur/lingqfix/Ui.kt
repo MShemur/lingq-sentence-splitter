@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -105,7 +106,8 @@ fun App(state: AppState) {
             },
             snackbarHost = { SnackbarHost(state.snackbar) },
         ) { pad ->
-            Box(Modifier.padding(pad).fillMaxSize()) {
+            // edge-to-edge: the content must shrink above the keyboard itself, otherwise it covers text fields
+            Box(Modifier.padding(pad).imePadding().fillMaxSize()) {
                 when (screen) {
                     Screen.Home -> HomeScreen(state)
                     Screen.Settings -> SettingsScreen(state)
