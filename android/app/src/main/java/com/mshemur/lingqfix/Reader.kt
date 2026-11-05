@@ -287,15 +287,19 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
             ?: withContext(Dispatchers.IO) { app.api.translate(lang, target, word) }
     }
 
+    /** One tap: translation pinned above the word (tap again removes it). */
     fun tap(ref: WordRef) {
-        if (inlineMode) {
-            if (pins.containsKey(ref)) { pins.remove(ref); persist(); return }
-            pins[ref] = ""
-            app.scope.launch {
-                pins[ref] = try { contextual(ref, hints(word(ref))) } catch (e: Throwable) { "⚠" }
-                persist()
-            }
-        } else {
+        if (pins.containsKey(ref)) { pins.remove(ref); persist(); return }
+        pins[ref] = ""
+        app.scope.launch {
+            pins[ref] = try { contextual(ref, hints(word(ref))) } catch (e: Throwable) { "⚠" }
+            persist()
+        }
+    }
+
+    /** Double tap: window with all meanings to choose from. */
+    fun openPopup(ref: WordRef) {
+        run {
             popup = ref
             popupHints = null
             popupBest = null
@@ -330,6 +334,20 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         popup = null
         persist()
     }
+
+    /**
+     * Meanings for the window, without duplicates: the chosen one, the contextual one, LingQ's popular
+     * meanings, and the parts of the two most popular ones ("уважаемый, почтенный" -> both words too).
+     */
+    fun options(ref: WordRef): List<String> {
+        val hs = popupHints.orEmpty()
+        val parts = hs.take(2).flatMap { h -> h.split(',', ';', '/', '|').map { it.trim() } }.filter { it.isNotEmpty() }
+        val all = listOfNotNull(chosen[word(ref).lowercase()], popupBest) + hs.take(8) + parts
+        val seen = HashSet<String>()
+        return all.map { it.trim().trim('.', ' ') }.filter { it.isNotEmpty() && seen.add(norm(it)) }
+    }
+
+    private fun norm(t: String) = t.lowercase().replace('ё', 'е').replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
 
     fun word(ref: WordRef) = sentById[ref.sent]?.tokens?.getOrNull(ref.token)?.text.orEmpty()
 }
@@ -367,9 +385,6 @@ fun ReaderBottomBar(s: ReaderSession) {
         ) {
             BarButton(if (s.sentenceMode) "📄" else "📑", if (s.sentenceMode) "Весь текст" else "По предложениям") {
                 s.sentenceMode = !s.sentenceMode
-            }
-            BarButton(if (s.inlineMode) "🔤" else "💬", if (s.inlineMode) "Над словом" else "В окошке") {
-                s.setMode(!s.inlineMode)
             }
             if (!s.sentenceMode) BarButton(if (s.allSentences) "☑" else "☐", "Перевод предлож.") {
                 s.allSentences = !s.allSentences
@@ -410,8 +425,7 @@ fun ReaderScreen(s: ReaderSession) {
         ) {
             item {
                 Text(
-                    "Нажмите на слово — перевод " + (if (s.inlineMode) "появится над ним" else "в окошке") +
-                        ". Долгое нажатие — перевод предложения.",
+                    "Нажатие на слово — перевод над ним, двойное — окошко с вариантами, долгое — перевод предложения.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
                 )
             }
@@ -463,6 +477,7 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f)
                                     .background(if (selected) GREEN_BG else Color.Transparent, RoundedCornerShape(4.dp))
                                     .combinedClickable(
                                         onClick = { s.tap(ref) },
+                                        onDoubleClick = { s.openPopup(ref) },
                                         onLongClick = { s.toggleSentence(sent.id) },
                                     ),
                             )
@@ -536,8 +551,7 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
                         "Нажмите на перевод, чтобы выбрать его для этого текста:",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
                     )
-                    val options = (listOfNotNull(saved, best) + hints.take(8)).distinctBy { it.lowercase() }
-                    options.forEach { h ->
+                    s.options(ref).forEach { h ->
                         val isSaved = h.equals(saved, ignoreCase = true)
                         val isBest = h.equals(best, ignoreCase = true)
                         Row(
