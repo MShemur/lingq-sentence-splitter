@@ -16,6 +16,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   model and the failed request is repeated (word pin, word window, sentence translation, retranslate, chat).
   Android `ModelSwitch.kt`, `AppState.geminiFailed`.
 
+- Several words at once: long press on a word, keep the finger down and drag over other words of the same
+  sentence (selection highlighted); release -> window with the phrase translated together in context
+  (Gemini word prompt + "this is a phrase" note; LingQ: hints + machine translation), chips to choose,
+  own variant (saved per lesson like word meanings). Long press without dragging = sentence translation as
+  before. Android `Reader.kt` (`wordGestures`, `openPhrase`, `PhraseSheet`).
+
 ## To do on Android
 
 

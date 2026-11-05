@@ -7,6 +7,20 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalHapticFeedback
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.platform.LocalDensity
@@ -146,6 +160,9 @@ class Sent(val id: Int, val text: String, val translations: Map<String, String>,
     }
 }
 
+/** Several words of one sentence selected together: tokens [from]..[to]. */
+data class Phrase(val sent: Int, val from: Int, val to: Int, val text: String)
+
 /** Word the user tapped: sentence + token. */
 data class WordRef(val sent: Int, val token: Int) {
     fun key() = "$sent:$token"
@@ -192,6 +209,108 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         val tr = sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") } ?: s.translations[target].orEmpty()
         val on = app.bookmarks.toggle(lang, Lesson(lesson.id, title), id, s.text, tr)
         app.say(if (on) "Предложение в закладках" else "Закладка удалена")
+    }
+
+    // --- several words: long press on a word and drag over the others ---
+
+    /** Where each word is on screen, per view ("text" pages, "sent" sentence mode); for hit tests while dragging. */
+    val wordCoords = HashMap<Pair<String, WordRef>, LayoutCoordinates>()
+    /** Selection being dragged / the phrase whose window is open. */
+    var selSent by mutableStateOf(-1)
+    var selFrom by mutableStateOf(-1)
+    var selTo by mutableStateOf(-1)
+    private var selAnchor = -1
+
+    fun inSelection(ref: WordRef) = ref.sent == selSent && ref.token in selFrom..selTo
+
+    fun selectStart(ref: WordRef) { selSent = ref.sent; selAnchor = ref.token; selFrom = ref.token; selTo = ref.token }
+
+    fun selectTo(ref: WordRef) {
+        if (ref.sent != selSent) return
+        selFrom = minOf(selAnchor, ref.token); selTo = maxOf(selAnchor, ref.token)
+    }
+
+    fun clearSelection() { selSent = -1; selFrom = -1; selTo = -1 }
+
+    /** The word of sentence [sent] under the finger ([root] = position in the window), or the nearest one. */
+    fun wordAt(area: String, sent: Int, root: Offset): WordRef? {
+        var best: WordRef? = null
+        var bestD = Float.MAX_VALUE
+        for ((k, c) in wordCoords) {
+            if (k.first != area || k.second.sent != sent || !c.isAttached) continue
+            val r = c.boundsInRoot()
+            if (r.contains(root)) return k.second
+            val dx = maxOf(r.left - root.x, 0f, root.x - r.right)
+            val dy = maxOf(r.top - root.y, 0f, root.y - r.bottom)
+            val d = dx + dy * 3            // another line counts more than a few letters aside
+            if (d < bestD) { bestD = d; best = k.second }
+        }
+        return best
+    }
+
+    /** Long press released: several words -> their translation; one word -> sentence translation (as before). */
+    fun selectEnd() {
+        val sent = sentById[selSent]
+        val words = sent?.tokens?.subList(selFrom, selTo + 1)?.count { it.isWord } ?: 0
+        if (sent == null || words < 2) { val id = selSent; clearSelection(); if (sent != null) toggleSentence(id); return }
+        openPhrase(sent.id, selFrom, selTo)
+    }
+
+    var phrase by mutableStateOf<Phrase?>(null)
+    var phraseBest by mutableStateOf<String?>(null)
+    var phraseOptions by mutableStateOf<List<String>>(emptyList())
+    var phraseNote by mutableStateOf("")
+    var phraseLoading by mutableStateOf(false)
+    var phraseError by mutableStateOf<String?>(null)
+
+    /** Contextual translation of several words together (Gemini, or LingQ's meanings + machine translation). */
+    fun openPhrase(sent: Int, from: Int, to: Int) {
+        val st = sentById[sent] ?: return
+        val text = st.tokens.subList(from, to + 1).joinToString("") { it.text }.trim()
+        val p = Phrase(sent, from, to, text)
+        focusSent = sent
+        selSent = sent; selFrom = from; selTo = to
+        phrase = p
+        phraseBest = chosen[text.lowercase()]
+        phraseOptions = emptyList(); phraseNote = ""; phraseError = null; phraseLoading = true
+        app.scope.launch {
+            try {
+                if (app.useGemini) {
+                    val prompt = app.prefs.promptWord + "\n\nВажно: «{word}» — не одно слово, а словосочетание. " +
+                        "Переведи его целиком как единое целое по смыслу в этом предложении; best может быть длиннее трёх слов."
+                    val m = withContext(Dispatchers.IO) { app.gemini().word(prompt, lang, target, text, st.text) }
+                    if (phrase != p) return@launch
+                    phraseBest = chosen[text.lowercase()] ?: m.best
+                    phraseOptions = dedupe(listOf(m.best) + m.options)
+                    phraseNote = m.note
+                } else {
+                    val h = runCatching { hints(text) }.getOrDefault(emptyList())
+                    val t = withContext(Dispatchers.IO) { app.api.translate(lang, target, text) }
+                    if (phrase != p) return@launch
+                    phraseBest = chosen[text.lowercase()] ?: t
+                    phraseOptions = dedupe(listOf(t) + h.take(8))
+                }
+            } catch (e: Throwable) {
+                if (phrase == p) phraseError = e.message ?: e.toString()
+                app.geminiFailed(e) { if (phrase == p) openPhrase(sent, from, to) }
+            }
+            if (phrase == p) phraseLoading = false
+        }
+    }
+
+    fun choosePhrase(meaning: String) {
+        val p = phrase ?: return
+        val m = meaning.trim().ifEmpty { return }
+        chosen[p.text.lowercase()] = m
+        phraseBest = m
+        persist()
+    }
+
+    fun closePhrase() { phrase = null; clearSelection() }
+
+    private fun dedupe(l: List<String>): List<String> {
+        val seen = HashSet<String>()
+        return l.map { it.trim() }.filter { it.isNotEmpty() && seen.add(norm(it)) }
     }
 
     /** Last sentence the user worked with (tapped word, long press); sentence mode opens there. */
@@ -653,6 +772,7 @@ fun ReaderScreen(s: ReaderSession) {
         else -> PagedText(s, paras)
     }
     s.popup?.let { ref -> WordSheet(s, ref) }
+    s.phrase?.let { p -> PhraseSheet(s, p) }
 }
 
 /** Part of a paragraph that lies on one page. */
@@ -857,8 +977,10 @@ private fun Paragraph(s: ReaderSession, para: List<Sent>) {
 }
 
 @Composable
-private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f) {
+private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f, area: String = "text") {
     val size = s.font * scale
+    val haptic = LocalHapticFeedback.current
+    val selBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = size.sp, lineHeight = (size * 1.35).sp)
     val trStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (size * 0.6).sp, lineHeight = (size * 0.68).sp)
     FlowRow(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -880,15 +1002,20 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f)
                                 modifier = Modifier.padding(horizontal = 1.dp),
                             )
                             val selected = tr != null || s.popup == ref
+                            val bg = when {
+                                s.inSelection(ref) -> selBg
+                                selected -> GREEN_BG
+                                else -> Color.Transparent
+                            }
+                            if (t.isWord) DisposableEffect(area, ref) { onDispose { s.wordCoords.remove(area to ref) } }
                             Text(
                                 t.text, style = textStyle,
-                                modifier = if (!t.isWord) Modifier else Modifier
-                                    .background(if (selected) GREEN_BG else Color.Transparent, RoundedCornerShape(4.dp))
-                                    .combinedClickable(
-                                        onClick = { s.tap(ref) },
-                                        onDoubleClick = { s.openPopup(ref) },
-                                        onLongClick = { s.toggleSentence(sent.id) },
-                                    ),
+                                modifier = if (!t.isWord) Modifier.background(
+                                    if (s.inSelection(ref)) selBg else Color.Transparent,
+                                ) else Modifier
+                                    .background(bg, RoundedCornerShape(4.dp))
+                                    .onGloballyPositioned { s.wordCoords[area to ref] = it }
+                                    .pointerInput(ref, area) { wordGestures(s, area, ref, haptic) },
                             )
                         }
                     }
@@ -996,7 +1123,7 @@ private fun SentencePager(s: ReaderSession) {
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 Spacer(Modifier.height(12.dp))
-                SentenceFlow(s, listOf(sent), scale = 1.15f)
+                SentenceFlow(s, listOf(sent), scale = 1.15f, area = "sent")
                 SentenceTranslation(s, sent.id, scale = 1.1f)
             }
         }
@@ -1083,6 +1210,98 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
                 )
                 AssistChip(
                     onClick = { s.chatSentence(ref.sent) }, label = { Text("Спросить") },
+                    leadingIcon = { Icon(AppIcons.Chat, contentDescription = null, Modifier.size(18.dp)) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Word gestures: tap = translation above the word, double tap = word window, long press = sentence translation,
+ * long press and drag over other words of the sentence = translate those words together.
+ * Nothing is consumed before the long press, so a swipe still turns the page.
+ */
+private suspend fun PointerInputScope.wordGestures(s: ReaderSession, area: String, ref: WordRef, haptic: HapticFeedback) {
+    awaitEachGesture {
+        val down = awaitFirstDown()
+        var ended = false
+        val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+            waitForUpOrCancellation().also { ended = true }
+        }
+        if (ended && up == null) return@awaitEachGesture          // a swipe took the touch
+        if (up != null) {
+            up.consume()
+            val second = withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) { awaitFirstDown() }
+            if (second == null) s.tap(ref)
+            else { second.consume(); waitForUpOrCancellation()?.consume(); s.openPopup(ref) }
+            return@awaitEachGesture
+        }
+        // long press: select from this word, follow the finger
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        s.selectStart(ref)
+        while (true) {
+            val ev = awaitPointerEvent()
+            val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+            ch.consume()
+            if (!ch.pressed) break
+            val own = s.wordCoords[area to ref]
+            if (own == null || !own.isAttached) continue
+            s.wordAt(area, ref.sent, own.localToRoot(ch.position))?.let { s.selectTo(it) }
+        }
+        s.selectEnd()
+    }
+}
+
+/** Window for several words translated together. */
+@Composable
+private fun PhraseSheet(s: ReaderSession, p: Phrase) {
+    var own by remember(p) { mutableStateOf("") }
+    ModalBottomSheet(onDismissRequest = { s.closePhrase() }) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            s.phraseBest?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = GREEN) }
+            if (s.phraseLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            s.phraseError?.let { Text("Ошибка: $it", color = MaterialTheme.colorScheme.error) }
+            if (s.phraseNote.isNotBlank()) Text(
+                s.phraseNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val saved = s.chosen[p.text.lowercase()]
+            if (s.phraseOptions.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                s.phraseOptions.forEach { h ->
+                    val isSaved = h.equals(saved, ignoreCase = true)
+                    FilterChip(
+                        selected = isSaved, onClick = { s.choosePhrase(h) }, label = { Text(h) },
+                        leadingIcon = if (isSaved) { { Icon(Icons.Filled.Check, contentDescription = null, Modifier.size(16.dp)) } } else null,
+                    )
+                }
+            }
+            if (!s.phraseLoading) OutlinedTextField(
+                own, { own = it }, Modifier.fillMaxWidth(),
+                placeholder = { Text("Свой вариант") }, singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium, shape = RoundedCornerShape(12.dp),
+                trailingIcon = {
+                    IconButton(onClick = { s.choosePhrase(own); own = "" }, enabled = own.isNotBlank()) {
+                        Icon(Icons.Filled.Check, contentDescription = "Сохранить")
+                    }
+                },
+            )
+            HorizontalDivider()
+            val tr = s.sentTr[p.sent]
+            if (!tr.isNullOrEmpty()) Text(
+                tr, fontStyle = FontStyle.Italic, style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (tr.isNullOrEmpty()) AssistChip(
+                    onClick = { s.ensureSentence(p.sent) }, label = { Text("Перевод предложения") },
+                    leadingIcon = { Icon(AppIcons.Translate, contentDescription = null, Modifier.size(18.dp)) },
+                )
+                AssistChip(
+                    onClick = { s.closePhrase(); s.chatSentence(p.sent) }, label = { Text("Спросить") },
                     leadingIcon = { Icon(AppIcons.Chat, contentDescription = null, Modifier.size(18.dp)) },
                 )
             }
