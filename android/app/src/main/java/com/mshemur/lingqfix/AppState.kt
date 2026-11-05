@@ -13,6 +13,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
@@ -320,42 +323,71 @@ class ImportSession(private val app: AppState) {
                     newCourse = false
                     created
                 } else c0!!
-                for ((i, job) in jobs.withIndex()) {
-                    val (title, text) = job
-                    log.add("⬆ $title")
-                    val fixedCount = withContext(Dispatchers.IO) {
-                        val id = app.api.importLesson(lang, c.id, title, text)
-                        if (!autoFix) return@withContext -1
-                        withContext(Dispatchers.Main) { log[log.lastIndex] = "⏳ $title · LingQ обрабатывает текст…" }
-                        app.api.waitProcessed(lang, id)
-                        var result: LessonFix? = null
-                        for (attempt in 0 until 3) {
-                            val paras = app.api.editor(lang, id)
-                            val fixed = JSONArray(paras.toString())
-                            val changes = Fixer.fix(fixed)
-                            if (changes.isEmpty()) break          // nothing (left) to fix
-                            if (result == null) app.backups.save(lang, Lesson(id, title), paras)
-                            app.api.saveParagraphs(lang, id, fixed)
-                            if (result == null) result = LessonFix(Lesson(id, title), paras, fixed, changes)
-                            Thread.sleep(5000)                    // then re-check that LingQ kept it
+                // Uploads go one after another (keeps the lesson order in the course); LingQ then
+                // processes each lesson on its own, so every lesson is waited for and fixed in parallel.
+                val base = log.size
+                jobs.forEach { (title, _) -> log.add("· $title · в очереди") }
+                fun line(i: Int, msg: String) { log[base + i] = "$msg ${jobs[i].first}" }
+                var done = 0
+                var failed = 0
+                val found = arrayOfNulls<LessonFix>(jobs.size)
+                val limit = Semaphore(4)
+                coroutineScope {
+                    for ((i, job) in jobs.withIndex()) {
+                        val (title, text) = job
+                        line(i, "⬆")
+                        val id = try {
+                            withContext(Dispatchers.IO) { app.api.importLesson(lang, c.id, title, text) }
+                        } catch (e: Throwable) {
+                            line(i, "❌ ${e.message} ·"); failed++; done++; progress = done.toFloat() / jobs.size
+                            continue
                         }
-                        result?.let { r -> withContext(Dispatchers.Main) { fixes.add(r) } }
-                        result?.changes?.size ?: 0
+                        if (!autoFix) {
+                            line(i, "✅"); done++; progress = done.toFloat() / jobs.size
+                            continue
+                        }
+                        line(i, "⏳ LingQ обрабатывает ·")
+                        launch {
+                            val msg = try {
+                                limit.withPermit {
+                                    val r = withContext(Dispatchers.IO) { fixImported(lang, id, title) }
+                                    found[i] = r
+                                    if (r != null) "✅ исправлено ${r.changes.size} ·" else "✅ в порядке ·"
+                                }
+                            } catch (e: Throwable) {
+                                failed++; "❌ ${e.message} ·"
+                            }
+                            line(i, msg)
+                            done++
+                            progress = done.toFloat() / jobs.size
+                        }
+                        delay(300)
                     }
-                    log[log.lastIndex] = "✅ $title" + when {
-                        fixedCount > 0 -> " · разбивка исправлена: $fixedCount"
-                        fixedCount == 0 -> " · разбивка в порядке"
-                        else -> ""
-                    }
-                    progress = (i + 1f) / jobs.size
-                    delay(500)
                 }
+                fixes.addAll(found.filterNotNull())
                 finished = true
-                app.say("Загружено уроков: ${jobs.size}")
+                app.say(if (failed == 0) "Загружено уроков: ${jobs.size}" else "Загружено: ${jobs.size - failed}, ошибок: $failed")
             } catch (e: Throwable) {
                 error = e.message ?: e.toString()
             }
             running = false
         }
+    }
+
+    /** Waits until LingQ finished processing a fresh lesson, fixes its split and checks the fix stayed. */
+    private fun fixImported(lang: String, id: Int, title: String): LessonFix? {
+        app.api.waitProcessed(lang, id)
+        var result: LessonFix? = null
+        for (attempt in 0 until 3) {
+            val paras = app.api.editor(lang, id)
+            val fixed = JSONArray(paras.toString())
+            val changes = Fixer.fix(fixed)
+            if (changes.isEmpty()) break          // nothing (left) to fix
+            if (result == null) app.backups.save(lang, Lesson(id, title), paras)
+            app.api.saveParagraphs(lang, id, fixed)
+            if (result == null) result = LessonFix(Lesson(id, title), paras, fixed, changes)
+            Thread.sleep(5000)                    // then re-check that LingQ kept it
+        }
+        return result
     }
 }
