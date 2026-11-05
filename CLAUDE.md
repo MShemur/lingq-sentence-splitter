@@ -62,3 +62,9 @@ GitHub releases. `Fixer.kt` is a port of the merge rules in `lingq_fix_splits.py
   `cleanText`, `translations`, `phrases`, `notes`, `timestamp`.
 - `PATCH /api/v3/{lang}/lessons/{id}/` with `{"paragraphs": [...]}` saves the sentence structure
   as sent, without re-splitting. `PATCH {"text": ...}` is silently ignored.
+
+## Web version (`web/`, for the iPad)
+
+PWA on Cloudflare Pages with a LingQ proxy (Pages Function). Plan, verified API facts and the feature
+list: `web/PLAN.md`. The Android app is the reference implementation; keep both in step when a reader
+feature changes.
