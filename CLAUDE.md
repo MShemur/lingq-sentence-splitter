@@ -68,3 +68,9 @@ GitHub releases. `Fixer.kt` is a port of the merge rules in `lingq_fix_splits.py
 PWA on Cloudflare Pages with a LingQ proxy (Pages Function). Plan, verified API facts and the feature
 list: `web/PLAN.md`. The Android app is the reference implementation; keep both in step when a reader
 feature changes.
+
+## Keeping Android and web in step
+
+Two Claude sessions work in this repo: one on `android/`, one on `web/`. `PORTING.md` is the queue
+between them. **At the start of work, read it and port what is listed for your platform. After changing a
+reader feature, add a line for the other platform.**
