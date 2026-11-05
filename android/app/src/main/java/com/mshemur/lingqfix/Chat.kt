@@ -110,7 +110,8 @@ fun ChatScreen(c: ChatSession) {
                         modifier = Modifier.fillMaxWidth(if (m.user) 0.85f else 0.95f).wrapContentWidth(if (m.user) Alignment.End else Alignment.Start),
                     ) {
                         SelectionContainer {
-                            Text(m.text, Modifier.padding(horizontal = 14.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyLarge)
+                            if (m.user) Text(m.text, Modifier.padding(horizontal = 14.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyLarge)
+                            else MarkdownText(m.text, Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
                         }
                     }
                 }

@@ -661,8 +661,11 @@ private fun PagedText(s: ReaderSession, paras: List<List<Sent>>) {
         val w = (c.maxWidth - 2 * padH).coerceAtLeast(1)
         val h = if (c.hasBoundedHeight) c.maxHeight - 2 * padV else Int.MAX_VALUE
         val mc = Constraints(maxWidth = w)
-        fun height(key: String, sents: List<Sent>) =
+        // each piece is composed and measured once per pass (a slot key may not be used twice)
+        val measured = HashMap<String, Int>()
+        fun height(key: String, sents: List<Sent>): Int = measured.getOrPut(key) {
             subcompose(key) { Paragraph(s, sents) }.sumOf { it.measure(mc).height }
+        }
 
         val pages = mutableListOf<List<Block>>()
         var cur = mutableListOf<Block>()
