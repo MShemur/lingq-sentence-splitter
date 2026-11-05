@@ -326,20 +326,21 @@ class ImportSession(private val app: AppState) {
                     val fixedCount = withContext(Dispatchers.IO) {
                         val id = app.api.importLesson(lang, c.id, title, text)
                         if (!autoFix) return@withContext -1
-                        var paras = JSONArray()
-                        for (attempt in 0 until 10) {           // LingQ may still be processing the text
-                            paras = app.api.editor(lang, id)
-                            if (paras.length() > 0) break
-                            Thread.sleep(3000)
-                        }
-                        val fixed = JSONArray(paras.toString())
-                        val changes = Fixer.fix(fixed)
-                        if (changes.isNotEmpty()) {
-                            app.backups.save(lang, Lesson(id, title), paras)
+                        withContext(Dispatchers.Main) { log[log.lastIndex] = "⏳ $title · LingQ обрабатывает текст…" }
+                        app.api.waitProcessed(lang, id)
+                        var result: LessonFix? = null
+                        for (attempt in 0 until 3) {
+                            val paras = app.api.editor(lang, id)
+                            val fixed = JSONArray(paras.toString())
+                            val changes = Fixer.fix(fixed)
+                            if (changes.isEmpty()) break          // nothing (left) to fix
+                            if (result == null) app.backups.save(lang, Lesson(id, title), paras)
                             app.api.saveParagraphs(lang, id, fixed)
-                            withContext(Dispatchers.Main) { fixes.add(LessonFix(Lesson(id, title), paras, fixed, changes)) }
+                            if (result == null) result = LessonFix(Lesson(id, title), paras, fixed, changes)
+                            Thread.sleep(5000)                    // then re-check that LingQ kept it
                         }
-                        changes.size
+                        result?.let { r -> withContext(Dispatchers.Main) { fixes.add(r) } }
+                        result?.changes?.size ?: 0
                     }
                     log[log.lastIndex] = "✅ $title" + when {
                         fixedCount > 0 -> " · разбивка исправлена: $fixedCount"

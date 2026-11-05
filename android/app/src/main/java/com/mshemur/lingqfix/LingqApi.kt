@@ -77,6 +77,20 @@ class LingqApi(private val key: String) {
         return title to all.map { Lesson(it.getInt("id"), it.optString("title")) }
     }
 
+    /**
+     * After an import LingQ tokenizes the text for a while (lesson status "I", GET answers HTTP 400
+     * "locked") and then re-splits the sentences, overwriting anything saved before. Wait until done.
+     */
+    fun waitProcessed(lang: String, id: Int, timeoutMs: Long = 180_000) {
+        val end = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < end) {
+            val status = try { obj("$BASE/v3/$lang/lessons/$id/").optString("status") } catch (e: ApiException) { "locked" }
+            if (status != "I" && status != "locked") return
+            Thread.sleep(3000)
+        }
+        throw ApiException("LingQ слишком долго обрабатывает урок $id — проверьте его позже через «Исправить курс»")
+    }
+
     fun lesson(lang: String, id: Int): Lesson = Lesson(id, obj("$BASE/v3/$lang/lessons/$id/").optString("title"))
 
     /** Lesson as the web editor sees it: paragraphs -> sentences (text, translations, ...). */
