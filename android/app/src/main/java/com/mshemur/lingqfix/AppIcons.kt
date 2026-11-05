@@ -20,6 +20,14 @@ object AppIcons {
         )
     }
 
+    val Bookmark: ImageVector by lazy {
+        icon("Bookmark", "M17,3H7c-1.1,0 -1.99,0.9 -1.99,2L5,21l7,-3 7,3V5c0,-1.1 -0.9,-2 -2,-2z")
+    }
+
+    val BookmarkBorder: ImageVector by lazy {
+        icon("BookmarkBorder", "M17,3H7c-1.1,0 -1.99,0.9 -1.99,2L5,21l7,-3 7,3V5c0,-1.1 -0.9,-2 -2,-2zM17,18l-5,-2.18L7,18V5h10v13z")
+    }
+
     val Translate: ImageVector by lazy {
         icon(
             "Translate",

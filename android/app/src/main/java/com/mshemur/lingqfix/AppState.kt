@@ -32,6 +32,7 @@ sealed interface Screen {
     class Check(val session: CheckSession) : Screen
 
     data object ReaderCourses : Screen
+    data object Bookmarks : Screen
     class Chat(val session: ChatSession) : Screen
     class Reader(val session: ReaderSession) : Screen
 
@@ -60,6 +61,7 @@ sealed interface Screen {
 class AppState(val ctx: Context) {
     val prefs = Prefs(ctx)
     val backups = Backups(ctx)
+    val bookmarks = BookmarkStore(ctx)
     val scope = MainScope()
     val snackbar = SnackbarHostState()
 
@@ -87,6 +89,15 @@ class AppState(val ctx: Context) {
     private var dialogShownFor = 0
 
     fun go(s: Screen) { stack.add(s) }
+
+    /** Opens the lesson of a bookmark at that sentence (reuses the reader if this lesson is already open). */
+    fun openBookmark(b: Bookmark) {
+        val open = stack.indexOfLast { it is Screen.Reader && it.session.lesson.id == b.lessonId }
+        if (open >= 0) {
+            while (stack.size > open + 1) stack.removeAt(stack.lastIndex)
+            (stack.last() as Screen.Reader).session.jumpTo(b.sent)
+        } else go(Screen.Reader(ReaderSession(this, b.lang, Lesson(b.lessonId, b.lessonTitle), startSent = b.sent)))
+    }
     fun toRoot() { while (stack.size > 1) stack.removeAt(stack.lastIndex) }
     fun back(): Boolean = if (stack.size > 1) { stack.removeAt(stack.lastIndex); true } else false
     fun say(msg: String) { scope.launch { snackbar.showSnackbar(msg) } }

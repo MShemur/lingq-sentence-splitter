@@ -117,9 +117,14 @@ fun App(state: AppState) {
                     },
                     actions = {
                         when (screen) {
-                            is Screen.Reader -> ReaderActions(screen.session)
-                            Screen.ReaderCourses -> IconButton(onClick = { state.go(Screen.Settings) }) {
-                                Icon(Icons.Filled.Settings, contentDescription = "Настройки")
+                            is Screen.Reader -> ReaderActions(state, screen.session)
+                            Screen.ReaderCourses -> {
+                                IconButton(onClick = { state.go(Screen.Bookmarks) }) {
+                                    Icon(AppIcons.Bookmark, contentDescription = "Закладки")
+                                }
+                                IconButton(onClick = { state.go(Screen.Settings) }) {
+                                    Icon(Icons.Filled.Settings, contentDescription = "Настройки")
+                                }
                             }
                             else -> {}
                         }
@@ -143,6 +148,7 @@ fun App(state: AppState) {
                     Screen.ReaderCourses -> CoursesScreen(state, library = true) { c -> state.go(Screen.Lessons(state.lang, c, reader = true)) }
                     is Screen.Reader -> ReaderScreen(screen.session)
                     is Screen.Chat -> ChatScreen(screen.session)
+                    Screen.Bookmarks -> BookmarksScreen(state)
                     Screen.Settings -> SettingsRoot(state)
                     Screen.SettingsLingq -> SettingsLingq(state)
                     Screen.SettingsTranslation -> SettingsTranslation(state)
@@ -176,6 +182,7 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.ReaderCourses -> "Библиотека · ${state.lang}"
     is Screen.Reader -> s.session.title
     is Screen.Chat -> s.session.title
+    Screen.Bookmarks -> "Закладки"
     Screen.Settings -> "Настройки"
     Screen.SettingsLingq -> "Аккаунт LingQ"
     Screen.SettingsTranslation -> "Перевод"

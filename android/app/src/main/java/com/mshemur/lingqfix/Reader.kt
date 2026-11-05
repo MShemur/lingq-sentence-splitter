@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -147,7 +148,23 @@ private class LessonNotes(ctx: Context, lang: String, id: Int) {
 
 // --- session -------------------------------------------------------------------------------------
 
-class ReaderSession(private val app: AppState, val lang: String, val lesson: Lesson) {
+class ReaderSession(private val app: AppState, val lang: String, val lesson: Lesson, startSent: Int? = null) {
+    /** Sentence to scroll to (bookmark); consumed by the screen. */
+    var jump by mutableStateOf(startSent)
+
+    fun jumpTo(id: Int) {
+        jump = id
+        page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0)
+    }
+
+    fun isBookmarked(id: Int) = app.bookmarks.has(lesson.id, id)
+
+    fun toggleBookmark(id: Int) {
+        val s = sentById[id] ?: return
+        val on = app.bookmarks.toggle(lang, Lesson(lesson.id, title), id, s.text)
+        app.say(if (on) "Предложение в закладках" else "Закладка удалена")
+    }
+
     var title by mutableStateOf(lesson.title)
     var paragraphs by mutableStateOf<List<List<Sent>>?>(null)
     var sentences by mutableStateOf<List<Sent>>(emptyList())
@@ -196,6 +213,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 pins.putAll(p); chosen.putAll(w)
                 title = t
                 sentences = paras.flatten()
+                jump?.let { id -> page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0) }
                 paragraphs = paras
             } catch (e: Throwable) {
                 error = e.message ?: e.toString()
@@ -491,8 +509,11 @@ private val GREEN_BG = Color(0x3343A047)
 
 /** Top bar: font size and extras. */
 @Composable
-fun ReaderActions(s: ReaderSession) {
+fun ReaderActions(state: AppState, s: ReaderSession) {
     var menu by remember { mutableStateOf(false) }
+    var marks by remember { mutableStateOf(false) }
+    IconButton(onClick = { marks = true }) { Icon(AppIcons.Bookmark, contentDescription = "Закладки урока") }
+    if (marks) LessonBookmarksDialog(state, s) { marks = false }
     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
         DropdownMenuItem(
@@ -547,8 +568,16 @@ fun ReaderScreen(s: ReaderSession) {
             CircularProgressIndicator()
         }
         s.sentenceMode -> SentencePager(s)
-        else -> LazyColumn(
-            Modifier.fillMaxSize(),
+        else -> {
+            val listState = rememberLazyListState()
+            LaunchedEffect(s.jump, paras) {
+                val id = s.jump ?: return@LaunchedEffect
+                val p = paras.indexOfFirst { para -> para.any { it.id == id } }
+                if (p >= 0) listState.scrollToItem(p + 1)
+                s.jump = null
+            }
+            LazyColumn(
+            Modifier.fillMaxSize(), state = listState,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -559,6 +588,7 @@ fun ReaderScreen(s: ReaderSession) {
                 )
             }
             items(paras) { para -> Paragraph(s, para) }
+            }
         }
     }
     s.popup?.let { ref -> WordSheet(s, ref) }
@@ -588,6 +618,10 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f)
     val trStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (size * 0.6).sp, lineHeight = (size * 0.68).sp)
     FlowRow(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         for (sent in sents) {
+            if (s.isBookmarked(sent.id)) Icon(
+                AppIcons.Bookmark, contentDescription = "Закладка", tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.align(Alignment.Bottom).padding(end = 2.dp, bottom = 4.dp).size((size * 0.9).dp),
+            )
             for (chunk in sent.chunks) {
                 // bottom-aligned: a translation above one word pushes the whole line down
                 Row(Modifier.align(Alignment.Bottom).padding(end = (size * 0.3).dp), verticalAlignment = Alignment.Bottom) {
@@ -636,10 +670,23 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f) {
             fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
+        BookmarkButton(s, id)
         RetranslateButton(s, id)
         IconButton(onClick = { s.chatSentence(id) }, modifier = Modifier.size(36.dp)) {
             Icon(AppIcons.Chat, contentDescription = "Чат о предложении", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
         }
+    }
+}
+
+@Composable
+private fun BookmarkButton(s: ReaderSession, id: Int) {
+    val on = s.isBookmarked(id)
+    IconButton(onClick = { s.toggleBookmark(id) }, modifier = Modifier.size(36.dp)) {
+        Icon(
+            if (on) AppIcons.Bookmark else AppIcons.BookmarkBorder,
+            contentDescription = if (on) "Убрать из закладок" else "В закладки",
+            modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
@@ -660,12 +707,21 @@ private fun SentencePager(s: ReaderSession) {
     val list = s.sentences
     val pager = rememberPagerState(initialPage = s.page.coerceIn(0, maxOf(0, list.size - 1))) { list.size }
     LaunchedEffect(pager.currentPage) { s.page = pager.currentPage }
+    LaunchedEffect(s.jump) {
+        val id = s.jump ?: return@LaunchedEffect
+        val i = list.indexOfFirst { it.id == id }
+        if (i >= 0) pager.scrollToPage(i)
+        s.jump = null
+    }
     Column(Modifier.fillMaxSize()) {
-        Text(
-            "${pager.currentPage + 1} / ${list.size}   ·   свайп ← → для следующего предложения",
-            Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
-        )
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "${pager.currentPage + 1} / ${list.size}   ·   свайп ← → для следующего",
+                Modifier.weight(1f),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+            )
+            list.getOrNull(pager.currentPage)?.let { BookmarkButton(s, it.id) }
+        }
         HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
             val sent = list[i]
             Column(
@@ -745,6 +801,11 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
             } else TextButton(onClick = { s.toggleSentence(ref.sent) }) {
                 Icon(AppIcons.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("Перевести предложение", Modifier.padding(start = 8.dp))
+            }
+            val marked = s.isBookmarked(ref.sent)
+            TextButton(onClick = { s.toggleBookmark(ref.sent) }) {
+                Icon(if (marked) AppIcons.Bookmark else AppIcons.BookmarkBorder, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(if (marked) "Убрать предложение из закладок" else "Предложение в закладки", Modifier.padding(start = 8.dp))
             }
             OutlinedButton(onClick = { s.chatSentence(ref.sent) }) {
                 Icon(AppIcons.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
