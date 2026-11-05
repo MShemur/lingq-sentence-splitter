@@ -88,6 +88,13 @@ class LingqApi(private val key: String) {
         call("PATCH", "$BASE/v3/$lang/lessons/$id/", JSONObject().put("paragraphs", paragraphs).toString())
     }
 
+    /** Creates a new (private) course; returns it. */
+    fun createCourse(lang: String, title: String): Course {
+        val body = JSONObject().put("title", title.take(250)).put("description", "").put("level", 1)
+        val d = JSONObject(call("POST", "$BASE/v3/$lang/collections/", body.toString()))
+        return Course(d.getInt("id"), d.optString("title", title))
+    }
+
     /** Creates a private lesson in [course]; returns its id. */
     fun importLesson(lang: String, course: Int, title: String, text: String): Int {
         val body = JSONObject()

@@ -433,7 +433,10 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
     var courseMenu by remember { mutableStateOf(false) }
     LaunchedEffect(state.lang) { state.loadCourses() }
     val courses = state.courses.orEmpty()
-    LaunchedEffect(courses) { if (s.course == null) s.course = courses.firstOrNull() }
+    LaunchedEffect(state.courses) {
+        if (s.course == null) s.course = courses.firstOrNull()
+        if (state.courses?.isEmpty() == true) s.newCourse = true   // no courses yet: offer to create one
+    }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -493,15 +496,29 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             Box {
                 OutlinedButton(onClick = { courseMenu = true }, modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        s.course?.title ?: if (state.courses == null) "Загрузка курсов…" else "Выберите курс",
+                        if (s.newCourse) "➕ Новый курс" else s.course?.title ?: if (state.courses == null) "Загрузка курсов…" else "Выберите курс",
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
                 DropdownMenu(expanded = courseMenu, onDismissRequest = { courseMenu = false }) {
+                    DropdownMenuItem(text = { Text("➕ Новый курс…") }, onClick = {
+                        s.newCourse = true
+                        if (s.newCourseTitle.isBlank()) {
+                            s.newCourseTitle = (if (s.pasteMode) s.pasteTitle else s.sourceName.substringBeforeLast('.'))
+                        }
+                        courseMenu = false
+                    })
+                    HorizontalDivider()
                     courses.forEach { c ->
-                        DropdownMenuItem(text = { Text(c.title) }, onClick = { s.course = c; courseMenu = false })
+                        DropdownMenuItem(text = { Text(c.title) }, onClick = { s.course = c; s.newCourse = false; courseMenu = false })
                     }
                 }
+            }
+            if (s.newCourse) {
+                OutlinedTextField(
+                    s.newCourseTitle, { s.newCourseTitle = it }, Modifier.fillMaxWidth(),
+                    label = { Text("Название нового курса") }, singleLine = true, enabled = !s.running,
+                )
             }
             state.coursesError?.let { Text("Курсы не загрузились: $it", color = MaterialTheme.colorScheme.error) }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -518,7 +535,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             }
             val n = s.selectedCount()
             Button(
-                onClick = { s.run() }, enabled = !s.running && n > 0 && s.course != null,
+                onClick = { s.run() }, enabled = !s.running && n > 0 && (if (s.newCourse) s.newCourseTitle.isNotBlank() else s.course != null),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (n == 1) "Загрузить урок" else "Загрузить уроков: $n") }
         }

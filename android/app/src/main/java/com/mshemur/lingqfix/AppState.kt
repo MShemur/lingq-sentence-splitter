@@ -251,6 +251,8 @@ class ImportSession(private val app: AppState) {
     var pasteTitle by mutableStateOf("")
     var pasteText by mutableStateOf("")
     var course by mutableStateOf<Course?>(null)
+    var newCourse by mutableStateOf(false)
+    var newCourseTitle by mutableStateOf("")
     var autoFix by mutableStateOf(true)
     var splitWords by mutableStateOf("3000")
     var running by mutableStateOf(false)
@@ -285,7 +287,10 @@ class ImportSession(private val app: AppState) {
     fun selectedCount() = if (pasteMode) (if (pasteText.isBlank()) 0 else 1) else items.count { it.selected }
 
     fun run() {
-        val c = course ?: return app.say("Выберите курс")
+        val c0 = course
+        val createTitle = newCourseTitle.trim()
+        if (newCourse && createTitle.isEmpty()) return app.say("Введите название нового курса")
+        if (!newCourse && c0 == null) return app.say("Выберите курс")
         val lang = app.lang
         val max = splitWords.toIntOrNull() ?: 0
         val jobs = selected().flatMap { (title, text) ->
@@ -299,6 +304,15 @@ class ImportSession(private val app: AppState) {
         log.clear()
         app.scope.launch {
             try {
+                val c = if (newCourse) {
+                    log.add("➕ Курс «$createTitle»")
+                    val created = withContext(Dispatchers.IO) { app.api.createCourse(lang, createTitle) }
+                    log[log.lastIndex] = "✅ Курс «${created.title}» создан"
+                    app.courses = listOf(created) + app.courses.orEmpty()
+                    course = created
+                    newCourse = false
+                    created
+                } else c0!!
                 for ((i, job) in jobs.withIndex()) {
                     val (title, text) = job
                     log.add("⬆ $title")
