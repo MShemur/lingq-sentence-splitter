@@ -323,10 +323,27 @@ private fun SettingsScreen(state: AppState) {
             singleLine = true, visualTransformation = PasswordVisualTransformation(),
         )
         TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text("Получить ключ (бесплатно) →") }
+        var models by remember { mutableStateOf<List<String>>(emptyList()) }
+        var modelMenu by remember { mutableStateOf(false) }
         OutlinedTextField(
-            gModel, { gModel = it }, Modifier.fillMaxWidth(), label = { Text("Модель") }, singleLine = true,
-            supportingText = { Text("gemini-2.5-flash — быстро; gemini-2.5-pro — умнее, медленнее") },
+            gModel, { gModel = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Модель") }, singleLine = true,
+            supportingText = { Text("flash — быстро (для перевода слов); pro — умнее, медленнее") },
         )
+        Box {
+            TextButton(onClick = {
+                scope.launch {
+                    try {
+                        models = withContext(Dispatchers.IO) { Gemini(gKey.trim(), gModel).models() }
+                        modelMenu = true
+                    } catch (e: Exception) {
+                        state.say(e.message ?: "Ошибка")
+                    }
+                }
+            }) { Text("Выбрать из доступных моделей") }
+            DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
+                models.forEach { m -> DropdownMenuItem(text = { Text(m) }, onClick = { gModel = m; modelMenu = false }) }
+            }
+        }
         TextButton(onClick = { showPrompts = !showPrompts }) { Text(if (showPrompts) "▲ Скрыть промпты" else "▼ Промпты Gemini") }
         if (showPrompts) {
             Text(

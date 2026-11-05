@@ -37,9 +37,48 @@ class WordMeaning(val best: String, val options: List<String>, val note: String)
 class Gemini(private val key: String, private val model: String) {
     class Msg(val user: Boolean, val text: String)
 
+    companion object {
+        const val DEFAULT_MODEL = "gemini-3.8-flash"
+        private const val API = "https://generativelanguage.googleapis.com/v1beta"
+    }
+
+    /** Models this key may use for text generation (for the picker in settings). */
+    fun models(): List<String> {
+        if (key.isBlank()) throw ApiException("Не задан ключ Gemini")
+        val out = mutableListOf<String>()
+        var token = ""
+        do {
+            val req = Request.Builder().url("$API/models?pageSize=200" + (if (token.isNotEmpty()) "&pageToken=$token" else ""))
+                .header("x-goog-api-key", key).build()
+            val (code, text) = LingqApi.http.newCall(req).execute().use { r -> r.code to r.body?.string().orEmpty() }
+            if (code !in 200..299) throw ApiException("Gemini: HTTP $code ${text.take(200)}")
+            val o = JSONObject(text)
+            val a = o.optJSONArray("models") ?: JSONArray()
+            for (i in 0 until a.length()) {
+                val m = a.getJSONObject(i)
+                val methods = m.optJSONArray("supportedGenerationMethods")?.toString().orEmpty()
+                val name = m.optString("name").removePrefix("models/")
+                if ("generateContent" in methods && name.startsWith("gemini")) out += name
+            }
+            token = o.optString("nextPageToken")
+        } while (token.isNotEmpty())
+        return out.sortedDescending()
+    }
+
     fun generate(system: String?, messages: List<Msg>, json: Boolean = false): String {
         if (key.isBlank()) throw ApiException("Не задан ключ Gemini (⚙ Настройки)")
-        val m = model.ifBlank { "gemini-2.5-flash" }
+        val m = model.ifBlank { DEFAULT_MODEL }
+        return try {
+            request(m, system, messages, json, lowThinking = true)
+        } catch (e: ApiException) {
+            // older/newer models may not know the thinking option: try once without it
+            if (e.message.orEmpty().contains("HTTP 400") && e.message.orEmpty().contains("hink", ignoreCase = true))
+                request(m, system, messages, json, lowThinking = false)
+            else throw e
+        }
+    }
+
+    private fun request(m: String, system: String?, messages: List<Msg>, json: Boolean, lowThinking: Boolean): String {
         val body = JSONObject()
         if (!system.isNullOrBlank()) body.put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
         val contents = JSONArray()
@@ -50,12 +89,15 @@ class Gemini(private val key: String, private val model: String) {
         body.put("contents", contents)
         val cfg = JSONObject().put("temperature", 0.3)
         if (json) cfg.put("responseMimeType", "application/json")
-        // Flash models answer much faster without "thinking"
-        if (m.contains("flash")) cfg.put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
+        // Flash models answer much faster with little "thinking"
+        if (lowThinking && m.contains("flash")) cfg.put(
+            "thinkingConfig",
+            if (m.startsWith("gemini-2")) JSONObject().put("thinkingBudget", 0) else JSONObject().put("thinkingLevel", "low"),
+        )
         body.put("generationConfig", cfg)
 
         val req = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent")
+            .url("$API/models/$m:generateContent")
             .header("x-goog-api-key", key)
             .post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
             .build()
