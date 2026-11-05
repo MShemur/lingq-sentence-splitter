@@ -6,7 +6,12 @@ import type { ChatSession } from '../chat'
 import { Icon } from '../icons'
 import { IconButton, Spinner, TopBar } from '../ui'
 
-const SUGGESTIONS = ['Разбери грамматику', 'Объясни трудные слова', 'Переведи дословно', 'Приведи похожие примеры']
+const SUGGESTIONS = {
+  text: ['Разбери грамматику', 'Объясни трудные слова', 'Переведи дословно', 'Приведи похожие примеры'],
+  sentence: ['Разбери грамматику', 'Объясни трудные слова', 'Переведи дословно', 'Приведи похожие примеры'],
+  word: ['Что значит здесь?', 'Другие значения', 'Начальная форма и грамматика', 'Примеры употребления', 'Синонимы'],
+}
+const LABEL = { text: 'Текст', sentence: 'Предложение', word: 'Слово' }
 
 export function ChatScreen({ c }: { c: ChatSession }) {
   const end = useRef<HTMLDivElement>(null)
@@ -20,12 +25,12 @@ export function ChatScreen({ c }: { c: ChatSession }) {
       <div class="screen-body scroll">
         <div class="content chat-list">
           <div class="card outlined">
-            <div class="card-label">{c.wholeText ? 'Текст' : 'Предложение'}</div>
+            <div class="card-label">{LABEL[c.kind]}</div>
             <div class="clamp6">{c.context}</div>
           </div>
           {!msgs.length && (
             <div class="chips">
-              {SUGGESTIONS.map((q) => (
+              {SUGGESTIONS[c.kind].map((q) => (
                 <button key={q} class="chip" onClick={() => { c.input.value = q; void c.send() }}>{q}</button>
               ))}
             </div>

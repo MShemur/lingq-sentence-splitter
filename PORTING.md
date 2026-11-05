@@ -13,6 +13,11 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- "Спросить" in the word window and in the phrase window opens a chat about that word / those words (not the
+  sentence): new prompt "Чат о слове" ({word} {sentence}, editable in prompts, reset restores it), title
+  "Чат о слове «…»", card shows word + sentence, suggestions "Что значит здесь?", "Другие значения",
+  "Начальная форма и грамматика", "Примеры употребления", "Синонимы". web `prompts.ts` CHAT_WORD, `session.ts` chatWord.
+
 - Docked word panel: the word window can be pinned at the right of the reader (pin button in the word / phrase
   window; ✕ in the panel header unpins). It stays there: empty with a hint until a word is chosen; a tap on a
   word (not only a double tap) shows the word there, the phrase selection too; choosing a meaning keeps the word

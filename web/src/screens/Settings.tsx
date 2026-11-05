@@ -166,6 +166,7 @@ export function SettingsPrompts() {
     ['promptSentence', 'Перевод предложения'],
     ['promptRetranslate', 'Повторный перевод ({current} — текущий)'],
     ['promptChatSentence', 'Чат о предложении'],
+    ['promptChatWord', 'Чат о слове («Спросить» в окне слова)'],
     ['promptChatText', 'Чат о всём тексте'],
   ]
   const reset = () => {
@@ -173,6 +174,7 @@ export function SettingsPrompts() {
     prefs.promptSentence.value = Prompts.SENTENCE
     prefs.promptRetranslate.value = Prompts.RETRANSLATE
     prefs.promptChatSentence.value = Prompts.CHAT_SENTENCE
+    prefs.promptChatWord.value = Prompts.CHAT_WORD
     prefs.promptChatText.value = Prompts.CHAT_TEXT
     say('Стандартные промпты восстановлены')
   }

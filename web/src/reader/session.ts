@@ -576,7 +576,17 @@ export class ReaderSession {
   chatText() {
     const text = (this.paragraphs.value ?? []).map((p) => p.map((s) => s.text).join(' ')).join('\n\n')
     const sys = fill(prompt.chatText(), { lang: this.lang, target: this.target, text })
-    go({ k: 'chat', c: new ChatSession('Чат о тексте', sys, this.title.value, true) })
+    go({ k: 'chat', c: new ChatSession('Чат о тексте', sys, this.title.value, 'text') })
+  }
+
+  /** "Спросить" in the word / phrase window: the chat explains that word (or words) in its sentence. */
+  chatWord(sentId: number, word: string) {
+    const s = this.sentById.get(sentId)
+    if (!s) return
+    this.popup.value = null
+    this.closePhrase()
+    const sys = fill(prompt.chatWord(), { lang: this.lang, target: this.target, word, sentence: s.text })
+    go({ k: 'chat', c: new ChatSession(`Чат о слове «${word}»`, sys, `${word}\n\n${s.text}`, 'word') })
   }
 
   chatSentence(id: number) {

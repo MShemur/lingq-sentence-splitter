@@ -27,6 +27,7 @@ export const prefs = {
   promptSentence: pref('promptSentence', Prompts.SENTENCE),
   promptRetranslate: pref('promptRetranslate', Prompts.RETRANSLATE),
   promptChatSentence: pref('promptChatSentence', Prompts.CHAT_SENTENCE),
+  promptChatWord: pref('promptChatWord', Prompts.CHAT_WORD),
   promptChatText: pref('promptChatText', Prompts.CHAT_TEXT),
   readerFont: pref('readerFont', '20'),
   /** '1': the word window is docked at the right of the reader and always shown. */
@@ -39,6 +40,7 @@ export const prompt = {
   sentence: () => prefs.promptSentence.value.trim() || Prompts.SENTENCE,
   retranslate: () => prefs.promptRetranslate.value.trim() || Prompts.RETRANSLATE,
   chatSentence: () => prefs.promptChatSentence.value.trim() || Prompts.CHAT_SENTENCE,
+  chatWord: () => prefs.promptChatWord.value.trim() || Prompts.CHAT_WORD,
   chatText: () => prefs.promptChatText.value.trim() || Prompts.CHAT_TEXT,
 }
 

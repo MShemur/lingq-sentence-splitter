@@ -635,7 +635,7 @@ function WordContent({ s, r, head }: { s: ReaderSession; r: WordRef; head?: JSX.
       <div class="chips">
         {!tr && <Chip icon="translate" label="Перевод" onClick={() => (docked() ? s.ensureSentence(sid) : s.toggleSentence(sid))} />}
         <Chip icon={marked ? 'bookmark' : 'bookmarkBorder'} label={marked ? 'В закладках' : 'Закладка'} onClick={() => s.toggleBookmark(sid)} />
-        <Chip icon="chat" label="Спросить" onClick={() => s.chatSentence(sid)} />
+        <Chip icon="chat" label="Спросить" onClick={() => s.chatWord(sid, word)} />
       </div>
     </div>
   )
@@ -677,7 +677,7 @@ function PhraseContent({ s, head }: { s: ReaderSession; head?: JSX.Element }) {
       {tr && <div class="ws-tr"><div class="sent-tr-text">{tr}</div></div>}
       <div class="chips">
         {!tr && <Chip icon="translate" label="Перевод предложения" onClick={() => s.ensureSentence(p.sent)} />}
-        <Chip icon="chat" label="Спросить" onClick={() => { s.closePhrase(); s.chatSentence(p.sent) }} />
+        <Chip icon="chat" label="Спросить" onClick={() => s.chatWord(p.sent, p.text)} />
       </div>
     </div>
   )

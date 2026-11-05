@@ -88,7 +88,7 @@ a { color: var(--primary); }
 .empty { padding: 24px; color: var(--on-surface-variant); }
 .error-text { color: var(--error); margin: 0; }
 .clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.clamp6 { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp6 { white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
 .icon { display: block; flex-shrink: 0; }
 
 /* --- top app bar --- */

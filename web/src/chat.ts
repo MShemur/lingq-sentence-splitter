@@ -10,7 +10,11 @@ export class ChatSession {
   sending = signal(false)
   error = signal<string | null>(null)
 
-  constructor(readonly title: string, private system: string, readonly context: string, readonly wholeText = false) {}
+  /** [kind]: what the chat is about (card label and suggestion chips). */
+  constructor(
+    readonly title: string, private system: string, readonly context: string,
+    readonly kind: 'text' | 'sentence' | 'word' = 'sentence',
+  ) {}
 
   async send() {
     const q = this.input.value.trim()
