@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Ссылка на курс или урок LingQ (для restore: путь runs/<время>/backup/<id>.json)"
+        description: "Ссылка на курс или урок LingQ (для restore: путь runs/<время>/backup/<id>.json; для delete-backups: любой текст)"
         required: true
         type: string
       mode:
-        description: "dry-run = только отчёт, apply = записать в LingQ, restore = вернуть урок из копии"
+        description: "dry-run = только отчёт, apply = записать в LingQ, restore = вернуть урок из копии, delete-backups = удалить все копии"
         required: true
         default: dry-run
         type: choice
@@ -16,9 +16,10 @@ on:
           - dry-run
           - apply
           - restore
+          - delete-backups
 
 permissions:
-  contents: write   # apply commits the run's backups to runs/ so lessons can be restored later
+  contents: write   # apply commits the run's backups to runs/ (kept 3 days) so lessons can be restored
 
 concurrency:
   group: lingq-fix
@@ -44,6 +45,7 @@ jobs:
             exit 1
           fi
           case "$MODE" in
+            delete-backups) echo "Удаляю все копии в runs/"; rm -rf runs ;;
             dry-run) python3 lingq_fix_splits.py "$TARGET" ;;
             apply)   python3 lingq_fix_splits.py "$TARGET" --apply ;;
             restore) python3 lingq_fix_splits.py --restore "$TARGET" ;;
@@ -61,20 +63,32 @@ jobs:
           fi
 
       - name: Upload report and backup
-        if: always() && inputs.mode != 'restore'
+        if: always() && (inputs.mode == 'dry-run' || inputs.mode == 'apply')
         uses: actions/upload-artifact@v4
         with:
           name: lingq-run
           path: runs/
           if-no-files-found: ignore
 
-      - name: Save backup to repository
-        if: success() && inputs.mode == 'apply'
+      - name: Save backups to repository, drop copies older than 3 days
+        if: success()
         shell: bash
         run: |
+          # runs/<YYYYmmdd-HHMMSS>/ older than 3 days are removed (they stay only in git history)
+          LIMIT=$(date -u -d '3 days ago' +%Y%m%d-%H%M%S)
+          for d in runs/*/; do
+            [ -d "$d" ] || continue
+            s=$(basename "$d")
+            if [[ "$s" < "$LIMIT" ]]; then echo "Удаляю старую копию $s"; rm -rf "$d"; fi
+          done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add runs/
+          # dry-run reports are not kept; apply runs carry the backups
+          if [ "$MODE" = apply ]; then git add -A runs/; else git add -u runs/ 2>/dev/null || true; fi
           git diff --cached --quiet && exit 0
-          git commit -m "LingQ apply run: $TARGET"
+          case "$MODE" in
+            apply) git commit -m "LingQ apply run: $TARGET" ;;
+            delete-backups) git commit -m "Delete all LingQ backups" ;;
+            *) git commit -m "Drop LingQ backups older than 3 days" ;;
+          esac
           git push

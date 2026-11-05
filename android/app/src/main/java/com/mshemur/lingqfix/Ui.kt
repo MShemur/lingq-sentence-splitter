@@ -117,6 +117,18 @@ fun App(state: AppState) {
                 }
             }
         }
+        val u = state.update
+        if (state.updateDialog && u != null) {
+            AlertDialog(
+                onDismissRequest = { state.updateDialog = false },
+                title = { Text("Доступна версия ${u.versionName}") },
+                text = { Text(u.notes.ifBlank { "Сейчас установлена ${BuildConfig.VERSION_NAME}." }, maxLines = 8) },
+                confirmButton = {
+                    TextButton(onClick = { state.updateDialog = false; state.installUpdate() }) { Text("Обновить") }
+                },
+                dismissButton = { TextButton(onClick = { state.updateDialog = false }) { Text("Позже") } },
+            )
+        }
     }
 }
 
@@ -560,11 +572,26 @@ private fun BackupsScreen(state: AppState) {
     var ask by remember { mutableStateOf<Backups.Entry?>(null) }
     LaunchedEffect(Unit) { list = withContext(Dispatchers.IO) { state.backups.list() } }
     val fmt = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
+    var askDeleteAll by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val l = list
     when {
         l == null -> Loading()
-        l.isEmpty() -> Text("Копий пока нет. Они появляются при каждой записи в LingQ.", Modifier.padding(16.dp))
+        l.isEmpty() -> Text(
+            "Копий нет. Они появляются при каждой записи в LingQ и хранятся ${Backups.KEEP_DAYS} дня.",
+            Modifier.padding(16.dp),
+        )
         else -> LazyColumn(Modifier.fillMaxSize()) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Копии хранятся ${Backups.KEEP_DAYS} дня", Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
+                    )
+                    OutlinedButton(onClick = { askDeleteAll = true }) { Text("🗑 Удалить все") }
+                }
+                HorizontalDivider()
+            }
             items(l, key = { it.file.name }) { e ->
                 ListItem(
                     headlineContent = { Text(e.title.ifBlank { "Урок ${e.id}" }) },
@@ -582,6 +609,23 @@ private fun BackupsScreen(state: AppState) {
             text = { Text("«${e.title}» вернётся к версии от ${fmt.format(Date(e.time))}.") },
             confirmButton = { TextButton(onClick = { ask = null; state.restore(e) }) { Text("Вернуть") } },
             dismissButton = { TextButton(onClick = { ask = null }) { Text("Отмена") } },
+        )
+    }
+    if (askDeleteAll) {
+        AlertDialog(
+            onDismissRequest = { askDeleteAll = false },
+            title = { Text("Удалить все копии?") },
+            text = { Text("Вернуть уроки к прежней разбивке после этого будет нельзя.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    askDeleteAll = false
+                    scope.launch {
+                        list = withContext(Dispatchers.IO) { state.backups.deleteAll(); state.backups.list() }
+                        state.say("Копии удалены")
+                    }
+                }) { Text("Удалить") }
+            },
+            dismissButton = { TextButton(onClick = { askDeleteAll = false }) { Text("Отмена") } },
         )
     }
 }

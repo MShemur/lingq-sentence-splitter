@@ -17,6 +17,11 @@ class MainActivity : ComponentActivity() {
         state = AppState(applicationContext)
         setContent { App(state) }
         if (savedInstanceState == null) handleIntent(intent)
+    }
+
+    /** Every time the app comes to the screen: look for a new version (pop-up if there is one). */
+    override fun onResume() {
+        super.onResume()
         state.checkUpdate(quiet = true)
     }
 

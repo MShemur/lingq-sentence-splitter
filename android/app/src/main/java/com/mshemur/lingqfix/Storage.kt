@@ -21,9 +21,22 @@ class Prefs(ctx: Context) {
         set(v) = write("ghToken", v.trim())
 }
 
-/** Copies of lessons taken before every write, so a lesson can be put back. */
+/** Copies of lessons taken before every write, so a lesson can be put back. Kept [KEEP_DAYS] days. */
 class Backups(ctx: Context) {
+    companion object { const val KEEP_DAYS = 3 }
     private val dir = File(ctx.filesDir, "backups").apply { mkdirs() }
+
+    private fun files() = dir.listFiles().orEmpty().filter { it.name.endsWith(".json") }
+
+    /** File names start with the save time in ms. */
+    private fun savedAt(f: File) = f.name.substringBefore('_').toLongOrNull() ?: f.lastModified()
+
+    fun prune() {
+        val limit = System.currentTimeMillis() - KEEP_DAYS * 24L * 3600 * 1000
+        files().filter { savedAt(it) < limit }.forEach { it.delete() }
+    }
+
+    fun deleteAll() = files().forEach { it.delete() }
 
     class Entry(val file: File, val lang: String, val id: Int, val title: String, val time: Long)
 
@@ -34,8 +47,7 @@ class Backups(ctx: Context) {
         File(dir, "${t}_${lesson.id}.json").writeText(o.toString())
     }
 
-    fun list(): List<Entry> = dir.listFiles().orEmpty()
-        .filter { it.name.endsWith(".json") }
+    fun list(): List<Entry> = prune().let { files() }
         .mapNotNull { f ->
             runCatching {
                 val o = JSONObject(f.readText())

@@ -65,6 +65,9 @@ class AppState(val ctx: Context) {
 
     var update by mutableStateOf<Updater.Release?>(null)
     var updateProgress by mutableStateOf<Float?>(null)
+    /** Pop-up "new version" shown once per version per app start. */
+    var updateDialog by mutableStateOf(false)
+    private var dialogShownFor = 0
 
     fun go(s: Screen) { stack.add(s) }
     fun back(): Boolean = if (stack.size > 1) { stack.removeAt(stack.lastIndex); true } else false
@@ -144,6 +147,7 @@ class AppState(val ctx: Context) {
                 val r = withContext(Dispatchers.IO) { Updater.latest(ghToken) }
                 if (r != null && r.code > BuildConfig.VERSION_CODE) {
                     update = r
+                    if (dialogShownFor != r.code && updateProgress == null) { dialogShownFor = r.code; updateDialog = true }
                     if (!quiet) say("Доступна версия ${r.versionName}")
                 } else if (!quiet) say("У вас последняя версия (${BuildConfig.VERSION_NAME})")
             } catch (e: Throwable) {
