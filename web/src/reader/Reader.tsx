@@ -107,13 +107,45 @@ function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Sent[][]): Me
   return out
 }
 
+/** Measured blocks, by what decides their height; survives page rebuilds. */
+type MeasureCache = Map<string, Measure>
+
+/** What changes the height of a sentence: pins above its words, its shown translation, its bookmark mark. */
+function sentenceSigs(s: ReaderSession): (id: number) => string {
+  const pinsOf = new Map<number, string>()
+  for (const [r, v] of Object.entries(s.pins.value)) {
+    const id = refSent(r)
+    pinsOf.set(id, (pinsOf.get(id) ?? '') + r + '=' + v + ';')
+  }
+  return (id) =>
+    (pinsOf.get(id) ?? '') +
+    (s.sentenceShown(id) ? '|T' + (s.sentTr.value[id] ?? '') + (s.retranslating.value[id] ? 'r' : '') : '') +
+    (s.isBookmarked(id) ? '|B' : '')
+}
+
+/**
+ * Measures blocks, using the cache where nothing changed. New ones are rendered in small batches, so a long
+ * lesson is never put into the page all at once (Android ran out of memory doing that, PORTING note 87bc83d).
+ */
+function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, prefix: string, blocks: Sent[][]): Measure[] {
+  const sig = sentenceSigs(s)
+  const keys = blocks.map((b) => prefix + b.map((x) => x.id + ':' + sig(x.id)).join('/'))
+  const missing = blocks.map((_, i) => i).filter((i) => !cache.has(keys[i]))
+  for (let a = 0; a < missing.length; a += 25) {
+    const part = missing.slice(a, a + 25)
+    measureBlocks(box, s, part.map((i) => blocks[i])).forEach((m, j) => cache.set(keys[part[j]], m))
+  }
+  if (cache.size > 4000) { const keep = new Set(keys); for (const k of cache.keys()) if (!keep.has(k)) cache.delete(k) }
+  return keys.map((k) => cache.get(k)!)
+}
+
 /**
  * The text split into pages that fit the screen, turned with a swipe like a book (port of Android PagedText).
  * Paragraphs are measured as they are drawn (pins and shown translations included); a paragraph that does not
  * fit is split at a sentence boundary.
  */
-function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number): Block[][] {
-  const whole = measureBlocks(box, s, paras)
+function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number, cache: MeasureCache, prefix: string): Block[][] {
+  const whole = measureCached(box, s, cache, prefix, paras)
   const pages: Block[][] = []
   let cur: Block[] = []
   let used = 0
@@ -131,7 +163,7 @@ function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number
       if (k > 0) { cur.push({ para: pi, sents: rest.slice(0, k) }); from += k; flush() }
       else if (cur.length) { flush(); continue }
       else { cur.push({ para: pi, sents: rest.slice(0, 1) }); from += 1; flush() } // taller than a page
-      if (from < para.length) m = measureBlocks(box, s, [para.slice(from)])[0]
+      if (from < para.length) m = measureCached(box, s, cache, prefix, [para.slice(from)])[0]
     }
   })
   flush()
@@ -150,6 +182,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   const turnTo = useRef<number | null>(null)
   const pagesRef = useRef<Block[][]>([])
   pagesRef.current = pages
+  const cache = useRef<MeasureCache>(new Map())
 
   // everything that changes the height of the text
   const deps = [paras, s.pins.value, s.shown.value, s.allSentences.value, s.sentTr.value, s.retranslating.value,
@@ -174,7 +207,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     if (!box || !size.h) return
     const cs = getComputedStyle(box)
     const h = size.h - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
-    const next = paginate(box, s, paras, h)
+    const next = paginate(box, s, paras, h, cache.current, `${size.w}|${prefs.readerFont.value}|`)
     // the same text stays on screen when pages are rebuilt: the first sentence of the page being read
     const anchor = pagesRef.current[s.textPage.value]?.[0]?.sents[0]?.id ?? s.textAnchor
     s.textAnchor = anchor

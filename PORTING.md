@@ -25,5 +25,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   Note: on Android, rendering the whole lesson off-screen to measure it ran out of memory on long lessons;
   heights are now computed from text sizes (`TextMetrics`, commit 87bc83d). On the web, render only the
   current page (+ neighbours) too.
+  Web: only the current page and its neighbours are shown; measuring caches paragraph heights by what changes
+  them and renders new ones in batches of 25, so a pin re-measures one paragraph, not the lesson (see next commit).
 - web aa8d97f: Gemini chat answers are Markdown: render bold/italic/headings/lists/quotes/code (Android `Markdown.kt`,
   commit df2779e). On the web a small Markdown renderer (e.g. `marked` + sanitizing) is fine.
