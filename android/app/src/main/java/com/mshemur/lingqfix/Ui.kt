@@ -62,6 +62,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -106,9 +108,19 @@ fun App(state: AppState) {
     MaterialTheme(colorScheme = scheme) {
         val screen = state.screen
         BackHandler(enabled = state.stack.size > 1) { state.back() }
+        Box(Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
-                TopAppBar(
+                // reader: close cross, progress in the middle, no lesson title
+                if (screen is Screen.Reader) CenterAlignedTopAppBar(
+                    title = { ReaderProgress(screen.session) },
+                    navigationIcon = {
+                        IconButton(onClick = { state.back() }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Закрыть урок")
+                        }
+                    },
+                    actions = { ReaderActions(state, screen.session) },
+                ) else TopAppBar(
                     title = { Text(titleOf(state, screen), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = {
                         if (state.stack.size > 1) IconButton(onClick = { state.back() }) {
@@ -117,7 +129,7 @@ fun App(state: AppState) {
                     },
                     actions = {
                         when (screen) {
-                            is Screen.Reader -> ReaderActions(state, screen.session)
+                            Screen.Bookmarks -> { if (state.bookmarks.items.isNotEmpty()) BookmarksExpandButton(state) }
                             Screen.ReaderCourses -> {
                                 IconButton(onClick = { state.go(Screen.Bookmarks) }) {
                                     Icon(AppIcons.Bookmark, contentDescription = "Закладки")
@@ -161,6 +173,9 @@ fun App(state: AppState) {
                     is Screen.Import -> ImportScreen(state, screen.session)
                 }
             }
+        }
+        // sentence mode lies over the whole reader, top bar included
+        if (screen is Screen.Reader) SentenceOverlay(screen.session)
         }
         val u = state.update
         if (state.updateDialog && u != null) {

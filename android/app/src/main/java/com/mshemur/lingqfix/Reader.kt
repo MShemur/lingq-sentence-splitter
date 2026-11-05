@@ -3,7 +3,26 @@
 package com.mshemur.lingqfix
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -161,8 +180,33 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     fun toggleBookmark(id: Int) {
         val s = sentById[id] ?: return
-        val on = app.bookmarks.toggle(lang, Lesson(lesson.id, title), id, s.text)
+        val tr = sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") } ?: s.translations[target].orEmpty()
+        val on = app.bookmarks.toggle(lang, Lesson(lesson.id, title), id, s.text, tr)
         app.say(if (on) "Предложение в закладках" else "Закладка удалена")
+    }
+
+    /** Last sentence the user worked with (tapped word, long press); sentence mode opens there. */
+    private var focusSent: Int? = null
+    /** Paragraphs on screen in the text view, and how far the reader got (top-bar progress). */
+    var visibleParas: IntRange = 0..0
+    var textProgress by mutableFloatStateOf(0f)
+    /** After sentence mode is collapsed: sentence the text view should show. */
+    var syncTo by mutableStateOf<Int?>(null)
+
+    /** Sentence mode slides up over the text, at the selected word's sentence or the first one on screen. */
+    fun openSentenceMode() {
+        if (sentences.isEmpty()) return
+        val paras = paragraphs.orEmpty()
+        fun paraOf(id: Int) = paras.indexOfFirst { p -> p.any { it.id == id } }
+        val id = focusSent?.takeIf { paraOf(it) in visibleParas }
+            ?: paras.getOrNull(visibleParas.first.coerceAtLeast(0))?.firstOrNull()?.id
+        page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0)
+        sentenceMode = true
+    }
+
+    fun closeSentenceMode() {
+        sentenceMode = false
+        sentences.getOrNull(page)?.let { focusSent = it.id; syncTo = it.id }
     }
 
     var title by mutableStateOf(lesson.title)
@@ -315,6 +359,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     }
 
     fun toggleSentence(id: Int) {
+        focusSent = id
         if (shownSentences[id] == true) shownSentences.remove(id)
         else { shownSentences[id] = true; ensureSentence(id) }
     }
@@ -383,6 +428,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** One tap: translation pinned above the word (tap again removes it). */
     fun tap(ref: WordRef) {
+        focusSent = ref.sent
         if (pins.containsKey(ref)) { pins.remove(ref); provisional.remove(ref); persist(); return }
         pins[ref] = ""
         val saved = chosen[word(ref).lowercase()]
@@ -420,6 +466,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** Double tap: window with all meanings to choose from. */
     fun openPopup(ref: WordRef) {
         run {
+            focusSent = ref.sent
             popup = ref
             popupHints = null
             popupBest = null
@@ -539,19 +586,34 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
 fun ReaderBottomBar(s: ReaderSession) {
     NavigationBar {
         NavigationBarItem(
-            selected = !s.sentenceMode, onClick = { s.sentenceMode = false },
-            icon = { Icon(Icons.Filled.Menu, contentDescription = null) }, label = { Text("Текст") },
+            selected = false, onClick = { s.openSentenceMode() },
+            icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) }, label = { Text("По предложениям") },
         )
         NavigationBarItem(
-            selected = s.sentenceMode, onClick = { s.sentenceMode = true },
-            icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) }, label = { Text("Предложения") },
-        )
-        NavigationBarItem(
-            selected = s.allSentences, enabled = !s.sentenceMode, onClick = { s.allSentences = !s.allSentences },
-            icon = { Icon(if (s.allSentences) Icons.Filled.CheckCircle else Icons.Filled.Done, contentDescription = null) },
+            selected = s.allSentences, onClick = { s.allSentences = !s.allSentences },
+            icon = { Icon(AppIcons.Translate, contentDescription = null) },
             label = { Text("Переводы") },
         )
+        NavigationBarItem(
+            selected = false, onClick = { s.chatText() },
+            icon = { Icon(AppIcons.Chat, contentDescription = null) }, label = { Text("Чат") },
+        )
     }
+}
+
+/** Rounded progress bar in the middle of the reader's top bar. */
+@Composable
+fun ProgressPill(p: Float) {
+    LinearProgressIndicator(
+        progress = { p.coerceIn(0f, 1f) },
+        modifier = Modifier.width(150.dp).height(6.dp).clip(RoundedCornerShape(3.dp)),
+        strokeCap = StrokeCap.Round,
+    )
+}
+
+@Composable
+fun ReaderProgress(s: ReaderSession) {
+    if (s.paragraphs != null) ProgressPill(s.textProgress)
 }
 
 @Composable
@@ -567,9 +629,22 @@ fun ReaderScreen(s: ReaderSession) {
         paras == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-        s.sentenceMode -> SentencePager(s)
         else -> {
             val listState = rememberLazyListState()
+            LaunchedEffect(listState) {
+                snapshotFlow { listState.layoutInfo }.collect { info ->
+                    val v = info.visibleItemsInfo
+                    if (v.isEmpty() || info.totalItemsCount == 0) return@collect
+                    s.visibleParas = (v.first().index - 1).coerceAtLeast(0)..(v.last().index - 1).coerceAtLeast(0)
+                    s.textProgress = if (!listState.canScrollForward) 1f else (v.last().index + 1f) / info.totalItemsCount
+                }
+            }
+            LaunchedEffect(s.syncTo) {
+                val id = s.syncTo ?: return@LaunchedEffect
+                val p = paras.indexOfFirst { para -> para.any { it.id == id } }
+                if (p >= 0 && p !in s.visibleParas) listState.animateScrollToItem(p + 1)
+                s.syncTo = null
+            }
             LaunchedEffect(s.jump, paras) {
                 val id = s.jump ?: return@LaunchedEffect
                 val p = paras.indexOfFirst { para -> para.any { it.id == id } }
@@ -701,6 +776,21 @@ private fun RetranslateButton(s: ReaderSession, id: Int) {
     }
 }
 
+/** Sentence mode lies over the text: slides up from the bottom, the arrow collapses it back. */
+@Composable
+fun SentenceOverlay(s: ReaderSession) {
+    AnimatedVisibility(
+        visible = s.sentenceMode && s.sentences.isNotEmpty(),
+        enter = slideInVertically(tween(280)) { it } + fadeIn(tween(180)),
+        exit = slideOutVertically(tween(220)) { it } + fadeOut(tween(220)),
+    ) {
+        BackHandler { s.closeSentenceMode() }
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            SentencePager(s)
+        }
+    }
+}
+
 /** Sentence mode: one sentence with its translation per page, swipe for the next one. */
 @Composable
 private fun SentencePager(s: ReaderSession) {
@@ -713,14 +803,21 @@ private fun SentencePager(s: ReaderSession) {
         if (i >= 0) pager.scrollToPage(i)
         s.jump = null
     }
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "${pager.currentPage + 1} / ${list.size}   ·   свайп ← → для следующего",
-                Modifier.weight(1f),
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
-            )
-            list.getOrNull(pager.currentPage)?.let { BookmarkButton(s, it.id) }
+    Column(Modifier.fillMaxSize().systemBarsPadding()) {
+        Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp)) {
+            IconButton(onClick = { s.closeSentenceMode() }, modifier = Modifier.align(Alignment.CenterStart)) {
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Свернуть", modifier = Modifier.size(32.dp))
+            }
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                ProgressPill((pager.currentPage + 1f) / maxOf(1, list.size))
+                Text(
+                    "${pager.currentPage + 1} / ${list.size}", Modifier.padding(top = 4.dp),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+                )
+            }
+            list.getOrNull(pager.currentPage)?.let {
+                Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) { BookmarkButton(s, it.id) }
+            }
         }
         HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
             val sent = list[i]
@@ -741,75 +838,83 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
     var own by remember(ref) { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = { s.popup = null }) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             val word = s.word(ref)
             val saved = s.chosen[word.lowercase()]
-            Text(word, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-            if (s.popupThinking) Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                Text("  Gemini уточняет по контексту…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+            val best = s.popupBest
+            // word and its meaning here
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(word, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    val main = saved ?: best
+                    if (main != null) Text(
+                        main, style = MaterialTheme.typography.titleMedium,
+                        color = if (saved == null && s.popupThinking) MaterialTheme.colorScheme.outline else GREEN,
+                    )
+                }
+                if (s.popupThinking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                if (saved != null || s.pins.containsKey(ref)) IconButton(onClick = { s.unpin(ref) }) {
+                    Icon(Icons.Filled.Close, contentDescription = "Убрать перевод с этого слова")
+                }
             }
             if (s.popupNote.isNotBlank()) Text(
-                s.popupNote, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                s.popupNote, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             val hints = s.popupHints
-            val best = s.popupBest
             when {
                 s.popupError != null -> Text("Ошибка: ${s.popupError}", color = MaterialTheme.colorScheme.error)
-                hints == null -> CircularProgressIndicator()
+                hints == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
                 else -> {
-                    Text(
-                        "Нажмите на перевод, чтобы выбрать его для этого текста:",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
-                    )
-                    s.options(ref).forEach { h ->
-                        val isSaved = h.equals(saved, ignoreCase = true)
-                        val isBest = h.equals(best, ignoreCase = true)
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .background(
-                                    if (isSaved) GREEN_BG else Color.Transparent, RoundedCornerShape(8.dp),
-                                )
-                                .clickable { s.choose(ref, h) }
-                                .padding(horizontal = 10.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(h, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                            if (isSaved) Text("✓ выбрано", color = GREEN, style = MaterialTheme.typography.labelMedium)
-                            else if (isBest) Text("по смыслу", color = GREEN, style = MaterialTheme.typography.labelMedium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        s.options(ref).forEach { h ->
+                            val isSaved = h.equals(saved, ignoreCase = true)
+                            FilterChip(
+                                selected = isSaved, onClick = { s.choose(ref, h) },
+                                label = { Text(h) },
+                                leadingIcon = if (isSaved) { { Icon(Icons.Filled.Check, contentDescription = null, Modifier.size(16.dp)) } } else null,
+                            )
                         }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            own, { own = it }, Modifier.weight(1f),
-                            placeholder = { Text("Свой вариант") }, singleLine = true,
-                        )
-                        TextButton(onClick = { s.choose(ref, own) }, enabled = own.isNotBlank()) { Text("Сохранить") }
-                    }
-                    if (saved != null || s.pins.containsKey(ref)) TextButton(onClick = { s.unpin(ref) }) {
-                        Text("Убрать перевод с этого слова")
-                    }
+                    OutlinedTextField(
+                        own, { own = it }, Modifier.fillMaxWidth(),
+                        placeholder = { Text("Свой вариант") }, singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyMedium, shape = RoundedCornerShape(12.dp),
+                        trailingIcon = {
+                            IconButton(onClick = { s.choose(ref, own) }, enabled = own.isNotBlank()) {
+                                Icon(Icons.Filled.Check, contentDescription = "Сохранить")
+                            }
+                        },
+                    )
                 }
             }
             HorizontalDivider()
+            // the sentence: translation and actions
             val tr = s.sentTr[ref.sent]
-            if (!tr.isNullOrEmpty()) Row(verticalAlignment = Alignment.Top) {
-                Text(tr, fontStyle = FontStyle.Italic, modifier = Modifier.weight(1f))
+            if (!tr.isNullOrEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    tr, fontStyle = FontStyle.Italic, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
+                )
                 RetranslateButton(s, ref.sent)
-            } else TextButton(onClick = { s.toggleSentence(ref.sent) }) {
-                Icon(AppIcons.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("Перевести предложение", Modifier.padding(start = 8.dp))
             }
-            val marked = s.isBookmarked(ref.sent)
-            TextButton(onClick = { s.toggleBookmark(ref.sent) }) {
-                Icon(if (marked) AppIcons.Bookmark else AppIcons.BookmarkBorder, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text(if (marked) "Убрать предложение из закладок" else "Предложение в закладки", Modifier.padding(start = 8.dp))
-            }
-            OutlinedButton(onClick = { s.chatSentence(ref.sent) }) {
-                Icon(AppIcons.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("Спросить о предложении", Modifier.padding(start = 8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (tr.isNullOrEmpty()) AssistChip(
+                    onClick = { s.toggleSentence(ref.sent) }, label = { Text("Перевод") },
+                    leadingIcon = { Icon(AppIcons.Translate, contentDescription = null, Modifier.size(18.dp)) },
+                )
+                val marked = s.isBookmarked(ref.sent)
+                AssistChip(
+                    onClick = { s.toggleBookmark(ref.sent) }, label = { Text(if (marked) "В закладках" else "Закладка") },
+                    leadingIcon = {
+                        Icon(if (marked) AppIcons.Bookmark else AppIcons.BookmarkBorder, contentDescription = null, Modifier.size(18.dp))
+                    },
+                )
+                AssistChip(
+                    onClick = { s.chatSentence(ref.sent) }, label = { Text("Спросить") },
+                    leadingIcon = { Icon(AppIcons.Chat, contentDescription = null, Modifier.size(18.dp)) },
+                )
             }
         }
     }

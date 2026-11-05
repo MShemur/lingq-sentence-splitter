@@ -28,6 +28,14 @@ object AppIcons {
         icon("BookmarkBorder", "M17,3H7c-1.1,0 -1.99,0.9 -1.99,2L5,21l7,-3 7,3V5c0,-1.1 -0.9,-2 -2,-2zM17,18l-5,-2.18L7,18V5h10v13z")
     }
 
+    val UnfoldMore: ImageVector by lazy {
+        icon("UnfoldMore", "M12,5.83L15.17,9l1.41,-1.41L12,3 7.41,7.59 8.83,9 12,5.83zM12,18.17L8.83,15l-1.41,1.41L12,21l4.59,-4.59L15.17,15 12,18.17z")
+    }
+
+    val UnfoldLess: ImageVector by lazy {
+        icon("UnfoldLess", "M7.41,18.59L8.83,20 12,16.83 15.17,20l1.41,-1.41L12,14l-4.59,4.59zM16.59,5.41L15.17,4 12,7.17 8.83,4 7.41,5.41 12,10l4.59,-4.59z")
+    }
+
     val Translate: ImageVector by lazy {
         icon(
             "Translate",
