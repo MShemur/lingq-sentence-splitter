@@ -27,7 +27,17 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -420,7 +430,7 @@ private val GREEN_BG = Color(0x3343A047)
 @Composable
 fun ReaderActions(s: ReaderSession) {
     var menu by remember { mutableStateOf(false) }
-    TextButton(onClick = { menu = true }) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
+    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
         DropdownMenuItem(text = { Text("💬 Чат с Gemini по всему тексту") }, onClick = { menu = false; s.chatText() })
         HorizontalDivider()
@@ -436,32 +446,23 @@ fun ReaderActions(s: ReaderSession) {
     }
 }
 
-/** Bottom bar of the reader, like LingQ's: page / sentence mode, how words are translated, sentence translations. */
+/** Bottom bar of the reader, like LingQ's: whole text / sentence by sentence / sentence translations. */
 @Composable
 fun ReaderBottomBar(s: ReaderSession) {
-    Surface(tonalElevation = 3.dp) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            BarButton(if (s.sentenceMode) "📄" else "📑", if (s.sentenceMode) "Весь текст" else "По предложениям") {
-                s.sentenceMode = !s.sentenceMode
-            }
-            if (!s.sentenceMode) BarButton(if (s.allSentences) "☑" else "☐", "Перевод предлож.") {
-                s.allSentences = !s.allSentences
-            }
-        }
-    }
-}
-
-@Composable
-private fun BarButton(icon: String, label: String, onClick: () -> Unit) {
-    Column(
-        Modifier.clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(icon, style = MaterialTheme.typography.titleLarge)
-        Text(label, style = MaterialTheme.typography.labelSmall)
+    NavigationBar {
+        NavigationBarItem(
+            selected = !s.sentenceMode, onClick = { s.sentenceMode = false },
+            icon = { Icon(Icons.Filled.Menu, contentDescription = null) }, label = { Text("Текст") },
+        )
+        NavigationBarItem(
+            selected = s.sentenceMode, onClick = { s.sentenceMode = true },
+            icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) }, label = { Text("Предложения") },
+        )
+        NavigationBarItem(
+            selected = s.allSentences, enabled = !s.sentenceMode, onClick = { s.allSentences = !s.allSentences },
+            icon = { Icon(if (s.allSentences) Icons.Filled.CheckCircle else Icons.Filled.Done, contentDescription = null) },
+            label = { Text("Переводы") },
+        )
     }
 }
 

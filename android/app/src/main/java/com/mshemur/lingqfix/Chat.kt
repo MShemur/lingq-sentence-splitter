@@ -15,7 +15,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -103,8 +106,8 @@ fun ChatScreen(c: ChatSession) {
                     c.input, { c.input = it }, Modifier.weight(1f),
                     placeholder = { Text("Вопрос…") }, maxLines = 5,
                 )
-                Button(onClick = { c.send() }, enabled = !c.sending && c.input.isNotBlank(), modifier = Modifier.padding(start = 8.dp)) {
-                    Text("➤")
+                FilledIconButton(onClick = { c.send() }, enabled = !c.sending && c.input.isNotBlank(), modifier = Modifier.padding(start = 8.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить")
                 }
             }
         }

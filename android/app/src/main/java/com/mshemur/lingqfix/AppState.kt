@@ -22,6 +22,10 @@ import org.json.JSONArray
 sealed interface Screen {
     data object Home : Screen
     data object Settings : Screen
+    data object SettingsLingq : Screen
+    data object SettingsTranslation : Screen
+    data object SettingsPrompts : Screen
+    data object SettingsUpdates : Screen
     data object Courses : Screen
     data object Backups : Screen
     class Import(val session: ImportSession) : Screen
@@ -86,6 +90,14 @@ class AppState(val ctx: Context) {
     fun toRoot() { while (stack.size > 1) stack.removeAt(stack.lastIndex) }
     fun back(): Boolean = if (stack.size > 1) { stack.removeAt(stack.lastIndex); true } else false
     fun say(msg: String) { scope.launch { snackbar.showSnackbar(msg) } }
+
+    /** Changes settings right away and keeps the screen state in sync. */
+    fun applyPrefs(block: Prefs.() -> Unit) {
+        val oldLang = lang
+        prefs.block()
+        apiKey = prefs.apiKey; lang = prefs.lang; ghToken = prefs.ghToken; trLang = prefs.trLang
+        if (oldLang != lang) courses = null
+    }
 
     fun saveSettings(key: String, language: String, token: String, translation: String) {
         prefs.apiKey = key; prefs.lang = language; prefs.ghToken = token; prefs.trLang = translation

@@ -29,6 +29,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -104,16 +111,15 @@ fun App(state: AppState) {
                 TopAppBar(
                     title = { Text(titleOf(state, screen), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = {
-                        if (state.stack.size > 1) IconButton(onClick = { state.back() }, modifier = Modifier.size(56.dp)) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", modifier = Modifier.size(30.dp))
+                        if (state.stack.size > 1) IconButton(onClick = { state.back() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                         }
                     },
                     actions = {
                         when (screen) {
                             is Screen.Reader -> ReaderActions(screen.session)
-                            Screen.ReaderCourses -> {
-                                TextButton(onClick = { state.go(Screen.Home) }) { Text("📥 Импорт") }
-                                TextButton(onClick = { state.go(Screen.Settings) }) { Text("⚙") }
+                            Screen.ReaderCourses -> IconButton(onClick = { state.go(Screen.Settings) }) {
+                                Icon(Icons.Filled.Settings, contentDescription = "Настройки")
                             }
                             else -> {}
                         }
@@ -121,6 +127,13 @@ fun App(state: AppState) {
                 )
             },
             bottomBar = { if (screen is Screen.Reader) ReaderBottomBar(screen.session) },
+            floatingActionButton = {
+                if (screen == Screen.ReaderCourses) ExtendedFloatingActionButton(
+                    onClick = { state.go(Screen.Home) },
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    text = { Text("Импорт") },
+                )
+            },
             snackbarHost = { SnackbarHost(state.snackbar) },
         ) { pad ->
             // edge-to-edge: the content must shrink above the keyboard itself, otherwise it covers text fields
@@ -130,7 +143,11 @@ fun App(state: AppState) {
                     Screen.ReaderCourses -> CoursesScreen(state, library = true) { c -> state.go(Screen.Lessons(state.lang, c, reader = true)) }
                     is Screen.Reader -> ReaderScreen(screen.session)
                     is Screen.Chat -> ChatScreen(screen.session)
-                    Screen.Settings -> SettingsScreen(state)
+                    Screen.Settings -> SettingsRoot(state)
+                    Screen.SettingsLingq -> SettingsLingq(state)
+                    Screen.SettingsTranslation -> SettingsTranslation(state)
+                    Screen.SettingsPrompts -> SettingsPrompts(state)
+                    Screen.SettingsUpdates -> SettingsUpdates(state)
                     Screen.Courses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c)) }
                     Screen.Backups -> BackupsScreen(state)
                     is Screen.Lessons -> LessonsScreen(state, screen)
@@ -155,11 +172,15 @@ fun App(state: AppState) {
 }
 
 private fun titleOf(state: AppState, s: Screen): String = when (s) {
-    Screen.Home -> "Импорт и исправление"
+    Screen.Home -> "Импорт"
     Screen.ReaderCourses -> "Библиотека · ${state.lang}"
     is Screen.Reader -> s.session.title
     is Screen.Chat -> s.session.title
     Screen.Settings -> "Настройки"
+    Screen.SettingsLingq -> "Аккаунт LingQ"
+    Screen.SettingsTranslation -> "Перевод"
+    Screen.SettingsPrompts -> "Промпты Gemini"
+    Screen.SettingsUpdates -> "Обновления"
     Screen.Courses -> "Мои курсы · ${state.lang}"
     Screen.Backups -> "Резервные копии"
     is Screen.Lessons -> s.title
@@ -190,191 +211,51 @@ private fun BigButton(title: String, sub: String, onClick: () -> Unit) {
     }
 }
 
-// --- Home ----------------------------------------------------------------------------------------
+// --- Import & fix --------------------------------------------------------------------------------
 
 @Composable
 private fun HomeScreen(state: AppState) {
     var link by remember { mutableStateOf("") }
     val clipboard = LocalClipboardManager.current
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        state.update?.let { u ->
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Доступна версия ${u.versionName}", style = MaterialTheme.typography.titleMedium)
-                    if (u.notes.isNotBlank()) Text(u.notes, style = MaterialTheme.typography.bodySmall, maxLines = 5)
-                    val p = state.updateProgress
-                    if (p != null) LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
-                    else Button(onClick = { state.installUpdate() }) { Text("Обновить") }
-                }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        if (state.apiKey.isBlank()) Card(
+            Modifier.fillMaxWidth().padding(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        ) {
+            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Укажите API-ключ LingQ", Modifier.weight(1f))
+                TextButton(onClick = { state.go(Screen.SettingsLingq) }) { Text("Настроить") }
             }
         }
-        if (state.apiKey.isBlank()) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text("Сначала укажите API-ключ LingQ")
-                    TextButton(onClick = { state.go(Screen.Settings) }) { Text("Открыть настройки") }
-                }
-            }
-        }
-        BigButton("📥  Загрузить в LingQ", "Файл .txt / .md / .epub или вставленный текст") {
-            state.go(Screen.Import(ImportSession(state)))
-        }
-        BigButton("🛠  Исправить курс или урок", "Выбрать из ваших курсов (язык: ${state.lang})") {
-            state.go(Screen.Courses)
-        }
-        OutlinedCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("🔗  Исправить по ссылке", style = MaterialTheme.typography.titleMedium)
-                OutlinedTextField(
-                    link, { link = it }, Modifier.fillMaxWidth(),
-                    placeholder = { Text("Ссылка на урок или курс") }, singleLine = true,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { clipboard.getText()?.text?.let { link = it } }) { Text("Вставить") }
-                    Spacer(Modifier.weight(1f))
-                    Button(onClick = { state.openLink(link) }, enabled = link.isNotBlank()) { Text("Проверить") }
-                }
-            }
-        }
-        BigButton("↩  Резервные копии", "Вернуть урок к версии до исправления") { state.go(Screen.Backups) }
-        Text(
-            "Версия ${BuildConfig.VERSION_NAME}",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
+        ListItem(
+            leadingContent = { Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            headlineContent = { Text("Загрузить в LingQ") },
+            supportingContent = { Text("Файл .txt, .md, .epub или вставленный текст") },
+            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+            modifier = Modifier.clickable { state.go(Screen.Import(ImportSession(state))) },
         )
-    }
-}
-
-// --- Settings ------------------------------------------------------------------------------------
-
-@Composable
-private fun SettingsScreen(state: AppState) {
-    var key by remember { mutableStateOf(state.apiKey) }
-    var lang by remember { mutableStateOf(state.lang) }
-    var token by remember { mutableStateOf(state.ghToken) }
-    var trLang by remember { mutableStateOf(state.trLang) }
-    val pr = state.prefs
-    var translator by remember { mutableStateOf(pr.translator) }
-    var gKey by remember { mutableStateOf(pr.geminiKey) }
-    var gModel by remember { mutableStateOf(pr.geminiModel) }
-    var pWord by remember { mutableStateOf(pr.promptWord) }
-    var pSent by remember { mutableStateOf(pr.promptSentence) }
-    var pChatS by remember { mutableStateOf(pr.promptChatSentence) }
-    var pChatT by remember { mutableStateOf(pr.promptChatText) }
-    var showPrompts by remember { mutableStateOf(false) }
-    fun saveAll() {
-        state.saveSettings(key, lang, token, trLang)
-        pr.translator = translator; pr.geminiKey = gKey; pr.geminiModel = gModel
-        pr.promptWord = pWord; pr.promptSentence = pSent; pr.promptChatSentence = pChatS; pr.promptChatText = pChatT
-    }
-    var langs by remember { mutableStateOf<List<Language>>(emptyList()) }
-    var menu by remember { mutableStateOf(false) }
-    val uri = LocalUriHandler.current
-    val scope = rememberCoroutineScope()
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("LingQ", style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(
-            key, { key = it }, Modifier.fillMaxWidth(), label = { Text("API-ключ LingQ") },
-            singleLine = true, visualTransformation = PasswordVisualTransformation(),
+        ListItem(
+            leadingContent = { Icon(Icons.Filled.Build, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            headlineContent = { Text("Исправить разбивку на предложения") },
+            supportingContent = { Text("Курс или урок из ваших курсов (${state.lang})") },
+            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+            modifier = Modifier.clickable { state.go(Screen.Courses) },
         )
-        TextButton(onClick = { uri.openUri("https://www.lingq.com/accounts/apikey/") }) { Text("Где взять ключ →") }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        HorizontalDivider()
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Исправить по ссылке", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
             OutlinedTextField(
-                lang, { lang = it.trim() }, Modifier.width(130.dp),
-                label = { Text("Язык") }, singleLine = true,
+                link, { link = it }, Modifier.fillMaxWidth(),
+                placeholder = { Text("Ссылка на урок или курс LingQ") }, singleLine = true,
+                trailingIcon = {
+                    if (link.isBlank()) TextButton(onClick = { clipboard.getText()?.text?.let { link = it } }) { Text("Вставить") }
+                    else IconButton(onClick = { link = "" }) { Icon(Icons.Filled.Clear, contentDescription = "Очистить") }
+                },
             )
-            Spacer(Modifier.width(8.dp))
-            Box {
-                TextButton(onClick = {
-                    scope.launch {
-                        try {
-                            langs = withContext(Dispatchers.IO) { LingqApi(key.trim()).languages() }
-                            menu = true
-                        } catch (e: Exception) {
-                            state.say(e.message ?: "Ошибка")
-                        }
-                    }
-                }) { Text("Выбрать из моих языков") }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    langs.forEach { l ->
-                        DropdownMenuItem(text = { Text("${l.title} (${l.code})") }, onClick = { lang = l.code; menu = false })
-                    }
-                }
+            Button(onClick = { state.openLink(link) }, enabled = link.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Text("Проверить")
             }
         }
-        OutlinedTextField(
-            trLang, { trLang = it.trim() }, Modifier.width(200.dp),
-            label = { Text("Язык перевода") }, singleLine = true, supportingText = { Text("ru, en, uk …") },
-        )
-        HorizontalDivider()
-        Text("Переводчик в читалке", style = MaterialTheme.typography.titleMedium)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = translator == "lingq", onClick = { translator = "lingq" }); Text("LingQ")
-            Spacer(Modifier.width(16.dp))
-            RadioButton(selected = translator == "gemini", onClick = { translator = "gemini" }); Text("Gemini (по контексту)")
-        }
-        OutlinedTextField(
-            gKey, { gKey = it }, Modifier.fillMaxWidth(), label = { Text("Ключ Gemini API") },
-            singleLine = true, visualTransformation = PasswordVisualTransformation(),
-        )
-        TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text("Получить ключ (бесплатно) →") }
-        var models by remember { mutableStateOf<List<String>>(emptyList()) }
-        var modelMenu by remember { mutableStateOf(false) }
-        OutlinedTextField(
-            gModel, { gModel = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Модель") }, singleLine = true,
-            supportingText = { Text("flash — быстро (для перевода слов); pro — умнее, медленнее") },
-        )
-        Box {
-            TextButton(onClick = {
-                scope.launch {
-                    try {
-                        models = withContext(Dispatchers.IO) { Gemini(gKey.trim(), gModel).models() }
-                        modelMenu = true
-                    } catch (e: Exception) {
-                        state.say(e.message ?: "Ошибка")
-                    }
-                }
-            }) { Text("Выбрать из доступных моделей") }
-            DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
-                models.forEach { m -> DropdownMenuItem(text = { Text(m) }, onClick = { gModel = m; modelMenu = false }) }
-            }
-        }
-        TextButton(onClick = { showPrompts = !showPrompts }) { Text(if (showPrompts) "▲ Скрыть промпты" else "▼ Промпты Gemini") }
-        if (showPrompts) {
-            Text(
-                "Подстановки: {lang} язык текста, {target} язык перевода, {word} слово, {sentence} предложение, {text} весь текст. " +
-                    "Промпт слова должен просить ответ JSON с полями best, options, note.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            OutlinedTextField(pWord, { pWord = it }, Modifier.fillMaxWidth(), label = { Text("Перевод слова") }, minLines = 3)
-            OutlinedTextField(pSent, { pSent = it }, Modifier.fillMaxWidth(), label = { Text("Перевод предложения") }, minLines = 3)
-            OutlinedTextField(pChatS, { pChatS = it }, Modifier.fillMaxWidth(), label = { Text("Чат: предложение") }, minLines = 3)
-            OutlinedTextField(pChatT, { pChatT = it }, Modifier.fillMaxWidth(), label = { Text("Чат: весь текст") }, minLines = 3)
-            TextButton(onClick = {
-                pWord = Prompts.WORD; pSent = Prompts.SENTENCE; pChatS = Prompts.CHAT_SENTENCE; pChatT = Prompts.CHAT_TEXT
-            }) { Text("Вернуть стандартные промпты") }
-        }
-        HorizontalDivider()
-        Text("Обновления приложения", style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(
-            token, { token = it }, Modifier.fillMaxWidth(), label = { Text("GitHub-токен (только чтение)") },
-            singleLine = true, visualTransformation = PasswordVisualTransformation(),
-        )
-        Text(
-            "Нужен, чтобы скачивать новые версии из приватного репозитория. GitHub → Settings → Developer settings → " +
-                "Fine-grained tokens: репозиторий lingq-sentence-splitter, права Contents: Read-only.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Button(onClick = { saveAll() }, modifier = Modifier.fillMaxWidth()) { Text("Сохранить") }
-        OutlinedButton(
-            onClick = { saveAll(); state.checkUpdate(quiet = false) },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("Проверить обновления (сейчас ${BuildConfig.VERSION_NAME})") }
     }
 }
 
@@ -399,7 +280,7 @@ private fun CoursesScreen(state: AppState, library: Boolean = false, onPick: (Co
             if (state.apiKey.isBlank()) Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Укажите API-ключ LingQ", Modifier.weight(1f))
-                    TextButton(onClick = { state.go(Screen.Settings) }) { Text("Настройки") }
+                    TextButton(onClick = { state.go(Screen.SettingsLingq) }) { Text("Настроить") }
                 }
             }
         }
@@ -408,7 +289,7 @@ private fun CoursesScreen(state: AppState, library: Boolean = false, onPick: (Co
                 q, { q = it }, Modifier.weight(1f),
                 placeholder = { Text("Поиск курса") }, singleLine = true,
             )
-            TextButton(onClick = { state.loadCourses(force = true) }) { Text("⟳") }
+            IconButton(onClick = { state.loadCourses(force = true) }) { Icon(Icons.Filled.Refresh, contentDescription = "Обновить") }
         }
         val err = state.coursesError
         val list = state.courses
@@ -419,6 +300,7 @@ private fun CoursesScreen(state: AppState, library: Boolean = false, onPick: (Co
                 items(list.filter { q.isBlank() || it.title.contains(q, ignoreCase = true) }, key = { it.id }) { c ->
                     ListItem(
                         headlineContent = { Text(c.title) },
+                        trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
                         modifier = Modifier.clickable { onPick(c) },
                     )
                     HorizontalDivider()
