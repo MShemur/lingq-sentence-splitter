@@ -23,14 +23,14 @@ npm run dev
 The dev server forwards `/api` to LingQ itself. With `LINGQ_API_KEY` set in the environment, entering the key
 `dev` in the app uses that key (so the real key never has to be typed into the browser).
 
-## Cloudflare Pages setup (once)
+## Cloudflare Pages (set up 2026-11-05)
 
-1. dash.cloudflare.com → sign up (free).
-2. Workers & Pages → Create → Pages → Connect to Git → GitHub → allow access to this repository.
-3. Build settings: Framework preset **None**, Build command `npm run build`, Build output directory `dist`,
-   Root directory **`web`**. Environment variable `NODE_VERSION` = `22`.
-4. Save and Deploy. The site is at `https://<project>.pages.dev`. Every push to `main` deploys again.
-5. Optional: Zero Trust → Access → protect the site with a one-time e-mail code.
+Live at **https://lingq-sentence-splitter.pages.dev** (project `lingq-sentence-splitter`). Every push to `main`
+deploys again. Settings: preset None, build `npm run build`, output `dist`, root `web`, `NODE_VERSION=22`.
+
+How it was created (dashboard of 2026-11): Compute → Workers & Pages → Create app → link "Continue to Pages"
+at the bottom → Import an existing Git repository → Connect GitHub → choose the repo → build settings above.
+Optional later: Zero Trust → Access → protect the site with a one-time e-mail code.
 
 ## On the iPad
 
