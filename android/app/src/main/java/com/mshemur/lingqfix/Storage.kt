@@ -27,6 +27,28 @@ class Prefs(ctx: Context) {
     var readerMode: String
         get() = read("readerMode", "popup")
         set(v) = write("readerMode", v)
+    /** "lingq" or "gemini": who translates words and sentences in the reader. */
+    var translator: String
+        get() = read("translator", "lingq")
+        set(v) = write("translator", v)
+    var geminiKey: String
+        get() = read("geminiKey")
+        set(v) = write("geminiKey", v.trim())
+    var geminiModel: String
+        get() = read("geminiModel", "gemini-2.5-flash")
+        set(v) = write("geminiModel", v.trim().ifBlank { "gemini-2.5-flash" })
+    var promptWord: String
+        get() = read("promptWord", Prompts.WORD).ifBlank { Prompts.WORD }
+        set(v) = p.edit().putString("promptWord", v).apply()
+    var promptSentence: String
+        get() = read("promptSentence", Prompts.SENTENCE).ifBlank { Prompts.SENTENCE }
+        set(v) = p.edit().putString("promptSentence", v).apply()
+    var promptChatSentence: String
+        get() = read("promptChatSentence", Prompts.CHAT_SENTENCE).ifBlank { Prompts.CHAT_SENTENCE }
+        set(v) = p.edit().putString("promptChatSentence", v).apply()
+    var promptChatText: String
+        get() = read("promptChatText", Prompts.CHAT_TEXT).ifBlank { Prompts.CHAT_TEXT }
+        set(v) = p.edit().putString("promptChatText", v).apply()
     var readerFont: Int
         get() = p.getInt("readerFont", 19)
         set(v) = p.edit().putInt("readerFont", v).apply()

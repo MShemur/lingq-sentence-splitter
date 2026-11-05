@@ -162,6 +162,9 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     var popupHints by mutableStateOf<List<String>?>(null)
     var popupBest by mutableStateOf<String?>(null)
     var popupError by mutableStateOf<String?>(null)
+    var popupNote by mutableStateOf("")
+    var popupAi by mutableStateOf<List<String>>(emptyList())
+    private val aiCache = HashMap<WordRef, WordMeaning>()
 
     private val notes = LessonNotes(app.ctx, lang, lesson.id)
     private val hintsCache = HashMap<String, List<String>>()
@@ -240,7 +243,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     private suspend fun sentenceTranslation(id: Int): String {
         sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") }?.let { return it }
         val s = sentById.getValue(id)
-        val t = s.translations[target] ?: withContext(Dispatchers.IO) { app.api.translate(lang, target, s.text) }
+        val t = s.translations[target] ?: withContext(Dispatchers.IO) {
+            if (app.useGemini) app.gemini().sentence(app.prefs.promptSentence, lang, target, s.text)
+            else app.api.translate(lang, target, s.text)
+        }
         sentTr[id] = t
         return t
     }
@@ -295,9 +301,19 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
      * The meaning that fits this sentence: the one chosen earlier in this lesson, else the first popular
      * meaning whose stem occurs in the sentence translation, else the most popular one, else machine translation.
      */
+    /** Gemini: meaning of the word in this very sentence (cached). */
+    private suspend fun ai(ref: WordRef): WordMeaning {
+        aiCache[ref]?.let { return it }
+        val s = sentById.getValue(ref.sent)
+        val m = withContext(Dispatchers.IO) { app.gemini().word(app.prefs.promptWord, lang, target, word(ref), s.text) }
+        aiCache[ref] = m
+        return m
+    }
+
     private suspend fun contextual(ref: WordRef, hs: List<String>): String {
         val word = word(ref)
         chosen[word.lowercase()]?.let { return it }
+        if (app.useGemini) runCatching { ai(ref).best }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return it }
         val tr = runCatching { sentenceTranslation(ref.sent) }.getOrDefault("").lowercase()
         val trWords = Regex("\\p{L}+").findAll(tr).map { it.value }.toList()
         fun fits(h: String) = Regex("\\p{L}+").findAll(h.lowercase()).any { m ->
@@ -314,7 +330,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         if (pins.containsKey(ref)) { pins.remove(ref); persist(); return }
         pins[ref] = ""
         app.scope.launch {
-            pins[ref] = try { contextual(ref, hints(word(ref))) } catch (e: Throwable) { "⚠" }
+            pins[ref] = try {
+                // Gemini answers alone; LingQ's meanings are only needed without it
+                contextual(ref, if (app.useGemini) emptyList() else hints(word(ref)))
+            } catch (e: Throwable) { "⚠" }
             persist()
         }
     }
@@ -326,11 +345,14 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
             popupHints = null
             popupBest = null
             popupError = null
+            popupNote = ""
+            popupAi = emptyList()
             app.scope.launch {
                 try {
-                    val h = hints(word(ref))
+                    val h = runCatching { hints(word(ref)) }.getOrDefault(emptyList())
                     popupHints = h
                     popupBest = contextual(ref, h)
+                    aiCache[ref]?.let { m -> popupAi = listOf(m.best) + m.options; popupNote = m.note }
                 } catch (e: Throwable) {
                     popupError = e.message ?: e.toString()
                 }
@@ -364,12 +386,27 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun options(ref: WordRef): List<String> {
         val hs = popupHints.orEmpty()
         val parts = hs.take(2).flatMap { h -> h.split(',', ';', '/', '|').map { it.trim() } }.filter { it.isNotEmpty() }
-        val all = listOfNotNull(chosen[word(ref).lowercase()], popupBest) + hs.take(8) + parts
+        val all = listOfNotNull(chosen[word(ref).lowercase()], popupBest) + popupAi + hs.take(8) + parts
         val seen = HashSet<String>()
         return all.map { it.trim().trim('.', ' ') }.filter { it.isNotEmpty() && seen.add(norm(it)) }
     }
 
     private fun norm(t: String) = t.lowercase().replace('ё', 'е').replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
+
+    // --- chat with Gemini ---
+
+    fun chatText() {
+        val text = paragraphs.orEmpty().joinToString("\n\n") { p -> p.joinToString(" ") { it.text } }
+        val sys = Prompts.fill(app.prefs.promptChatText, "lang" to lang, "target" to target, "text" to text)
+        app.go(Screen.Chat(ChatSession(app, "Чат: $title", sys, title)))
+    }
+
+    fun chatSentence(id: Int) {
+        val s = sentById[id] ?: return
+        popup = null
+        val sys = Prompts.fill(app.prefs.promptChatSentence, "lang" to lang, "target" to target, "sentence" to s.text)
+        app.go(Screen.Chat(ChatSession(app, "Чат: предложение", sys, s.text)))
+    }
 
     fun word(ref: WordRef) = sentById[ref.sent]?.tokens?.getOrNull(ref.token)?.text.orEmpty()
 }
@@ -385,6 +422,8 @@ fun ReaderActions(s: ReaderSession) {
     var menu by remember { mutableStateOf(false) }
     TextButton(onClick = { menu = true }) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+        DropdownMenuItem(text = { Text("💬 Чат с Gemini по всему тексту") }, onClick = { menu = false; s.chatText() })
+        HorizontalDivider()
         DropdownMenuItem(text = { Text("Шрифт крупнее  A+") }, onClick = { s.changeFont(+2) })
         DropdownMenuItem(text = { Text("Шрифт мельче  A−") }, onClick = { s.changeFont(-2) })
         if (s.pins.isNotEmpty()) {
@@ -529,6 +568,10 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f) {
             modifier = Modifier.weight(1f),
         )
         RetranslateButton(s, id)
+        Text(
+            "💬", style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.clickable { s.chatSentence(id) }.padding(end = 10.dp, start = 2.dp),
+        )
     }
 }
 
@@ -580,6 +623,9 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
             val word = s.word(ref)
             val saved = s.chosen[word.lowercase()]
             Text(word, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            if (s.popupNote.isNotBlank()) Text(
+                s.popupNote, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             val hints = s.popupHints
             val best = s.popupBest
             when {
@@ -625,6 +671,7 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
                 Text(tr, fontStyle = FontStyle.Italic, modifier = Modifier.weight(1f))
                 RetranslateButton(s, ref.sent)
             } else TextButton(onClick = { s.toggleSentence(ref.sent) }) { Text("Перевести предложение") }
+            TextButton(onClick = { s.chatSentence(ref.sent) }) { Text("💬 Спросить Gemini про предложение") }
         }
     }
 }

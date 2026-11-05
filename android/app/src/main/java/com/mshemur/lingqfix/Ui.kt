@@ -48,6 +48,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Surface
@@ -128,6 +129,7 @@ fun App(state: AppState) {
                     Screen.Home -> HomeScreen(state)
                     Screen.ReaderCourses -> CoursesScreen(state, library = true) { c -> state.go(Screen.Lessons(state.lang, c, reader = true)) }
                     is Screen.Reader -> ReaderScreen(screen.session)
+                    is Screen.Chat -> ChatScreen(screen.session)
                     Screen.Settings -> SettingsScreen(state)
                     Screen.Courses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c)) }
                     Screen.Backups -> BackupsScreen(state)
@@ -156,6 +158,7 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.Home -> "Импорт и исправление"
     Screen.ReaderCourses -> "Библиотека · ${state.lang}"
     is Screen.Reader -> s.session.title
+    is Screen.Chat -> s.session.title
     Screen.Settings -> "Настройки"
     Screen.Courses -> "Мои курсы · ${state.lang}"
     Screen.Backups -> "Резервные копии"
@@ -252,6 +255,20 @@ private fun SettingsScreen(state: AppState) {
     var lang by remember { mutableStateOf(state.lang) }
     var token by remember { mutableStateOf(state.ghToken) }
     var trLang by remember { mutableStateOf(state.trLang) }
+    val pr = state.prefs
+    var translator by remember { mutableStateOf(pr.translator) }
+    var gKey by remember { mutableStateOf(pr.geminiKey) }
+    var gModel by remember { mutableStateOf(pr.geminiModel) }
+    var pWord by remember { mutableStateOf(pr.promptWord) }
+    var pSent by remember { mutableStateOf(pr.promptSentence) }
+    var pChatS by remember { mutableStateOf(pr.promptChatSentence) }
+    var pChatT by remember { mutableStateOf(pr.promptChatText) }
+    var showPrompts by remember { mutableStateOf(false) }
+    fun saveAll() {
+        state.saveSettings(key, lang, token, trLang)
+        pr.translator = translator; pr.geminiKey = gKey; pr.geminiModel = gModel
+        pr.promptWord = pWord; pr.promptSentence = pSent; pr.promptChatSentence = pChatS; pr.promptChatText = pChatT
+    }
     var langs by remember { mutableStateOf<List<Language>>(emptyList()) }
     var menu by remember { mutableStateOf(false) }
     val uri = LocalUriHandler.current
@@ -295,6 +312,37 @@ private fun SettingsScreen(state: AppState) {
             label = { Text("Язык перевода") }, singleLine = true, supportingText = { Text("ru, en, uk …") },
         )
         HorizontalDivider()
+        Text("Переводчик в читалке", style = MaterialTheme.typography.titleMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = translator == "lingq", onClick = { translator = "lingq" }); Text("LingQ")
+            Spacer(Modifier.width(16.dp))
+            RadioButton(selected = translator == "gemini", onClick = { translator = "gemini" }); Text("Gemini (по контексту)")
+        }
+        OutlinedTextField(
+            gKey, { gKey = it }, Modifier.fillMaxWidth(), label = { Text("Ключ Gemini API") },
+            singleLine = true, visualTransformation = PasswordVisualTransformation(),
+        )
+        TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text("Получить ключ (бесплатно) →") }
+        OutlinedTextField(
+            gModel, { gModel = it }, Modifier.fillMaxWidth(), label = { Text("Модель") }, singleLine = true,
+            supportingText = { Text("gemini-2.5-flash — быстро; gemini-2.5-pro — умнее, медленнее") },
+        )
+        TextButton(onClick = { showPrompts = !showPrompts }) { Text(if (showPrompts) "▲ Скрыть промпты" else "▼ Промпты Gemini") }
+        if (showPrompts) {
+            Text(
+                "Подстановки: {lang} язык текста, {target} язык перевода, {word} слово, {sentence} предложение, {text} весь текст. " +
+                    "Промпт слова должен просить ответ JSON с полями best, options, note.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedTextField(pWord, { pWord = it }, Modifier.fillMaxWidth(), label = { Text("Перевод слова") }, minLines = 3)
+            OutlinedTextField(pSent, { pSent = it }, Modifier.fillMaxWidth(), label = { Text("Перевод предложения") }, minLines = 3)
+            OutlinedTextField(pChatS, { pChatS = it }, Modifier.fillMaxWidth(), label = { Text("Чат: предложение") }, minLines = 3)
+            OutlinedTextField(pChatT, { pChatT = it }, Modifier.fillMaxWidth(), label = { Text("Чат: весь текст") }, minLines = 3)
+            TextButton(onClick = {
+                pWord = Prompts.WORD; pSent = Prompts.SENTENCE; pChatS = Prompts.CHAT_SENTENCE; pChatT = Prompts.CHAT_TEXT
+            }) { Text("Вернуть стандартные промпты") }
+        }
+        HorizontalDivider()
         Text("Обновления приложения", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             token, { token = it }, Modifier.fillMaxWidth(), label = { Text("GitHub-токен (только чтение)") },
@@ -305,9 +353,9 @@ private fun SettingsScreen(state: AppState) {
                 "Fine-grained tokens: репозиторий lingq-sentence-splitter, права Contents: Read-only.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Button(onClick = { state.saveSettings(key, lang, token, trLang) }, modifier = Modifier.fillMaxWidth()) { Text("Сохранить") }
+        Button(onClick = { saveAll() }, modifier = Modifier.fillMaxWidth()) { Text("Сохранить") }
         OutlinedButton(
-            onClick = { state.saveSettings(key, lang, token, trLang); state.checkUpdate(quiet = false) },
+            onClick = { saveAll(); state.checkUpdate(quiet = false) },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Проверить обновления (сейчас ${BuildConfig.VERSION_NAME})") }
     }

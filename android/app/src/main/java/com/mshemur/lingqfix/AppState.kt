@@ -28,6 +28,7 @@ sealed interface Screen {
     class Check(val session: CheckSession) : Screen
 
     data object ReaderCourses : Screen
+    class Chat(val session: ChatSession) : Screen
     class Reader(val session: ReaderSession) : Screen
 
     /** Lessons of a course: [reader] = open the lesson for reading, otherwise check/fix it. */
@@ -67,6 +68,9 @@ class AppState(val ctx: Context) {
     var ghToken by mutableStateOf(prefs.ghToken)
     var trLang by mutableStateOf(prefs.trLang)
     val api: LingqApi get() = LingqApi(apiKey)
+    fun gemini() = Gemini(prefs.geminiKey, prefs.geminiModel)
+    /** Reader translates with Gemini (chosen in settings and a key is set). */
+    val useGemini get() = prefs.translator == "gemini" && prefs.geminiKey.isNotBlank()
 
     var courses by mutableStateOf<List<Course>?>(null)
     var coursesError by mutableStateOf<String?>(null)
