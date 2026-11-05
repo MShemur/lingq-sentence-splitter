@@ -37,7 +37,7 @@ sealed interface Screen {
                     val (t, l) = withContext(Dispatchers.IO) { app.api.lessons(lang, course.id) }
                     if (t.isNotBlank()) title = t
                     lessons = l
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     error = e.message ?: e.toString()
                 }
             }
@@ -87,7 +87,7 @@ class AppState(val ctx: Context) {
             try {
                 courses = withContext(Dispatchers.IO) { api.myCourses(l) }
                 coursesLang = l
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 coursesError = e.message ?: e.toString()
             }
         }
@@ -129,7 +129,7 @@ class AppState(val ctx: Context) {
             try {
                 withContext(Dispatchers.IO) { api.saveParagraphs(e.lang, e.id, backups.paragraphs(e)) }
                 say("Урок возвращён ✅")
-            } catch (ex: Exception) {
+            } catch (ex: Throwable) {
                 say(ex.message ?: "Ошибка")
             }
         }
@@ -146,7 +146,7 @@ class AppState(val ctx: Context) {
                     update = r
                     if (!quiet) say("Доступна версия ${r.versionName}")
                 } else if (!quiet) say("У вас последняя версия (${BuildConfig.VERSION_NAME})")
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 if (!quiet) say(e.message ?: "Ошибка проверки обновлений")
             }
         }
@@ -160,7 +160,7 @@ class AppState(val ctx: Context) {
                 val f = withContext(Dispatchers.IO) { Updater.download(ctx, ghToken, r) { p -> updateProgress = p } }
                 updateProgress = null
                 if (!Updater.install(ctx, f)) say("Разрешите установку для LingQ Fix и нажмите «Обновить» ещё раз")
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 updateProgress = null
                 say(e.message ?: "Ошибка загрузки обновления")
             }
@@ -202,7 +202,7 @@ class CheckSession(private val app: AppState, val lang: String, private val less
                     delay(150)
                 }
                 status = ""
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 error = e.message ?: e.toString()
             }
             running = false
@@ -227,7 +227,7 @@ class CheckSession(private val app: AppState, val lang: String, private val less
                 done = true
                 status = ""
                 app.say("Записано в LingQ ✅")
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 error = e.message ?: e.toString()
             }
             applying = false
@@ -271,7 +271,7 @@ class ImportSession(private val app: AppState) {
                 items.clear()
                 // Short EPUB parts (cover, title page, imprint) are not preselected.
                 items.addAll(texts.map { ImportItem(it.title.ifBlank { name }, it.text, !isBook || countWords(it.text) >= 100) })
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 error = "Не удалось прочитать файл: ${e.message}"
             }
             loading = false
@@ -325,7 +325,7 @@ class ImportSession(private val app: AppState) {
                 }
                 finished = true
                 app.say("Загружено уроков: ${jobs.size}")
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 error = e.message ?: e.toString()
             }
             running = false

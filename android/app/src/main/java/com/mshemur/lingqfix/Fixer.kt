@@ -39,7 +39,7 @@ object Fixer {
     val AMBIGUOUS = setOf("Jh", "Jhs", "Jhdt", "Jt", "Jts", "Chr", "usw", "etc", "ff", "f", "ebd", "Ebd", "Aufl")
 
     private val LAST_TOKEN = Regex("(\\S+)\\.$")
-    private val FIRST_WORD = Regex("(?U)^[\\W\\d_]*([^\\W\\d_]+)")
+    private val FIRST_WORD = Regex("^[^\\p{L}]*(\\p{L}+)")   // Android regex has no (?U) flag
     private val ORDINAL_OR_LETTER = Regex("\\d{1,2}|[A-ZÄÖÜ]|[IVX]{1,4}|([A-ZÄÖÜ]\\.)+[A-ZÄÖÜ]")
     private val WS = Regex("\\s+")
 
