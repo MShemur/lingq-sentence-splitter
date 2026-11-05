@@ -74,3 +74,10 @@ if blocked, proxy it the same way).
 
 Touch on iPad: implement tap / double tap / long press yourself (pointer events + timers); disable
 iOS text selection and double-tap zoom on the reader (`user-select:none`, `touch-action: manipulation`).
+
+## Status (2026-11-05)
+
+Done, everything above except import/fix: settings, library, reader (tap / double tap / long press, pins,
+word sheet, sentence translations), sentence mode (swipe, ← → keys), bookmarks, chat, PWA (manifest, icons,
+service worker). Tested against the live LingQ API in a desktop browser at iPad size; not yet on a real iPad.
+Setup and file overview: `web/README.md`.

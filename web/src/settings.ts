@@ -1,0 +1,45 @@
+import { signal, effect, type Signal } from '@preact/signals'
+import { Prompts } from './prompts'
+
+export const DEFAULT_MODEL = 'gemini-3.8-flash'
+
+/** A setting kept in localStorage (on this device only) and saved on every change. */
+function pref(key: string, def: string, fix: (v: string) => string = (v) => v): Signal<string> {
+  let v = def
+  try { v = localStorage.getItem('pref.' + key) ?? def } catch { /* private mode */ }
+  const s = signal(fix(v))
+  effect(() => {
+    try { localStorage.setItem('pref.' + key, s.value) } catch { /* ignore */ }
+  })
+  return s
+}
+
+export const prefs = {
+  apiKey: pref('apiKey', ''),
+  lang: pref('lang', 'de'),
+  trLang: pref('trLang', 'ru'),
+  /** "lingq" or "gemini": who translates words and sentences in the reader. */
+  translator: pref('translator', 'lingq'),
+  geminiKey: pref('geminiKey', ''),
+  // gemini-2.5-* are retired for new users
+  geminiModel: pref('geminiModel', DEFAULT_MODEL, (v) => (v.startsWith('gemini-2.5') ? DEFAULT_MODEL : v)),
+  promptWord: pref('promptWord', Prompts.WORD),
+  promptSentence: pref('promptSentence', Prompts.SENTENCE),
+  promptRetranslate: pref('promptRetranslate', Prompts.RETRANSLATE),
+  promptChatSentence: pref('promptChatSentence', Prompts.CHAT_SENTENCE),
+  promptChatText: pref('promptChatText', Prompts.CHAT_TEXT),
+  readerFont: pref('readerFont', '20'),
+}
+
+/** Prompt with fallback to the default when the field was emptied. */
+export const prompt = {
+  word: () => prefs.promptWord.value.trim() || Prompts.WORD,
+  sentence: () => prefs.promptSentence.value.trim() || Prompts.SENTENCE,
+  retranslate: () => prefs.promptRetranslate.value.trim() || Prompts.RETRANSLATE,
+  chatSentence: () => prefs.promptChatSentence.value.trim() || Prompts.CHAT_SENTENCE,
+  chatText: () => prefs.promptChatText.value.trim() || Prompts.CHAT_TEXT,
+}
+
+export const lang = () => prefs.lang.value.trim() || 'de'
+export const trLang = () => prefs.trLang.value.trim() || 'ru'
+export const useGemini = () => prefs.translator.value === 'gemini' && prefs.geminiKey.value.trim() !== ''

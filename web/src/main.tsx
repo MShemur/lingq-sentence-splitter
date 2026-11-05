@@ -1,0 +1,49 @@
+import { render } from 'preact'
+import { stack, toast, type Screen } from './app'
+import { CoursesScreen, LessonsView } from './screens/Library'
+import { ReaderScreen } from './reader/Reader'
+import { ChatScreen } from './screens/Chat'
+import { BookmarksScreen } from './screens/Bookmarks'
+import { SettingsLingq, SettingsPrompts, SettingsRoot, SettingsTranslation } from './screens/Settings'
+import './styles.css'
+
+function view(screen: Screen) {
+  switch (screen.k) {
+    case 'courses': return <CoursesScreen />
+    case 'lessons': return <LessonsView s={screen} />
+    case 'reader': return <ReaderScreen s={screen.s} />
+    case 'chat': return <ChatScreen c={screen.c} />
+    case 'bookmarks': return <BookmarksScreen />
+    case 'settings': return <SettingsRoot />
+    case 'settingsLingq': return <SettingsLingq />
+    case 'settingsTranslation': return <SettingsTranslation />
+    case 'settingsPrompts': return <SettingsPrompts />
+  }
+}
+
+const ids = new WeakMap<Screen, number>()
+let nextId = 1
+const idOf = (s: Screen) => { let i = ids.get(s); if (!i) ids.set(s, (i = nextId++)); return i }
+
+function App() {
+  const list = stack.value
+  const t = toast.value
+  // Screens below the top stay mounted (hidden), so the reader keeps its scroll position under a chat.
+  return (
+    <>
+      {list.map((s, i) => (
+        <div key={idOf(s)} class={'layer' + (i === list.length - 1 ? '' : ' below')} aria-hidden={i !== list.length - 1}>
+          {view(s)}
+        </div>
+      ))}
+      {t && <div class="snackbar" key={t.id}>{t.text}</div>}
+    </>
+  )
+}
+
+render(<App />, document.getElementById('app')!)
+
+// Offline shell + auto-update: the service worker always asks the network for the page first.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}) })
+}
