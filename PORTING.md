@@ -13,6 +13,9 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- Long meanings in the word / phrase window: chips must grow in height with wrapped text (web chips had a fixed
+  height, lines overlapped other chips). Check the Android FilterChips with a long LingQ meaning too. web v1.10.
+
 (nothing)
 
 ## Done

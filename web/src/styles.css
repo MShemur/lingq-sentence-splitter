@@ -177,7 +177,8 @@ div.list-item { cursor: default; }
 /* --- chips --- */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
-  display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px; border-radius: 8px;
+  display: inline-flex; align-items: center; gap: 8px; min-height: 32px; max-width: 100%; padding: 5px 16px; border-radius: 8px;
+  line-height: 1.3; text-align: left; overflow-wrap: anywhere; /* long meanings wrap and the chip grows */
   border: 1px solid var(--outline-variant); background: none; color: var(--on-surface-variant); font-size: 14px; font-weight: 500; cursor: pointer;
 }
 .chip .icon { color: var(--primary); margin-left: -6px; }
