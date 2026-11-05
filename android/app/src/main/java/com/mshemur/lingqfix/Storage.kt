@@ -19,6 +19,17 @@ class Prefs(ctx: Context) {
     var ghToken: String
         get() = read("ghToken")
         set(v) = write("ghToken", v.trim())
+    /** Language the reader translates into. */
+    var trLang: String
+        get() = read("trLang", "ru")
+        set(v) = write("trLang", v.trim().ifBlank { "ru" })
+    /** Reader: "popup" = window with translations, "inline" = translation above the word. */
+    var readerMode: String
+        get() = read("readerMode", "popup")
+        set(v) = write("readerMode", v)
+    var readerFont: Int
+        get() = p.getInt("readerFont", 19)
+        set(v) = p.edit().putInt("readerFont", v).apply()
 }
 
 /** Copies of lessons taken before every write, so a lesson can be put back. Kept [KEEP_DAYS] days. */

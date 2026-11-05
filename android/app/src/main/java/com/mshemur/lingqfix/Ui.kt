@@ -39,6 +39,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
@@ -102,7 +104,20 @@ fun App(state: AppState) {
                             Text("←", style = MaterialTheme.typography.titleLarge)
                         }
                     },
+                    actions = { if (screen is Screen.Reader) ReaderActions(screen.session) },
                 )
+            },
+            bottomBar = {
+                NavigationBar {
+                    Tab.entries.forEach { t ->
+                        NavigationBarItem(
+                            selected = state.tab == t,
+                            onClick = { if (state.tab == t) state.toRoot() else state.tab = t },
+                            icon = { Text(t.icon, style = MaterialTheme.typography.titleLarge) },
+                            label = { Text(t.label) },
+                        )
+                    }
+                }
             },
             snackbarHost = { SnackbarHost(state.snackbar) },
         ) { pad ->
@@ -110,8 +125,10 @@ fun App(state: AppState) {
             Box(Modifier.padding(pad).imePadding().fillMaxSize()) {
                 when (screen) {
                     Screen.Home -> HomeScreen(state)
+                    Screen.ReaderCourses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c, reader = true)) }
+                    is Screen.Reader -> ReaderScreen(screen.session)
                     Screen.Settings -> SettingsScreen(state)
-                    Screen.Courses -> CoursesScreen(state)
+                    Screen.Courses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c)) }
                     Screen.Backups -> BackupsScreen(state)
                     is Screen.Lessons -> LessonsScreen(state, screen)
                     is Screen.Check -> CheckScreen(screen.session)
@@ -135,7 +152,9 @@ fun App(state: AppState) {
 }
 
 private fun titleOf(state: AppState, s: Screen): String = when (s) {
-    Screen.Home -> "LingQ Fix"
+    Screen.Home -> "Импорт и исправление"
+    Screen.ReaderCourses -> "Читалка · ${state.lang}"
+    is Screen.Reader -> s.session.title
     Screen.Settings -> "Настройки"
     Screen.Courses -> "Мои курсы · ${state.lang}"
     Screen.Backups -> "Резервные копии"
@@ -192,7 +211,7 @@ private fun HomeScreen(state: AppState) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text("Сначала укажите API-ключ LingQ")
-                    TextButton(onClick = { state.go(Screen.Settings) }) { Text("Открыть настройки") }
+                    TextButton(onClick = { state.tab = Tab.Settings }) { Text("Открыть настройки") }
                 }
             }
         }
@@ -217,7 +236,6 @@ private fun HomeScreen(state: AppState) {
             }
         }
         BigButton("↩  Резервные копии", "Вернуть урок к версии до исправления") { state.go(Screen.Backups) }
-        BigButton("⚙  Настройки", "Ключ LingQ, язык, обновления") { state.go(Screen.Settings) }
         Text(
             "Версия ${BuildConfig.VERSION_NAME}",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline,
@@ -232,6 +250,7 @@ private fun SettingsScreen(state: AppState) {
     var key by remember { mutableStateOf(state.apiKey) }
     var lang by remember { mutableStateOf(state.lang) }
     var token by remember { mutableStateOf(state.ghToken) }
+    var trLang by remember { mutableStateOf(state.trLang) }
     var langs by remember { mutableStateOf<List<Language>>(emptyList()) }
     var menu by remember { mutableStateOf(false) }
     val uri = LocalUriHandler.current
@@ -270,6 +289,10 @@ private fun SettingsScreen(state: AppState) {
                 }
             }
         }
+        OutlinedTextField(
+            trLang, { trLang = it.trim() }, Modifier.width(200.dp),
+            label = { Text("Язык перевода") }, singleLine = true, supportingText = { Text("ru, en, uk …") },
+        )
         HorizontalDivider()
         Text("Обновления приложения", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
@@ -281,9 +304,9 @@ private fun SettingsScreen(state: AppState) {
                 "Fine-grained tokens: репозиторий lingq-sentence-splitter, права Contents: Read-only.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Button(onClick = { state.saveSettings(key, lang, token) }, modifier = Modifier.fillMaxWidth()) { Text("Сохранить") }
+        Button(onClick = { state.saveSettings(key, lang, token, trLang) }, modifier = Modifier.fillMaxWidth()) { Text("Сохранить") }
         OutlinedButton(
-            onClick = { state.saveSettings(key, lang, token); state.checkUpdate(quiet = false) },
+            onClick = { state.saveSettings(key, lang, token, trLang); state.checkUpdate(quiet = false) },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Проверить обновления (сейчас ${BuildConfig.VERSION_NAME})") }
     }
@@ -292,7 +315,7 @@ private fun SettingsScreen(state: AppState) {
 // --- Courses / lessons ---------------------------------------------------------------------------
 
 @Composable
-private fun CoursesScreen(state: AppState) {
+private fun CoursesScreen(state: AppState, onPick: (Course) -> Unit) {
     var q by remember { mutableStateOf("") }
     LaunchedEffect(state.lang) { state.loadCourses() }
     Column(Modifier.fillMaxSize()) {
@@ -312,7 +335,7 @@ private fun CoursesScreen(state: AppState) {
                 items(list.filter { q.isBlank() || it.title.contains(q, ignoreCase = true) }, key = { it.id }) { c ->
                     ListItem(
                         headlineContent = { Text(c.title) },
-                        modifier = Modifier.clickable { state.go(Screen.Lessons(state.lang, c)) },
+                        modifier = Modifier.clickable { onPick(c) },
                     )
                     HorizontalDivider()
                 }
@@ -330,6 +353,15 @@ private fun LessonsScreen(state: AppState, s: Screen.Lessons) {
         when {
             err != null -> ErrorBox(err) { s.load(state) }
             list == null -> Loading()
+            s.reader -> LazyColumn(Modifier.fillMaxSize()) {
+                items(list, key = { it.id }) { l ->
+                    ListItem(
+                        headlineContent = { Text(l.title) },
+                        modifier = Modifier.clickable { state.go(Screen.Reader(ReaderSession(state, s.lang, l))) },
+                    )
+                    HorizontalDivider()
+                }
+            }
             else -> {
                 Button(
                     onClick = { state.checkLessons(s.lang, list, s.title) },

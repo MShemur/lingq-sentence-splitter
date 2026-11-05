@@ -1,5 +1,6 @@
 package com.mshemur.lingqfix
 
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -89,6 +90,28 @@ class LingqApi(private val key: String) {
             Thread.sleep(3000)
         }
         throw ApiException("LingQ слишком долго обрабатывает урок $id — проверьте его позже через «Исправить курс»")
+    }
+
+    /** Popular user meanings of a word (most popular first), as in LingQ's word pop-up. */
+    fun hints(lang: String, term: String, locale: String): List<String> {
+        val url = "$BASE/v2/$lang/hints/search/".toHttpUrl().newBuilder()
+            .addQueryParameter("term", term).addQueryParameter("locale", locale).build().toString()
+        val a = JSONArray(call("GET", url))
+        val out = LinkedHashMap<String, String>()
+        for (i in 0 until a.length()) {
+            val o = a.getJSONObject(i)
+            if (o.optBoolean("flagged")) continue
+            val t = o.optString("text").trim()
+            if (t.isNotEmpty()) out.putIfAbsent(t.lowercase(), t)
+        }
+        return out.values.toList()
+    }
+
+    /** Machine translation (LingQ's translate service). */
+    fun translate(lang: String, target: String, text: String): String {
+        val body = JSONObject().put("source", lang).put("target", target).put("text", text)
+        val d = JSONObject(call("POST", "$BASE/v2/$lang/translate/", body.toString()))
+        return d.optJSONArray("translations")?.optJSONObject(0)?.optString("translatedText").orEmpty()
     }
 
     fun lesson(lang: String, id: Int): Lesson = Lesson(id, obj("$BASE/v3/$lang/lessons/$id/").optString("title"))

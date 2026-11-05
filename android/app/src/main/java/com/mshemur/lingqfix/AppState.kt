@@ -19,6 +19,8 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
+enum class Tab(val label: String, val icon: String) { Reader("Читалка", "📖"), Tools("Импорт", "📥"), Settings("Настройки", "⚙") }
+
 sealed interface Screen {
     data object Home : Screen
     data object Settings : Screen
@@ -27,7 +29,11 @@ sealed interface Screen {
     class Import(val session: ImportSession) : Screen
     class Check(val session: CheckSession) : Screen
 
-    class Lessons(val lang: String, val course: Course) : Screen {
+    data object ReaderCourses : Screen
+    class Reader(val session: ReaderSession) : Screen
+
+    /** Lessons of a course: [reader] = open the lesson for reading, otherwise check/fix it. */
+    class Lessons(val lang: String, val course: Course, val reader: Boolean = false) : Screen {
         var title by mutableStateOf(course.title.ifBlank { "Курс ${course.id}" })
         var lessons by mutableStateOf<List<Lesson>?>(null)
         var error by mutableStateOf<String?>(null)
@@ -54,12 +60,19 @@ class AppState(val ctx: Context) {
     val scope = MainScope()
     val snackbar = SnackbarHostState()
 
-    val stack = mutableStateListOf<Screen>(Screen.Home)
+    var tab by mutableStateOf(Tab.Reader)
+    private val stacks = mapOf(
+        Tab.Reader to mutableStateListOf<Screen>(Screen.ReaderCourses),
+        Tab.Tools to mutableStateListOf<Screen>(Screen.Home),
+        Tab.Settings to mutableStateListOf<Screen>(Screen.Settings),
+    )
+    val stack get() = stacks.getValue(tab)
     val screen: Screen get() = stack.last()
 
     var apiKey by mutableStateOf(prefs.apiKey)
     var lang by mutableStateOf(prefs.lang)
     var ghToken by mutableStateOf(prefs.ghToken)
+    var trLang by mutableStateOf(prefs.trLang)
     val api: LingqApi get() = LingqApi(apiKey)
 
     var courses by mutableStateOf<List<Course>?>(null)
@@ -73,13 +86,14 @@ class AppState(val ctx: Context) {
     private var dialogShownFor = 0
 
     fun go(s: Screen) { stack.add(s) }
+    fun toRoot() { while (stack.size > 1) stack.removeAt(stack.lastIndex) }
     fun back(): Boolean = if (stack.size > 1) { stack.removeAt(stack.lastIndex); true } else false
     fun say(msg: String) { scope.launch { snackbar.showSnackbar(msg) } }
 
-    fun saveSettings(key: String, language: String, token: String) {
-        prefs.apiKey = key; prefs.lang = language; prefs.ghToken = token
+    fun saveSettings(key: String, language: String, token: String, translation: String) {
+        prefs.apiKey = key; prefs.lang = language; prefs.ghToken = token; prefs.trLang = translation
         val langChanged = prefs.lang != lang
-        apiKey = prefs.apiKey; lang = prefs.lang; ghToken = prefs.ghToken
+        apiKey = prefs.apiKey; lang = prefs.lang; ghToken = prefs.ghToken; trLang = prefs.trLang
         if (langChanged) courses = null
         say("Сохранено")
     }
@@ -103,6 +117,7 @@ class AppState(val ctx: Context) {
 
     fun openLink(text: String) {
         val t = parseTarget(text) ?: return say("Не понял ссылку")
+        tab = Tab.Tools
         val language = t.lang ?: lang
         when {
             t.lessonId != null -> checkLessons(language, listOf(Lesson(t.lessonId, "")), "Урок ${t.lessonId}")
@@ -118,6 +133,7 @@ class AppState(val ctx: Context) {
 
     fun openImportFile(uri: Uri) {
         val s = ImportSession(this)
+        tab = Tab.Tools
         go(Screen.Import(s))
         s.loadFile(uri)
     }
@@ -127,6 +143,7 @@ class AppState(val ctx: Context) {
         s.pasteMode = true
         s.pasteTitle = title.orEmpty()
         s.pasteText = text
+        tab = Tab.Tools
         go(Screen.Import(s))
     }
 
