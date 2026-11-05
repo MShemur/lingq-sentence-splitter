@@ -58,7 +58,12 @@ export function ChatScreen({ c }: { c: ChatSession }) {
             </div>
           ))}
           {sending && <div class="typing"><Spinner size={18} /> Gemini пишет…</div>}
-          {c.error.value && <p class="error-text">Ошибка: {c.error.value}</p>}
+          {c.error.value && (
+            <div class="chat-error">
+              <p class="error-text">Ошибка: {c.error.value}</p>
+              <button class="btn outlined" onClick={() => void c.retry()}>Повторить</button>
+            </div>
+          )}
           <div ref={end} />
         </div>
       </div>

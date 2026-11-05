@@ -321,3 +321,4 @@ div.list-item { cursor: default; }
   display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
 }
 .fab-send:disabled { background: color-mix(in srgb, var(--on-surface) 12%, transparent); color: color-mix(in srgb, var(--on-surface) 38%, transparent); }
+.chat-error { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }

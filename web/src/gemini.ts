@@ -29,17 +29,40 @@ export async function models(key: string): Promise<string[]> {
   return out.sort().reverse()
 }
 
+/** Model list of this key, fetched once when a fallback is needed. */
+let modelList: Promise<string[]> | null = null
+
+/** Another model to use while [busy] is overloaded: a flash model first (fast), newest first. */
+async function fallbackModel(key: string, busy: string): Promise<string | null> {
+  modelList ??= models(key).catch(() => { modelList = null; return [] })
+  const list = (await modelList).filter((m) => m !== busy && !/preview|exp|image|tts|live|embed/i.test(m))
+  return list.find((m) => m.includes('flash') && !m.includes('lite')) ?? list.find((m) => m.includes('flash')) ?? list[0] ?? null
+}
+
+const overloaded = (msg: string) => /HTTP (503|429)/.test(msg)
+
 export async function generate(system: string | null, messages: Msg[], json = false): Promise<string> {
   const key = prefs.geminiKey.value.trim()
   if (!key) throw new ApiError('Не задан ключ Gemini (⚙ Настройки)')
   const m = prefs.geminiModel.value.trim() || DEFAULT_MODEL
+  const run = async (model: string) => {
+    try {
+      return await request(key, model, system, messages, json, true)
+    } catch (e) {
+      // older/newer models may not know the thinking option: try once without it
+      const msg = String((e as Error).message)
+      if (msg.includes('HTTP 400') && /hink/i.test(msg)) return request(key, model, system, messages, json, false)
+      throw e
+    }
+  }
   try {
-    return await request(key, m, system, messages, json, true)
+    return await run(m)
   } catch (e) {
-    // older/newer models may not know the thinking option: try once without it
-    const msg = String((e as Error).message)
-    if (msg.includes('HTTP 400') && /hink/i.test(msg)) return request(key, m, system, messages, json, false)
-    throw e
+    // the chosen model is overloaded ("high demand"): answer with another one rather than fail
+    if (!overloaded(String((e as Error).message))) throw e
+    const other = await fallbackModel(key, m)
+    if (!other) throw e
+    return run(other)
   }
 }
 
@@ -64,7 +87,8 @@ async function request(key: string, m: string, system: string | null, messages: 
     } catch {
       throw new ApiError('Нет связи с Gemini')
     }
-    if ((r.status === 429 || r.status >= 500) && attempt < 3) { await sleep(2000 * (attempt + 1)); continue }
+    // overloaded / rate limited: wait 2, 4, 8 s and try again
+    if ((r.status === 429 || r.status >= 500) && attempt < 3) { await sleep(2000 * 2 ** attempt); continue }
     const text = await r.text()
     if (!r.ok) {
       let msg: string | undefined

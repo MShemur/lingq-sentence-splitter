@@ -18,6 +18,17 @@ export class ChatSession {
     this.input.value = ''
     this.error.value = null
     this.messages.value = [...this.messages.value, { user: true, text: q }]
+    await this.answer()
+  }
+
+  /** After an error: ask Gemini again for the last question (it is not added twice). */
+  async retry() {
+    if (this.sending.value || !this.messages.value.at(-1)?.user) return
+    this.error.value = null
+    await this.answer()
+  }
+
+  private async answer() {
     this.sending.value = true
     try {
       const a = await gemini.generate(this.system, this.messages.value)
