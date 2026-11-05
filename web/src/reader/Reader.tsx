@@ -14,13 +14,91 @@ import { ref as wordRef, refSent, type ReaderSession, type Sent, type WordRef } 
 let selecting = false
 document.addEventListener('touchmove', (e) => { if (selecting) e.preventDefault() }, { passive: false })
 
+const docked = () => prefs.dockPanel.value === '1'
+
+/**
+ * Page turning by swipe, done here instead of the browser's own scrolling: on the iPad the browser would take
+ * the touch over as soon as the finger moves, which breaks long press + drag over words (selection).
+ * Horizontal drag moves the pages and snaps to one; vertical drag scrolls a page that does not fit.
+ */
+function useSwipe(pager: { current: HTMLDivElement | null }) {
+  const st = useRef<{
+    id: number; x: number; y: number; t: number; left: number; top: number; lastX: number
+    scroller: HTMLElement | null; axis: '' | 'x' | 'y'
+  } | null>(null)
+  const end = () => {
+    const g = st.current
+    st.current = null
+    const el = pager.current
+    if (!g || g.axis !== 'x' || !el || !el.clientWidth) return
+    const dx = g.lastX - g.x
+    const v = dx / Math.max(1, performance.now() - g.t)
+    const base = Math.round(g.left / el.clientWidth)
+    let i = Math.round(el.scrollLeft / el.clientWidth)
+    if (dx < -40 || v < -0.35) i = base + 1
+    else if (dx > 40 || v > 0.35) i = base - 1
+    i = Math.max(0, Math.min(el.children.length - 1, i))
+    el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
+  }
+  return {
+    onPointerDown: (e: PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      if ((e.target as Element).closest?.('button, input, textarea, a')) return
+      const el = pager.current
+      if (!el) return
+      const scroller = (e.target as Element).closest?.('.page-text, .page') as HTMLElement | null
+      st.current = {
+        id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), left: el.scrollLeft,
+        top: scroller?.scrollTop ?? 0, lastX: e.clientX, scroller, axis: '',
+      }
+    },
+    onPointerMove: (e: PointerEvent) => {
+      const g = st.current
+      const el = pager.current
+      if (!g || g.id !== e.pointerId || !el) return
+      if (selecting) { st.current = null; return }
+      const dx = e.clientX - g.x, dy = e.clientY - g.y
+      g.lastX = e.clientX
+      if (!g.axis) {
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) g.axis = 'x'
+        else if (Math.abs(dy) > 10) g.axis = 'y'
+        else return
+      }
+      if (g.axis === 'x') el.scrollLeft = g.left - dx
+      else if (g.scroller) g.scroller.scrollTop = g.top - dy
+    },
+    onPointerUp: end,
+    onPointerCancel: end,
+    onPointerLeave: (e: PointerEvent) => { if (e.pointerType === 'mouse') end() },
+  }
+}
+
+/** Round page-turn buttons at the sides of the text. */
+function TurnButtons({ at, count, turn }: { at: number; count: number; turn: (d: number) => void }) {
+  return (
+    <>
+      {at > 0 && (
+        <button class="turn-btn left" aria-label="Предыдущая страница" onClick={() => turn(-1)}>
+          <Icon name="chevronLeft" size={28} />
+        </button>
+      )}
+      {at < count - 1 && (
+        <button class="turn-btn right" aria-label="Следующая страница" onClick={() => turn(1)}>
+          <Icon name="chevron" size={28} />
+        </button>
+      )}
+    </>
+  )
+}
+
 /**
  * Word gestures (event delegation): tap = translation above the word, double tap = word window,
  * long press = sentence translation, long press and drag over other words of the sentence = those words together.
  */
 function useWordPress(s: ReaderSession) {
   const press = useMemo(() => new Press<WordRef>({
-    tap: (r) => s.tap(r),
+    // docked word panel: a tap also shows the word there
+    tap: (r) => { s.tap(r); if (docked()) { s.closePhrase(); void s.openPopup(r) } },
     double: (r) => { void s.openPopup(r) },
     long: (r) => { selecting = true; s.selectStart(r) },
     longMove: (e) => {
@@ -51,8 +129,11 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
         title={paras ? <div class="reader-progress"><ProgressPill p={s.textProgress.value} /><span>{s.pageLabel.value}</span></div> : null}
         actions={<ReaderActions s={s} />}
       />
-      <div class="screen-body">
-        {err ? <ErrorBox text={err} retry={() => void s.load()} /> : !paras ? <Loading /> : <TextView s={s} paras={paras} />}
+      <div class={'screen-body reader-body' + (docked() ? ' docked' : '')}>
+        <div class="text-area">
+          {err ? <ErrorBox text={err} retry={() => void s.load()} /> : !paras ? <Loading /> : <TextView s={s} paras={paras} />}
+        </div>
+        {docked() && <DockedPanel s={s} />}
       </div>
       <nav class="bottom-nav">
         <button onClick={() => s.openSentenceMode()}><span class="nav-ind"><Icon name="list" /></span><span>По предложениям</span></button>
@@ -62,8 +143,8 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
         <button onClick={() => s.chatText()}><span class="nav-ind"><Icon name="chat" /></span><span>Чат</span></button>
       </nav>
       <SentenceOverlay s={s} />
-      {s.popup.value && <WordSheet s={s} r={s.popup.value} />}
-      {s.phrase.value && <PhraseSheet s={s} />}
+      {!docked() && s.popup.value && <WordSheet s={s} r={s.popup.value} />}
+      {!docked() && s.phrase.value && <PhraseSheet s={s} />}
       {s.bookmarksOpen.value && <LessonBookmarksDialog s={s} onClose={() => { s.bookmarksOpen.value = false }} />}
     </div>
   )
@@ -233,7 +314,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   useLayoutEffect(() => {
     if (!pages.length) return
     const el = pager.current
-    if (el && el.clientWidth && !scrolling.current && Math.round(el.scrollLeft / el.clientWidth) !== cur) scrollTo(cur, false)
+    if (el && el.clientWidth && !scrolling.current && Math.abs(el.scrollLeft - cur * el.clientWidth) > 1) scrollTo(cur, false)
   }, [pages, cur])
 
   // publish progress and what is on screen
@@ -263,21 +344,27 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     s.syncTo.value = null
   }, [syncTo, pages])
 
+  /** Turns [d] pages, counting from the page being turned to, so quick presses do not skip pages. */
+  const turn = (d: number) => {
+    const el = pager.current
+    if (!el || !el.clientWidth) return
+    const at = Math.round(el.scrollLeft / el.clientWidth)
+    const from = turnTo.current != null && scrolling.current ? turnTo.current : at
+    const i = Math.max(0, Math.min(pages.length - 1, from + d))
+    turnTo.current = i
+    scrollTo(i, true)
+  }
+  const swipe = useSwipe(pager)
+
   // arrow keys turn pages (iPad keyboard)
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       const el = pager.current
-      if (!el || el.closest('.layer.below') || s.sentenceMode.value || s.popup.value || s.menuOpen.value || s.bookmarksOpen.value) return
+      if (!el || el.closest('.layer.below') || s.sentenceMode.value || (s.popup.value && !docked()) || s.menuOpen.value || s.bookmarksOpen.value) return
       if ((e.target as Element)?.closest?.('input, textarea')) return
-      // from the page being turned to, so quick presses do not skip pages
-      const at = Math.round(el.scrollLeft / el.clientWidth)
-      const target = turnTo.current != null && scrolling.current ? turnTo.current : at
-      let i: number
-      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') i = Math.min(pages.length - 1, target + 1)
-      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') i = Math.max(0, target - 1)
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') turn(1)
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') turn(-1)
       else return
-      turnTo.current = i
-      scrollTo(i, true)
       e.preventDefault()
     }
     window.addEventListener('keydown', h)
@@ -301,7 +388,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   return (
     <>
       <div class="reader-text measurer" ref={measurer} style={fs} aria-hidden="true" />
-      <div class="pager text-pager" ref={pager} onScroll={onScroll}>
+      <div class="pager text-pager" ref={pager} onScroll={onScroll} {...swipe}>
         {pages.map((p, i) => (
           <div class="page" key={i}>
             {Math.abs(i - cur) <= 1 && (
@@ -312,6 +399,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
           </div>
         ))}
       </div>
+      <TurnButtons at={cur} count={pages.length} turn={turn} />
     </>
   )
 }
@@ -415,11 +503,16 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
   const page = Math.min(s.page.value, list.length - 1)
   const pager = useRef<HTMLDivElement>(null)
   const handlers = useWordPress(s)
+  const swipe = useSwipe(pager)
+  const turn = (d: number) => {
+    const i = Math.min(list.length - 1, Math.max(0, s.page.value + d))
+    pager.current?.scrollTo({ left: i * pager.current.clientWidth, behavior: 'smooth' })
+  }
 
   const snap = (smooth = false) => {
     const el = pager.current
     if (!el || !el.clientWidth) return
-    if (Math.round(el.scrollLeft / el.clientWidth) !== s.page.value)
+    if (Math.abs(el.scrollLeft - s.page.value * el.clientWidth) > 1)
       el.scrollTo({ left: s.page.value * el.clientWidth, behavior: smooth ? 'smooth' : 'auto' })
   }
   // opened, or the page changed from outside (bookmark): show it
@@ -432,13 +525,9 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
   useEffect(() => {
     if (!open) return
     const h = (e: KeyboardEvent) => {
-      if ((e.target as Element)?.closest?.('input, textarea') || s.popup.value) return
-      const go = (d: number) => {
-        const i = Math.min(list.length - 1, Math.max(0, s.page.value + d))
-        pager.current?.scrollTo({ left: i * pager.current.clientWidth, behavior: 'smooth' })
-      }
-      if (e.key === 'ArrowRight') go(1)
-      else if (e.key === 'ArrowLeft') go(-1)
+      if ((e.target as Element)?.closest?.('input, textarea') || (s.popup.value && !docked())) return
+      if (e.key === 'ArrowRight') turn(1)
+      else if (e.key === 'ArrowLeft') turn(-1)
       else if (e.key === 'Escape' || e.key === 'ArrowDown') s.closeSentenceMode()
     }
     window.addEventListener('keydown', h)
@@ -463,7 +552,8 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
         </div>
         <div class="sm-right">{cur && <BookmarkButton s={s} id={cur.id} />}</div>
       </div>
-      <div class="pager" ref={pager} onScroll={onScroll}>
+      <div class="sm-body">
+      <div class="pager" ref={pager} onScroll={onScroll} {...swipe}>
         {list.map((sent, i) => (
           <div class="page" key={sent.id}>
             {Math.abs(i - page) <= 2 && (
@@ -474,6 +564,8 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
             )}
           </div>
         ))}
+      </div>
+      <TurnButtons at={page} count={list.length} turn={turn} />
       </div>
     </div>
   )
@@ -493,7 +585,8 @@ function SentenceTranslationPage({ s, id }: { s: ReaderSession; id: number }) {
   )
 }
 
-function WordSheet({ s, r }: { s: ReaderSession; r: WordRef }) {
+/** What the word window shows; used in the pop-up sheet and in the docked panel. */
+function WordContent({ s, r, head }: { s: ReaderSession; r: WordRef; head?: JSX.Element }) {
   const [own, setOwn] = useState('')
   useEffect(() => setOwn(''), [r])
   const word = s.word(r)
@@ -506,84 +599,118 @@ function WordSheet({ s, r }: { s: ReaderSession; r: WordRef }) {
   const tr = s.sentTr.value[sid]
   const marked = s.isBookmarked(sid)
   return (
-    <Sheet onClose={() => s.closePopup()}>
-      <div class="word-sheet">
-        <div class="ws-head">
-          <div class="ws-title">
-            <div class="ws-word">{word}</div>
-            {main && <div class={'ws-main' + (!saved && thinking ? ' prov' : '')}>{main}</div>}
-          </div>
-          {thinking && <Spinner size={18} />}
-          {(saved || r in s.pins.value) && <IconButton icon="close" label="Убрать перевод с этого слова" onClick={() => s.unpin(r)} />}
+    <div class="word-sheet">
+      <div class="ws-head">
+        <div class="ws-title">
+          <div class="ws-word">{word}</div>
+          {main && <div class={'ws-main' + (!saved && thinking ? ' prov' : '')}>{main}</div>}
         </div>
-        {s.popupNote.value.trim() && <p class="ws-note">{s.popupNote.value}</p>}
-        {s.popupError.value ? <p class="error-text">Ошибка: {s.popupError.value}</p>
-          : !hints ? <LinearProgress />
-          : (
-            <>
-              <div class="chips">
-                {s.options(r).map((h) => (
-                  <Chip key={h} label={h} selected={!!saved && h.toLowerCase() === saved.toLowerCase()} onClick={() => s.choose(r, h)} />
-                ))}
-              </div>
-              <form class="own" onSubmit={(e) => { e.preventDefault(); s.choose(r, own) }}>
-                <input value={own} placeholder="Свой вариант" onInput={(e) => setOwn((e.target as HTMLInputElement).value)} autocapitalize="off" />
-                <IconButton icon="check" label="Сохранить" disabled={!own.trim()} onClick={() => s.choose(r, own)} />
-              </form>
-            </>
-          )}
-        <hr />
-        {tr && (
-          <div class="ws-tr">
-            <div class="sent-tr-text">{tr}</div>
-            <RetranslateButton s={s} id={sid} />
-          </div>
-        )}
-        <div class="chips">
-          {!tr && <Chip icon="translate" label="Перевод" onClick={() => s.toggleSentence(sid)} />}
-          <Chip icon={marked ? 'bookmark' : 'bookmarkBorder'} label={marked ? 'В закладках' : 'Закладка'} onClick={() => s.toggleBookmark(sid)} />
-          <Chip icon="chat" label="Спросить" onClick={() => s.chatSentence(sid)} />
-        </div>
+        {thinking && <Spinner size={18} />}
+        {(saved || r in s.pins.value) && <IconButton icon="close" label="Убрать перевод с этого слова" onClick={() => s.unpin(r)} />}
+        {head}
       </div>
-    </Sheet>
+      {s.popupNote.value.trim() && <p class="ws-note">{s.popupNote.value}</p>}
+      {s.popupError.value ? <p class="error-text">Ошибка: {s.popupError.value}</p>
+        : !hints ? <LinearProgress />
+        : (
+          <>
+            <div class="chips">
+              {s.options(r).map((h) => (
+                <Chip key={h} label={h} selected={!!saved && h.toLowerCase() === saved.toLowerCase()} onClick={() => s.choose(r, h)} />
+              ))}
+            </div>
+            <form class="own" onSubmit={(e) => { e.preventDefault(); s.choose(r, own); setOwn('') }}>
+              <input value={own} placeholder="Свой вариант" onInput={(e) => setOwn((e.target as HTMLInputElement).value)} autocapitalize="off" />
+              <IconButton icon="check" label="Сохранить" disabled={!own.trim()} onClick={() => { s.choose(r, own); setOwn('') }} />
+            </form>
+          </>
+        )}
+      <hr />
+      {tr && (
+        <div class="ws-tr">
+          <div class="sent-tr-text">{tr}</div>
+          <RetranslateButton s={s} id={sid} />
+        </div>
+      )}
+      <div class="chips">
+        {!tr && <Chip icon="translate" label="Перевод" onClick={() => (docked() ? s.ensureSentence(sid) : s.toggleSentence(sid))} />}
+        <Chip icon={marked ? 'bookmark' : 'bookmarkBorder'} label={marked ? 'В закладках' : 'Закладка'} onClick={() => s.toggleBookmark(sid)} />
+        <Chip icon="chat" label="Спросить" onClick={() => s.chatSentence(sid)} />
+      </div>
+    </div>
   )
 }
 
-/** Window for several words translated together. */
-function PhraseSheet({ s }: { s: ReaderSession }) {
+/** What the window for several words shows; pop-up sheet or docked panel. */
+function PhraseContent({ s, head }: { s: ReaderSession; head?: JSX.Element }) {
   const p = s.phrase.value!
   const [own, setOwn] = useState('')
   const saved = s.chosen.value[p.text.toLowerCase()]
   const tr = s.sentTr.value[p.sent]
   const loading = s.phraseLoading.value
   return (
-    <Sheet onClose={() => s.closePhrase()}>
-      <div class="word-sheet">
-        <div class="ws-word">{p.text}</div>
-        {s.phraseBest.value && <div class="ws-main">{s.phraseBest.value}</div>}
-        {loading && <LinearProgress />}
-        {s.phraseError.value && <p class="error-text">Ошибка: {s.phraseError.value}</p>}
-        {s.phraseNote.value.trim() && <p class="ws-note">{s.phraseNote.value}</p>}
-        {s.phraseOptions.value.length > 0 && (
-          <div class="chips">
-            {s.phraseOptions.value.map((h) => (
-              <Chip key={h} label={h} selected={!!saved && h.toLowerCase() === saved.toLowerCase()} onClick={() => s.choosePhrase(h)} />
-            ))}
-          </div>
-        )}
-        {!loading && (
-          <form class="own" onSubmit={(e) => { e.preventDefault(); s.choosePhrase(own); setOwn('') }}>
-            <input value={own} placeholder="Свой вариант" onInput={(e) => setOwn((e.target as HTMLInputElement).value)} autocapitalize="off" />
-            <IconButton icon="check" label="Сохранить" disabled={!own.trim()} onClick={() => { s.choosePhrase(own); setOwn('') }} />
-          </form>
-        )}
-        <hr />
-        {tr && <div class="ws-tr"><div class="sent-tr-text">{tr}</div></div>}
-        <div class="chips">
-          {!tr && <Chip icon="translate" label="Перевод предложения" onClick={() => s.ensureSentence(p.sent)} />}
-          <Chip icon="chat" label="Спросить" onClick={() => { s.closePhrase(); s.chatSentence(p.sent) }} />
+    <div class="word-sheet">
+      <div class="ws-head">
+        <div class="ws-title">
+          <div class="ws-word">{p.text}</div>
+          {s.phraseBest.value && <div class="ws-main">{s.phraseBest.value}</div>}
         </div>
+        {head}
       </div>
-    </Sheet>
+      {loading && <LinearProgress />}
+      {s.phraseError.value && <p class="error-text">Ошибка: {s.phraseError.value}</p>}
+      {s.phraseNote.value.trim() && <p class="ws-note">{s.phraseNote.value}</p>}
+      {s.phraseOptions.value.length > 0 && (
+        <div class="chips">
+          {s.phraseOptions.value.map((h) => (
+            <Chip key={h} label={h} selected={!!saved && h.toLowerCase() === saved.toLowerCase()} onClick={() => s.choosePhrase(h)} />
+          ))}
+        </div>
+      )}
+      {!loading && (
+        <form class="own" onSubmit={(e) => { e.preventDefault(); s.choosePhrase(own); setOwn('') }}>
+          <input value={own} placeholder="Свой вариант" onInput={(e) => setOwn((e.target as HTMLInputElement).value)} autocapitalize="off" />
+          <IconButton icon="check" label="Сохранить" disabled={!own.trim()} onClick={() => { s.choosePhrase(own); setOwn('') }} />
+        </form>
+      )}
+      <hr />
+      {tr && <div class="ws-tr"><div class="sent-tr-text">{tr}</div></div>}
+      <div class="chips">
+        {!tr && <Chip icon="translate" label="Перевод предложения" onClick={() => s.ensureSentence(p.sent)} />}
+        <Chip icon="chat" label="Спросить" onClick={() => { s.closePhrase(); s.chatSentence(p.sent) }} />
+      </div>
+    </div>
+  )
+}
+
+const DockButton = () => (
+  <IconButton icon="pin" label="Закрепить панель справа" onClick={() => { prefs.dockPanel.value = '1' }} />
+)
+
+function WordSheet({ s, r }: { s: ReaderSession; r: WordRef }) {
+  return <Sheet onClose={() => s.closePopup()}><WordContent s={s} r={r} head={<DockButton />} /></Sheet>
+}
+
+/** Window for several words translated together. */
+function PhraseSheet({ s }: { s: ReaderSession }) {
+  return <Sheet onClose={() => s.closePhrase()}><PhraseContent s={s} head={<DockButton />} /></Sheet>
+}
+
+/** The word window docked at the right: always there, empty until a word is chosen. */
+function DockedPanel({ s }: { s: ReaderSession }) {
+  const r = s.popup.value
+  const phrase = s.phrase.value
+  return (
+    <aside class="dock-panel">
+      <div class="dock-head">
+        <span class="grow">Перевод</span>
+        <IconButton icon="close" label="Открепить панель" onClick={() => { prefs.dockPanel.value = '0'; s.closePopup(); s.closePhrase() }} />
+      </div>
+      <div class="dock-body">
+        {phrase ? <PhraseContent s={s} />
+          : r ? <WordContent s={s} r={r} />
+          : <p class="dock-empty">Нажмите на слово — здесь появится его перевод. Долгое нажатие и протягивание — несколько слов сразу.</p>}
+      </div>
+    </aside>
   )
 }

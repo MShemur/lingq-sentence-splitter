@@ -13,6 +13,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- Docked word panel: the word window can be pinned at the right of the reader (pin button in the word / phrase
+  window; ✕ in the panel header unpins). It stays there: empty with a hint until a word is chosen; a tap on a
+  word (not only a double tap) shows the word there, the phrase selection too; choosing a meaning keeps the word
+  in the panel. Setting kept (`dockPanel`). Text pages are re-measured for the narrower width.
+  web `src/reader/Reader.tsx` (`DockedPanel`, `WordContent`, `PhraseContent`).
+- Page-turn buttons: round translucent ‹ › buttons at the left/right middle of the text pages and of sentence
+  mode (hidden on the first/last page); the text gets side padding so they do not cover it. web `TurnButtons`.
+
 
 ## Done
 

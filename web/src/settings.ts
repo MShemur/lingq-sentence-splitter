@@ -29,6 +29,8 @@ export const prefs = {
   promptChatSentence: pref('promptChatSentence', Prompts.CHAT_SENTENCE),
   promptChatText: pref('promptChatText', Prompts.CHAT_TEXT),
   readerFont: pref('readerFont', '20'),
+  /** '1': the word window is docked at the right of the reader and always shown. */
+  dockPanel: pref('dockPanel', '0'),
 }
 
 /** Prompt with fallback to the default when the field was emptied. */

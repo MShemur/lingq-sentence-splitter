@@ -449,14 +449,14 @@ export class ReaderSession {
     for (const k of Object.keys(pins)) if (this.word(k).toLowerCase() === w) pins[k] = m
     this.pins.value = pins
     drop(this.provisional, r)
-    this.popup.value = null
+    if (prefs.dockPanel.value !== '1') this.popup.value = null
     this.persist()
   }
 
   unpin(r: WordRef) {
     drop(this.pins, r)
     drop(this.chosen, this.word(r).toLowerCase())
-    this.popup.value = null
+    if (prefs.dockPanel.value !== '1') this.popup.value = null
     this.persist()
   }
 

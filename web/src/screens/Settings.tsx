@@ -9,6 +9,7 @@ import * as gemini from '../gemini'
 import { Dialog, IconButton, ListItem, Loading, SecretField, TextField, TopBar } from '../ui'
 
 declare const __BUILD__: string
+declare const __VERSION__: string
 
 function Page({ title, children }: { title: string; children: preact.ComponentChildren }) {
   return (
@@ -46,7 +47,7 @@ export function SettingsRoot() {
           onClick={() => go({ k: 'settingsPrompts' })} />
         <hr />
         <ListItem
-          leading={<Icon name="info" />} headline="LingQ Fix для iPad"
+          leading={<Icon name="info" />} headline={`LingQ Fix для iPad v${__VERSION__}`}
           supporting={`Сборка ${__BUILD__} · обновляется сама при открытии`}
         />
       </div>
