@@ -29,12 +29,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   them and renders new ones in batches of 25, so a pin re-measures one paragraph, not the lesson (see next commit).
 - web aa8d97f: Gemini chat answers are Markdown: render bold/italic/headings/lists/quotes/code (Android `Markdown.kt`,
   commit df2779e). On the web a small Markdown renderer (e.g. `marked` + sanitizing) is fine.
-- web (next commit): Gemini limit/overload (HTTP 429/503, RESOURCE_EXHAUSTED, quota) after retries+fallback: a window
+- web cd68734: Gemini limit/overload (HTTP 429/503, RESOURCE_EXHAUSTED, quota) after retries+fallback: a window
   "Gemini: лимит исчерпан" with "Попробовать другую модель" -> model list -> the choice becomes the current
   model and the failed request is repeated (word pin, word window, sentence translation, retranslate, chat).
   Android `ModelSwitch.kt`, `AppState.geminiFailed`.
 
-- web (next commit): Several words at once: long press on a word, keep the finger down and drag over other words of the same
+- web cd68734: Several words at once: long press on a word, keep the finger down and drag over other words of the same
   sentence (selection highlighted); release -> window with the phrase translated together in context
   (Gemini word prompt + "this is a phrase" note; LingQ: hints + machine translation), chips to choose,
   own variant (saved per lesson like word meanings). Long press without dragging = sentence translation as
