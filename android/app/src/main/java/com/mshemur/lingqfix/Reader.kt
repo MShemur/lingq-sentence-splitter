@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -65,7 +66,7 @@ import java.io.File
 class Token(val text: String, val isWord: Boolean, val index: Int)
 
 /** One sentence of the lesson; [id] is unique in the lesson. */
-class Sent(val id: Int, val text: String, val translations: Map<String, String>) {
+class Sent(val id: Int, val text: String, val translations: Map<String, String>, val lingqIndex: Int = id + 1) {
     val tokens: List<Token> = tokenize(text)
     val chunks: List<List<Token>> = chunks(tokens)
 
@@ -206,7 +207,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                         if (v.isNotEmpty()) tr.putIfAbsent(o.optString("language"), v)
                     }
                 }
-                val sent = Sent(id++, text, tr)
+                val sent = Sent(id, text, tr, s.optInt("index", id + 1))
+                id++
                 sentById[sent.id] = sent
                 para += sent
             }
@@ -248,6 +250,26 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         app.scope.launch {
             try { sentenceTranslation(id) } catch (e: Throwable) { sentTr[id] = "⚠ ${e.message}" }
             loadingSentences.remove(id)
+        }
+    }
+
+    /** Sentence ids whose translation is being redone right now. */
+    val retranslating = mutableStateMapOf<Int, Boolean>()
+
+    /** LingQ's "translate again" for one sentence (stored in the lesson on LingQ too). */
+    fun retranslate(id: Int) {
+        val s = sentById[id] ?: return
+        if (retranslating[id] == true) return
+        retranslating[id] = true
+        app.scope.launch {
+            try {
+                val r = withContext(Dispatchers.IO) { app.api.retranslate(lang, lesson.id, s.lingqIndex, target) }
+                val t = r[s.lingqIndex] ?: r.values.firstOrNull()
+                if (t.isNullOrBlank()) app.say("LingQ не вернул перевод") else sentTr[id] = t
+            } catch (e: Throwable) {
+                app.say(e.message ?: "Ошибка перевода")
+            }
+            retranslating.remove(id)
         }
     }
 
@@ -493,14 +515,31 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f)
 private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f) {
     LaunchedEffect(id) { s.ensureSentence(id) }
     val tr = s.sentTr[id]
-    Text(
-        if (tr.isNullOrEmpty()) "…" else tr,
-        style = MaterialTheme.typography.bodyMedium.copy(fontSize = (s.font * 0.8f * scale).sp),
-        fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        Modifier.fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
             .clickable { if (!s.allSentences) s.toggleSentence(id) }
-            .padding(8.dp),
+            .padding(start = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(
+            if (tr.isNullOrEmpty()) "…" else tr,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = (s.font * 0.8f * scale).sp),
+            fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        RetranslateButton(s, id)
+    }
+}
+
+/** ⟳ = LingQ translates the sentence again (ChatGPT). */
+@Composable
+private fun RetranslateButton(s: ReaderSession, id: Int) {
+    if (s.retranslating[id] == true) Box(Modifier.padding(horizontal = 12.dp)) {
+        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+    } else Text(
+        "⟳", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.clickable { s.retranslate(id) }.padding(horizontal = 12.dp),
     )
 }
 
@@ -582,8 +621,10 @@ private fun WordSheet(s: ReaderSession, ref: WordRef) {
             }
             HorizontalDivider()
             val tr = s.sentTr[ref.sent]
-            if (!tr.isNullOrEmpty()) Text(tr, fontStyle = FontStyle.Italic)
-            else TextButton(onClick = { s.toggleSentence(ref.sent) }) { Text("Перевести предложение") }
+            if (!tr.isNullOrEmpty()) Row(verticalAlignment = Alignment.Top) {
+                Text(tr, fontStyle = FontStyle.Italic, modifier = Modifier.weight(1f))
+                RetranslateButton(s, ref.sent)
+            } else TextButton(onClick = { s.toggleSentence(ref.sent) }) { Text("Перевести предложение") }
         }
     }
 }

@@ -114,6 +114,26 @@ class LingqApi(private val key: String) {
         return d.optJSONArray("translations")?.optJSONObject(0)?.optString("translatedText").orEmpty()
     }
 
+    /**
+     * LingQ's "retranslate sentence" (ChatGPT): translates sentence [index] (1-based, as in the lesson)
+     * again, stores it in the lesson and returns the new translations by sentence index.
+     */
+    fun retranslate(lang: String, lessonId: Int, index: Int, target: String): Map<Int, String> {
+        val body = JSONObject().put("sentence", index).put("language", target)
+            .put("method", "chatgpt").put("sentence_bulk", 1)
+        val a = JSONArray(call("POST", "$BASE/v3/$lang/lessons/$lessonId/translation/", body.toString()))
+        val out = HashMap<Int, String>()
+        for (i in 0 until a.length()) {
+            val o = a.getJSONObject(i)
+            val tr = o.optJSONArray("translations") ?: continue
+            for (k in 0 until tr.length()) {
+                val t = tr.getJSONObject(k)
+                if (t.optString("language") == target) out[o.optInt("index")] = t.optString("text")
+            }
+        }
+        return out
+    }
+
     fun lesson(lang: String, id: Int): Lesson = Lesson(id, obj("$BASE/v3/$lang/lessons/$id/").optString("title"))
 
     /** Lesson as the web editor sees it: paragraphs -> sentences (text, translations, ...). */
