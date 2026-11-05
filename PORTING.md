@@ -9,12 +9,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- Text view is paged, not one long scroll: pages fit the screen, swipe left/right turns them; a paragraph
-  that does not fit is split at a sentence boundary; pages are rebuilt when pins/translations/font change
-  and the page being read is kept; page counter "3 / 12" under the progress bar. Sentence mode collapses
-  slowly (~0.5 s). Android commit 53b0f28, `Reader.kt` (`PagedText`, `TextPager`).
-- Gemini chat answers are Markdown: render bold/italic/headings/lists/quotes/code (Android `Markdown.kt`,
-  commit df2779e). On the web a small Markdown renderer (e.g. `marked` + sanitizing) is fine.
+(nothing)
 
 ## To do on Android
 
@@ -22,3 +17,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 ## Done
 
 - Android: Gemini 503/429 retries 2/4/8 s + fallback flash model; chat "Повторить" (`Gemini.kt`, `Chat.kt`).
+
+- [web, see commit "web: paged text view"] Text view is paged, not one long scroll: pages fit the screen, swipe left/right turns them; a paragraph
+  that does not fit is split at a sentence boundary; pages are rebuilt when pins/translations/font change
+  and the page being read is kept; page counter "3 / 12" under the progress bar. Sentence mode collapses
+  slowly (~0.5 s). Android commit 53b0f28, `Reader.kt` (`PagedText`, `TextPager`).
+- Gemini chat answers are Markdown: render bold/italic/headings/lists/quotes/code (Android `Markdown.kt`,
+  commit df2779e). On the web a small Markdown renderer (e.g. `marked` + sanitizing) is fine.

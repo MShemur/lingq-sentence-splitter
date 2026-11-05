@@ -118,8 +118,12 @@ export class ReaderSession {
 
   /** Last sentence the user worked with (tapped word, long press); sentence mode opens there. */
   focusSent: number | null = null
-  /** Finds the first paragraph on screen and whether a paragraph is visible (set by the text view). */
-  view: { firstVisible: () => number; isVisible: (p: number) => boolean } | null = null
+  /** Text view pages: the page shown, "3 / 12", the sentence the page starts with (kept when pages are rebuilt). */
+  textPage = signal(0)
+  pageLabel = signal('')
+  textAnchor: number | null = null
+  /** Sentences on the page being read. */
+  visibleSents = new Set<number>()
 
   private sentById = new Map<number, Sent>()
   private hintsCache = new Map<string, string[]>()
@@ -223,12 +227,10 @@ export class ReaderSession {
 
   /** Sentence mode slides up over the text, at the selected word's sentence or the first one on screen. */
   openSentenceMode() {
-    const paras = this.paragraphs.value
-    if (!paras || !this.sentences.value.length) return
-    const paraOf = (id: number) => paras.findIndex((p) => p.some((s) => s.id === id))
-    let id: number | undefined
-    if (this.focusSent != null && this.view?.isVisible(paraOf(this.focusSent))) id = this.focusSent
-    else id = paras[Math.max(0, this.view?.firstVisible() ?? 0)]?.[0]?.id
+    if (!this.sentences.value.length) return
+    const id = this.focusSent != null && this.visibleSents.has(this.focusSent)
+      ? this.focusSent
+      : this.visibleSents.size ? Math.min(...this.visibleSents) : null
     this.page.value = id == null ? 0 : this.indexOf(id)
     this.sentenceMode.value = true
   }

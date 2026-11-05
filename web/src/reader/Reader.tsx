@@ -1,10 +1,11 @@
 // Reader screen: text with tappable words, sentence mode, word window. Port of the UI part of Reader.kt.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { Fragment, type JSX } from 'preact'
+import { Fragment, render, type JSX } from 'preact'
 import { Icon } from '../icons'
 import { Press } from '../press'
 import { back } from '../app'
 import { prefs } from '../settings'
+import { bookmarks } from '../bookmarks'
 import { Chip, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ref as wordRef, refSent, type ReaderSession, type Sent, type WordRef } from './session'
@@ -35,7 +36,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
       <TopBar
         center
         nav={<IconButton icon="close" label="Закрыть урок" onClick={back} />}
-        title={paras ? <ProgressPill p={s.textProgress.value} /> : null}
+        title={paras ? <div class="reader-progress"><ProgressPill p={s.textProgress.value} /><span>{s.pageLabel.value}</span></div> : null}
         actions={<ReaderActions s={s} />}
       />
       <div class="screen-body">
@@ -79,78 +80,201 @@ function ReaderActions({ s }: { s: ReaderSession }) {
   )
 }
 
-function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
-  const box = useRef<HTMLDivElement>(null)
-  const handlers = useWordPress(s)
+/** Part of a paragraph that lies on one page. */
+interface Block { para: number; sents: Sent[] }
 
-  const paraEls = () => Array.from(box.current?.querySelectorAll<HTMLElement>('[data-p]') ?? [])
-  const updateProgress = () => {
-    const el = box.current
-    if (!el) return
-    const bottom = el.scrollTop + el.clientHeight
-    s.textProgress.value = bottom >= el.scrollHeight - 4 ? 1 : bottom / el.scrollHeight
-  }
-  const scrollToSent = (id: number, smooth: boolean, onlyIfHidden: boolean) => {
-    const el = box.current?.querySelector<HTMLElement>(`[data-sid="${id}"]`)
-    const c = box.current
-    if (!el || !c) return
-    const r = el.getBoundingClientRect()
-    const cr = c.getBoundingClientRect()
-    if (onlyIfHidden && r.top >= cr.top && r.bottom <= cr.bottom) return
-    c.scrollTo({ top: c.scrollTop + r.top - cr.top - cr.height / 3, behavior: smooth ? 'smooth' : 'auto' })
-  }
+/** Height of a block of sentences and the bottom of every prefix of it (k+1 sentences), in px. */
+interface Measure { height: number; bottoms: number[] }
+
+const PARA_GAP = 14
+
+/** Renders blocks into the hidden measuring box and reads their layout. */
+function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Sent[][]): Measure[] {
+  render(<>{blocks.map((b, i) => <Paragraph key={i} s={s} sents={b} />)}</>, box)
+  const out: Measure[] = []
+  box.querySelectorAll<HTMLElement>(':scope > .para').forEach((el, i) => {
+    const top = el.getBoundingClientRect().top
+    const bottomOf = new Map<number, number>()
+    el.querySelectorAll<HTMLElement>('[data-se]').forEach((x) => {
+      const id = Number(x.dataset.se)
+      bottomOf.set(id, Math.max(bottomOf.get(id) ?? 0, x.getBoundingClientRect().bottom - top))
+    })
+    let acc = 0
+    const bottoms = blocks[i].map((sent) => (acc = Math.max(acc, bottomOf.get(sent.id) ?? acc)))
+    out.push({ height: el.getBoundingClientRect().height, bottoms })
+  })
+  render(null, box)
+  return out
+}
+
+/**
+ * The text split into pages that fit the screen, turned with a swipe like a book (port of Android PagedText).
+ * Paragraphs are measured as they are drawn (pins and shown translations included); a paragraph that does not
+ * fit is split at a sentence boundary.
+ */
+function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number): Block[][] {
+  const whole = measureBlocks(box, s, paras)
+  const pages: Block[][] = []
+  let cur: Block[] = []
+  let used = 0
+  const need = (x: number) => (cur.length ? PARA_GAP : 0) + x
+  const flush = () => { if (cur.length) pages.push(cur); cur = []; used = 0 }
+  paras.forEach((para, pi) => {
+    let from = 0
+    let m = whole[pi]
+    while (from < para.length) {
+      const rest = para.slice(from)
+      if (used + need(m.height) <= h) { used += need(m.height); cur.push({ para: pi, sents: rest }); break }
+      // the longest run of sentences that still fits on this page
+      let k = 0
+      while (k + 1 < rest.length && used + need(m.bottoms[k]) <= h) k++
+      if (k > 0) { cur.push({ para: pi, sents: rest.slice(0, k) }); from += k; flush() }
+      else if (cur.length) { flush(); continue }
+      else { cur.push({ para: pi, sents: rest.slice(0, 1) }); from += 1; flush() } // taller than a page
+      if (from < para.length) m = measureBlocks(box, s, [para.slice(from)])[0]
+    }
+  })
+  flush()
+  return pages.length ? pages : [[]]
+}
+
+function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
+  const pager = useRef<HTMLDivElement>(null)
+  const measurer = useRef<HTMLDivElement>(null)
+  const handlers = useWordPress(s)
+  const [pages, setPages] = useState<Block[][]>([])
+  const [size, setSize] = useState({ w: 0, h: 0 })
+  const cur = s.textPage.value
+  const scrolling = useRef(false)
+  const scrollEnd = useRef(0)
+  const turnTo = useRef<number | null>(null)
+  const pagesRef = useRef<Block[][]>([])
+  pagesRef.current = pages
+
+  // everything that changes the height of the text
+  const deps = [paras, s.pins.value, s.shown.value, s.allSentences.value, s.sentTr.value, s.retranslating.value,
+    prefs.readerFont.value, bookmarks.value, size.w, size.h]
 
   useEffect(() => {
-    s.view = {
-      firstVisible: () => {
-        const top = box.current?.getBoundingClientRect().top ?? 0
-        const i = paraEls().findIndex((p) => p.getBoundingClientRect().bottom > top + 4)
-        return Math.max(0, i)
-      },
-      isVisible: (p) => {
-        const el = paraEls()[p]
-        const c = box.current?.getBoundingClientRect()
-        if (!el || !c) return false
-        const r = el.getBoundingClientRect()
-        return r.bottom > c.top && r.top < c.bottom
-      },
-    }
-    updateProgress()
-    return () => { s.view = null }
-  }, [s])
+    const el = pager.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const pageOf = (list: Block[][], id: number) => list.findIndex((p) => p.some((b) => b.sents.some((x) => x.id === id)))
+  const scrollTo = (i: number, smooth: boolean) => {
+    const el = pager.current
+    if (el && el.clientWidth) el.scrollTo({ left: i * el.clientWidth, behavior: smooth ? 'smooth' : 'auto' })
+  }
+
+  useLayoutEffect(() => {
+    const box = measurer.current
+    if (!box || !size.h) return
+    const cs = getComputedStyle(box)
+    const h = size.h - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+    const next = paginate(box, s, paras, h)
+    // the same text stays on screen when pages are rebuilt: the first sentence of the page being read
+    const anchor = pagesRef.current[s.textPage.value]?.[0]?.sents[0]?.id ?? s.textAnchor
+    s.textAnchor = anchor
+    const i = anchor == null ? 0 : Math.max(0, pageOf(next, anchor))
+    setPages(next)
+    s.textPage.value = i
+  }, deps)
+
+  // show the current page unless the user is the one scrolling there (a swipe or a smooth page turn)
+  useLayoutEffect(() => {
+    if (!pages.length) return
+    const el = pager.current
+    if (el && el.clientWidth && !scrolling.current && Math.round(el.scrollLeft / el.clientWidth) !== cur) scrollTo(cur, false)
+  }, [pages, cur])
+
+  // publish progress and what is on screen
+  useLayoutEffect(() => {
+    if (!pages.length) return
+    const p = pages[cur] ?? []
+    s.visibleSents = new Set(p.flatMap((b) => b.sents.map((x) => x.id)))
+    s.textProgress.value = (cur + 1) / pages.length
+    s.pageLabel.value = `${cur + 1} / ${pages.length}`
+  }, [pages, cur])
 
   // bookmark "go to source"
   const jump = s.jump.value
-  useLayoutEffect(() => {
-    if (jump == null) return
-    scrollToSent(jump, false, false)
+  useEffect(() => {
+    if (jump == null || !pages.length) return
+    const i = pageOf(pages, jump)
+    if (i >= 0) { s.textAnchor = jump; s.textPage.value = i }
     s.jump.value = null
-    updateProgress()
-  }, [jump])
+  }, [jump, pages])
 
-  // sentence mode collapsed: show its sentence
+  // sentence mode collapsed: show the page of the sentence it ended on
   const syncTo = s.syncTo.value
   useEffect(() => {
-    if (syncTo == null) return
-    scrollToSent(syncTo, true, true)
+    if (syncTo == null || !pages.length) return
+    const i = pageOf(pages, syncTo)
+    if (i >= 0 && i !== s.textPage.value) { s.textAnchor = syncTo; scrollTo(i, true) }
     s.syncTo.value = null
-  }, [syncTo])
+  }, [syncTo, pages])
 
+  // arrow keys turn pages (iPad keyboard)
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      const el = pager.current
+      if (!el || el.closest('.layer.below') || s.sentenceMode.value || s.popup.value || s.menuOpen.value || s.bookmarksOpen.value) return
+      if ((e.target as Element)?.closest?.('input, textarea')) return
+      // from the page being turned to, so quick presses do not skip pages
+      const at = Math.round(el.scrollLeft / el.clientWidth)
+      const target = turnTo.current != null && scrolling.current ? turnTo.current : at
+      let i: number
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') i = Math.min(pages.length - 1, target + 1)
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') i = Math.max(0, target - 1)
+      else return
+      turnTo.current = i
+      scrollTo(i, true)
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [pages])
+
+  const onScroll = () => {
+    const el = pager.current
+    if (!el || !el.clientWidth) return
+    scrolling.current = true
+    clearTimeout(scrollEnd.current)
+    scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null }, 150)
+    const i = Math.round(el.scrollLeft / el.clientWidth)
+    if (i !== s.textPage.value && i >= 0 && i < pages.length) {
+      s.textPage.value = i
+      s.textAnchor = pages[i][0]?.sents[0]?.id ?? null
+    }
+  }
+
+  const fs = { '--fs': prefs.readerFont.value + 'px' } as JSX.CSSProperties
   return (
-    <div class="reader-scroll" ref={box} onScroll={updateProgress}>
-      <div class="reader-text" style={{ '--fs': prefs.readerFont.value + 'px' } as JSX.CSSProperties} {...handlers}>
-        <p class="reader-hint">Нажатие на слово — перевод над ним, двойное — окошко с вариантами, долгое — перевод предложения.</p>
-        {paras.map((p, i) => <Paragraph key={i} s={s} para={p} index={i} />)}
+    <>
+      <div class="reader-text measurer" ref={measurer} style={fs} aria-hidden="true" />
+      <div class="pager text-pager" ref={pager} onScroll={onScroll}>
+        {pages.map((p, i) => (
+          <div class="page" key={i}>
+            {Math.abs(i - cur) <= 1 && (
+              <div class="reader-text page-text" style={fs} {...handlers}>
+                {p.map((b) => <Paragraph key={b.para + ':' + b.sents[0].id} s={s} sents={b.sents} />)}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
-    </div>
+    </>
   )
 }
 
 /** A paragraph flows as one text; a shown sentence translation is inserted right after its sentence. */
-function Paragraph({ s, para, index }: { s: ReaderSession; para: Sent[]; index: number }) {
+function Paragraph({ s, sents }: { s: ReaderSession; sents: Sent[] }) {
   const parts: JSX.Element[] = []
   let run: Sent[] = []
-  for (const sent of para) {
+  for (const sent of sents) {
     run.push(sent)
     if (s.sentenceShown(sent.id)) {
       parts.push(<SentenceFlow key={'f' + sent.id} s={s} sents={run} />)
@@ -159,7 +283,7 @@ function Paragraph({ s, para, index }: { s: ReaderSession; para: Sent[]; index: 
     }
   }
   if (run.length) parts.push(<SentenceFlow key="rest" s={s} sents={run} />)
-  return <div class="para" data-p={index}>{parts}</div>
+  return <div class="para">{parts}</div>
 }
 
 function SentenceFlow({ s, sents }: { s: ReaderSession; sents: Sent[] }) {
@@ -170,9 +294,9 @@ function SentenceFlow({ s, sents }: { s: ReaderSession; sents: Sent[] }) {
     <div class="flow">
       {sents.map((sent) => (
         <Fragment key={sent.id}>
-          {s.isBookmarked(sent.id) && <span class="flow-mark" data-sid={sent.id}><Icon name="bookmark" /></span>}
-          {sent.chunks.map((chunk, ci) => (
-            <span class="chunk" data-sid={ci === 0 ? sent.id : undefined}>
+          {s.isBookmarked(sent.id) && <span class="flow-mark" data-se={sent.id}><Icon name="bookmark" /></span>}
+          {sent.chunks.map((chunk) => (
+            <span class="chunk" data-se={sent.id}>
               {chunk.map((t) => {
                 if (!t.isWord) return <span class="punct">{t.text}</span>
                 const r = wordRef(sent.id, t.index)
@@ -197,7 +321,7 @@ function SentenceTranslation({ s, id }: { s: ReaderSession; id: number }) {
   useEffect(() => { s.ensureSentence(id) }, [id])
   const tr = s.sentTr.value[id]
   return (
-    <div class="sent-tr">
+    <div class="sent-tr" data-se={id}>
       <div class="sent-tr-text" onClick={() => { if (!s.allSentences.value) s.toggleSentence(id) }}>{tr || '…'}</div>
       <BookmarkButton s={s} id={id} />
       <RetranslateButton s={s} id={id} />
@@ -229,7 +353,7 @@ function SentenceOverlay({ s }: { s: ReaderSession }) {
   const [mounted, setMounted] = useState(open)
   useEffect(() => {
     if (open) setMounted(true)
-    else { const t = setTimeout(() => setMounted(false), 260); return () => clearTimeout(t) }
+    else { const t = setTimeout(() => setMounted(false), 500); return () => clearTimeout(t) }
   }, [open])
   return (
     <div class={'sentence-overlay' + (open ? ' open' : '')} aria-hidden={!open}>

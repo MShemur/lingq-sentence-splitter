@@ -1,34 +1,12 @@
 // Chat with Gemini about the text or one sentence. Port of ChatScreen in Chat.kt.
 import { useEffect, useRef } from 'preact/hooks'
-import type { ComponentChildren } from 'preact'
+import { Markdown } from '../markdown'
 import { back } from '../app'
 import type { ChatSession } from '../chat'
 import { Icon } from '../icons'
 import { IconButton, Spinner, TopBar } from '../ui'
 
 const SUGGESTIONS = ['Разбери грамматику', 'Объясни трудные слова', 'Переведи дословно', 'Приведи похожие примеры']
-
-/** Gemini answers in Markdown: bold/italics, headings and lists are shown, the rest stays plain text. */
-function inline(t: string): ComponentChildren[] {
-  return t.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g).map((p, i) =>
-    p.startsWith('**') && p.endsWith('**') && p.length > 4 ? <b key={i}>{p.slice(2, -2)}</b>
-      : p.startsWith('*') && p.endsWith('*') && p.length > 2 ? <i key={i}>{p.slice(1, -1)}</i>
-      : p)
-}
-
-function Markdown({ text }: { text: string }) {
-  return (
-    <>
-      {text.split('\n').map((line, i) => {
-        const h = line.match(/^#{1,6}\s+(.*)/)
-        if (h) return <div key={i} class="md-h">{inline(h[1])}</div>
-        const li = line.match(/^(\s*)[-*•]\s+(.*)/)
-        if (li) return <div key={i} class="md-li" style={{ paddingLeft: 8 + li[1].length * 6 + 'px' }}>• {inline(li[2])}</div>
-        return <div key={i} class={line.trim() ? '' : 'md-gap'}>{inline(line)}</div>
-      })}
-    </>
-  )
-}
 
 export function ChatScreen({ c }: { c: ChatSession }) {
   const end = useRef<HTMLDivElement>(null)
