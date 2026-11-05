@@ -6,7 +6,7 @@ import * as gemini from '../gemini'
 import type { WordMeaning } from '../gemini'
 import { prefs, prompt, trLang, useGemini } from '../settings'
 import { fill } from '../prompts'
-import { go, say, stack, errorText } from '../app'
+import { go, say, stack, errorText, geminiFailed } from '../app'
 import { ChatSession } from '../chat'
 import { hasBookmark, toggleBookmark as toggleBm, type Bookmark } from '../bookmarks'
 
@@ -260,7 +260,10 @@ export class ReaderSession {
     if (this.sentTr.value[id] || this.loadingSentences.has(id)) return
     this.loadingSentences.add(id)
     this.sentenceTranslation(id)
-      .catch((e) => put(this.sentTr, id, '⚠ ' + errorText(e)))
+      .catch((e) => {
+        put(this.sentTr, id, '⚠ ' + errorText(e))
+        geminiFailed(e, () => { drop(this.sentTr, id); this.ensureSentence(id) })
+      })
       .finally(() => this.loadingSentences.delete(id))
   }
 
@@ -285,6 +288,7 @@ export class ReaderSession {
       else put(this.sentTr, id, t.trim())
     } catch (e) {
       say(errorText(e) || 'Ошибка перевода')
+      geminiFailed(e, () => void this.retranslate(id))
     }
     drop(this.retranslating, id)
   }
@@ -380,7 +384,10 @@ export class ReaderSession {
       const quick = this.quickGuess(r, hs)
       if (this.provisional.value[r] && quick && r in this.pins.value) put(this.pins, r, quick)
     }, () => {})
-    this.ai(r).then((m) => m.best, () => null).then((best) => {
+    this.ai(r).then((m) => m.best, (e) => {
+      geminiFailed(e, () => { drop(this.pins, r); drop(this.provisional, r); this.tap(r) })
+      return null
+    }).then((best) => {
       if (!(r in this.pins.value)) return // removed meanwhile
       drop(this.provisional, r)
       if (best?.trim()) put(this.pins, r, best)
@@ -407,7 +414,10 @@ export class ReaderSession {
       if (useGemini()) {
         this.popupBest.value = this.quickGuess(r, h) ?? null
         this.popupThinking.value = true
-        const m = await this.ai(r).catch(() => null)
+        const m = await this.ai(r).catch((e) => {
+          geminiFailed(e, () => { if (this.popup.value === r) void this.openPopup(r) })
+          return null
+        })
         if (this.popup.value !== r) return
         this.popupThinking.value = false
         if (m) {
@@ -465,6 +475,100 @@ export class ReaderSession {
       .filter((x): x is string => !!x)
       .map((x) => x.trim().replace(/^[. ]+|[. ]+$/g, ''))
       .filter((x) => { const n = norm(x); if (!x || !n || seen.has(n)) return false; seen.add(n); return true })
+  }
+
+  // --- several words at once (long press + drag) ---
+
+  /** Selection being dragged / the phrase whose window is open: tokens [from]..[to] of sentence [sent]. */
+  sel = signal<{ sent: number; from: number; to: number } | null>(null)
+  private selAnchor = -1
+  phrase = signal<{ sent: number; from: number; to: number; text: string } | null>(null)
+  phraseBest = signal<string | null>(null)
+  phraseOptions = signal<string[]>([])
+  phraseNote = signal('')
+  phraseLoading = signal(false)
+  phraseError = signal<string | null>(null)
+
+  inSelection(sent: number, token: number) {
+    const x = this.sel.value
+    return !!x && x.sent === sent && token >= x.from && token <= x.to
+  }
+
+  selectStart(r: WordRef) {
+    this.selAnchor = refToken(r)
+    this.sel.value = { sent: refSent(r), from: this.selAnchor, to: this.selAnchor }
+  }
+
+  /** The finger is over word [r]: only words of the same sentence extend the selection. */
+  selectTo(r: WordRef) {
+    const x = this.sel.value
+    if (!x || refSent(r) !== x.sent) return
+    const t = refToken(r)
+    const from = Math.min(this.selAnchor, t), to = Math.max(this.selAnchor, t)
+    if (from !== x.from || to !== x.to) this.sel.value = { sent: x.sent, from, to }
+  }
+
+  /** Long press released: several words -> their translation; one word -> sentence translation (as before). */
+  selectEnd() {
+    const x = this.sel.value
+    const sent = x ? this.sentById.get(x.sent) : undefined
+    const words = sent ? sent.tokens.slice(x!.from, x!.to + 1).filter((t) => t.isWord).length : 0
+    if (!x || !sent || words < 2) { this.sel.value = null; if (sent) this.toggleSentence(sent.id); return }
+    void this.openPhrase(sent.id, x.from, x.to)
+  }
+
+  /** Contextual translation of several words together (Gemini, or LingQ's meanings + machine translation). */
+  async openPhrase(sentId: number, from: number, to: number) {
+    const st = this.sentById.get(sentId)
+    if (!st) return
+    const text = st.tokens.slice(from, to + 1).map((t) => t.text).join('').trim()
+    const p = { sent: sentId, from, to, text }
+    this.focusSent = sentId
+    this.sel.value = { sent: sentId, from, to }
+    this.phrase.value = p
+    this.phraseBest.value = this.chosen.value[text.toLowerCase()] ?? null
+    this.phraseOptions.value = []
+    this.phraseNote.value = ''
+    this.phraseError.value = null
+    this.phraseLoading.value = true
+    try {
+      if (useGemini()) {
+        const pr = prompt.word() + '\n\nВажно: «{word}» — не одно слово, а словосочетание. ' +
+          'Переведи его целиком как единое целое по смыслу в этом предложении; best может быть длиннее трёх слов.'
+        const m = await gemini.word(pr, this.lang, this.target, text, st.text)
+        if (this.phrase.value !== p) return
+        this.phraseBest.value = this.chosen.value[text.toLowerCase()] ?? m.best
+        this.phraseOptions.value = this.dedupe([m.best, ...m.options])
+        this.phraseNote.value = m.note
+      } else {
+        const h = await this.hints(text).catch(() => [] as string[])
+        const t = await api.translate(this.lang, this.target, text)
+        if (this.phrase.value !== p) return
+        this.phraseBest.value = this.chosen.value[text.toLowerCase()] ?? t
+        this.phraseOptions.value = this.dedupe([t, ...h.slice(0, 8)])
+      }
+    } catch (e) {
+      if (this.phrase.value === p) this.phraseError.value = errorText(e)
+      geminiFailed(e, () => { if (this.phrase.value === p) void this.openPhrase(sentId, from, to) })
+    }
+    if (this.phrase.value === p) this.phraseLoading.value = false
+  }
+
+  choosePhrase(meaning: string) {
+    const p = this.phrase.value
+    const m = meaning.trim()
+    if (!p || !m) return
+    put(this.chosen, p.text.toLowerCase(), m)
+    this.phraseBest.value = m
+    this.persist()
+  }
+
+  closePhrase() { this.phrase.value = null; this.sel.value = null }
+
+  private dedupe(l: string[]): string[] {
+    const seen = new Set<string>()
+    const norm = (t: string) => t.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+    return l.map((x) => x.trim()).filter((x) => { const n = norm(x); if (!x || seen.has(n)) return false; seen.add(n); return true })
   }
 
   // --- chat with Gemini ---

@@ -10,12 +10,24 @@ import { Chip, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, Pr
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ref as wordRef, refSent, type ReaderSession, type Sent, type WordRef } from './session'
 
-/** Tap / double tap / long press on the words inside a container (event delegation). */
+/** A long-press selection is being dragged: the page must not scroll under the finger (iOS). */
+let selecting = false
+document.addEventListener('touchmove', (e) => { if (selecting) e.preventDefault() }, { passive: false })
+
+/**
+ * Word gestures (event delegation): tap = translation above the word, double tap = word window,
+ * long press = sentence translation, long press and drag over other words of the sentence = those words together.
+ */
 function useWordPress(s: ReaderSession) {
   const press = useMemo(() => new Press<WordRef>({
     tap: (r) => s.tap(r),
     double: (r) => { void s.openPopup(r) },
-    long: (r) => s.toggleSentence(refSent(r)),
+    long: (r) => { selecting = true; s.selectStart(r) },
+    longMove: (e) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('[data-w]') as HTMLElement | null
+      if (el) s.selectTo(el.dataset.w!)
+    },
+    longEnd: () => { selecting = false; s.selectEnd() },
   }), [s])
   const target = (e: Event) => (e.target as Element | null)?.closest?.('[data-w]') as HTMLElement | null
   return {
@@ -51,6 +63,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
       </nav>
       <SentenceOverlay s={s} />
       {s.popup.value && <WordSheet s={s} r={s.popup.value} />}
+      {s.phrase.value && <PhraseSheet s={s} />}
       {s.bookmarksOpen.value && <LessonBookmarksDialog s={s} onClose={() => { s.bookmarksOpen.value = false }} />}
     </div>
   )
@@ -335,8 +348,9 @@ function SentenceFlow({ s, sents }: { s: ReaderSession; sents: Sent[] }) {
                 const r = wordRef(sent.id, t.index)
                 const tr = pins[r]
                 const selected = tr !== undefined || popup === r
+                const picked = s.inSelection(sent.id, t.index)
                 return (
-                  <span class={'w' + (selected ? ' sel' : '')} data-w={r}>
+                  <span class={'w' + (selected ? ' sel' : '') + (picked ? ' picked' : '')} data-w={r}>
                     {tr !== undefined && <span class={'pin' + (prov[r] ? ' prov' : '')}>{tr || '…'}</span>}
                     <span class="wt">{t.text}</span>
                   </span>
@@ -529,6 +543,45 @@ function WordSheet({ s, r }: { s: ReaderSession; r: WordRef }) {
           {!tr && <Chip icon="translate" label="Перевод" onClick={() => s.toggleSentence(sid)} />}
           <Chip icon={marked ? 'bookmark' : 'bookmarkBorder'} label={marked ? 'В закладках' : 'Закладка'} onClick={() => s.toggleBookmark(sid)} />
           <Chip icon="chat" label="Спросить" onClick={() => s.chatSentence(sid)} />
+        </div>
+      </div>
+    </Sheet>
+  )
+}
+
+/** Window for several words translated together. */
+function PhraseSheet({ s }: { s: ReaderSession }) {
+  const p = s.phrase.value!
+  const [own, setOwn] = useState('')
+  const saved = s.chosen.value[p.text.toLowerCase()]
+  const tr = s.sentTr.value[p.sent]
+  const loading = s.phraseLoading.value
+  return (
+    <Sheet onClose={() => s.closePhrase()}>
+      <div class="word-sheet">
+        <div class="ws-word">{p.text}</div>
+        {s.phraseBest.value && <div class="ws-main">{s.phraseBest.value}</div>}
+        {loading && <LinearProgress />}
+        {s.phraseError.value && <p class="error-text">Ошибка: {s.phraseError.value}</p>}
+        {s.phraseNote.value.trim() && <p class="ws-note">{s.phraseNote.value}</p>}
+        {s.phraseOptions.value.length > 0 && (
+          <div class="chips">
+            {s.phraseOptions.value.map((h) => (
+              <Chip key={h} label={h} selected={!!saved && h.toLowerCase() === saved.toLowerCase()} onClick={() => s.choosePhrase(h)} />
+            ))}
+          </div>
+        )}
+        {!loading && (
+          <form class="own" onSubmit={(e) => { e.preventDefault(); s.choosePhrase(own); setOwn('') }}>
+            <input value={own} placeholder="Свой вариант" onInput={(e) => setOwn((e.target as HTMLInputElement).value)} autocapitalize="off" />
+            <IconButton icon="check" label="Сохранить" disabled={!own.trim()} onClick={() => { s.choosePhrase(own); setOwn('') }} />
+          </form>
+        )}
+        <hr />
+        {tr && <div class="ws-tr"><div class="sent-tr-text">{tr}</div></div>}
+        <div class="chips">
+          {!tr && <Chip icon="translate" label="Перевод предложения" onClick={() => s.ensureSentence(p.sent)} />}
+          <Chip icon="chat" label="Спросить" onClick={() => { s.closePhrase(); s.chatSentence(p.sent) }} />
         </div>
       </div>
     </Sheet>

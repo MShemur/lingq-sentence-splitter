@@ -2,7 +2,7 @@
 import { signal } from '@preact/signals'
 import * as gemini from './gemini'
 import type { Msg } from './gemini'
-import { errorText } from './app'
+import { errorText, geminiFailed } from './app'
 
 export class ChatSession {
   messages = signal<Msg[]>([])
@@ -35,6 +35,7 @@ export class ChatSession {
       this.messages.value = [...this.messages.value, { user: false, text: a }]
     } catch (e) {
       this.error.value = errorText(e)
+      geminiFailed(e, () => void this.retry())
     }
     this.sending.value = false
   }

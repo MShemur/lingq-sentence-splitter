@@ -5,6 +5,7 @@ import { ReaderScreen } from './reader/Reader'
 import { ChatScreen } from './screens/Chat'
 import { BookmarksScreen } from './screens/Bookmarks'
 import { SettingsLingq, SettingsPrompts, SettingsRoot, SettingsTranslation } from './screens/Settings'
+import { ModelSwitchDialog } from './screens/ModelSwitch'
 import './styles.css'
 
 function view(screen: Screen) {
@@ -36,6 +37,7 @@ function App() {
           {view(s)}
         </div>
       ))}
+      <ModelSwitchDialog />
       {t && <div class="snackbar" key={t.id}>{t.text}</div>}
     </>
   )

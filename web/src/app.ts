@@ -2,7 +2,7 @@
 import { signal } from '@preact/signals'
 import * as api from './lingq'
 import type { Course, Lesson } from './lingq'
-import { lang } from './settings'
+import { lang, prefs, useGemini } from './settings'
 import type { ReaderSession } from './reader/session'
 import type { ChatSession } from './chat'
 
@@ -97,3 +97,18 @@ export async function loadCourses(force = false) {
 }
 
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+// --- Gemini limit: offer another model (port of Android ModelSwitch.kt) ---
+
+/** Gemini refused because of limits/overload; [retry] repeats what failed once another model is chosen. */
+export interface ModelSwitch { model: string; message: string; retry: () => void }
+export const modelSwitch = signal<ModelSwitch | null>(null)
+
+/** Limit / overload errors of Gemini (after its own retries and fallback). */
+export const isGeminiLimit = (e: unknown) =>
+  /HTTP (429|503)|RESOURCE_EXHAUSTED|quota|high demand|overloaded/i.test(errorText(e))
+
+/** Called where a Gemini request failed: on a limit error the user may switch the model and [retry]. */
+export function geminiFailed(e: unknown, retry: () => void) {
+  if (useGemini() && isGeminiLimit(e) && !modelSwitch.value) modelSwitch.value = { model: prefs.geminiModel.value, message: errorText(e), retry }
+}

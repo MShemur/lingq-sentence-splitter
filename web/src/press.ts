@@ -6,6 +6,10 @@ export interface PressHandlers<K> {
   /** When set, a single tap waits [DOUBLE_MS] to see whether a second one follows. */
   double?: (k: K) => void
   long?: (k: K) => void
+  /** After a long press the finger keeps moving (selection drag) ... */
+  longMove?: (e: PointerEvent) => void
+  /** ... and is lifted (or the touch was taken over by the browser). */
+  longEnd?: () => void
   same?: (a: K, b: K) => boolean
 }
 
@@ -46,19 +50,26 @@ export class Press<K> {
 
   move(e: PointerEvent) {
     if (this.key === null) return
+    if (this.longFired) { this.h.longMove?.(e); return }
     if (Math.abs(e.clientX - this.x) > SLOP || Math.abs(e.clientY - this.y) > SLOP) this.cancel()
   }
 
   cancel() {
     clearTimeout(this.longTimer)
+    const wasLong = this.key !== null && this.longFired
     this.key = null
+    if (wasLong) this.h.longEnd?.()
   }
+
+  /** A long press is being held (selection drag in progress). */
+  get holding() { return this.key !== null && this.longFired }
 
   up() {
     clearTimeout(this.longTimer)
     const key = this.key
     this.key = null
-    if (key === null || this.longFired) return
+    if (key === null) return
+    if (this.longFired) { this.h.longEnd?.(); return }
     if (!this.h.double) { this.h.tap(key); return }
     const now = Date.now()
     if (this.last && this.same(this.last.key, key) && now - this.last.time < DOUBLE_MS + 60) {
