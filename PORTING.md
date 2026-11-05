@@ -22,5 +22,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   that does not fit is split at a sentence boundary; pages are rebuilt when pins/translations/font change
   and the page being read is kept; page counter "3 / 12" under the progress bar. Sentence mode collapses
   slowly (~0.5 s). Android commit 53b0f28, `Reader.kt` (`PagedText`, `TextPager`).
+  Note: on Android, rendering the whole lesson off-screen to measure it ran out of memory on long lessons;
+  heights are now computed from text sizes (`TextMetrics`, commit 87bc83d). On the web, render only the
+  current page (+ neighbours) too.
 - web aa8d97f: Gemini chat answers are Markdown: render bold/italic/headings/lists/quotes/code (Android `Markdown.kt`,
   commit df2779e). On the web a small Markdown renderer (e.g. `marked` + sanitizing) is fine.
