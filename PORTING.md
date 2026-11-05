@@ -7,7 +7,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-(nothing yet; the web version starts from `web/PLAN.md`, which already covers Android v1.23)
+(the web version starts from `web/PLAN.md`, which already covers Android v1.23)
+
+- Text view is paged, not one long scroll: pages fit the screen, swipe left/right turns them; a paragraph
+  that does not fit is split at a sentence boundary; pages are rebuilt when pins/translations/font change
+  and the page being read is kept; page counter "3 / 12" under the progress bar. Sentence mode collapses
+  slowly (~0.5 s). Android commit 53b0f28, `Reader.kt` (`PagedText`, `TextPager`).
 
 ## To do on Android
 
