@@ -11,7 +11,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   `collections/my/`) with the title under them; on top a horizontal row "Продолжить" with the 10 lessons opened
   last: `GET /api/v3/{lang}/search/?shelf=my_lessons&sortBy=recentlyOpened&page=1&page_size=10` (lessons with
   `imageUrl`, `collectionTitle`, `level`, `wordCount`, `newWordsCount`). Lessons of a course also as a grid of
-  4:3 covers: level badge top-left, thin reading-progress bar at the bottom of the cover, title, "N слов · M новых";
+  4:3 covers: level badge top-left, thin reading-progress bar at the bottom of the cover, title, "N слов" (no new-word count);
   course header with its cover and "N уроков". Without a picture: colour gradient with the first letter.
   Android `Library.kt`.
 

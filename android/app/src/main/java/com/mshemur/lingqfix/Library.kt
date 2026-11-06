@@ -239,7 +239,7 @@ fun LessonsGrid(state: AppState, s: Screen.Lessons, list: List<Lesson>) {
             }
         }
         items(list, key = { it.id }) { l ->
-            val sub = if (l.words > 0) "${l.words} слов" + (if (l.newWords > 0) " · ${l.newWords} новых" else "") else ""
+            val sub = if (l.words > 0) "${l.words} слов" else ""
             LessonTile(state, s.lang, l, sub) { state.go(Screen.Reader(ReaderSession(state, s.lang, l))) }
         }
     }
