@@ -561,3 +561,10 @@ div.list-item { cursor: default; }
 .change-line { font-size: 13px; color: var(--on-surface-variant); padding: 2px 0; }
 .backups-head { padding: 8px 16px; }
 .clean-card .btn.text { align-self: flex-start; padding: 0 4px; }
+
+/* reader help dialog */
+.help { max-height: 60vh; overflow-y: auto; }
+.help h4 { margin: 12px 0 4px; font-size: 14px; font-weight: 600; color: var(--primary); }
+.help section:first-child h4 { margin-top: 0; }
+.help ul { margin: 0; padding-left: 18px; }
+.help li { margin: 4px 0; font-size: 14px; line-height: 1.4; }

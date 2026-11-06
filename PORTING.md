@@ -15,6 +15,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## Done
 
+- web v1.19: Reader menu ⋮ → "Как пользоваться": dialog with gestures and buttons (Слова / Предложения / Страницы и режимы /
+  Меню и кнопки). Android 699067e `ReaderHelp` (not listed here, found in the log). Web adds the iPad extras: docked panel
+  pin, ‹ › buttons and arrow keys. `reader/Help.tsx`.
+
 - web v1.18: Import redesign around text cleaning (the main use: pasted text full of junk). Source tiles Вставить / Файл
   (TXT, MD, EPUB, PDF) / Галерея / Камера; the text in an editable field; a "Очистка текста" card: "Быстро" =
   rules on the device (page numbers, repeated header/footer lines, footnote marks, [12], links, share/print/ad

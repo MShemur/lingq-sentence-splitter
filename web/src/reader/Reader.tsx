@@ -10,6 +10,7 @@ import { useReadingTimer } from '../stats'
 import { prefs } from '../settings'
 import { Chip, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
+import { ReaderHelp } from './Help'
 import { ref as wordRef, refSent, type ReaderSession, type Sent, type WordRef } from './session'
 
 /** A long-press selection is being dragged: the page must not scroll under the finger (iOS). */
@@ -204,8 +205,10 @@ function ReaderActions({ s }: { s: ReaderSession }) {
   const menu = s.menuOpen.value
   const close = () => { s.menuOpen.value = false }
   const pinCount = Object.keys(s.pins.value).length
+  const [help, setHelp] = useState(false)
   return (
     <>
+      {help && <ReaderHelp onClose={() => setHelp(false)} />}
       <IconButton icon="bookmark" label="Закладки урока" onClick={() => { s.bookmarksOpen.value = true }} />
       <div class="menu-anchor">
         <IconButton icon="more" label="Ещё" onClick={() => { s.menuOpen.value = true }} />
@@ -213,6 +216,7 @@ function ReaderActions({ s }: { s: ReaderSession }) {
           <Menu onClose={close}>
             <MenuItem icon="chat" onClick={() => { close(); s.chatText() }}>Чат о тексте</MenuItem>
             <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
+            <MenuItem icon="info" onClick={() => { close(); setHelp(true) }}>Как пользоваться</MenuItem>
             <hr />
             <MenuItem onClick={() => s.changeFont(+2)}>Шрифт крупнее&nbsp; A+</MenuItem>
             <MenuItem onClick={() => s.changeFont(-2)}>Шрифт мельче&nbsp; A−</MenuItem>
