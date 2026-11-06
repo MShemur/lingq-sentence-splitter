@@ -26,6 +26,12 @@ object Sources {
         return name to listOf(SourceText(name.substringBeforeLast('.'), text))
     }
 
+    fun name(ctx: Context, uri: Uri): String = displayName(ctx, uri) ?: (uri.lastPathSegment ?: "file")
+
+    fun isPdf(ctx: Context, uri: Uri, name: String): Boolean = name.endsWith(".pdf", true) || runCatching {
+        ctx.contentResolver.openInputStream(uri)?.use { s -> String(ByteArray(4).also { s.read(it) }, Charsets.US_ASCII) == "%PDF" } == true
+    }.getOrDefault(false)
+
     private fun displayName(ctx: Context, uri: Uri): String? = runCatching {
         ctx.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else null

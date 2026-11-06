@@ -7,6 +7,16 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- Import redesign around text cleaning (the main use: pasted text full of junk). Source tiles Вставить / Файл
+  (TXT, MD, EPUB, PDF) / Галерея / Камера; the text in an editable field; a "Очистка текста" card: "Быстро" =
+  rules on the device (page numbers, repeated header/footer lines, footnote marks, [12], links, share/print/ad
+  lines, soft hyphens; joins "Kup-
+ferstich" and lines broken inside a sentence), "С ИИ" = quick clean first,
+  then the light model with prompt CLEAN (editable) in pieces of ~1800 words, progress; "Вернуть как было";
+  switch "Быстро чистить сразу при вставке" (on by default). Android `Cleaner.kt` (`TextCleaner`), `Gemini.kt`
+  (`Prompts.CLEAN`), `ImportSession` (paste / cleanQuick / cleanAi / undoClean), `Ui.kt` ImportScreen.
+  OCR of photos / scanned PDFs on Android is ML Kit (on the web: skip, or Gemini vision later).
+
 - Two Gemini models in Settings → Перевод: "Модель для чата и повторного перевода" (geminiModel) and "Модель для
   слов и предложений" (geminiFastModel, blank = same as chat; hint: take flash-lite, bigger free limit). Words,
   phrases, sentence translations and bookmark translations use the light one; the limit window switches the model

@@ -79,6 +79,13 @@ class Prefs(ctx: Context) {
     var keepAwake: String
         get() = read("keepAwake", "10")
         set(v) = write("keepAwake", v)
+    var promptClean: String
+        get() = read("promptClean", Prompts.CLEAN).ifBlank { Prompts.CLEAN }
+        set(v) = p.edit().putString("promptClean", v).apply()
+    /** Import: quick clean right after text is pasted / read. */
+    var autoClean: Boolean
+        get() = read("autoClean", "1") == "1"
+        set(v) = write("autoClean", if (v) "1" else "0")
     var promptChatWord: String
         get() = read("promptChatWord", Prompts.CHAT_WORD).ifBlank { Prompts.CHAT_WORD }
         set(v) = p.edit().putString("promptChatWord", v).apply()

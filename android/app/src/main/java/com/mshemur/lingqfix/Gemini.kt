@@ -27,6 +27,14 @@ object Prompts {
 «{sentence}»
 Отвечай на языке «{target}», кратко и по делу: значения слов, грамматика, нюансы, примеры."""
 
+    const val CLEAN = """Ниже текст на языке «{lang}», скопированный из книги, PDF, со скана или с сайта. Очисти его для чтения:
+- убери номера страниц, колонтитулы, сноски и номера сносок, ссылки, подписи к картинкам, рекламу, меню и кнопки сайта («поделиться», «читать далее» и т. п.), даты и имена в комментариях и прочий мусор, который не относится к основному тексту;
+- склей слова, разорванные переносом, и строки, разорванные посреди предложения; исправь явные ошибки распознавания букв;
+- сохрани деление на абзацы и заголовки глав.
+Сам текст не меняй: не переписывай, не сокращай, не переводи и не редактируй стиль. Ответь только очищенным текстом, без пояснений.
+
+{text}"""
+
     const val CHAT_WORD = """Ты репетитор языка «{lang}». Ученик читает текст и спрашивает про «{word}» в этом предложении:
 «{sentence}»
 Объясняй именно «{word}» (не всё предложение): значение здесь и другие значения, начальная форма и грамматика,
@@ -155,6 +163,10 @@ class Gemini(private val key: String, private val model: String) {
 
     fun retranslate(prompt: String, lang: String, target: String, sentence: String, current: String): String =
         generate(null, listOf(Msg(true, Prompts.fill(prompt, "lang" to lang, "target" to target, "sentence" to sentence, "current" to current))))
+
+    /** Cleans a piece of copied text (see [Prompts.CLEAN]). */
+    fun clean(prompt: String, lang: String, text: String): String =
+        generate(null, listOf(Msg(true, Prompts.fill(prompt, "lang" to lang, "text" to text)))).trim()
 
     fun sentence(prompt: String, lang: String, target: String, sentence: String): String =
         generate(null, listOf(Msg(true, Prompts.fill(prompt, "lang" to lang, "target" to target, "sentence" to sentence))))

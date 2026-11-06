@@ -246,9 +246,8 @@ class AppState(val ctx: Context) {
 
     fun openImportText(text: String, title: String?) {
         val s = ImportSession(this)
-        s.pasteMode = true
         s.pasteTitle = title.orEmpty()
-        s.pasteText = text
+        s.paste(text)
         go(Screen.Import(s))
     }
 
@@ -364,10 +363,11 @@ class CheckSession(private val app: AppState, val lang: String, private val less
     }
 }
 
-class ImportItem(title: String, val text: String, selected: Boolean) {
+class ImportItem(title: String, text: String, selected: Boolean) {
     var title by mutableStateOf(title)
+    var text by mutableStateOf(text)
     var selected by mutableStateOf(selected)
-    val words = countWords(text)
+    val words get() = countWords(text)
 }
 
 /** Upload of a file / pasted text to a course, optionally fixing the sentence split right away. */
@@ -392,22 +392,135 @@ class ImportSession(private val app: AppState) {
     /** Lessons whose sentence split was fixed right after the upload (for the report). */
     val fixes = mutableStateListOf<LessonFix>()
 
-    fun loadFile(uri: Uri) {
-        loading = true
-        pasteMode = false
-        error = null
+    // --- reading the source: file, PDF (text layer or OCR), photos ---
+
+    /** What is being done while [loading] ("Распознаю страницу 3 из 7…"). */
+    var status by mutableStateOf("")
+
+    private fun setSingle(title: String, text: String) {
+        pasteMode = true; isBook = false; items.clear()
+        pasteTitle = title; pasteText = text
+    }
+
+    private fun startLoad(msg: String) {
+        loading = true; status = msg; error = null
+        cleanNote = null; before = null; canUndo = false
+    }
+
+    fun paste(text: String) {
+        startLoad(""); loading = false
+        setSingle(pasteTitle, text)
+        if (app.prefs.autoClean && text.isNotBlank()) cleanQuick()
+    }
+
+    /** Photos of pages (gallery or camera): recognised on the phone; [append] adds them to the text. */
+    fun loadPhotos(uris: List<Uri>, append: Boolean) {
+        if (uris.isEmpty()) return
+        val keep = append && pasteMode && pasteText.isNotBlank()
+        startLoad("Распознаю фото…")
         app.scope.launch {
             try {
-                val (name, texts) = withContext(Dispatchers.IO) { Sources.read(app.ctx, uri) }
+                val parts = uris.mapIndexed { i, u ->
+                    status = "Распознаю фото ${i + 1} из ${uris.size}…"
+                    withContext(Dispatchers.Default) { Ocr.photo(app.ctx, u) }
+                }
+                val (text, _) = TextCleaner.clean(parts.joinToString("\n\n"))
+                if (keep) pasteText = pasteText.trimEnd() + "\n\n" + text
+                else setSingle("Фото " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date()), text)
+                if (text.isBlank()) error = "На фото не нашлось текста"
+            } catch (e: Throwable) {
+                error = "Не удалось распознать: ${e.message}"
+            }
+            loading = false; status = ""
+        }
+    }
+
+    // --- cleaning the text ---
+
+    var cleaning by mutableStateOf(false)
+    var cleanProgress by mutableFloatStateOf(0f)
+    var cleanNote by mutableStateOf<String?>(null)
+    var canUndo by mutableStateOf(false)
+    private var before: Pair<String, List<String>>? = null
+
+    private fun snapshot() { before = pasteText to items.map { it.text }; canUndo = true }
+
+    fun undoClean() {
+        val b = before ?: return
+        pasteText = b.first
+        items.forEachIndexed { i, it -> b.second.getOrNull(i)?.let { t -> it.text = t } }
+        before = null; canUndo = false; cleanNote = null
+    }
+
+    /** The texts to clean, each with a setter. */
+    private fun targets(): List<Pair<String, (String) -> Unit>> =
+        if (pasteMode) listOf(pasteText to { v: String -> pasteText = v })
+        else items.filter { it.selected }.map { item -> item.text to { v: String -> item.text = v } }
+
+    /** Quick clean on the phone (rules, no AI). */
+    fun cleanQuick() {
+        if (before == null) snapshot()
+        var r = CleanReport(0, 0, 0, 0)
+        targets().forEach { (t, set) -> val (c, rep) = TextCleaner.clean(t); r += rep; set(c) }
+        cleanNote = r.text()
+    }
+
+    /** Clean with AI (light model), piece by piece; the quick clean runs first and stays if AI fails. */
+    fun cleanAi() {
+        if (!app.useGemini) return app.say("Для чистки с ИИ включите Gemini: Настройки → Перевод")
+        if (before == null) snapshot()
+        cleaning = true; cleanProgress = 0f; cleanNote = null
+        app.scope.launch {
+            val jobs = targets().map { (t, set) -> TextCleaner.clean(t).first to set }
+            jobs.forEach { (t, set) -> set(t) }
+            try {
+                val total = jobs.sumOf { TextCleaner.chunks(it.first).size }.coerceAtLeast(1)
+                var done = 0
+                for ((t, set) in jobs) {
+                    val out = TextCleaner.chunks(t).map { piece ->
+                        val r = withContext(Dispatchers.IO) { app.geminiFast().clean(app.prefs.promptClean, app.lang, piece) }
+                        done++; cleanProgress = done.toFloat() / total
+                        r.ifBlank { piece }
+                    }
+                    set(out.joinToString("\n\n"))
+                }
+                cleanNote = "ИИ почистил текст. Пролистайте и проверьте; если что-то пропало — «Вернуть как было»."
+            } catch (e: Throwable) {
+                cleanNote = "ИИ не справился (${e.message?.take(120)}). Оставлена быстрая очистка."
+                app.geminiFailed(e, fast = true) { undoClean(); cleanAi() }
+            }
+            cleaning = false
+        }
+    }
+
+    fun loadFile(uri: Uri) {
+        startLoad("Читаю файл…")
+        pasteMode = false
+        app.scope.launch {
+            try {
+                val name = withContext(Dispatchers.IO) { Sources.name(app.ctx, uri) }
                 sourceName = name
-                isBook = texts.size > 1
-                items.clear()
-                // Short EPUB parts (cover, title page, imprint) are not preselected.
-                items.addAll(texts.map { ImportItem(it.title.ifBlank { name }, it.text, !isBook || countWords(it.text) >= 100) })
+                if (withContext(Dispatchers.IO) { Sources.isPdf(app.ctx, uri, name) }) {
+                    status = "Читаю PDF…"
+                    val (layer, pages) = withContext(Dispatchers.IO) { PdfText.text(app.ctx, uri) }
+                    val text = if (!PdfText.isScan(layer, pages)) layer
+                    else withContext(Dispatchers.Default) { PdfText.ocr(app.ctx, uri) { i, n -> status = "Распознаю страницу $i из $n…" } }
+                    setSingle(name.substringBeforeLast('.'), text)
+                } else {
+                    val (n, texts) = withContext(Dispatchers.IO) { Sources.read(app.ctx, uri) }
+                    if (texts.size == 1) setSingle(texts[0].title.ifBlank { n.substringBeforeLast('.') }, texts[0].text)
+                    else {
+                        isBook = true
+                        items.clear()
+                        // Short EPUB parts (cover, title page, imprint) are not preselected.
+                        items.addAll(texts.map { ImportItem(it.title.ifBlank { n }, it.text, countWords(it.text) >= 100) })
+                    }
+                }
+                if (app.prefs.autoClean) cleanQuick()
             } catch (e: Throwable) {
                 error = "Не удалось прочитать файл: ${e.message}"
             }
-            loading = false
+            loading = false; status = ""
         }
     }
 

@@ -77,6 +77,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Switch
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -514,14 +517,44 @@ private fun CheckScreen(s: CheckSession) {
 
 // --- Import --------------------------------------------------------------------------------------
 
+/** A big source button of the import screen: icon above a label. */
+@Composable
+private fun SourceTile(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier, enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick, enabled = enabled, modifier = modifier, shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(Modifier.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(26.dp))
+            Text(label, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
 @Composable
 private fun ImportScreen(state: AppState, s: ImportSession) {
+    val ctx = LocalContext.current
+    val clipboard = LocalClipboardManager.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) s.loadFile(uri)
     }
-    val clipboard = LocalClipboardManager.current
-    val ctx = LocalContext.current
+    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { uris ->
+        s.loadPhotos(uris, append = false)
+    }
+    var shot by remember { mutableStateOf<android.net.Uri?>(null) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val u = shot
+        if (ok && u != null) s.loadPhotos(listOf(u), append = true)
+    }
+    fun takePhoto() {
+        val dir = java.io.File(ctx.cacheDir, "photos").apply { mkdirs() }
+        val f = java.io.File(dir, "p_${System.currentTimeMillis()}.jpg")
+        val u = androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
+        shot = u
+        camera.launch(u)
+    }
     var courseMenu by remember { mutableStateOf(false) }
+    var autoClean by remember { mutableStateOf(state.prefs.autoClean) }
     LaunchedEffect(state.lang) { state.loadCourses() }
     val courses = state.courses.orEmpty()
     LaunchedEffect(state.courses) {
@@ -533,31 +566,50 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = { picker.launch(arrayOf("text/plain", "text/markdown", "application/epub+zip", "application/octet-stream")) },
-                enabled = !s.running,
-            ) { Text("📄 Файл") }
-            OutlinedButton(
-                onClick = {
-                    s.pasteMode = true
-                    if (s.pasteText.isBlank()) clipboard.getText()?.text?.let { s.pasteText = it }
-                },
-                enabled = !s.running,
-            ) { Text("📋 Вставить текст") }
+        // 1. where the text comes from
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SourceTile(AppIcons.ContentPaste, "Вставить", Modifier.weight(1f), !s.running) {
+                s.paste(clipboard.getText()?.text.orEmpty())
+            }
+            SourceTile(AppIcons.Description, "Файл", Modifier.weight(1f), !s.running) {
+                picker.launch(arrayOf("text/plain", "text/markdown", "application/epub+zip", "application/pdf", "application/octet-stream"))
+            }
+            SourceTile(AppIcons.Image, "Галерея", Modifier.weight(1f), !s.running) {
+                gallery.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            }
+            SourceTile(AppIcons.PhotoCamera, "Камера", Modifier.weight(1f), !s.running) { takePhoto() }
         }
-        if (s.loading) Loading()
+        if (!s.pasteMode && s.items.isEmpty() && !s.loading) Text(
+            "Текст из буфера, TXT, EPUB, PDF (и сканы), фото страниц. Распознавание фото — прямо на телефоне, бесплатно. " +
+                "Потом очистите текст от мусора и загрузите в LingQ.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (s.loading) Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            Text(s.status.ifBlank { "Загрузка…" }, Modifier.padding(start = 12.dp))
+        }
 
+        // 2. the text
         if (s.pasteMode) {
             OutlinedTextField(
                 s.pasteTitle, { s.pasteTitle = it }, Modifier.fillMaxWidth(),
-                label = { Text("Название урока") }, singleLine = true,
+                label = { Text("Название урока") }, singleLine = true, shape = RoundedCornerShape(12.dp),
             )
             OutlinedTextField(
-                s.pasteText, { s.pasteText = it }, Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 320.dp),
-                label = { Text("Текст") },
+                s.pasteText, { s.pasteText = it }, Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 420.dp),
+                label = { Text("Текст") }, shape = RoundedCornerShape(12.dp),
+                textStyle = MaterialTheme.typography.bodyMedium,
             )
-            Text("${countWords(s.pasteText)} слов", style = MaterialTheme.typography.bodySmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${countWords(s.pasteText)} слов", Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(onClick = { takePhoto() }, enabled = !s.loading) {
+                    Icon(AppIcons.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Ещё страница", Modifier.padding(start = 6.dp))
+                }
+            }
         } else if (s.items.isNotEmpty()) {
             Text(s.sourceName, style = MaterialTheme.typography.titleMedium)
             if (s.items.size > 1) Row {
@@ -577,6 +629,50 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                             color = MaterialTheme.colorScheme.outline,
                         )
                     }
+                }
+            }
+        }
+
+        // 3. cleaning: the main step
+        if (s.pasteMode || s.items.isNotEmpty()) Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(AppIcons.Cleaning, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Text(
+                        "Очистка текста", Modifier.padding(start = 10.dp),
+                        style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
+                Text(
+                    "Убирает номера страниц, колонтитулы, сноски, ссылки и мусор с сайтов, склеивает переносы и разорванные строки. " +
+                        "Сам текст не переписывается.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = { s.cleanQuick() }, enabled = !s.cleaning && !s.running) {
+                        Icon(AppIcons.Cleaning, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("Быстро", Modifier.padding(start = 8.dp))
+                    }
+                    Button(onClick = { s.cleanAi() }, enabled = !s.cleaning && !s.running && state.useGemini) {
+                        Icon(AppIcons.AutoFix, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("С ИИ", Modifier.padding(start = 8.dp))
+                    }
+                }
+                if (!state.useGemini) Text(
+                    "Чистка с ИИ: включите Gemini в Настройки → Перевод.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                if (s.cleaning) LinearProgressIndicator(progress = { s.cleanProgress }, modifier = Modifier.fillMaxWidth())
+                s.cleanNote?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer) }
+                if (s.canUndo && !s.cleaning) TextButton(onClick = { s.undoClean() }) { Text("Вернуть как было") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = autoClean, onCheckedChange = { v -> autoClean = v; state.applyPrefs { this.autoClean = v } })
+                    Text(
+                        "Быстро чистить сразу при вставке", Modifier.padding(start = 12.dp),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
                 }
             }
         }
