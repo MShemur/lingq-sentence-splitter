@@ -234,7 +234,8 @@ div.list-item { cursor: default; }
 .measurer { position: absolute; top: 0; left: 0; right: 0; visibility: hidden; pointer-events: none; z-index: -1; }
 .text-pager { position: absolute; inset: 0; }
 .page-text { height: 100%; overflow-y: auto; }
-.reader-text.measurer, .reader-text.page-text { padding-top: 12px; padding-bottom: 12px; }
+/* no spare room at the top and bottom: translations do not re-lay the pages, a page that grows scrolls */
+.reader-text.measurer, .reader-text.page-text { padding-top: 6px; padding-bottom: 6px; }
 .page-text > .para:last-child { margin-bottom: 0; }
 .reader-progress { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--outline); }
 .reader-hint { font-size: 13px; line-height: 1.4; color: var(--outline); margin: 0 0 14px; }
@@ -399,3 +400,7 @@ div.list-item { cursor: default; }
   .turn-btn { display: none; }
   .text-area .reader-text, .sm-body .reader-text { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
 }
+
+/* lesson list: how much of the lesson has been read */
+.read-pct { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--outline); }
+.read-pct .progress-pill { width: 64px; height: 4px; }

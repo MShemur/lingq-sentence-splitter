@@ -6,7 +6,6 @@ import { Icon } from '../icons'
 import { Press } from '../press'
 import { back } from '../app'
 import { prefs } from '../settings'
-import { bookmarks } from '../bookmarks'
 import { Chip, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ref as wordRef, refSent, type ReaderSession, type Sent, type WordRef } from './session'
@@ -45,7 +44,7 @@ function useSwipe(pager: { current: HTMLDivElement | null }) {
     if (dx < -40 || v < -0.35) i = base + 1
     else if (dx > 40 || v > 0.35) i = base - 1
     i = Math.max(0, Math.min(el.children.length - 1, i))
-    el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
+    glide(el, i * el.clientWidth, 420)
   }
   return {
     onPointerDown: (e: PointerEvent) => {
@@ -53,6 +52,7 @@ function useSwipe(pager: { current: HTMLDivElement | null }) {
       if ((e.target as Element).closest?.('button, input, textarea, a')) return
       const el = pager.current
       if (!el) return
+      stopGlide(el)
       const scroller = (e.target as Element).closest?.('.page-text, .page') as HTMLElement | null
       st.current = {
         id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), left: el.scrollLeft,
@@ -78,6 +78,38 @@ function useSwipe(pager: { current: HTMLDivElement | null }) {
     onPointerCancel: end,
     onPointerLeave: (e: PointerEvent) => { if (e.pointerType === 'mouse') end() },
   }
+}
+
+/** Running page-turn animations, by pager. */
+const glides = new WeakMap<HTMLElement, number>()
+
+/** Stops a page-turn animation (a finger took the page). */
+function stopGlide(el: HTMLElement) {
+  const id = glides.get(el)
+  if (id != null) cancelAnimationFrame(id)
+  glides.delete(el)
+}
+
+/**
+ * Turns the pager to [left] slowly and evenly (the browser's own smooth scrolling is too fast for a book page).
+ * [ms] is for a whole page; a shorter way (the rest of a swipe) takes proportionally less, but not too little.
+ */
+function glide(el: HTMLElement, left: number, ms = 520) {
+  stopGlide(el)
+  const from = el.scrollLeft
+  const dist = left - from
+  if (Math.abs(dist) < 1) { el.scrollLeft = left; return }
+  const w = el.clientWidth || 1
+  const dur = Math.max(260, ms * Math.min(1, Math.abs(dist) / w))
+  const t0 = performance.now()
+  const ease = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2) // ease-in-out cubic
+  const step = (now: number) => {
+    const x = Math.min(1, (now - t0) / dur)
+    el.scrollLeft = from + dist * ease(x)
+    if (x < 1) glides.set(el, requestAnimationFrame(step))
+    else glides.delete(el)
+  }
+  glides.set(el, requestAnimationFrame(step))
 }
 
 /** Round page-turn buttons at the sides of the text. */
@@ -189,9 +221,9 @@ interface Measure { height: number; bottoms: number[] }
 
 const PARA_GAP = 14
 
-/** Renders blocks into the hidden measuring box and reads their layout. */
+/** Renders blocks (bare text) into the hidden measuring box and reads their layout. */
 function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Sent[][]): Measure[] {
-  render(<>{blocks.map((b, i) => <Paragraph key={i} s={s} sents={b} />)}</>, box)
+  render(<>{blocks.map((b, i) => <Paragraph key={i} s={s} sents={b} plain />)}</>, box)
   const out: Measure[] = []
   box.querySelectorAll<HTMLElement>(':scope > .para').forEach((el, i) => {
     const top = el.getBoundingClientRect().top
@@ -208,29 +240,15 @@ function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Sent[][]): Me
   return out
 }
 
-/** Measured blocks, by what decides their height; survives page rebuilds. */
+/** Measured blocks, by width, font and sentences; survives page rebuilds. */
 type MeasureCache = Map<string, Measure>
-
-/** What changes the height of a sentence: pins above its words, its shown translation, its bookmark mark. */
-function sentenceSigs(s: ReaderSession): (id: number) => string {
-  const pinsOf = new Map<number, string>()
-  for (const [r, v] of Object.entries(s.pins.value)) {
-    const id = refSent(r)
-    pinsOf.set(id, (pinsOf.get(id) ?? '') + r + '=' + v + ';')
-  }
-  return (id) =>
-    (pinsOf.get(id) ?? '') +
-    (s.sentenceShown(id) ? '|T' + (s.sentTr.value[id] ?? '') + (s.retranslating.value[id] ? 'r' : '') : '') +
-    (s.isBookmarked(id) ? '|B' : '')
-}
 
 /**
  * Measures blocks, using the cache where nothing changed. New ones are rendered in small batches, so a long
  * lesson is never put into the page all at once (Android ran out of memory doing that, PORTING note 87bc83d).
  */
 function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, prefix: string, blocks: Sent[][]): Measure[] {
-  const sig = sentenceSigs(s)
-  const keys = blocks.map((b) => prefix + b.map((x) => x.id + ':' + sig(x.id)).join('/'))
+  const keys = blocks.map((b) => prefix + b.map((x) => x.id).join('/'))
   const missing = blocks.map((_, i) => i).filter((i) => !cache.has(keys[i]))
   for (let a = 0; a < missing.length; a += 25) {
     const part = missing.slice(a, a + 25)
@@ -242,8 +260,9 @@ function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, 
 
 /**
  * The text split into pages that fit the screen, turned with a swipe like a book (port of Android PagedText).
- * Paragraphs are measured as they are drawn (pins and shown translations included); a paragraph that does not
- * fit is split at a sentence boundary.
+ * Pages are laid out from the bare text only: translations above words and under sentences do not move text to
+ * other pages, a page that grows with them scrolls up and down instead. A paragraph that does not fit is split at
+ * a sentence boundary.
  */
 function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number, cache: MeasureCache, prefix: string): Block[][] {
   const whole = measureCached(box, s, cache, prefix, paras)
@@ -285,9 +304,8 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   pagesRef.current = pages
   const cache = useRef<MeasureCache>(new Map())
 
-  // everything that changes the height of the text
-  const deps = [paras, s.pins.value, s.shown.value, s.allSentences.value, s.sentTr.value, s.retranslating.value,
-    prefs.readerFont.value, bookmarks.value, size.w, size.h]
+  // what changes the layout of the bare text (translations do not: the page scrolls instead)
+  const deps = [paras, prefs.readerFont.value, size.w, size.h]
 
   useEffect(() => {
     const el = pager.current
@@ -300,7 +318,9 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   const pageOf = (list: Block[][], id: number) => list.findIndex((p) => p.some((b) => b.sents.some((x) => x.id === id)))
   const scrollTo = (i: number, smooth: boolean) => {
     const el = pager.current
-    if (el && el.clientWidth) el.scrollTo({ left: i * el.clientWidth, behavior: smooth ? 'smooth' : 'auto' })
+    if (!el || !el.clientWidth) return
+    if (smooth) glide(el, i * el.clientWidth)
+    else { stopGlide(el); el.scrollLeft = i * el.clientWidth }
   }
 
   useLayoutEffect(() => {
@@ -331,6 +351,8 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     s.visibleSents = new Set(p.flatMap((b) => b.sents.map((x) => x.id)))
     s.textProgress.value = (cur + 1) / pages.length
     s.pageLabel.value = `${cur + 1} / ${pages.length}`
+    const ids = p.flatMap((b) => b.sents.map((x) => x.id))
+    if (ids.length) s.savePos(ids[0], ids[ids.length - 1])
   }, [pages, cur])
 
   // bookmark "go to source"
@@ -359,6 +381,10 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     const from = turnTo.current != null && scrolling.current ? turnTo.current : at
     const i = Math.max(0, Math.min(pages.length - 1, from + d))
     turnTo.current = i
+    // the animation starts on the next frame: a second quick press must already count from [i]
+    scrolling.current = true
+    clearTimeout(scrollEnd.current)
+    scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null }, 150)
     scrollTo(i, true)
   }
   const swipe = useSwipe(pager)
@@ -411,8 +437,12 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   )
 }
 
-/** A paragraph flows as one text; a shown sentence translation is inserted right after its sentence. */
-function Paragraph({ s, sents }: { s: ReaderSession; sents: Sent[] }) {
+/**
+ * A paragraph flows as one text; a shown sentence translation is inserted right after its sentence.
+ * [plain]: the bare text without translations and marks (how pages are laid out).
+ */
+function Paragraph({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain?: boolean }) {
+  if (plain) return <div class="para"><SentenceFlow s={s} sents={sents} plain /></div>
   const parts: JSX.Element[] = []
   let run: Sent[] = []
   for (const sent of sents) {
@@ -427,15 +457,15 @@ function Paragraph({ s, sents }: { s: ReaderSession; sents: Sent[] }) {
   return <div class="para">{parts}</div>
 }
 
-function SentenceFlow({ s, sents }: { s: ReaderSession; sents: Sent[] }) {
-  const pins = s.pins.value
+function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain?: boolean }) {
+  const pins = plain ? {} : s.pins.value
   const prov = s.provisional.value
-  const popup = s.popup.value
+  const popup = plain ? null : s.popup.value
   return (
     <div class="flow">
       {sents.map((sent) => (
         <Fragment key={sent.id}>
-          {s.isBookmarked(sent.id) && <span class="flow-mark" data-se={sent.id}><Icon name="bookmark" /></span>}
+          {!plain && s.isBookmarked(sent.id) && <span class="flow-mark" data-se={sent.id}><Icon name="bookmark" /></span>}
           {sent.chunks.map((chunk) => (
             <span class="chunk" data-se={sent.id}>
               {chunk.map((t) => {
@@ -443,7 +473,7 @@ function SentenceFlow({ s, sents }: { s: ReaderSession; sents: Sent[] }) {
                 const r = wordRef(sent.id, t.index)
                 const tr = pins[r]
                 const selected = tr !== undefined || popup === r
-                const picked = s.inSelection(sent.id, t.index)
+                const picked = !plain && s.inSelection(sent.id, t.index)
                 return (
                   <span class={'w' + (selected ? ' sel' : '') + (picked ? ' picked' : '')} data-w={r}>
                     {tr !== undefined && <span class={'pin' + (prov[r] ? ' prov' : '')}>{tr || '…'}</span>}
@@ -513,17 +543,20 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
   const swipe = useSwipe(pager)
   const turn = (d: number) => {
     const i = Math.min(list.length - 1, Math.max(0, s.page.value + d))
-    pager.current?.scrollTo({ left: i * pager.current.clientWidth, behavior: 'smooth' })
+    if (pager.current) glide(pager.current, i * pager.current.clientWidth)
   }
 
   const snap = (smooth = false) => {
     const el = pager.current
     if (!el || !el.clientWidth) return
-    if (Math.abs(el.scrollLeft - s.page.value * el.clientWidth) > 1)
-      el.scrollTo({ left: s.page.value * el.clientWidth, behavior: smooth ? 'smooth' : 'auto' })
+    if (Math.abs(el.scrollLeft - s.page.value * el.clientWidth) <= 1) return
+    if (smooth) glide(el, s.page.value * el.clientWidth)
+    else { stopGlide(el); el.scrollLeft = s.page.value * el.clientWidth }
   }
   // opened, or the page changed from outside (bookmark): show it
   useLayoutEffect(() => { if (open) snap() }, [open, page])
+  // sentence mode remembers where reading stopped too
+  useEffect(() => { const c = list[page]; if (open && c) s.savePos(c.id, c.id) }, [open, page])
   // the page width changes with the window and when the word panel is docked / undocked
   useEffect(() => {
     const el = pager.current

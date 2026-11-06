@@ -9,6 +9,7 @@ import { fill } from '../prompts'
 import { go, say, stack, errorText, geminiFailed } from '../app'
 import { ChatSession } from '../chat'
 import { hasBookmark, toggleBookmark as toggleBm, type Bookmark } from '../bookmarks'
+import { positionOf, savePosition } from '../progress'
 
 // --- model ---
 
@@ -150,11 +151,20 @@ export class ReaderSession {
       this.loadNotes()
       this.title.value = l.title
       this.sentences.value = paras.flat()
-      if (this.jump.value != null) this.page.value = this.indexOf(this.jump.value)
+      // open where reading stopped last time (a bookmark's sentence wins)
+      const start = this.jump.value ?? positionOf(this.lang, this.lesson.id)?.s ?? null
+      if (start != null && this.sentById.has(start)) { this.page.value = this.indexOf(start); this.textAnchor = start }
       this.paragraphs.value = paras
     } catch (e) {
       this.error.value = errorText(e)
     }
+  }
+
+  /** Remembers where the reader is: [first] sentence on screen, [last] one (for the percentage read). */
+  savePos(first: number, last: number) {
+    const n = this.sentences.value.length
+    if (!n || !this.sentById.has(first)) return
+    savePosition(this.lang, this.lesson.id, first, (this.indexOf(last) + 1) / n)
   }
 
   private indexOf(id: number) { return Math.max(0, this.sentences.value.findIndex((s) => s.id === id)) }

@@ -3,8 +3,9 @@ import { useEffect, useState } from 'preact/hooks'
 import { Icon } from '../icons'
 import { back, courses, coursesError, go, loadCourses, LessonsScreen } from '../app'
 import { lang, prefs } from '../settings'
-import { ErrorBox, IconButton, ListItem, Loading, TopBar } from '../ui'
+import { ErrorBox, IconButton, ListItem, Loading, ProgressPill, TopBar } from '../ui'
 import { ReaderSession } from '../reader/session'
+import { percent, positionOf } from '../progress'
 
 export function CoursesScreen() {
   const [q, setQ] = useState('')
@@ -66,10 +67,14 @@ export function LessonsView({ s }: { s: LessonsScreen }) {
         <div class="content">
           {err ? <ErrorBox text={err} retry={() => void s.load()} />
             : !list ? <Loading />
-            : list.map((l) => (
-              <ListItem key={l.id} headline={l.title || `Урок ${l.id}`} class="divided"
-                onClick={() => go({ k: 'reader', s: new ReaderSession(s.lang, l) })} />
-            ))}
+            : list.map((l) => {
+              const pos = positionOf(s.lang, l.id)
+              return (
+                <ListItem key={l.id} headline={l.title || `Урок ${l.id}`} class="divided"
+                  supporting={pos ? <span class="read-pct"><ProgressPill p={pos.p} /> Прочитано {percent(pos.p)}</span> : undefined}
+                  onClick={() => go({ k: 'reader', s: new ReaderSession(s.lang, l) })} />
+              )
+            })}
           {list && !list.length && <p class="empty">В курсе нет уроков.</p>}
         </div>
       </div>

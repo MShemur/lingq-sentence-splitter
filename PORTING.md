@@ -13,6 +13,15 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- Paged text: pages are laid out from the bare text only. Pinned word translations, shown sentence translations
+  and bookmark marks no longer re-split the pages or move text to other pages; a page that grows scrolls up and
+  down by itself (only that page). The spare room left at the top/bottom of a page for that is removed (web: 6px).
+  web v1.11 `Reader.tsx` (`paginate`, `Paragraph plain`).
+- Remember where reading stopped in every lesson: the first sentence on the page (sentence mode: its sentence) is
+  saved on every page turn; the lesson opens there next time (a bookmark's "go to source" still wins). The lesson
+  list shows "Прочитано N %" with a small progress bar: furthest point read = (last sentence on screen + 1) /
+  sentences, never goes down. web v1.11 `progress.ts` (localStorage `pos.{lang}_{lesson}`), `Library.tsx`.
+
 - Long meanings in the word / phrase window: chips must grow in height with wrapped text (web chips had a fixed
   height, lines overlapped other chips). Check the Android FilterChips with a long LingQ meaning too. web v1.10.
 
