@@ -77,7 +77,7 @@ class SyncService(private val app: AppState) {
         prefs.edit().putString("device", it).apply()
     }
 
-    fun setEnabled(on: Boolean) {
+    fun turn(on: Boolean) {
         enabled = on
         prefs.edit().putBoolean("on", on).apply()
         if (on) now()
@@ -305,7 +305,7 @@ fun SettingsSync(state: AppState) {
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Синхронизировать", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-            Switch(checked = s.enabled, onCheckedChange = { s.setEnabled(it) })
+            Switch(checked = s.enabled, onCheckedChange = { s.turn(it) })
         }
         Text(
             when {
