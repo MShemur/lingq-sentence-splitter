@@ -404,3 +404,7 @@ div.list-item { cursor: default; }
 /* lesson list: how much of the lesson has been read */
 .read-pct { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--outline); }
 .read-pct .progress-pill { width: 64px; height: 4px; }
+
+/* pages scroll up and down without a visible scrollbar */
+.page, .page-text { scrollbar-width: none; }
+.page::-webkit-scrollbar, .page-text::-webkit-scrollbar { display: none; }
