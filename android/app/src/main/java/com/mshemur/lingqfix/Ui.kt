@@ -77,6 +77,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -100,15 +101,31 @@ import java.util.Locale
 fun App(state: AppState) {
     val ctx = LocalContext.current
     val dark = isSystemInDarkTheme()
-    val scheme = when {
-        Build.VERSION.SDK_INT >= 31 -> if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
-        dark -> darkColorScheme()
-        else -> lightColorScheme()
+    val lightS = if (Build.VERSION.SDK_INT >= 31) dynamicLightColorScheme(ctx) else lightColorScheme()
+    val darkS = if (Build.VERSION.SDK_INT >= 31) dynamicDarkColorScheme(ctx) else darkColorScheme()
+    // the reader uses the page colours chosen in Settings → Чтение
+    val page = if (state.screen is Screen.Reader) readerThemeOf(state.readerTheme) else null
+    val scheme = if (page != null) readerScheme(page, lightS, darkS) else if (dark) darkS else lightS
+    val darkPage = page?.dark ?: dark
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.SideEffect {
+        (view.context as? android.app.Activity)?.window?.let { w ->
+            androidx.core.view.WindowCompat.getInsetsController(w, view).isAppearanceLightStatusBars = !darkPage
+        }
     }
     MaterialTheme(colorScheme = scheme) {
+      androidx.compose.runtime.CompositionLocalProvider(LocalHighlight provides highlightColors(state.highlight, darkPage)) {
         val screen = state.screen
         BackHandler(enabled = state.stack.size > 1) { state.back() }
-        Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier.fillMaxSize().pointerInput(Unit) {
+                // any touch keeps the screen awake while reading (see KeepScreenOn)
+                awaitPointerEventScope {
+                    while (true) { awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); state.touched() }
+                }
+            },
+        ) {
+        if (screen is Screen.Reader) KeepScreenOn(state)
         Scaffold(
             topBar = {
                 // reader: close cross, progress in the middle, no lesson title
@@ -166,6 +183,7 @@ fun App(state: AppState) {
                     Screen.SettingsTranslation -> SettingsTranslation(state)
                     Screen.SettingsPrompts -> SettingsPrompts(state)
                     Screen.SettingsUpdates -> SettingsUpdates(state)
+                    Screen.SettingsReading -> SettingsReading(state)
                     Screen.Courses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c)) }
                     Screen.Backups -> BackupsScreen(state)
                     is Screen.Lessons -> LessonsScreen(state, screen)
@@ -217,6 +235,7 @@ fun App(state: AppState) {
             )
         }
     }
+      }
 }
 
 private fun titleOf(state: AppState, s: Screen): String = when (s) {
@@ -230,6 +249,7 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.SettingsTranslation -> "Перевод"
     Screen.SettingsPrompts -> "Промпты Gemini"
     Screen.SettingsUpdates -> "Обновления"
+    Screen.SettingsReading -> "Чтение"
     Screen.Courses -> "Мои курсы · ${state.lang}"
     Screen.Backups -> "Резервные копии"
     is Screen.Lessons -> s.title

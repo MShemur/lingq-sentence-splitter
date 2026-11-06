@@ -26,6 +26,7 @@ sealed interface Screen {
     data object SettingsTranslation : Screen
     data object SettingsPrompts : Screen
     data object SettingsUpdates : Screen
+    data object SettingsReading : Screen
     data object Courses : Screen
     data object Backups : Screen
     class Import(val session: ImportSession) : Screen
@@ -113,11 +114,23 @@ class AppState(val ctx: Context) {
     fun back(): Boolean = if (stack.size > 1) { stack.removeAt(stack.lastIndex); true } else false
     fun say(msg: String) { scope.launch { snackbar.showSnackbar(msg) } }
 
+    var readerTheme by mutableStateOf(prefs.readerTheme)
+    var highlight by mutableStateOf(prefs.highlight)
+    var keepAwake by mutableStateOf(prefs.keepAwake)
+    /** Time of the last touch (uptime ms, updated at most every few seconds): screen timeout while reading. */
+    var lastTouch by mutableStateOf(android.os.SystemClock.uptimeMillis())
+
+    fun touched() {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastTouch > 3000) lastTouch = now
+    }
+
     /** Changes settings right away and keeps the screen state in sync. */
     fun applyPrefs(block: Prefs.() -> Unit) {
         val oldLang = lang
         prefs.block()
         apiKey = prefs.apiKey; lang = prefs.lang; ghToken = prefs.ghToken; trLang = prefs.trLang
+        readerTheme = prefs.readerTheme; highlight = prefs.highlight; keepAwake = prefs.keepAwake
         if (oldLang != lang) courses = null
     }
 

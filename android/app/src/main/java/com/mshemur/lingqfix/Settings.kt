@@ -81,6 +81,12 @@ fun SettingsRoot(state: AppState) {
             Icons.Filled.Create, "Перевод",
             (if (p.translator == "gemini") "Gemini · ${p.geminiModel}" else "LingQ") + " → ${state.trLang}",
         ) { state.go(Screen.SettingsTranslation) }
+        SectionItem(
+            Icons.Filled.Info, "Чтение",
+            (readerThemeOf(state.readerTheme)?.name ?: "Фон как в системе") + " · " +
+                (HIGHLIGHTS.firstOrNull { it.key == state.highlight }?.name ?: "") + " · " +
+                (KEEP_AWAKE.firstOrNull { it.first == state.keepAwake }?.second?.lowercase() ?: ""),
+        ) { state.go(Screen.SettingsReading) }
         SectionItem(Icons.Filled.Star, "Промпты Gemini", "Как Gemini переводит и отвечает в чате") {
             state.go(Screen.SettingsPrompts)
         }

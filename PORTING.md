@@ -7,6 +7,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- Settings → "Чтение" (also from the reader menu "Оформление и экран"): page colours of the reader
+  (Как в системе, Белая FFFFFF/1C1B1F, Кремовая FBF7EE/2D2A26, Сепия F4ECD8/5B4636, Мятная CCE8CF/233626,
+  Серая E6E6E6/222222, Сумерки 3A3A3C/E3E3E3, Тёмная 1E1E1E/DADADA, Чёрная 000000/C8C8C8; surfaces of bars and
+  sheets mixed from them), colour of chosen words + translations above them (Зелёный, Жёлтый как в LingQ, Голубой,
+  Розовый, Сиреневый, Оранжевый; light/dark variants) with a preview line, and "Экран не гаснет": system /
+  5 / 10 / 15 / 30 min after the last touch / while the lesson is open (web: Screen Wake Lock API).
+  Android `ReaderLook.kt`.
+
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
 (nothing)

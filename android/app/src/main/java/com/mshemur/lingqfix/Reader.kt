@@ -743,8 +743,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
 // --- UI ------------------------------------------------------------------------------------------
 
-private val GREEN = Color(0xFF2E7D32)
-private val GREEN_BG = Color(0x3343A047)
+
 
 /** Top bar: font size and extras. */
 @Composable
@@ -759,6 +758,10 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             text = { Text("Чат о тексте") },
             leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
             onClick = { menu = false; s.chatText() },
+        )
+        DropdownMenuItem(
+            text = { Text("Оформление и экран") },
+            onClick = { menu = false; state.go(Screen.SettingsReading) },
         )
         HorizontalDivider()
         DropdownMenuItem(text = { Text("Шрифт крупнее  A+") }, onClick = { s.changeFont(+2) })
@@ -1126,13 +1129,13 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f,
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             if (tr != null) Text(
                                 tr.ifEmpty { "…" }, style = trStyle, maxLines = 2,
-                                color = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else GREEN,
+                                color = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else LocalHighlight.current.text,
                                 modifier = Modifier.padding(horizontal = 1.dp),
                             )
                             val selected = tr != null || s.popup == ref
                             val bg = when {
                                 s.inSelection(ref) -> selBg
-                                selected -> GREEN_BG
+                                selected -> LocalHighlight.current.bg
                                 else -> Color.Transparent
                             }
                             if (t.isWord) DisposableEffect(area, ref) { onDispose { s.wordCoords.remove(area to ref) } }
@@ -1319,7 +1322,7 @@ private fun WordContent(s: ReaderSession, ref: WordRef) {
                     val main = saved ?: best
                     if (main != null) Text(
                         main, style = MaterialTheme.typography.titleMedium,
-                        color = if (saved == null && s.popupThinking) MaterialTheme.colorScheme.outline else GREEN,
+                        color = if (saved == null && s.popupThinking) MaterialTheme.colorScheme.outline else LocalHighlight.current.text,
                     )
                 }
                 if (s.popupThinking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -1443,7 +1446,7 @@ private fun PhraseContent(s: ReaderSession, p: Phrase) {
                 Text(p.text, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 DockButton(s)
             }
-            s.phraseBest?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = GREEN) }
+            s.phraseBest?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = LocalHighlight.current.text) }
             if (s.phraseLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
             s.phraseError?.let { Text("Ошибка: $it", color = MaterialTheme.colorScheme.error) }
             if (s.phraseNote.isNotBlank()) Text(

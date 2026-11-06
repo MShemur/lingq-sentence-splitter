@@ -65,6 +65,16 @@ class Prefs(ctx: Context) {
     var promptChatSentence: String
         get() = read("promptChatSentence", Prompts.CHAT_SENTENCE).ifBlank { Prompts.CHAT_SENTENCE }
         set(v) = p.edit().putString("promptChatSentence", v).apply()
+    /** Reader page colours ("system" or a key of READER_THEMES), word highlight colour, screen timeout. */
+    var readerTheme: String
+        get() = read("readerTheme", "system")
+        set(v) = write("readerTheme", v)
+    var highlight: String
+        get() = read("highlight", "green")
+        set(v) = write("highlight", v)
+    var keepAwake: String
+        get() = read("keepAwake", "10")
+        set(v) = write("keepAwake", v)
     var promptChatWord: String
         get() = read("promptChatWord", Prompts.CHAT_WORD).ifBlank { Prompts.CHAT_WORD }
         set(v) = p.edit().putString("promptChatWord", v).apply()
