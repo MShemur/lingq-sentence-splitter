@@ -13,6 +13,9 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- Page-turn buttons: no circle/background/border/shadow any more, just a faint arrow (~45% opacity; a light
+  tint only while pressed). The user found them too conspicuous. web v1.13 styles `.turn-btn`.
+
 - Paged text: pages are laid out from the bare text only. Pinned word translations, shown sentence translations
   and bookmark marks no longer re-split the pages or move text to other pages; a page that grows scrolls up and
   down by itself (only that page). The spare room left at the top/bottom of a page for that is removed (web: 6px). No visible scrollbar on the pages (web v1.12).
