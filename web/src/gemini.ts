@@ -41,10 +41,14 @@ async function fallbackModel(key: string, busy: string): Promise<string | null> 
 
 const overloaded = (msg: string) => /HTTP (503|429)/.test(msg)
 
-export async function generate(system: string | null, messages: Msg[], json = false): Promise<string> {
+/** Model for chat and retranslation, or ([fast]) the light one for words, phrases and sentences. */
+export const modelFor = (fast: boolean) =>
+  (fast && prefs.geminiFastModel.value.trim()) || prefs.geminiModel.value.trim() || DEFAULT_MODEL
+
+export async function generate(system: string | null, messages: Msg[], json = false, fast = false): Promise<string> {
   const key = prefs.geminiKey.value.trim()
   if (!key) throw new ApiError('Не задан ключ Gemini (⚙ Настройки)')
-  const m = prefs.geminiModel.value.trim() || DEFAULT_MODEL
+  const m = modelFor(fast)
   const run = async (model: string) => {
     try {
       return await request(key, model, system, messages, json, true)
@@ -102,7 +106,7 @@ async function request(key: string, m: string, system: string | null, messages: 
 }
 
 export async function word(prompt: string, lang: string, target: string, w: string, sentence: string): Promise<WordMeaning> {
-  const raw = await generate(null, [{ user: true, text: fill(prompt, { lang, target, word: w, sentence }) }], true)
+  const raw = await generate(null, [{ user: true, text: fill(prompt, { lang, target, word: w, sentence }) }], true, true)
   try {
     const o = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1))
     const options = Array.isArray(o.options) ? o.options.map(String).filter((x: string) => x.trim()) : []
@@ -116,4 +120,4 @@ export const retranslate = (prompt: string, lang: string, target: string, senten
   generate(null, [{ user: true, text: fill(prompt, { lang, target, sentence, current }) }])
 
 export const sentence = (prompt: string, lang: string, target: string, s: string) =>
-  generate(null, [{ user: true, text: fill(prompt, { lang, target, sentence: s }) }])
+  generate(null, [{ user: true, text: fill(prompt, { lang, target, sentence: s }) }], false, true)

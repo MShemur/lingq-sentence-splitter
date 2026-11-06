@@ -4,7 +4,8 @@ import { CoursesScreen, LessonsView } from './screens/Library'
 import { ReaderScreen } from './reader/Reader'
 import { ChatScreen } from './screens/Chat'
 import { BookmarksScreen } from './screens/Bookmarks'
-import { SettingsLingq, SettingsPrompts, SettingsRoot, SettingsTranslation } from './screens/Settings'
+import { SettingsLingq, SettingsPrompts, SettingsReading, SettingsRoot, SettingsTranslation } from './screens/Settings'
+import { StatsScreen } from './screens/Stats'
 import { ModelSwitchDialog } from './screens/ModelSwitch'
 import './styles.css'
 
@@ -19,6 +20,8 @@ function view(screen: Screen) {
     case 'settingsLingq': return <SettingsLingq />
     case 'settingsTranslation': return <SettingsTranslation />
     case 'settingsPrompts': return <SettingsPrompts />
+    case 'settingsReading': return <SettingsReading />
+    case 'stats': return <StatsScreen />
   }
 }
 

@@ -23,6 +23,12 @@ export const prefs = {
   geminiKey: pref('geminiKey', ''),
   // gemini-2.5-* are retired for new users
   geminiModel: pref('geminiModel', DEFAULT_MODEL, (v) => (v.startsWith('gemini-2.5') ? DEFAULT_MODEL : v)),
+  /** Light model for the many word / phrase / sentence requests; '' = the same as [geminiModel]. */
+  /** Reader page colours ('system' or a key of READER_THEMES), colour of chosen words, keeping the screen on. */
+  readerTheme: pref('readerTheme', 'system'),
+  highlight: pref('highlight', 'green'),
+  keepAwake: pref('keepAwake', 'system'),
+  geminiFastModel: pref('geminiFastModel', '', (v) => (v.startsWith('gemini-2.5') ? '' : v)),
   promptWord: pref('promptWord', Prompts.WORD),
   promptSentence: pref('promptSentence', Prompts.SENTENCE),
   promptRetranslate: pref('promptRetranslate', Prompts.RETRANSLATE),

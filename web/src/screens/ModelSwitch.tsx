@@ -24,7 +24,7 @@ export function ModelSwitchDialog() {
     }
   }
   const choose = (m: string) => {
-    prefs.geminiModel.value = m
+    sw.apply(m)
     close()
     say(`Модель: ${m}`)
     sw.retry()

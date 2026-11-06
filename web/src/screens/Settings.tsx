@@ -7,6 +7,7 @@ import { Prompts } from '../prompts'
 import * as api from '../lingq'
 import * as gemini from '../gemini'
 import { Dialog, IconButton, ListItem, Loading, SecretField, TextField, TopBar } from '../ui'
+import { HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, highlightColors, highlightOf, themeOf } from '../readerLook'
 
 declare const __BUILD__: string
 declare const __VERSION__: string
@@ -43,6 +44,9 @@ export function SettingsRoot() {
         <Section icon="edit" title="Перевод"
           summary={(gem ? `Gemini · ${prefs.geminiModel.value}` : 'LingQ') + ` → ${trLang()}`}
           onClick={() => go({ k: 'settingsTranslation' })} />
+        <Section icon="palette" title="Чтение"
+          summary={`${themeOf(prefs.readerTheme.value)?.name ?? 'Цвета системы'} · выделение: ${highlightOf(prefs.highlight.value).name.toLowerCase()}`}
+          onClick={() => go({ k: 'settingsReading' })} />
         <Section icon="star" title="Промпты Gemini" summary="Как Gemini переводит и отвечает в чате"
           onClick={() => go({ k: 'settingsPrompts' })} />
         <hr />
@@ -103,19 +107,22 @@ export function SettingsLingq() {
 
 export function SettingsTranslation() {
   const [models, setModels] = useState<string[] | null>(null)
-  const [picking, setPicking] = useState(false)
-  const pickModel = async () => {
+  // which model is being picked: 'main' (chat, retranslation) or 'fast' (words, phrases, sentences)
+  const [picking, setPicking] = useState<'main' | 'fast' | null>(null)
+  const pickModel = async (target: 'main' | 'fast') => {
     const key = prefs.geminiKey.value.trim()
     if (!key) { say('Сначала вставьте ключ Gemini'); return }
-    setPicking(true)
+    setPicking(target)
     setModels(null)
     try {
       setModels(await gemini.models(key))
     } catch (e) {
-      setPicking(false)
+      setPicking(null)
       say(errorText(e))
     }
   }
+  const sig = picking === 'fast' ? prefs.geminiFastModel : prefs.geminiModel
+  const choose = (m: string) => { sig.value = m; setPicking(null) }
   const options: [string, string, string][] = [
     ['lingq', 'LingQ', 'Варианты пользователей LingQ, машинный перевод предложений'],
     ['gemini', 'Gemini', 'Перевод слова по смыслу предложения, чат. Нужен ключ'],
@@ -137,25 +144,84 @@ export function SettingsTranslation() {
       <SecretField label="Ключ Gemini API" value={prefs.geminiKey.value} onInput={(v) => { prefs.geminiKey.value = v.trim() }} />
       <a class="btn text link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Получить ключ бесплатно</a>
       <div class="flush">
-        <ListItem headline="Модель" supporting={prefs.geminiModel.value} trailing={<Icon name="dropDown" />} onClick={() => void pickModel()} />
+        <ListItem headline="Модель для чата и повторного перевода" supporting={prefs.geminiModel.value}
+          trailing={<Icon name="dropDown" />} onClick={() => void pickModel('main')} />
+        <ListItem headline="Модель для слов и предложений" supporting={prefs.geminiFastModel.value || 'та же, что для чата'}
+          trailing={<Icon name="dropDown" />} onClick={() => void pickModel('fast')} />
       </div>
-      <Hint>flash — быстро, для перевода слов; pro — умнее, но медленнее</Hint>
+      <Hint>
+        Слова и предложения — это много мелких запросов: возьмите для них лёгкую модель (flash-lite), у неё больше
+        бесплатный лимит. Для чата — flash или pro.
+      </Hint>
       {picking && (
-        <Dialog title="Модель Gemini" onClose={() => setPicking(false)}
-          actions={<button class="btn text" onClick={() => setPicking(false)}>Закрыть</button>}>
+        <Dialog title={picking === 'fast' ? 'Модель для слов и предложений' : 'Модель для чата'} onClose={() => setPicking(null)}
+          actions={<button class="btn text" onClick={() => setPicking(null)}>Закрыть</button>}>
           {!models ? <Loading /> : (
             <div class="dialog-list">
-              {models.map((m) => (
+              {(picking === 'fast' ? ['', ...models] : models).map((m) => (
                 <label key={m} class="radio-row">
-                  <input type="radio" checked={m === prefs.geminiModel.value}
-                    onChange={() => { prefs.geminiModel.value = m; setPicking(false) }} />
-                  <span>{m}</span>
+                  <input type="radio" checked={m === sig.value} onChange={() => choose(m)} />
+                  <span>{m || 'Та же, что для чата'}</span>
                 </label>
               ))}
             </div>
           )}
         </Dialog>
       )}
+    </Page>
+  )
+}
+
+/** Settings → Чтение: page colours, colour of chosen words, screen timeout. Port of Android SettingsReading. */
+export function SettingsReading() {
+  const theme = prefs.readerTheme.value
+  const hl = prefs.highlight.value
+  const t = themeOf(theme)
+  const dark = darkPage()
+  const c = highlightColors(hl, dark)
+  const page = { background: t?.bg ?? 'var(--surface)', color: t?.fg ?? 'var(--on-surface)' }
+  return (
+    <Page title="Чтение">
+      <h3 class="section-title">Фон страницы</h3>
+      <div class="swatches">
+        <button class={'swatch' + (theme === 'system' ? ' on' : '')} onClick={() => { prefs.readerTheme.value = 'system' }}>
+          <span class="swatch-box">Aa</span><span class="swatch-name">Как в системе</span>
+        </button>
+        {READER_THEMES.map((x) => (
+          <button key={x.key} class={'swatch' + (theme === x.key ? ' on' : '')} onClick={() => { prefs.readerTheme.value = x.key }}>
+            <span class="swatch-box" style={{ background: x.bg, color: x.fg }}>Aa</span><span class="swatch-name">{x.name}</span>
+          </button>
+        ))}
+      </div>
+      <h3 class="section-title">Цвет выделения слов</h3>
+      <div class="swatches">
+        {HIGHLIGHTS.map((h) => {
+          const hc = highlightColors(h.key, dark)
+          const on = hl === h.key
+          return (
+            <button key={h.key} class="hl-swatch" onClick={() => { prefs.highlight.value = h.key }}>
+              <span class="hl-dot" style={{ background: `linear-gradient(${hc.bg}, ${hc.bg}), ${page.background}`, borderColor: on ? hc.text : undefined, borderWidth: on ? 3 : 1, color: hc.text }}>
+                {on && <Icon name="check" size={20} />}
+              </span>
+              <span class="swatch-name">{h.name}</span>
+            </button>
+          )
+        })}
+      </div>
+      <div class="hl-preview" style={page}>
+        Er las das <span class="hl-word"><span style={{ color: c.text }}>книгу</span><span style={{ background: c.bg }}>Buch</span></span> bis zum Ende.
+      </div>
+      <h3 class="section-title">Экран не гаснет при чтении</h3>
+      {KEEP_AWAKE.map(([k, label]) => (
+        <label key={k} class="radio-row">
+          <input type="radio" name="keepAwake" checked={prefs.keepAwake.value === k} onChange={() => { prefs.keepAwake.value = k }} />
+          <span>{label}</span>
+        </label>
+      ))}
+      <Hint>
+        Пока урок открыт, экран не погаснет столько времени после последнего касания, даже если в iPad стоит меньше.
+        {!('wakeLock' in navigator) && ' Этот браузер так не умеет — работает только «Как в системе».'}
+      </Hint>
     </Page>
   )
 }

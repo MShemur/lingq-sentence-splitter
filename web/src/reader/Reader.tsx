@@ -4,7 +4,9 @@ import { Fragment, render, type JSX } from 'preact'
 import { signal } from '@preact/signals'
 import { Icon } from '../icons'
 import { Press } from '../press'
-import { back } from '../app'
+import { back, go, stack } from '../app'
+import { readerStyle, useKeepAwake } from '../readerLook'
+import { useReadingTimer } from '../stats'
 import { prefs } from '../settings'
 import { Chip, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
@@ -12,6 +14,8 @@ import { ref as wordRef, refSent, type ReaderSession, type Sent, type WordRef } 
 
 /** A long-press selection is being dragged: the page must not scroll under the finger (iOS). */
 let selecting = false
+/** A finger (or mouse) is dragging pages: they must not be snapped from elsewhere meanwhile. */
+let dragging = false
 document.addEventListener('touchmove', (e) => { if (selecting) e.preventDefault() }, { passive: false })
 
 /** Phone-sized screen: no docked panel (and no page-turn buttons, see styles). */
@@ -35,6 +39,7 @@ function useSwipe(pager: { current: HTMLDivElement | null }) {
   const end = () => {
     const g = st.current
     st.current = null
+    dragging = false
     const el = pager.current
     if (!g || g.axis !== 'x' || !el || !el.clientWidth) return
     const dx = g.lastX - g.x
@@ -54,6 +59,7 @@ function useSwipe(pager: { current: HTMLDivElement | null }) {
       if (!el) return
       stopGlide(el)
       const scroller = (e.target as Element).closest?.('.page-text, .page') as HTMLElement | null
+      dragging = true
       st.current = {
         id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), left: el.scrollLeft,
         top: scroller?.scrollTop ?? 0, lastX: e.clientX, scroller, axis: '',
@@ -160,8 +166,13 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
   useEffect(() => { if (!s.paragraphs.value && !s.error.value) void s.load() }, [s])
   const paras = s.paragraphs.value
   const err = s.error.value
+  // in front (not under a chat or settings): reading time counts, the screen may be kept on
+  const top = stack.value.at(-1)
+  const active = top?.k === 'reader' && top.s === s
+  useReadingTimer(active && !!paras)
+  useKeepAwake(active)
   return (
-    <div class="screen reader">
+    <div class="screen reader" style={readerStyle()}>
       <TopBar
         center
         nav={<IconButton icon="close" label="Закрыть урок" onClick={back} />}
@@ -201,6 +212,7 @@ function ReaderActions({ s }: { s: ReaderSession }) {
         {menu && (
           <Menu onClose={close}>
             <MenuItem icon="chat" onClick={() => { close(); s.chatText() }}>Чат о тексте</MenuItem>
+            <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
             <hr />
             <MenuItem onClick={() => s.changeFont(+2)}>Шрифт крупнее&nbsp; A+</MenuItem>
             <MenuItem onClick={() => s.changeFont(-2)}>Шрифт мельче&nbsp; A−</MenuItem>
@@ -373,6 +385,17 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     s.syncTo.value = null
   }, [syncTo, pages])
 
+  /**
+   * Scrolling has stopped: the current page must lie exactly in place. The width may have changed meanwhile
+   * (docked panel, rotation) while a re-snap was held back because the pager was scrolling.
+   */
+  const settle = () => {
+    const el = pager.current
+    if (!el || !el.clientWidth || dragging || glides.has(el)) return
+    const i = s.textPage.value
+    if (Math.abs(el.scrollLeft - i * el.clientWidth) > 1) scrollTo(i, false)
+  }
+
   /** Turns [d] pages, counting from the page being turned to, so quick presses do not skip pages. */
   const turn = (d: number) => {
     const el = pager.current
@@ -384,7 +407,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     // the animation starts on the next frame: a second quick press must already count from [i]
     scrolling.current = true
     clearTimeout(scrollEnd.current)
-    scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null }, 150)
+    scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null; settle() }, 150)
     scrollTo(i, true)
   }
   const swipe = useSwipe(pager)
@@ -409,7 +432,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     if (!el || !el.clientWidth) return
     scrolling.current = true
     clearTimeout(scrollEnd.current)
-    scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null }, 150)
+    scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null; settle() }, 150)
     const i = Math.round(el.scrollLeft / el.clientWidth)
     if (i !== s.textPage.value && i >= 0 && i < pages.length) {
       s.textPage.value = i

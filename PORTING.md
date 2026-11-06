@@ -7,43 +7,6 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-- Third translator "Другой ИИ": any OpenAI-compatible service (presets DeepSeek https://api.deepseek.com,
-  Qwen https://dashscope-intl.aliyuncs.com/compatible-mode/v1, OpenRouter https://openrouter.ai/api/v1,
-  Groq https://api.groq.com/openai/v1, Mistral https://api.mistral.ai/v1), address + key + main / light model
-  (models from GET {base}/models). POST {base}/chat/completions, Bearer key, temperature 0.3, JSON mode
-  response_format json_object for words (retry without it on HTTP 400), retries 2/4/8 s. If the answer has
-  `reasoning_content` (DeepSeek reasoner), the chat shows it folded: "Как модель рассуждала ▾".
-  Android `Llm.kt` (`Llm`, `OpenAiCompat`, `AI_PRESETS`), `Settings.kt` SettingsTranslation, `Chat.kt` Reasoning.
-
-- Import redesign around text cleaning (the main use: pasted text full of junk). Source tiles Вставить / Файл
-  (TXT, MD, EPUB, PDF) / Галерея / Камера; the text in an editable field; a "Очистка текста" card: "Быстро" =
-  rules on the device (page numbers, repeated header/footer lines, footnote marks, [12], links, share/print/ad
-  lines, soft hyphens; joins "Kup-
-ferstich" and lines broken inside a sentence), "С ИИ" = quick clean first,
-  then the light model with prompt CLEAN (editable) in pieces of ~1800 words, progress; "Вернуть как было";
-  switch "Быстро чистить сразу при вставке" (on by default). Android `Cleaner.kt` (`TextCleaner`), `Gemini.kt`
-  (`Prompts.CLEAN`), `ImportSession` (paste / cleanQuick / cleanAi / undoClean), `Ui.kt` ImportScreen.
-  OCR of photos / scanned PDFs on Android is ML Kit (on the web: skip, or Gemini vision later).
-
-- Two Gemini models in Settings → Перевод: "Модель для чата и повторного перевода" (geminiModel) and "Модель для
-  слов и предложений" (geminiFastModel, blank = same as chat; hint: take flash-lite, bigger free limit). Words,
-  phrases, sentence translations and bookmark translations use the light one; the limit window switches the model
-  of the request that failed. Android `AppState.geminiFast`, `Settings.kt`, `ModelSwitch.apply`.
-
-- Statistics (library top bar, chart icon): reading time counts in 15 s steps while a lesson is open and the app
-  is in front, unless nothing was touched for 3 min; words = words of sentences seen for the first time in a lesson
-  (highest sentence index counted per lesson). Screen: "Сегодня" card (time, words, streak = days in a row with
-  >= 1 min), cards Неделя (from Monday) / Месяц / Год, bar chart "Минуты чтения за 2 недели" (tap a day for its
-  numbers). Android `Stats.kt` (`ReadingStats`, `ReadingTimer`, `StatsScreen`). Will be synced later.
-
-- Settings → "Чтение" (also from the reader menu "Оформление и экран"): page colours of the reader
-  (Как в системе, Белая FFFFFF/1C1B1F, Кремовая FBF7EE/2D2A26, Сепия F4ECD8/5B4636, Мятная CCE8CF/233626,
-  Серая E6E6E6/222222, Сумерки 3A3A3C/E3E3E3, Тёмная 1E1E1E/DADADA, Чёрная 000000/C8C8C8; surfaces of bars and
-  sheets mixed from them), colour of chosen words + translations above them (Зелёный, Жёлтый как в LingQ, Голубой,
-  Розовый, Сиреневый, Оранжевый; light/dark variants) with a preview line, and "Экран не гаснет": system /
-  5 / 10 / 15 / 30 min after the last touch / while the lesson is open (web: Screen Wake Lock API).
-  Android `ReaderLook.kt`.
-
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
 (nothing)
@@ -53,6 +16,43 @@ ferstich" and lines broken inside a sentence), "С ИИ" = quick clean first,
 (nothing)
 
 ## Done
+
+- web v1.15: Third translator "Другой ИИ": any OpenAI-compatible service (presets DeepSeek https://api.deepseek.com,
+  Qwen https://dashscope-intl.aliyuncs.com/compatible-mode/v1, OpenRouter https://openrouter.ai/api/v1,
+  Groq https://api.groq.com/openai/v1, Mistral https://api.mistral.ai/v1), address + key + main / light model
+  (models from GET {base}/models). POST {base}/chat/completions, Bearer key, temperature 0.3, JSON mode
+  response_format json_object for words (retry without it on HTTP 400), retries 2/4/8 s. If the answer has
+  `reasoning_content` (DeepSeek reasoner), the chat shows it folded: "Как модель рассуждала ▾".
+  Android `Llm.kt` (`Llm`, `OpenAiCompat`, `AI_PRESETS`), `Settings.kt` SettingsTranslation, `Chat.kt` Reasoning.
+
+- web v1.15: port redesign around text cleaning (the main use: pasted text full of junk). Source tiles Вставить / Файл
+  (TXT, MD, EPUB, PDF) / Галерея / Камера; the text in an editable field; a "Очистка текста" card: "Быстро" =
+  rules on the device (page numbers, repeated header/footer lines, footnote marks, [12], links, share/print/ad
+  lines, soft hyphens; joins "Kup-
+ferstich" and lines broken inside a sentence), "С ИИ" = quick clean first,
+  then the light model with prompt CLEAN (editable) in pieces of ~1800 words, progress; "Вернуть как было";
+  switch "Быстро чистить сразу при вставке" (on by default). Android `Cleaner.kt` (`TextCleaner`), `Gemini.kt`
+  (`Prompts.CLEAN`), `ImportSession` (paste / cleanQuick / cleanAi / undoClean), `Ui.kt` ImportScreen.
+  OCR of photos / scanned PDFs on Android is ML Kit (on the web: skip, or Gemini vision later).
+
+- web v1.15: o Gemini models in Settings → Перевод: "Модель для чата и повторного перевода" (geminiModel) and "Модель для
+  слов и предложений" (geminiFastModel, blank = same as chat; hint: take flash-lite, bigger free limit). Words,
+  phrases, sentence translations and bookmark translations use the light one; the limit window switches the model
+  of the request that failed. Android `AppState.geminiFast`, `Settings.kt`, `ModelSwitch.apply`.
+
+- web v1.15: atistics (library top bar, chart icon): reading time counts in 15 s steps while a lesson is open and the app
+  is in front, unless nothing was touched for 3 min; words = words of sentences seen for the first time in a lesson
+  (highest sentence index counted per lesson). Screen: "Сегодня" card (time, words, streak = days in a row with
+  >= 1 min), cards Неделя (from Monday) / Месяц / Год, bar chart "Минуты чтения за 2 недели" (tap a day for its
+  numbers). Android `Stats.kt` (`ReadingStats`, `ReadingTimer`, `StatsScreen`). Will be synced later.
+
+- web v1.15: ttings → "Чтение" (also from the reader menu "Оформление и экран"): page colours of the reader
+  (Как в системе, Белая FFFFFF/1C1B1F, Кремовая FBF7EE/2D2A26, Сепия F4ECD8/5B4636, Мятная CCE8CF/233626,
+  Серая E6E6E6/222222, Сумерки 3A3A3C/E3E3E3, Тёмная 1E1E1E/DADADA, Чёрная 000000/C8C8C8; surfaces of bars and
+  sheets mixed from them), colour of chosen words + translations above them (Зелёный, Жёлтый как в LingQ, Голубой,
+  Розовый, Сиреневый, Оранжевый; light/dark variants) with a preview line, and "Экран не гаснет": system /
+  5 / 10 / 15 / 30 min after the last touch / while the lesson is open (web: Screen Wake Lock API).
+  Android `ReaderLook.kt`.
 
 - web v1.14: Library as covers (Material 3, like LingQ): courses in a grid of square covers (`imageUrl` from
   `collections/my/`) with the title under them; on top a horizontal row "Продолжить" with the 10 lessons opened

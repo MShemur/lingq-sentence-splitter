@@ -10,6 +10,7 @@ import { go, say, stack, errorText, geminiFailed } from '../app'
 import { ChatSession } from '../chat'
 import { hasBookmark, toggleBookmark as toggleBm, type Bookmark } from '../bookmarks'
 import { positionOf, savePosition } from '../progress'
+import { countRead } from '../stats'
 
 // --- model ---
 
@@ -164,7 +165,12 @@ export class ReaderSession {
   savePos(first: number, last: number) {
     const n = this.sentences.value.length
     if (!n || !this.sentById.has(first)) return
-    savePosition(this.lang, this.lesson.id, first, (this.indexOf(last) + 1) / n)
+    const i = this.indexOf(last)
+    savePosition(this.lang, this.lesson.id, first, (i + 1) / n)
+    // statistics: words of sentences seen for the first time
+    const f = this.indexOf(first)
+    const list = this.sentences.value
+    if (i >= f) countRead(this.lang, this.lesson.id, f, i, (k) => list[k].tokens.filter((t) => t.isWord).length)
   }
 
   private indexOf(id: number) { return Math.max(0, this.sentences.value.findIndex((s) => s.id === id)) }
@@ -272,7 +278,7 @@ export class ReaderSession {
     this.sentenceTranslation(id)
       .catch((e) => {
         put(this.sentTr, id, '⚠ ' + errorText(e))
-        geminiFailed(e, () => { drop(this.sentTr, id); this.ensureSentence(id) })
+        geminiFailed(e, () => { drop(this.sentTr, id); this.ensureSentence(id) }, true)
       })
       .finally(() => this.loadingSentences.delete(id))
   }
@@ -395,7 +401,7 @@ export class ReaderSession {
       if (this.provisional.value[r] && quick && r in this.pins.value) put(this.pins, r, quick)
     }, () => {})
     this.ai(r).then((m) => m.best, (e) => {
-      geminiFailed(e, () => { drop(this.pins, r); drop(this.provisional, r); this.tap(r) })
+      geminiFailed(e, () => { drop(this.pins, r); drop(this.provisional, r); this.tap(r) }, true)
       return null
     }).then((best) => {
       if (!(r in this.pins.value)) return // removed meanwhile
@@ -425,7 +431,7 @@ export class ReaderSession {
         this.popupBest.value = this.quickGuess(r, h) ?? null
         this.popupThinking.value = true
         const m = await this.ai(r).catch((e) => {
-          geminiFailed(e, () => { if (this.popup.value === r) void this.openPopup(r) })
+          geminiFailed(e, () => { if (this.popup.value === r) void this.openPopup(r) }, true)
           return null
         })
         if (this.popup.value !== r) return
@@ -559,7 +565,7 @@ export class ReaderSession {
       }
     } catch (e) {
       if (this.phrase.value === p) this.phraseError.value = errorText(e)
-      geminiFailed(e, () => { if (this.phrase.value === p) void this.openPhrase(sentId, from, to) })
+      geminiFailed(e, () => { if (this.phrase.value === p) void this.openPhrase(sentId, from, to) }, true)
     }
     if (this.phrase.value === p) this.phraseLoading.value = false
   }

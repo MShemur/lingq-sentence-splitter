@@ -36,6 +36,8 @@ export type Screen =
   | { k: 'reader'; s: ReaderSession }
   | { k: 'chat'; c: ChatSession }
   | { k: 'bookmarks' }
+  | { k: 'stats' }
+  | { k: 'settingsReading' }
   | { k: 'settings' }
   | { k: 'settingsLingq' }
   | { k: 'settingsTranslation' }
@@ -154,7 +156,7 @@ export const errorText = (e: unknown) => (e instanceof Error ? e.message : Strin
 // --- Gemini limit: offer another model (port of Android ModelSwitch.kt) ---
 
 /** Gemini refused because of limits/overload; [retry] repeats what failed once another model is chosen. */
-export interface ModelSwitch { model: string; message: string; retry: () => void }
+export interface ModelSwitch { model: string; message: string; retry: () => void; apply: (model: string) => void }
 export const modelSwitch = signal<ModelSwitch | null>(null)
 
 /** Limit / overload errors of Gemini (after its own retries and fallback). */
@@ -162,6 +164,12 @@ export const isGeminiLimit = (e: unknown) =>
   /HTTP (429|503)|RESOURCE_EXHAUSTED|quota|high demand|overloaded/i.test(errorText(e))
 
 /** Called where a Gemini request failed: on a limit error the user may switch the model and [retry]. */
-export function geminiFailed(e: unknown, retry: () => void) {
-  if (useGemini() && isGeminiLimit(e) && !modelSwitch.value) modelSwitch.value = { model: prefs.geminiModel.value, message: errorText(e), retry }
+/** [fast]: the request used the light model (words, phrases, sentences); the choice then replaces that one. */
+export function geminiFailed(e: unknown, retry: () => void, fast = false) {
+  if (!useGemini() || !isGeminiLimit(e) || modelSwitch.value) return
+  const own = fast && !!prefs.geminiFastModel.value.trim()
+  modelSwitch.value = {
+    model: own ? prefs.geminiFastModel.value : prefs.geminiModel.value, message: errorText(e), retry,
+    apply: (m) => { if (fast) prefs.geminiFastModel.value = m; else prefs.geminiModel.value = m },
+  }
 }

@@ -82,6 +82,7 @@ export function CoursesScreen() {
         title={`Библиотека · ${l}`}
         actions={
           <>
+            <IconButton icon="chart" label="Статистика" onClick={() => go({ k: 'stats' })} />
             <IconButton icon="bookmark" label="Закладки" onClick={() => go({ k: 'bookmarks' })} />
             <IconButton icon="settings" label="Настройки" onClick={() => go({ k: 'settings' })} />
           </>
