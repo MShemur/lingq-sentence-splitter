@@ -146,7 +146,10 @@ class LingqApi(private val key: String) {
         return out
     }
 
-    fun lesson(lang: String, id: Int): Lesson = Lesson(id, obj("$BASE/v3/$lang/lessons/$id/").optString("title"))
+    fun lesson(lang: String, id: Int): Lesson = obj("$BASE/v3/$lang/lessons/$id/").let { o ->
+        Lesson(id, o.optString("title"), o.optString("imageUrl"), o.optString("level"), o.optInt("wordCount"),
+            o.optInt("newWordsCount"), o.optString("collectionTitle"))
+    }
 
     /** Lesson as the web editor sees it: paragraphs -> sentences (text, translations, ...). */
     fun editor(lang: String, id: Int): JSONArray =

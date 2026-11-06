@@ -206,6 +206,23 @@ class AppState(val ctx: Context) {
 
     // --- entry points -------------------------------------------------------------------------
 
+    /** From the widget: open that lesson (unless it is already on the screen). */
+    fun openLesson(lang: String, id: Int, title: String) {
+        val top = stack.lastOrNull()
+        if (top is Screen.Reader && top.session.lesson.id == id) return
+        go(Screen.Reader(ReaderSession(this, lang, Lesson(id, title))))
+    }
+
+    /** A lesson was opened in the reader: remember it for the widget (cover fetched if missing). */
+    fun lessonOpened(lang: String, l: Lesson) {
+        ContinueWidget.save(ctx, lang, l)
+        if (l.imageUrl.isBlank()) scope.launch {
+            runCatching { withContext(Dispatchers.IO) { api.lesson(lang, l.id) } }.onSuccess { full ->
+                if (full.imageUrl.isNotBlank()) ContinueWidget.save(ctx, lang, full.copy(title = l.title.ifBlank { full.title }))
+            }
+        }
+    }
+
     fun openLink(text: String) {
         val t = parseTarget(text) ?: return say("Не понял ссылку")
         val language = t.lang ?: lang

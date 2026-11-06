@@ -17,16 +17,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         state = AppState(applicationContext)
         // covers: same HTTP client, with the user agent LingQ's CDN accepts
-        coil.Coil.setImageLoader(
-            coil.ImageLoader.Builder(applicationContext)
-                .okHttpClient {
-                    LingqApi.http.newBuilder().addInterceptor { ch ->
-                        ch.proceed(ch.request().newBuilder().header("User-Agent", "lingq-lesson-fixer/1.0").build())
-                    }.build()
-                }
-                .crossfade(true)
-                .build(),
-        )
+        coil.Coil.setImageLoader(Covers.loader(applicationContext))
         setContent { App(state) }
         if (savedInstanceState == null) handleIntent(intent)
     }
@@ -40,6 +31,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         state.resumed = false
+        ContinueWidget.refresh(applicationContext)     // reading progress on the home screen widget
         super.onPause()
     }
 
@@ -66,6 +58,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
             Intent.ACTION_VIEW -> i.data?.let { state.openImportFile(it) }
+            ContinueWidget.ACTION_OPEN -> {
+                val id = i.getIntExtra("id", -1)
+                if (id >= 0) state.openLesson(i.getStringExtra("lang") ?: state.lang, id, i.getStringExtra("title").orEmpty())
+            }
         }
     }
 }

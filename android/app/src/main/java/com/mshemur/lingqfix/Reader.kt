@@ -443,6 +443,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 val (p, w) = withContext(Dispatchers.IO) { notes.load() }
                 pins.putAll(p); chosen.putAll(w)
                 title = t
+                app.lessonOpened(lang, lesson.copy(title = t))
                 sentences = paras.flatten()
                 jump?.let { id -> page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0) }
                 paragraphs = paras
