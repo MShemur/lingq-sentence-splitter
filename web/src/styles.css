@@ -399,10 +399,48 @@ div.list-item { cursor: default; }
   .text-area .reader-text, .sm-body .reader-text { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
 }
 
-/* lesson list: how much of the lesson has been read */
-.read-pct { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--outline); }
-.read-pct .progress-pill { width: 64px; height: 4px; }
 
 /* pages scroll up and down without a visible scrollbar */
 .page, .page-text { scrollbar-width: none; }
 .page::-webkit-scrollbar, .page-text::-webkit-scrollbar { display: none; }
+
+/* --- library as covers --- */
+.library .search-row { padding-left: 16px; padding-right: 8px; }
+.section-title { font-size: 16px; font-weight: 600; margin: 14px 16px 10px; }
+.tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; padding: 0 16px; }
+.tile-row {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 168px; gap: 12px; overflow-x: auto; padding: 0 16px 4px;
+  scrollbar-width: none; scroll-snap-type: x proximity; scroll-padding-inline: 16px; -webkit-overflow-scrolling: touch;
+}
+.tile-row::-webkit-scrollbar { display: none; }
+.tile-row > .tile { scroll-snap-align: start; }
+.tile {
+  display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-width: 0; padding: 0 0 6px; border: 0; border-radius: 16px;
+  background: none; color: inherit; text-align: left; cursor: pointer; font: inherit;
+}
+.tile:active .cover { transform: scale(0.97); }
+.tile-title {
+  margin: 6px 2px 0; font-size: 14px; font-weight: 500; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tile-sub { margin: 0 2px; font-size: 12px; color: var(--on-surface-variant); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cover {
+  position: relative; width: 100%; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  transition: transform 0.12s;
+}
+.cover > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cover-letter { font-size: 40px; font-weight: 700; color: rgba(255, 255, 255, 0.85); }
+.cover-level {
+  position: absolute; top: 8px; left: 8px; padding: 2px 6px; border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 11px; font-weight: 500;
+}
+.cover-progress {
+  position: absolute; left: 10px; right: 10px; bottom: 8px; height: 4px; border-radius: 2px; overflow: hidden;
+  background: rgba(0, 0, 0, 0.35);
+}
+.cover-progress > span { display: block; height: 100%; background: var(--primary); border-radius: 2px; }
+.course-head { display: flex; align-items: center; gap: 16px; padding: 12px 16px 16px; }
+.course-head-cover { width: 88px; flex: none; }
+.course-head-cover .cover-letter { font-size: 32px; }
+.course-head-title { font-size: 20px; font-weight: 600; line-height: 1.25; }
+.course-head-sub { font-size: 14px; color: var(--on-surface-variant); margin-top: 2px; }

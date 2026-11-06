@@ -3,8 +3,9 @@ import { prefs } from './settings'
 
 export class ApiError extends Error {}
 
-export interface Course { id: number; title: string }
-export interface Lesson { id: number; title: string }
+export interface Course { id: number; title: string; imageUrl?: string }
+/** [imageUrl] '' when LingQ has only its stock picture; [words] 0 when unknown. */
+export interface Lesson { id: number; title: string; imageUrl?: string; level?: string; words?: number; courseTitle?: string }
 export interface Language { code: string; title: string }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -60,13 +61,27 @@ export async function languages(key?: string): Promise<Language[]> {
 
 export async function myCourses(lang: string): Promise<Course[]> {
   return (await pages(`/api/v3/${lang}/collections/my/?page=1&page_size=100&sort=recentUsed`))
-    .map((c) => ({ id: c.id, title: c.title ?? '' }))
+    .map((c) => ({ id: c.id, title: c.title ?? '', imageUrl: image(c.imageUrl) }))
+}
+
+/** LingQ's stock picture for content without one counts as none (a coloured tile is drawn instead). */
+const image = (u: unknown) => (typeof u === 'string' && u && !u.includes('/default-content') ? u : '')
+
+const lessonOf = (o: any): Lesson => ({
+  id: o.id, title: o.title ?? '', imageUrl: image(o.imageUrl), level: o.level ?? '',
+  words: Number(o.wordCount) || 0, courseTitle: o.collectionTitle ?? '',
+})
+
+/** Lessons opened lately (LingQ's "my lessons" shelf, most recent first). */
+export async function recentLessons(lang: string, count = 10): Promise<Lesson[]> {
+  const d = await call('GET', `/api/v3/${lang}/search/?shelf=my_lessons&sortBy=recentlyOpened&page=1&page_size=${count}`)
+  return (d?.results ?? []).map(lessonOf)
 }
 
 /** Course title (may be empty) and its lessons in course order. */
 export async function lessons(lang: string, course: number): Promise<{ title: string; lessons: Lesson[] }> {
   const all = await pages(`/api/v3/${lang}/collections/${course}/lessons/?page=1&page_size=100&sortBy=pos`)
-  return { title: all[0]?.collectionTitle ?? '', lessons: all.map((l) => ({ id: l.id, title: l.title ?? '' })) }
+  return { title: all[0]?.collectionTitle ?? '', lessons: all.map(lessonOf) }
 }
 
 export async function lesson(lang: string, id: number): Promise<Lesson> {

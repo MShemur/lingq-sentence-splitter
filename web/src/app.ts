@@ -23,6 +23,7 @@ export class LessonsScreen {
       const r = await api.lessons(this.lang, this.course.id)
       if (r.title) this.title.value = r.title
       this.lessons.value = r.lessons
+      setCourseWords(this.lang, this.course.id, r.lessons.reduce((n, l) => n + (l.words ?? 0), 0))
     } catch (e) {
       this.error.value = (e as Error).message
     }
@@ -94,6 +95,58 @@ export async function loadCourses(force = false) {
   } catch (e) {
     coursesError.value = (e as Error).message
   }
+}
+
+/** Lessons opened lately, for the "Продолжить" row of the library. */
+export const recent = signal<Lesson[] | null>(null)
+
+export async function loadRecent() {
+  const l = lang()
+  try {
+    const list = await api.recentLessons(l)
+    if (lang() === l) recent.value = list
+  } catch { /* the row is just not shown */ }
+}
+
+// --- words per course: sum over its lessons, fetched in the background (3 at a time), kept on the device ---
+
+function loadCourseWords(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem('courseWords') ?? '{}') } catch { return {} }
+}
+export const courseWords = signal<Record<string, number>>(loadCourseWords())
+export const wordsKey = (l: string, id: number) => `${l}_${id}`
+
+function setCourseWords(l: string, id: number, n: number) {
+  const k = wordsKey(l, id)
+  if (courseWords.value[k] === n) return
+  courseWords.value = { ...courseWords.value, [k]: n }
+  try { localStorage.setItem('courseWords', JSON.stringify(courseWords.value)) } catch { /* ignore */ }
+}
+
+/** Courses counted since the app started (each once per start; opening a course counts it again). */
+const wordsFetched = new Set<string>()
+const wordsQueue: (() => Promise<void>)[] = []
+let wordsRunning = 0
+
+function pumpWords() {
+  while (wordsRunning < 3 && wordsQueue.length) {
+    const job = wordsQueue.shift()!
+    wordsRunning++
+    void job().finally(() => { wordsRunning--; pumpWords() })
+  }
+}
+
+export function ensureCourseWords(l: string, id: number) {
+  const k = wordsKey(l, id)
+  if (wordsFetched.has(k)) return
+  wordsFetched.add(k)
+  wordsQueue.push(async () => {
+    try {
+      const r = await api.lessons(l, id)
+      setCourseWords(l, id, r.lessons.reduce((n, x) => n + (x.words ?? 0), 0))
+    } catch { wordsFetched.delete(k) }
+  })
+  pumpWords()
 }
 
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))

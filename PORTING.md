@@ -7,14 +7,6 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-- Library as covers (Material 3, like LingQ): courses in a grid of square covers (`imageUrl` from
-  `collections/my/`) with the title under them; on top a horizontal row "Продолжить" with the 10 lessons opened
-  last: `GET /api/v3/{lang}/search/?shelf=my_lessons&sortBy=recentlyOpened&page=1&page_size=10` (lessons with
-  `imageUrl`, `collectionTitle`, `level`, `wordCount`, `newWordsCount`). Lessons of a course also as a grid of
-  4:3 covers: level badge top-left, thin reading-progress bar at the bottom of the cover, title, "N слов" (no new-word count); under each course cover "12 345 слов" = sum of `wordCount` of its lessons (fetched in the background, 3 at a time, cached; refreshed once per start and whenever the course is opened);
-  course header with its cover and "N уроков". Without a picture: colour gradient with the first letter.
-  Android `Library.kt`.
-
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
 (nothing)
@@ -24,6 +16,15 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 (nothing)
 
 ## Done
+
+- web v1.14: Library as covers (Material 3, like LingQ): courses in a grid of square covers (`imageUrl` from
+  `collections/my/`) with the title under them; on top a horizontal row "Продолжить" with the 10 lessons opened
+  last: `GET /api/v3/{lang}/search/?shelf=my_lessons&sortBy=recentlyOpened&page=1&page_size=10` (lessons with
+  `imageUrl`, `collectionTitle`, `level`, `wordCount`, `newWordsCount`). Lessons of a course also as a grid of
+  4:3 covers: level badge top-left, thin reading-progress bar at the bottom of the cover, title, "N слов" (no new-word count); under each course cover "12 345 слов" = sum of `wordCount` of its lessons (fetched in the background, 3 at a time, cached; refreshed once per start and whenever the course is opened);
+  course header with its cover and "N уроков". Without a picture: colour gradient with the first letter.
+  Android `Library.kt`. Web: LingQ's stock picture (`/default-content`) counts as none, so those get the
+  gradient tile.
 
 - android 0fa91c9: Page-turn buttons: no circle/background/border/shadow any more, just a faint arrow (~45% opacity; a light
   tint only while pressed). The user found them too conspicuous. web v1.13 styles `.turn-btn`.
