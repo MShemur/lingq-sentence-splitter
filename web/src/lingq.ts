@@ -94,6 +94,38 @@ export async function editor(lang: string, id: number): Promise<any[]> {
   return (await call('GET', `/api/v3/${lang}/lessons/${id}/editor/`))?.paragraphs ?? []
 }
 
+/** Saves the sentence structure exactly as sent (LingQ does not re-split it). */
+export async function saveParagraphs(lang: string, id: number, paragraphs: unknown[]) {
+  await call('PATCH', `/api/v3/${lang}/lessons/${id}/`, { paragraphs })
+}
+
+/** Creates a new (private) course. */
+export async function createCourse(lang: string, title: string): Promise<Course> {
+  const d = await call('POST', `/api/v3/${lang}/collections/`, { title: title.slice(0, 250), description: '', level: 1 })
+  return { id: d.id, title: d.title ?? title, imageUrl: '' }
+}
+
+/** Creates a private lesson in [course]; returns its id. */
+export async function importLesson(lang: string, course: number, title: string, text: string): Promise<number> {
+  const d = await call('POST', `/api/v3/${lang}/lessons/import/`, { title: title.slice(0, 250), text, collection: course, status: 'private', save: true })
+  return d.id
+}
+
+/**
+ * After an import LingQ tokenizes the text for a while (lesson status "I", GET answers HTTP 400 "locked") and then
+ * re-splits the sentences, overwriting anything saved before. Wait until done.
+ */
+export async function waitProcessed(lang: string, id: number, timeoutMs = 180_000) {
+  const end = Date.now() + timeoutMs
+  while (Date.now() < end) {
+    let status = 'locked'
+    try { status = String((await call('GET', `/api/v3/${lang}/lessons/${id}/`))?.status ?? '') } catch { /* locked */ }
+    if (status !== 'I' && status !== 'locked') return
+    await sleep(3000)
+  }
+  throw new ApiError(`LingQ слишком долго обрабатывает урок ${id} — проверьте его позже`)
+}
+
 /** Popular user meanings of a word (most popular first), as in LingQ's word pop-up. */
 export async function hints(lang: string, term: string, locale: string): Promise<string[]> {
   const q = new URLSearchParams({ term, locale })

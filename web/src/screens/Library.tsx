@@ -9,6 +9,8 @@ import { lang, prefs } from '../settings'
 import { ErrorBox, IconButton, Loading, TopBar } from '../ui'
 import type { Course, Lesson } from '../lingq'
 import { ReaderSession } from '../reader/session'
+import { ImportSession } from '../importer/session'
+import { Icon } from '../icons'
 import { percent, positionOf } from '../progress'
 
 function plural(n: number, one: string, few: string, many: string) {
@@ -123,6 +125,11 @@ export function CoursesScreen() {
           )}
         </div>
       </div>
+      {!noKey && (
+        <button class="fab" onClick={() => go(new ImportSession())}>
+          <Icon name="upload" /><span>Загрузить</span>
+        </button>
+      )}
     </div>
   )
 }

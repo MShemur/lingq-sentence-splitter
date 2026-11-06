@@ -133,5 +133,9 @@ export async function word(prompt: string, lang: string, target: string, w: stri
 export const retranslate = (prompt: string, lang: string, target: string, sentence: string, current: string) =>
   generate(null, [{ user: true, text: fill(prompt, { lang, target, sentence, current }) }])
 
+/** Cleans a piece of copied text (light model, see Prompts.CLEAN). */
+export const cleanPiece = async (prompt: string, lang: string, text: string) =>
+  (await generate(null, [{ user: true, text: fill(prompt, { lang, text }) }], false, true)).trim()
+
 export const sentence = (prompt: string, lang: string, target: string, s: string) =>
   generate(null, [{ user: true, text: fill(prompt, { lang, target, sentence: s }) }], false, true)

@@ -53,6 +53,8 @@ export function SettingsRoot() {
         <Section icon="refresh" title="Синхронизация"
           summary={prefs.syncOn.value === '1' ? (syncError.value ? 'Ошибка' : 'Включена · с телефоном') : 'Выключена'}
           onClick={() => go({ k: 'settingsSync' })} />
+        <Section icon="history" title="Резервные копии" summary="Уроки до исправления разбивки (3 дня)"
+          onClick={() => go({ k: 'backups' })} />
         <Section icon="star" title="Промпты ИИ" summary="Как Gemini или другой ИИ переводит и отвечает в чате"
           onClick={() => go({ k: 'settingsPrompts' })} />
         <hr />
@@ -310,6 +312,7 @@ export function SettingsPrompts() {
     ['promptChatSentence', 'Чат о предложении'],
     ['promptChatWord', 'Чат о слове («Спросить» в окне слова)'],
     ['promptChatText', 'Чат о всём тексте'],
+    ['promptClean', 'Очистка текста при загрузке ({text} — кусок текста)'],
   ]
   const reset = () => {
     prefs.promptWord.value = Prompts.WORD
@@ -318,6 +321,7 @@ export function SettingsPrompts() {
     prefs.promptChatSentence.value = Prompts.CHAT_SENTENCE
     prefs.promptChatWord.value = Prompts.CHAT_WORD
     prefs.promptChatText.value = Prompts.CHAT_TEXT
+    prefs.promptClean.value = Prompts.CLEAN
     say('Стандартные промпты восстановлены')
   }
   return (

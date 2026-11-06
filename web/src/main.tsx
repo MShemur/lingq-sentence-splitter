@@ -6,6 +6,7 @@ import { ChatScreen } from './screens/Chat'
 import { BookmarksScreen } from './screens/Bookmarks'
 import { SettingsLingq, SettingsPrompts, SettingsReading, SettingsRoot, SettingsSync, SettingsTranslation } from './screens/Settings'
 import { autoSync } from './sync'
+import { BackupsScreen, ImportScreen } from './screens/Import'
 import { StatsScreen } from './screens/Stats'
 import { ModelSwitchDialog } from './screens/ModelSwitch'
 import './styles.css'
@@ -23,6 +24,8 @@ function view(screen: Screen) {
     case 'settingsPrompts': return <SettingsPrompts />
     case 'settingsReading': return <SettingsReading />
     case 'settingsSync': return <SettingsSync />
+    case 'import': return <ImportScreen s={screen} />
+    case 'backups': return <BackupsScreen />
     case 'stats': return <StatsScreen />
   }
 }

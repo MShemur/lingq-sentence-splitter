@@ -43,6 +43,9 @@ export const prefs = {
   promptChatSentence: pref('promptChatSentence', Prompts.CHAT_SENTENCE),
   promptChatWord: pref('promptChatWord', Prompts.CHAT_WORD),
   promptChatText: pref('promptChatText', Prompts.CHAT_TEXT),
+  promptClean: pref('promptClean', Prompts.CLEAN),
+  /** Import: quick clean right after pasting / opening a file. */
+  autoClean: pref('autoClean', '1'),
   readerFont: pref('readerFont', '20'),
   /** '1': the word window is docked at the right of the reader and always shown. */
   dockPanel: pref('dockPanel', '0'),
@@ -58,6 +61,7 @@ export const prompt = {
   chatSentence: () => prefs.promptChatSentence.value.trim() || Prompts.CHAT_SENTENCE,
   chatWord: () => prefs.promptChatWord.value.trim() || Prompts.CHAT_WORD,
   chatText: () => prefs.promptChatText.value.trim() || Prompts.CHAT_TEXT,
+  clean: () => prefs.promptClean.value.trim() || Prompts.CLEAN,
 }
 
 export const lang = () => prefs.lang.value.trim() || 'de'

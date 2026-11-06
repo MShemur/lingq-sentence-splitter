@@ -5,6 +5,7 @@ import type { Course, Lesson } from './lingq'
 import { lang, otherAi, prefs, useGemini } from './settings'
 import type { ReaderSession } from './reader/session'
 import type { ChatSession } from './chat'
+import type { ImportSession } from './importer/session'
 
 export class LessonsScreen {
   readonly k = 'lessons'
@@ -39,6 +40,8 @@ export type Screen =
   | { k: 'stats' }
   | { k: 'settingsReading' }
   | { k: 'settingsSync' }
+  | ImportSession
+  | { k: 'backups' }
   | { k: 'settings' }
   | { k: 'settingsLingq' }
   | { k: 'settingsTranslation' }

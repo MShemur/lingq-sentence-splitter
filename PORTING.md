@@ -7,7 +7,15 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-- Import redesign around text cleaning (the main use: pasted text full of junk). Source tiles Вставить / Файл
+(the web version starts from `web/PLAN.md`, which already covers Android v1.23)
+
+## To do on Android
+
+(nothing)
+
+## Done
+
+- web v1.18: Import redesign around text cleaning (the main use: pasted text full of junk). Source tiles Вставить / Файл
   (TXT, MD, EPUB, PDF) / Галерея / Камера; the text in an editable field; a "Очистка текста" card: "Быстро" =
   rules on the device (page numbers, repeated header/footer lines, footnote marks, [12], links, share/print/ad
   lines, soft hyphens; joins "Kup-
@@ -16,14 +24,11 @@ ferstich" and lines broken inside a sentence), "С ИИ" = quick clean first,
   switch "Быстро чистить сразу при вставке" (on by default). Android `Cleaner.kt` (`TextCleaner`), `Gemini.kt`
   (`Prompts.CLEAN`), `ImportSession` (paste / cleanQuick / cleanAi / undoClean), `Ui.kt` ImportScreen.
   OCR of photos / scanned PDFs on Android is ML Kit (on the web: skip, or Gemini vision later).
-
-(the web version starts from `web/PLAN.md`, which already covers Android v1.23)
-
-## To do on Android
-
-(nothing)
-
-## Done
+  Web (no photos / OCR, as agreed): library button "Загрузить" -> tiles Вставить (clipboard; Safari may refuse,
+  then an empty field) / Файл (TXT, MD, EPUB via fflate, PDF text layer via pdf.js; a scanned PDF is reported).
+  Cleaning, course choice / new course, auto fix (`importer/fixer.ts` = Fixer.kt, checked against
+  lingq_fix_splits.py on 21 sentence pairs and 21 real lessons), split long texts, report; backups in IndexedDB
+  (3 days), Settings → Резервные копии with restore. `importer/*`, `screens/Import.tsx`.
 
 - web v1.17: **Sync phone <-> iPad** (Settings → Синхронизация; switch, "Синхронизировать сейчас", last time / error).
   File `sync/data.json` on branch `sync` of MShemur/lingq-sentence-splitter via GitHub contents API with the
