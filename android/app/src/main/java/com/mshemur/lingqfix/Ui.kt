@@ -157,7 +157,7 @@ fun App(state: AppState) {
             Box(Modifier.padding(pad).imePadding().fillMaxSize()) {
                 when (screen) {
                     Screen.Home -> HomeScreen(state)
-                    Screen.ReaderCourses -> CoursesScreen(state, library = true) { c -> state.go(Screen.Lessons(state.lang, c, reader = true)) }
+                    Screen.ReaderCourses -> LibraryScreen(state)
                     is Screen.Reader -> ReaderScreen(screen.session)
                     is Screen.Chat -> ChatScreen(screen.session)
                     Screen.Bookmarks -> BookmarksScreen(state)
@@ -368,27 +368,7 @@ private fun LessonsScreen(state: AppState, s: Screen.Lessons) {
         when {
             err != null -> ErrorBox(err) { s.load(state) }
             list == null -> Loading()
-            s.reader -> LazyColumn(Modifier.fillMaxSize()) {
-                items(list, key = { it.id }) { l ->
-                    val read = state.progress.read(s.lang, l.id)
-                    ListItem(
-                        headlineContent = { Text(l.title) },
-                        supportingContent = if (read <= 0f) null else {
-                            {
-                                Column {
-                                    Text("Прочитано ${(read * 100).toInt()} %", style = MaterialTheme.typography.labelSmall)
-                                    LinearProgressIndicator(
-                                        progress = { read }, drawStopIndicator = {},
-                                        modifier = Modifier.padding(top = 4.dp).width(120.dp).height(3.dp),
-                                    )
-                                }
-                            }
-                        },
-                        modifier = Modifier.clickable { state.go(Screen.Reader(ReaderSession(state, s.lang, l))) },
-                    )
-                    HorizontalDivider()
-                }
-            }
+            s.reader -> LessonsGrid(state, s, list)
             else -> {
                 Button(
                     onClick = { state.checkLessons(s.lang, list, s.title) },

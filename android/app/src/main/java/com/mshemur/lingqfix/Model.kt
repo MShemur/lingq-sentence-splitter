@@ -2,8 +2,11 @@ package com.mshemur.lingqfix
 
 import org.json.JSONArray
 
-data class Course(val id: Int, val title: String)
-data class Lesson(val id: Int, val title: String)
+data class Course(val id: Int, val title: String, val imageUrl: String = "")
+data class Lesson(
+    val id: Int, val title: String, val imageUrl: String = "", val level: String = "",
+    val words: Int = 0, val newWords: Int = 0, val courseTitle: String = "",
+)
 data class Language(val code: String, val title: String)
 
 /** What a LingQ link points to. [lang] is null when the link does not contain it. */

@@ -69,13 +69,25 @@ class LingqApi(private val key: String) {
 
     fun myCourses(lang: String): List<Course> =
         pages("$BASE/v3/$lang/collections/my/?page=1&page_size=100&sort=recentUsed")
-            .map { Course(it.getInt("id"), it.optString("title")) }
+            .map { Course(it.getInt("id"), it.optString("title"), it.optString("imageUrl")) }
+
+    /** Lessons opened lately (LingQ's "my lessons" shelf, most recent first). */
+    fun recentLessons(lang: String, count: Int = 10): List<Lesson> {
+        val a = obj("$BASE/v3/$lang/search/?shelf=my_lessons&sortBy=recentlyOpened&page=1&page_size=$count")
+            .optJSONArray("results") ?: JSONArray()
+        return (0 until a.length()).map { lessonOf(a.getJSONObject(it)) }
+    }
+
+    private fun lessonOf(o: JSONObject) = Lesson(
+        o.getInt("id"), o.optString("title"), o.optString("imageUrl"), o.optString("level"),
+        o.optInt("wordCount"), o.optInt("newWordsCount"), o.optString("collectionTitle"),
+    )
 
     /** Course title (may be empty) and its lessons in course order. */
     fun lessons(lang: String, course: Int): Pair<String, List<Lesson>> {
         val all = pages("$BASE/v3/$lang/collections/$course/lessons/?page=1&page_size=100&sortBy=pos")
         val title = all.firstOrNull()?.optString("collectionTitle").orEmpty()
-        return title to all.map { Lesson(it.getInt("id"), it.optString("title")) }
+        return title to all.map { lessonOf(it) }
     }
 
     /**

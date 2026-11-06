@@ -16,6 +16,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         state = AppState(applicationContext)
+        // covers: same HTTP client, with the user agent LingQ's CDN accepts
+        coil.Coil.setImageLoader(
+            coil.ImageLoader.Builder(applicationContext)
+                .okHttpClient {
+                    LingqApi.http.newBuilder().addInterceptor { ch ->
+                        ch.proceed(ch.request().newBuilder().header("User-Agent", "lingq-lesson-fixer/1.0").build())
+                    }.build()
+                }
+                .crossfade(true)
+                .build(),
+        )
         setContent { App(state) }
         if (savedInstanceState == null) handleIntent(intent)
     }

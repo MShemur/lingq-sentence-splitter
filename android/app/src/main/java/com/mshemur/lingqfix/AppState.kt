@@ -128,6 +128,16 @@ class AppState(val ctx: Context) {
         say("Сохранено")
     }
 
+    /** Lessons opened lately, for the "continue" row of the library. */
+    var recent by mutableStateOf<List<Lesson>?>(null)
+
+    fun loadRecent() {
+        val l = lang
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) { api.recentLessons(l) } }.onSuccess { if (lang == l) recent = it }
+        }
+    }
+
     fun loadCourses(force: Boolean = false) {
         if (!force && courses != null && coursesLang == lang) return
         val l = lang
