@@ -62,6 +62,7 @@ class AppState(val ctx: Context) {
     val prefs = Prefs(ctx)
     val backups = Backups(ctx)
     val bookmarks = BookmarkStore(ctx)
+    val progress = ReadingProgress(ctx)
     val scope = MainScope()
     val snackbar = SnackbarHostState()
 

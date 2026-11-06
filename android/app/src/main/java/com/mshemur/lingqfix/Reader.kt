@@ -212,7 +212,14 @@ private class LessonNotes(ctx: Context, lang: String, id: Int) {
 
 class ReaderSession(private val app: AppState, val lang: String, val lesson: Lesson, startSent: Int? = null) {
     /** Sentence to scroll to (bookmark); consumed by the screen. */
-    var jump by mutableStateOf(startSent)
+    var jump by mutableStateOf(startSent ?: app.progress.pos(lang, lesson.id))
+
+    /** A page / sentence is on screen: remember the place and how far the lesson is read. */
+    fun reached(first: Int, last: Int) {
+        if (sentences.isEmpty()) return
+        val i = sentences.indexOfFirst { it.id == last }
+        app.progress.save(lang, lesson.id, first, (i + 1f) / sentences.size)
+    }
 
     fun jumpTo(id: Int) {
         jump = id
@@ -865,18 +872,7 @@ private class TextMetrics(
     private fun chunk(sent: Sent, chunk: List<Token>): Pair<Int, Int> {
         var cw = 0
         var ch = lineH
-        val pinned = chunk.any { it.isWord && s.pins[WordRef(sent.id, it.index)] != null }
-        if (!pinned) cw = w(chunk.joinToString("") { it.text })
-        else for (t in chunk) {
-            val pin = if (t.isWord) s.pins[WordRef(sent.id, t.index)] else null
-            var tw = w(t.text)
-            if (pin != null) {
-                val r = m.measure(pin.ifEmpty { "…" }, tr, maxLines = 2, constraints = Constraints(maxWidth = width))
-                tw = maxOf(tw, r.size.width + px(2f))
-                ch = maxOf(ch, lineH + r.size.height)
-            }
-            cw += tw
-        }
+        cw = w(chunk.joinToString("") { it.text })
         return (cw + chunkGap) to ch
     }
 
@@ -891,7 +887,6 @@ private class TextMetrics(
             lineW += iw; lineMax = maxOf(lineMax, ih)
         }
         for (sent in sents) {
-            if (s.isBookmarked(sent.id)) put(icon + px(2f), icon + px(4f))
             for (c in sent.chunks) { val (cw, ch) = chunk(sent, c); put(cw, ch) }
         }
         if (lineW > 0) { total += lineMax; lines++ }
@@ -911,7 +906,7 @@ private class TextMetrics(
         var run = mutableListOf<Sent>()
         for (sent in sents) {
             run += sent
-            if (s.sentenceShown(sent.id)) { parts += flow(run); parts += translationRow(sent.id); run = mutableListOf() }
+            // laid out from the bare text: a shown translation makes the page scroll instead of moving text
         }
         if (run.isNotEmpty()) parts += flow(run)
         return parts.sum() + px(6f) * maxOf(0, parts.size - 1)
@@ -930,13 +925,14 @@ private fun PagedText(s: ReaderSession, paras: List<List<Sent>>) {
     val trStyle = MaterialTheme.typography.labelSmall
     val sentTrStyle = MaterialTheme.typography.bodyMedium
     val widths = remember(s.font, density) { HashMap<String, Int>() }
+    // pages depend on the text, font and width only (the measuring below must not read pins etc.)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val padH = with(density) { sidePad(s).roundToPx() }
         val padV = with(density) { 12.dp.roundToPx() }
         val gap = with(density) { 14.dp.roundToPx() }
         val w = (constraints.maxWidth - 2 * padH).coerceAtLeast(1)
-        // a little spare room: the estimate may be a few pixels off
-        val h = if (constraints.hasBoundedHeight) ((constraints.maxHeight - 2 * padV) * 0.96f).toInt() else Int.MAX_VALUE
+        // pages come from the bare text; pins / translations / bookmark marks make that page scroll instead
+        val h = if (constraints.hasBoundedHeight) ((constraints.maxHeight - 2 * padV) * 0.99f).toInt() else Int.MAX_VALUE
         val metrics = TextMetrics(measurer, density, s, w, textStyle, trStyle, sentTrStyle, widths)
 
         val pages = mutableListOf<List<Block>>()
@@ -987,7 +983,10 @@ private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
     }
     LaunchedEffect(pager) {
         snapshotFlow { pager.settledPage }.collect { i ->
-            latest.getOrNull(i)?.let { s.anchor = it.first().sents.first().id }
+            latest.getOrNull(i)?.let { p ->
+                s.anchor = p.first().sents.first().id
+                if (s.jump == null) s.reached(p.first().sents.first().id, p.last().sents.last().id)
+            }
         }
     }
     LaunchedEffect(pager.currentPage, sig) {
@@ -1044,11 +1043,9 @@ private fun BoxScope.TurnButtons(pager: PagerState) {
 
 @Composable
 private fun TurnButton(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, modifier: Modifier, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick, shape = CircleShape, modifier = modifier.size(44.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-    ) {
-        Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = desc) }
+    // no background: a faint arrow only (a ripple while pressed)
+    IconButton(onClick = onClick, modifier = modifier.size(44.dp)) {
+        Icon(icon, contentDescription = desc, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
     }
 }
 
@@ -1225,7 +1222,10 @@ fun SentenceOverlay(s: ReaderSession) {
 private fun SentencePager(s: ReaderSession) {
     val list = s.sentences
     val pager = rememberPagerState(initialPage = s.page.coerceIn(0, maxOf(0, list.size - 1))) { list.size }
-    LaunchedEffect(pager.currentPage) { s.page = pager.currentPage }
+    LaunchedEffect(pager.currentPage) {
+        s.page = pager.currentPage
+        list.getOrNull(pager.currentPage)?.let { s.reached(it.id, it.id) }
+    }
     LaunchedEffect(s.jump) {
         val id = s.jump ?: return@LaunchedEffect
         val i = list.indexOfFirst { it.id == id }
@@ -1341,7 +1341,7 @@ private fun WordContent(s: ReaderSession, ref: WordRef) {
                             val isSaved = h.equals(saved, ignoreCase = true)
                             FilterChip(
                                 selected = isSaved, onClick = { s.choose(ref, h) },
-                                label = { Text(h) },
+                                label = { Text(h, Modifier.padding(vertical = 6.dp)) },
                                 leadingIcon = if (isSaved) { { Icon(Icons.Filled.Check, contentDescription = null, Modifier.size(16.dp)) } } else null,
                             )
                         }
@@ -1454,7 +1454,7 @@ private fun PhraseContent(s: ReaderSession, p: Phrase) {
                 s.phraseOptions.forEach { h ->
                     val isSaved = h.equals(saved, ignoreCase = true)
                     FilterChip(
-                        selected = isSaved, onClick = { s.choosePhrase(h) }, label = { Text(h) },
+                        selected = isSaved, onClick = { s.choosePhrase(h) }, label = { Text(h, Modifier.padding(vertical = 6.dp)) },
                         leadingIcon = if (isSaved) { { Icon(Icons.Filled.Check, contentDescription = null, Modifier.size(16.dp)) } } else null,
                     )
                 }

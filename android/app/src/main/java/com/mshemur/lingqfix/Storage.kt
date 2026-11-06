@@ -5,6 +5,21 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
+/** Where reading stopped in each lesson, and how far it got (0..1, never goes down). */
+class ReadingProgress(ctx: Context) {
+    private val p = ctx.getSharedPreferences("progress", Context.MODE_PRIVATE)
+
+    fun pos(lang: String, id: Int): Int? = p.getInt("pos.${lang}_$id", -1).takeIf { it >= 0 }
+
+    fun read(lang: String, id: Int): Float = p.getFloat("read.${lang}_$id", 0f)
+
+    fun save(lang: String, id: Int, first: Int, read: Float) {
+        val e = p.edit().putInt("pos.${lang}_$id", first)
+        if (read > read(lang, id)) e.putFloat("read.${lang}_$id", read.coerceAtMost(1f))
+        e.apply()
+    }
+}
+
 class Prefs(ctx: Context) {
     private val p = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
     private fun read(k: String, d: String = "") = p.getString(k, d) ?: d
