@@ -92,6 +92,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -755,12 +756,19 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
     var marks by remember { mutableStateOf(false) }
     IconButton(onClick = { marks = true }) { Icon(AppIcons.Bookmark, contentDescription = "Закладки урока") }
     if (marks) LessonBookmarksDialog(state, s) { marks = false }
+    var help by remember { mutableStateOf(false) }
+    if (help) ReaderHelp { help = false }
     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
         DropdownMenuItem(
             text = { Text("Чат о тексте") },
             leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
             onClick = { menu = false; s.chatText() },
+        )
+        DropdownMenuItem(
+            text = { Text("Как пользоваться") },
+            leadingIcon = { Icon(Icons.Filled.Info, contentDescription = null) },
+            onClick = { menu = false; help = true },
         )
         DropdownMenuItem(
             text = { Text("Оформление и экран") },
@@ -777,6 +785,54 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             )
         }
     }
+}
+
+/** Reader help: gestures and buttons (menu ⋮ → "Как пользоваться"). */
+@Composable
+private fun ReaderHelp(onClose: () -> Unit) {
+    val items = listOf(
+        "Слова" to listOf(
+            "Касание слова — перевод над словом (касание ещё раз — убрать).",
+            "Двойное касание — окно слова: варианты значений, свой вариант, «Спросить» (чат об этом слове), закладка.",
+            "Выбранное значение запоминается для этого урока и ставится над словом везде в тексте.",
+            "Долгое нажатие и, не отпуская, провести по соседним словам — перевод нескольких слов вместе.",
+        ),
+        "Предложения" to listOf(
+            "Долгое нажатие на слово — перевод предложения под ним (ещё раз — скрыть).",
+            "У перевода: закладка, «перевести заново» (↻) и чат о предложении.",
+            "Внизу «Переводы» — показать переводы всех предложений сразу.",
+        ),
+        "Страницы и режимы" to listOf(
+            "Свайп влево / вправо — следующая / предыдущая страница. Если страница выросла от переводов — её можно прокрутить.",
+            "«По предложениям» — по одному предложению на экране, свайп — следующее; стрелка ⌄ слева сворачивает обратно к тексту.",
+            "«Скрыть / Показать перевод» под предложением — сворачивает перевод для всех предложений.",
+            "Урок открывается там, где вы остановились; прочитанный процент виден в списке уроков.",
+        ),
+        "Меню и кнопки" to listOf(
+            "Закладка вверху — закладки этого урока; все закладки — в библиотеке.",
+            "«Чат» внизу — разговор с ИИ о всём тексте.",
+            "⋮ → «Оформление и экран»: фон страницы, цвет выделения слов, сколько экран не гаснет.",
+            "⋮ → шрифт крупнее / мельче, снять все переводы над словами.",
+        ),
+    )
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Как пользоваться") },
+        text = {
+            Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items.forEach { (head, lines) ->
+                    Text(head, Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    lines.forEach { l ->
+                        Row {
+                            Text("•  ", style = MaterialTheme.typography.bodyMedium)
+                            Text(l, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("Понятно") } },
+    )
 }
 
 /** Bottom bar of the reader, like LingQ's: whole text / sentence by sentence / sentence translations. */
