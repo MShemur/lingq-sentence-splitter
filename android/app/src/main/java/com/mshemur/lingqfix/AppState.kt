@@ -50,6 +50,7 @@ sealed interface Screen {
                     val (t, l) = withContext(Dispatchers.IO) { app.api.lessons(lang, course.id) }
                     if (t.isNotBlank()) title = t
                     lessons = l
+                    app.setCourseWords(course.id, l.sumOf { it.words })
                 } catch (e: Throwable) {
                     error = e.message ?: e.toString()
                 }
@@ -126,6 +127,34 @@ class AppState(val ctx: Context) {
         apiKey = prefs.apiKey; lang = prefs.lang; ghToken = prefs.ghToken; trLang = prefs.trLang
         if (langChanged) courses = null
         say("Сохранено")
+    }
+
+    /** Words in each course (sum over its lessons); kept on the phone, refreshed once per app start. */
+    val courseWords = androidx.compose.runtime.mutableStateMapOf<Int, Int>().apply {
+        runCatching {
+            val o = org.json.JSONObject(ctx.getSharedPreferences("progress", Context.MODE_PRIVATE).getString("courseWords", "{}")!!)
+            o.keys().forEach { k -> put(k.toInt(), o.getInt(k)) }
+        }
+    }
+    private val wordsFetched = HashSet<Int>()
+    private val wordsLimit = kotlinx.coroutines.sync.Semaphore(3)
+
+    fun setCourseWords(id: Int, words: Int) {
+        wordsFetched += id
+        courseWords[id] = words
+        val o = org.json.JSONObject()
+        courseWords.forEach { (k, v) -> o.put(k.toString(), v) }
+        ctx.getSharedPreferences("progress", Context.MODE_PRIVATE).edit().putString("courseWords", o.toString()).apply()
+    }
+
+    fun ensureCourseWords(lang: String, id: Int) {
+        if (!wordsFetched.add(id)) return
+        scope.launch {
+            runCatching {
+                wordsLimit.acquire()
+                try { withContext(Dispatchers.IO) { api.lessons(lang, id).second.sumOf { it.words } } } finally { wordsLimit.release() }
+            }.onSuccess { setCourseWords(id, it) }.onFailure { wordsFetched.remove(id) }
+        }
     }
 
     /** Lessons opened lately, for the "continue" row of the library. */

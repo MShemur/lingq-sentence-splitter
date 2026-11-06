@@ -80,15 +80,25 @@ fun Cover(url: String, title: String, modifier: Modifier = Modifier, ratio: Floa
 
 /** Course: square cover, title under it. */
 @Composable
-private fun CourseTile(c: Course, onClick: () -> Unit) {
+private fun CourseTile(state: AppState, c: Course, onClick: () -> Unit) {
+    LaunchedEffect(c.id) { state.ensureCourseWords(state.lang, c.id) }
     Column(Modifier.clip(TILE).clickable(onClick = onClick).padding(bottom = 6.dp)) {
         Cover(c.imageUrl, c.title, Modifier.fillMaxWidth())
         Text(
             c.title.ifBlank { "Курс ${c.id}" }, Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp),
             style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
+        state.courseWords[c.id]?.takeIf { it > 0 }?.let { w ->
+            Text(
+                "${groupDigits(w)} ${plural(w, "слово", "слова", "слов")}", Modifier.padding(top = 2.dp, start = 2.dp, end = 2.dp),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
+
+/** 12345 -> "12 345". */
+private fun groupDigits(n: Int) = n.toString().reversed().chunked(3).joinToString("\u00A0").reversed()
 
 /**
  * Lesson: cover with the level and a thin reading-progress bar, title and a short line under it
@@ -212,7 +222,7 @@ fun LibraryScreen(state: AppState) {
                 Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             }
             else -> items(list.filter { q.isBlank() || it.title.contains(q, ignoreCase = true) }, key = { it.id }) { c ->
-                CourseTile(c) { state.go(Screen.Lessons(state.lang, c, reader = true)) }
+                CourseTile(state, c) { state.go(Screen.Lessons(state.lang, c, reader = true)) }
             }
         }
     }
@@ -239,7 +249,7 @@ fun LessonsGrid(state: AppState, s: Screen.Lessons, list: List<Lesson>) {
             }
         }
         items(list, key = { it.id }) { l ->
-            val sub = if (l.words > 0) "${l.words} слов" else ""
+            val sub = if (l.words > 0) "${groupDigits(l.words)} ${plural(l.words, "слово", "слова", "слов")}" else ""
             LessonTile(state, s.lang, l, sub) { state.go(Screen.Reader(ReaderSession(state, s.lang, l))) }
         }
     }
