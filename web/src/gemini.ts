@@ -1,11 +1,13 @@
 // Google Gemini API, called straight from the browser (it allows CORS). Port of Gemini.kt.
 import { ApiError } from './lingq'
-import { DEFAULT_MODEL, prefs } from './settings'
+import { DEFAULT_MODEL, otherAi, prefs } from './settings'
+import * as openai from './openai'
 import { fill } from './prompts'
 
 const API = 'https://generativelanguage.googleapis.com/v1beta'
 
-export interface Msg { user: boolean; text: string }
+/** [reasoning]: the model's thoughts before the answer (only some other AIs send them). */
+export interface Msg { user: boolean; text: string; reasoning?: string }
 export interface WordMeaning { best: string; options: string[]; note: string }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -45,7 +47,19 @@ const overloaded = (msg: string) => /HTTP (503|429)/.test(msg)
 export const modelFor = (fast: boolean) =>
   (fast && prefs.geminiFastModel.value.trim()) || prefs.geminiModel.value.trim() || DEFAULT_MODEL
 
-export async function generate(system: string | null, messages: Msg[], json = false, fast = false): Promise<string> {
+/** Models of the AI in use (Gemini or the other one) for the pickers. */
+export const llmModels = () => (otherAi() ? openai.models() : models(prefs.geminiKey.value))
+
+/** Answer of the AI in use; the other AI may add its reasoning. */
+export async function generateFull(system: string | null, messages: Msg[], json = false, fast = false): Promise<{ text: string; reasoning?: string }> {
+  if (otherAi()) return openai.generate(system, messages, json, fast)
+  return { text: await geminiGenerate(system, messages, json, fast) }
+}
+
+export const generate = async (system: string | null, messages: Msg[], json = false, fast = false) =>
+  (await generateFull(system, messages, json, fast)).text
+
+async function geminiGenerate(system: string | null, messages: Msg[], json = false, fast = false): Promise<string> {
   const key = prefs.geminiKey.value.trim()
   if (!key) throw new ApiError('Не задан ключ Gemini (⚙ Настройки)')
   const m = modelFor(fast)

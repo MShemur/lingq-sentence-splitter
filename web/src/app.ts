@@ -2,7 +2,7 @@
 import { signal } from '@preact/signals'
 import * as api from './lingq'
 import type { Course, Lesson } from './lingq'
-import { lang, prefs, useGemini } from './settings'
+import { lang, otherAi, prefs, useGemini } from './settings'
 import type { ReaderSession } from './reader/session'
 import type { ChatSession } from './chat'
 
@@ -167,9 +167,12 @@ export const isGeminiLimit = (e: unknown) =>
 /** [fast]: the request used the light model (words, phrases, sentences); the choice then replaces that one. */
 export function geminiFailed(e: unknown, retry: () => void, fast = false) {
   if (!useGemini() || !isGeminiLimit(e) || modelSwitch.value) return
-  const own = fast && !!prefs.geminiFastModel.value.trim()
+  const other = otherAi()
+  const main = other ? prefs.aiModel : prefs.geminiModel
+  const light = other ? prefs.aiFastModel : prefs.geminiFastModel
+  const own = fast && !!light.value.trim()
   modelSwitch.value = {
-    model: own ? prefs.geminiFastModel.value : prefs.geminiModel.value, message: errorText(e), retry,
-    apply: (m) => { if (fast) prefs.geminiFastModel.value = m; else prefs.geminiModel.value = m },
+    model: own ? light.value : main.value, message: errorText(e), retry,
+    apply: (m) => { if (fast) light.value = m; else main.value = m },
   }
 }

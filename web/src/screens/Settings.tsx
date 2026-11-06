@@ -2,11 +2,12 @@
 import { useState } from 'preact/hooks'
 import { Icon, type IconName } from '../icons'
 import { back, errorText, go, say } from '../app'
-import { prefs, trLang } from '../settings'
+import { prefs, trLang, useGemini } from '../settings'
+import { AI_PRESETS } from '../openai'
 import { Prompts } from '../prompts'
 import * as api from '../lingq'
 import * as gemini from '../gemini'
-import { Dialog, IconButton, ListItem, Loading, SecretField, TextField, TopBar } from '../ui'
+import { Chip, Dialog, IconButton, ListItem, Loading, SecretField, TextField, TopBar } from '../ui'
 import { HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, highlightColors, highlightOf, themeOf } from '../readerLook'
 
 declare const __BUILD__: string
@@ -42,12 +43,12 @@ export function SettingsRoot() {
           summary={(prefs.apiKey.value.trim() ? 'Ключ задан' : 'Ключ не задан') + ` · язык ${prefs.lang.value}`}
           onClick={() => go({ k: 'settingsLingq' })} />
         <Section icon="edit" title="Перевод"
-          summary={(gem ? `Gemini · ${prefs.geminiModel.value}` : 'LingQ') + ` → ${trLang()}`}
+          summary={(gem ? `Gemini · ${prefs.geminiModel.value}` : prefs.translator.value === 'openai' ? `ИИ · ${prefs.aiModel.value}` : 'LingQ') + ` → ${trLang()}`}
           onClick={() => go({ k: 'settingsTranslation' })} />
         <Section icon="palette" title="Чтение"
           summary={`${themeOf(prefs.readerTheme.value)?.name ?? 'Цвета системы'} · выделение: ${highlightOf(prefs.highlight.value).name.toLowerCase()}`}
           onClick={() => go({ k: 'settingsReading' })} />
-        <Section icon="star" title="Промпты Gemini" summary="Как Gemini переводит и отвечает в чате"
+        <Section icon="star" title="Промпты ИИ" summary="Как Gemini или другой ИИ переводит и отвечает в чате"
           onClick={() => go({ k: 'settingsPrompts' })} />
         <hr />
         <ListItem
@@ -57,7 +58,7 @@ export function SettingsRoot() {
       </div>
       <Hint>
         Ключи и настройки хранятся только на этом устройстве (в браузере). Ключ LingQ уходит только в LingQ
-        (через прокси этого сайта), ключ Gemini — только в Google.
+        (через прокси этого сайта), ключ Gemini — только в Google, ключ другого ИИ — только в его сервис.
       </Hint>
     </Page>
   )
@@ -109,24 +110,29 @@ export function SettingsTranslation() {
   const [models, setModels] = useState<string[] | null>(null)
   // which model is being picked: 'main' (chat, retranslation) or 'fast' (words, phrases, sentences)
   const [picking, setPicking] = useState<'main' | 'fast' | null>(null)
+  const tr = prefs.translator.value
+  const other = tr === 'openai'
+  const main = other ? prefs.aiModel : prefs.geminiModel
+  const light = other ? prefs.aiFastModel : prefs.geminiFastModel
   const pickModel = async (target: 'main' | 'fast') => {
-    const key = prefs.geminiKey.value.trim()
-    if (!key) { say('Сначала вставьте ключ Gemini'); return }
+    if (!useGemini()) { say('Сначала вставьте ключ'); return }
     setPicking(target)
     setModels(null)
     try {
-      setModels(await gemini.models(key))
+      setModels(await gemini.llmModels())
     } catch (e) {
       setPicking(null)
       say(errorText(e))
     }
   }
-  const sig = picking === 'fast' ? prefs.geminiFastModel : prefs.geminiModel
+  const sig = picking === 'fast' ? light : main
   const choose = (m: string) => { sig.value = m; setPicking(null) }
   const options: [string, string, string][] = [
     ['lingq', 'LingQ', 'Варианты пользователей LingQ, машинный перевод предложений'],
-    ['gemini', 'Gemini', 'Перевод слова по смыслу предложения, чат. Нужен ключ'],
+    ['gemini', 'Gemini', 'Перевод слова по смыслу предложения, чат. Нужен ключ Google'],
+    ['openai', 'Другой ИИ', 'DeepSeek, Qwen, OpenRouter, Groq, Mistral — любой сервис с API как у OpenAI'],
   ]
+  const base = prefs.aiBase.value.trim().replace(/\/+$/, '')
   return (
     <Page title="Перевод">
       <TextField label="Переводить на язык" value={prefs.trLang.value} hint="ru, en, uk …"
@@ -134,25 +140,49 @@ export function SettingsTranslation() {
       <h3 class="section-title">Переводчик</h3>
       {options.map(([id, title, hint]) => (
         <label key={id} class="radio-row">
-          <input type="radio" name="translator" checked={prefs.translator.value === id}
+          <input type="radio" name="translator" checked={tr === id}
             onChange={() => { prefs.translator.value = id }} />
           <span><span class="radio-title">{title}</span><Hint>{hint}</Hint></span>
         </label>
       ))}
-      <hr />
-      <h3 class="section-title">Gemini</h3>
-      <SecretField label="Ключ Gemini API" value={prefs.geminiKey.value} onInput={(v) => { prefs.geminiKey.value = v.trim() }} />
-      <a class="btn text link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Получить ключ бесплатно</a>
-      <div class="flush">
-        <ListItem headline="Модель для чата и повторного перевода" supporting={prefs.geminiModel.value}
-          trailing={<Icon name="dropDown" />} onClick={() => void pickModel('main')} />
-        <ListItem headline="Модель для слов и предложений" supporting={prefs.geminiFastModel.value || 'та же, что для чата'}
-          trailing={<Icon name="dropDown" />} onClick={() => void pickModel('fast')} />
-      </div>
-      <Hint>
-        Слова и предложения — это много мелких запросов: возьмите для них лёгкую модель (flash-lite), у неё больше
-        бесплатный лимит. Для чата — flash или pro.
-      </Hint>
+      {tr !== 'lingq' && (
+        <>
+          <hr />
+          {!other ? (
+            <>
+              <h3 class="section-title">Gemini</h3>
+              <SecretField label="Ключ Gemini API" value={prefs.geminiKey.value} onInput={(v) => { prefs.geminiKey.value = v.trim() }} />
+              <a class="btn text link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Получить ключ бесплатно</a>
+            </>
+          ) : (
+            <>
+              <h3 class="section-title">Сервис</h3>
+              <div class="chips">
+                {AI_PRESETS.map(([name, url]) => (
+                  <Chip key={name} label={name} selected={base === url} onClick={() => { prefs.aiBase.value = url }} />
+                ))}
+              </div>
+              <TextField label="Адрес API" value={prefs.aiBase.value} onInput={(v) => { prefs.aiBase.value = v.trim() }} />
+              <SecretField label="Ключ API" value={prefs.aiKey.value} onInput={(v) => { prefs.aiKey.value = v.trim() }} />
+              <Hint>
+                Ключ берётся на сайте сервиса (platform.deepseek.com, openrouter.ai, console.groq.com…). Тексты уходят на
+                серверы этого сервиса.
+              </Hint>
+            </>
+          )}
+          <div class="flush">
+            <ListItem headline="Модель для чата и повторного перевода" supporting={main.value || 'не выбрана'}
+              trailing={<Icon name="dropDown" />} onClick={() => void pickModel('main')} />
+            <ListItem headline="Модель для слов и предложений" supporting={light.value || 'та же, что для чата'}
+              trailing={<Icon name="dropDown" />} onClick={() => void pickModel('fast')} />
+          </div>
+          <Hint>
+            {other
+              ? 'Для слов и предложений — быстрая дешёвая модель (deepseek-chat, qwen-flash…). «Думающие» модели (reasoner, r1) — только для чата: они медленные, их рассуждения видны в чате.'
+              : 'Слова и предложения — это много мелких запросов: возьмите для них лёгкую модель (flash-lite), у неё больше бесплатный лимит. Для чата — flash или pro.'}
+          </Hint>
+        </>
+      )}
       {picking && (
         <Dialog title={picking === 'fast' ? 'Модель для слов и предложений' : 'Модель для чата'} onClose={() => setPicking(null)}
           actions={<button class="btn text" onClick={() => setPicking(null)}>Закрыть</button>}>

@@ -3,7 +3,7 @@
 import { useState } from 'preact/hooks'
 import { errorText, modelSwitch, say } from '../app'
 import * as gemini from '../gemini'
-import { prefs } from '../settings'
+import { aiName } from '../settings'
 import { Dialog, Loading } from '../ui'
 
 const NOT_TEXT = /image|tts|embed|live|audio|veo|imagen/i
@@ -17,7 +17,7 @@ export function ModelSwitchDialog() {
   const pick = async () => {
     setPicking(true)
     try {
-      setModels((await gemini.models(prefs.geminiKey.value)).filter((m) => m !== sw.model && !NOT_TEXT.test(m)))
+      setModels((await gemini.llmModels()).filter((m) => m !== sw.model && !NOT_TEXT.test(m)))
     } catch (e) {
       close()
       say(errorText(e) || 'Не удалось получить список моделей')
@@ -31,7 +31,7 @@ export function ModelSwitchDialog() {
   }
   return (
     <Dialog
-      title={picking ? 'Другая модель Gemini' : 'Gemini: лимит исчерпан'}
+      title={picking ? `Другая модель ${aiName()}` : `${aiName()}: лимит исчерпан`}
       onClose={close}
       actions={
         <>

@@ -1,7 +1,8 @@
 // Chat with Gemini about the text or one sentence. Port of ChatScreen in Chat.kt.
-import { useEffect, useRef } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { Markdown } from '../markdown'
 import { back } from '../app'
+import { aiName } from '../settings'
 import type { ChatSession } from '../chat'
 import { Icon } from '../icons'
 import { IconButton, Spinner, TopBar } from '../ui'
@@ -12,6 +13,17 @@ const SUGGESTIONS = {
   word: ['Что значит здесь?', 'Другие значения', 'Начальная форма и грамматика', 'Примеры употребления', 'Синонимы'],
 }
 const LABEL = { text: 'Текст', sentence: 'Предложение', word: 'Слово' }
+
+/** The model's thoughts before the answer: folded, a tap opens them. */
+function Reasoning({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div class="reasoning">
+      <button class="reasoning-toggle" onClick={() => setOpen(!open)}>{open ? 'Скрыть рассуждения ▴' : 'Как модель рассуждала ▾'}</button>
+      {open && <div class="reasoning-text">{text}</div>}
+    </div>
+  )
+}
 
 export function ChatScreen({ c }: { c: ChatSession }) {
   const end = useRef<HTMLDivElement>(null)
@@ -37,10 +49,11 @@ export function ChatScreen({ c }: { c: ChatSession }) {
           )}
           {msgs.map((m, i) => (
             <div key={i} class={'bubble ' + (m.user ? 'user' : 'model')}>
+              {!m.user && m.reasoning && <Reasoning text={m.reasoning} />}
               {m.user ? m.text : <Markdown text={m.text} />}
             </div>
           ))}
-          {sending && <div class="typing"><Spinner size={18} /> Gemini пишет…</div>}
+          {sending && <div class="typing"><Spinner size={18} /> {aiName()} пишет…</div>}
           {c.error.value && (
             <div class="chat-error">
               <p class="error-text">Ошибка: {c.error.value}</p>

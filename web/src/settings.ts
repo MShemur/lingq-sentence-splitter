@@ -18,7 +18,7 @@ export const prefs = {
   apiKey: pref('apiKey', ''),
   lang: pref('lang', 'de'),
   trLang: pref('trLang', 'ru'),
-  /** "lingq" or "gemini": who translates words and sentences in the reader. */
+  /** "lingq", "gemini" or "openai" (another AI): who translates words and sentences in the reader. */
   translator: pref('translator', 'lingq'),
   geminiKey: pref('geminiKey', ''),
   // gemini-2.5-* are retired for new users
@@ -28,6 +28,11 @@ export const prefs = {
   readerTheme: pref('readerTheme', 'system'),
   highlight: pref('highlight', 'green'),
   keepAwake: pref('keepAwake', 'system'),
+  /** "Другой ИИ": an OpenAI-compatible service (address, key, main and light model). */
+  aiBase: pref('aiBase', 'https://api.deepseek.com'),
+  aiKey: pref('aiKey', ''),
+  aiModel: pref('aiModel', 'deepseek-chat'),
+  aiFastModel: pref('aiFastModel', ''),
   geminiFastModel: pref('geminiFastModel', '', (v) => (v.startsWith('gemini-2.5') ? '' : v)),
   promptWord: pref('promptWord', Prompts.WORD),
   promptSentence: pref('promptSentence', Prompts.SENTENCE),
@@ -54,4 +59,11 @@ export const prompt = {
 
 export const lang = () => prefs.lang.value.trim() || 'de'
 export const trLang = () => prefs.trLang.value.trim() || 'ru'
-export const useGemini = () => prefs.translator.value === 'gemini' && prefs.geminiKey.value.trim() !== ''
+/** "Другой ИИ" is the translator (an OpenAI-compatible service instead of Gemini). */
+export const otherAi = () => prefs.translator.value === 'openai'
+/** A language model translates (Gemini, or another AI) and its key is there. */
+export const useGemini = () =>
+  (prefs.translator.value === 'gemini' && prefs.geminiKey.value.trim() !== '') ||
+  (otherAi() && prefs.aiKey.value.trim() !== '' && prefs.aiBase.value.trim() !== '')
+/** Name of the language model in use, for messages. */
+export const aiName = () => (otherAi() ? 'ИИ' : 'Gemini')

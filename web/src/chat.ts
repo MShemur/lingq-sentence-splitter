@@ -35,8 +35,8 @@ export class ChatSession {
   private async answer() {
     this.sending.value = true
     try {
-      const a = await gemini.generate(this.system, this.messages.value)
-      this.messages.value = [...this.messages.value, { user: false, text: a }]
+      const a = await gemini.generateFull(this.system, this.messages.value.map(({ user, text }) => ({ user, text })))
+      this.messages.value = [...this.messages.value, { user: false, text: a.text, reasoning: a.reasoning }]
     } catch (e) {
       this.error.value = errorText(e)
       geminiFailed(e, () => void this.retry())

@@ -21,14 +21,6 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   "web-xxxxxx"; totals = sum over devices), `seen {"<lang>_<lessonId>": index}` (max). Android `Sync.kt`.
   Web must store the same pieces with the same keys and timestamps (ms) to merge.
 
-- Third translator "Другой ИИ": any OpenAI-compatible service (presets DeepSeek https://api.deepseek.com,
-  Qwen https://dashscope-intl.aliyuncs.com/compatible-mode/v1, OpenRouter https://openrouter.ai/api/v1,
-  Groq https://api.groq.com/openai/v1, Mistral https://api.mistral.ai/v1), address + key + main / light model
-  (models from GET {base}/models). POST {base}/chat/completions, Bearer key, temperature 0.3, JSON mode
-  response_format json_object for words (retry without it on HTTP 400), retries 2/4/8 s. If the answer has
-  `reasoning_content` (DeepSeek reasoner), the chat shows it folded: "Как модель рассуждала ▾".
-  Android `Llm.kt` (`Llm`, `OpenAiCompat`, `AI_PRESETS`), `Settings.kt` SettingsTranslation, `Chat.kt` Reasoning.
-
 - Import redesign around text cleaning (the main use: pasted text full of junk). Source tiles Вставить / Файл
   (TXT, MD, EPUB, PDF) / Галерея / Камера; the text in an editable field; a "Очистка текста" card: "Быстро" =
   rules on the device (page numbers, repeated header/footer lines, footnote marks, [12], links, share/print/ad
@@ -46,6 +38,15 @@ ferstich" and lines broken inside a sentence), "С ИИ" = quick clean first,
 (nothing)
 
 ## Done
+
+- web v1.16: Third translator "Другой ИИ": any OpenAI-compatible service (presets DeepSeek https://api.deepseek.com,
+  Qwen https://dashscope-intl.aliyuncs.com/compatible-mode/v1, OpenRouter https://openrouter.ai/api/v1,
+  Groq https://api.groq.com/openai/v1, Mistral https://api.mistral.ai/v1), address + key + main / light model
+  (models from GET {base}/models). POST {base}/chat/completions, Bearer key, temperature 0.3, JSON mode
+  response_format json_object for words (retry without it on HTTP 400), retries 2/4/8 s. If the answer has
+  `reasoning_content` (DeepSeek reasoner), the chat shows it folded: "Как модель рассуждала ▾".
+  Android `Llm.kt` (`Llm`, `OpenAiCompat`, `AI_PRESETS`), `Settings.kt` SettingsTranslation, `Chat.kt` Reasoning.
+  Web: `openai.ts`; called straight from the browser (all five presets allow CORS, checked), no proxy.
 
 - web v1.15: Two Gemini models in Settings → Перевод: "Модель для чата и повторного перевода" (geminiModel) and "Модель для
   слов и предложений" (geminiFastModel, blank = same as chat; hint: take flash-lite, bigger free limit). Words,

@@ -491,3 +491,8 @@ div.list-item { cursor: default; }
 .bar-slot.picked .bar { background: var(--primary); }
 .bar-labels { display: flex; margin-top: 4px; }
 .bar-labels > span { flex: 1; text-align: center; font-size: 11px; color: var(--on-surface-variant); }
+
+/* chat: the model's reasoning, folded */
+.reasoning { margin-bottom: 8px; }
+.reasoning-toggle { border: 0; padding: 0; background: none; color: var(--primary); font-size: 13px; font-weight: 500; cursor: pointer; }
+.reasoning-text { margin-top: 6px; font-size: 13px; font-style: italic; color: var(--on-surface-variant); white-space: pre-wrap; }
