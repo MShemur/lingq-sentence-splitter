@@ -211,7 +211,7 @@ export class ReaderSession {
   private persist() {
     const pins: Record<string, string> = {}
     for (const [k, v] of Object.entries(this.pins.value)) if (v && !v.startsWith('⚠')) pins[k] = v
-    try { localStorage.setItem(this.notesKey, JSON.stringify({ pins, words: this.chosen.value })) } catch { /* ignore */ }
+    try { localStorage.setItem(this.notesKey, JSON.stringify({ pins, words: this.chosen.value, t: Date.now() })) } catch { /* ignore */ }
   }
 
   clearPins() { this.pins.value = {}; this.provisional.value = {}; this.persist() }

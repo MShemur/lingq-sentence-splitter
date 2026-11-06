@@ -496,3 +496,19 @@ div.list-item { cursor: default; }
 .reasoning { margin-bottom: 8px; }
 .reasoning-toggle { border: 0; padding: 0; background: none; color: var(--primary); font-size: 13px; font-weight: 500; cursor: pointer; }
 .reasoning-text { margin-top: 6px; font-size: 13px; font-style: italic; color: var(--on-surface-variant); white-space: pre-wrap; }
+
+/* filled button, switch (settings → Синхронизация) */
+.btn.filled { border: 0; background: var(--primary); color: var(--on-primary); }
+.btn.filled:disabled { background: color-mix(in srgb, var(--on-surface) 12%, transparent); color: color-mix(in srgb, var(--on-surface) 38%, transparent); cursor: default; }
+.btn.filled .spinner { color: inherit; }
+.switch-row { display: flex; align-items: center; gap: 12px; padding: 4px 0; cursor: pointer; }
+.switch {
+  appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 52px; height: 32px; margin: 0;
+  border-radius: 16px; border: 2px solid var(--outline); background: var(--surface-chh); cursor: pointer; transition: background 0.2s, border-color 0.2s;
+}
+.switch::after {
+  content: ''; position: absolute; top: 6px; left: 6px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--outline); transition: transform 0.2s, width 0.2s, height 0.2s, top 0.2s, background 0.2s;
+}
+.switch:checked { background: var(--primary); border-color: var(--primary); }
+.switch:checked::after { top: 2px; width: 24px; height: 24px; transform: translateX(20px); background: var(--on-primary); }

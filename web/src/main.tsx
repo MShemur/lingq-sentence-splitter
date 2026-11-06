@@ -4,7 +4,8 @@ import { CoursesScreen, LessonsView } from './screens/Library'
 import { ReaderScreen } from './reader/Reader'
 import { ChatScreen } from './screens/Chat'
 import { BookmarksScreen } from './screens/Bookmarks'
-import { SettingsLingq, SettingsPrompts, SettingsReading, SettingsRoot, SettingsTranslation } from './screens/Settings'
+import { SettingsLingq, SettingsPrompts, SettingsReading, SettingsRoot, SettingsSync, SettingsTranslation } from './screens/Settings'
+import { autoSync } from './sync'
 import { StatsScreen } from './screens/Stats'
 import { ModelSwitchDialog } from './screens/ModelSwitch'
 import './styles.css'
@@ -21,6 +22,7 @@ function view(screen: Screen) {
     case 'settingsTranslation': return <SettingsTranslation />
     case 'settingsPrompts': return <SettingsPrompts />
     case 'settingsReading': return <SettingsReading />
+    case 'settingsSync': return <SettingsSync />
     case 'stats': return <StatsScreen />
   }
 }
@@ -47,6 +49,10 @@ function App() {
 }
 
 render(<App />, document.getElementById('app')!)
+
+// sync with the phone: on start and when the app is left (at most once a minute)
+autoSync()
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') autoSync() })
 
 // Offline shell + auto-update: the service worker always asks the network for the page first.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

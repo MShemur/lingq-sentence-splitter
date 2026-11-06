@@ -19,6 +19,27 @@ function load(): Data {
 /** All numbers; replaced on every change so screens showing them re-render. */
 export const stats = signal<Data>(load())
 
+/** Days of the other devices (from sync): device -> date -> [seconds, words]. */
+function loadOthers(): Record<string, Record<string, [number, number]>> {
+  try { return JSON.parse(localStorage.getItem('statsOthers') ?? '{}') } catch { return {} }
+}
+export const statsOthers = signal(loadOthers())
+
+/** Sync: this device's days and the counted sentences. */
+export const exportDays = () => stats.value.days
+export const exportSeen = () => stats.value.seen
+
+/** Sync: the other devices' days replace what was known of them; counted sentences = max. */
+export function importStats(others: Record<string, Record<string, [number, number]>>, seen: Record<string, number>) {
+  statsOthers.value = others
+  try { localStorage.setItem('statsOthers', JSON.stringify(others)) } catch { /* ignore */ }
+  const d = stats.value
+  let changed = false
+  const s = { ...d.seen }
+  for (const [k, v] of Object.entries(seen)) if (v > (s[k] ?? -1)) { s[k] = v; changed = true }
+  if (changed) save({ ...d, seen: s })
+}
+
 function save(d: Data) {
   stats.value = d
   try { localStorage.setItem('stats', JSON.stringify(d)) } catch { /* ignore */ }
@@ -28,7 +49,14 @@ function save(d: Data) {
 export const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-export const dayOf = (d: Date): [number, number] => stats.value.days[dayKey(d)] ?? [0, 0]
+/** [seconds, words] of a day: this device plus the others (synced). */
+export function dayOf(d: Date): [number, number] {
+  const k = dayKey(d)
+  const own = stats.value.days[k] ?? [0, 0]
+  let s = own[0], w = own[1]
+  for (const days of Object.values(statsOthers.value)) { const v = days[k]; if (v) { s += v[0]; w += v[1] } }
+  return [s, w]
+}
 
 function addToday(sec: number, words: number) {
   const d = stats.value

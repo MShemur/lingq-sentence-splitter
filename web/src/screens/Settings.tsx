@@ -4,10 +4,12 @@ import { Icon, type IconName } from '../icons'
 import { back, errorText, go, say } from '../app'
 import { prefs, trLang, useGemini } from '../settings'
 import { AI_PRESETS } from '../openai'
+import { lastSync, syncError, syncNow, syncRunning } from '../sync'
+
 import { Prompts } from '../prompts'
 import * as api from '../lingq'
 import * as gemini from '../gemini'
-import { Chip, Dialog, IconButton, ListItem, Loading, SecretField, TextField, TopBar } from '../ui'
+import { Chip, Dialog, IconButton, ListItem, Loading, SecretField, Spinner, TextField, TopBar } from '../ui'
 import { HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, highlightColors, highlightOf, themeOf } from '../readerLook'
 
 declare const __BUILD__: string
@@ -48,6 +50,9 @@ export function SettingsRoot() {
         <Section icon="palette" title="Чтение"
           summary={`${themeOf(prefs.readerTheme.value)?.name ?? 'Цвета системы'} · выделение: ${highlightOf(prefs.highlight.value).name.toLowerCase()}`}
           onClick={() => go({ k: 'settingsReading' })} />
+        <Section icon="refresh" title="Синхронизация"
+          summary={prefs.syncOn.value === '1' ? (syncError.value ? 'Ошибка' : 'Включена · с телефоном') : 'Выключена'}
+          onClick={() => go({ k: 'settingsSync' })} />
         <Section icon="star" title="Промпты ИИ" summary="Как Gemini или другой ИИ переводит и отвечает в чате"
           onClick={() => go({ k: 'settingsPrompts' })} />
         <hr />
@@ -252,6 +257,47 @@ export function SettingsReading() {
         Пока урок открыт, экран не погаснет столько времени после последнего касания, даже если в iPad стоит меньше.
         {!('wakeLock' in navigator) && ' Этот браузер так не умеет — работает только «Как в системе».'}
       </Hint>
+    </Page>
+  )
+}
+
+/** Settings → Синхронизация with the phone (port of Android SettingsSync). */
+export function SettingsSync() {
+  const on = prefs.syncOn.value === '1'
+  const token = prefs.ghToken.value.trim()
+  const running = syncRunning.value
+  const err = syncError.value
+  const last = lastSync.value
+  return (
+    <Page title="Синхронизация">
+      <p>
+        Закладки, выбранные переводы слов, место чтения, «Прочитано N %» и статистика — общие для телефона и iPad.
+        Хранятся в вашем приватном репозитории GitHub (ветка sync). Ключи ИИ и LingQ не передаются.
+      </p>
+      <label class="switch-row">
+        <span class="grow radio-title">Синхронизировать</span>
+        <input type="checkbox" class="switch" checked={on}
+          onChange={(e) => { const v = (e.target as HTMLInputElement).checked; prefs.syncOn.value = v ? '1' : '0'; if (v) void syncNow() }} />
+      </label>
+      <p class={err && !running ? 'error-text' : 'hint'}>
+        {running ? 'Синхронизация…'
+          : err ? `Ошибка: ${err}`
+          : last ? `Последняя синхронизация: ${new Date(last).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}`
+          : 'Ещё не синхронизировалось'}
+      </p>
+      <button class="btn filled" disabled={running || !token} onClick={() => void syncNow()}>
+        {running ? <Spinner size={18} /> : 'Синхронизировать сейчас'}
+      </button>
+      <Hint>Сама запускается при открытии приложения и когда вы из него выходите.</Hint>
+      <hr />
+      <h3 class="section-title">Токен GitHub</h3>
+      <SecretField label="Токен (fine-grained)" value={prefs.ghToken.value} onInput={(v) => { prefs.ghToken.value = v.trim() }} />
+      <Hint>
+        Тот же токен, что в Android-приложении для обновлений, но с правом записи: github.com → Settings → Developer
+        settings → Fine-grained tokens → ваш токен → Repository permissions → Contents: «Read and write» → Update.
+        Токен хранится только в этом браузере и уходит только в GitHub.
+      </Hint>
+      <a class="btn text link" href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">Открыть токены GitHub</a>
     </Page>
   )
 }

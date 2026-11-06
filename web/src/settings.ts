@@ -33,6 +33,9 @@ export const prefs = {
   aiKey: pref('aiKey', ''),
   aiModel: pref('aiModel', 'deepseek-chat'),
   aiFastModel: pref('aiFastModel', ''),
+  /** Sync with the phone through the private GitHub repo: fine-grained token (Contents: read and write), on/off. */
+  ghToken: pref('ghToken', ''),
+  syncOn: pref('syncOn', '0'),
   geminiFastModel: pref('geminiFastModel', '', (v) => (v.startsWith('gemini-2.5') ? '' : v)),
   promptWord: pref('promptWord', Prompts.WORD),
   promptSentence: pref('promptSentence', Prompts.SENTENCE),

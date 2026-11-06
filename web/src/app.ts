@@ -38,6 +38,7 @@ export type Screen =
   | { k: 'bookmarks' }
   | { k: 'stats' }
   | { k: 'settingsReading' }
+  | { k: 'settingsSync' }
   | { k: 'settings' }
   | { k: 'settingsLingq' }
   | { k: 'settingsTranslation' }
