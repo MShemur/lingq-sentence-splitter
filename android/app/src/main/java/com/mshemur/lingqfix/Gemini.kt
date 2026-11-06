@@ -53,8 +53,9 @@ object Prompts {
 class WordMeaning(val best: String, val options: List<String>, val note: String)
 
 /** Google Gemini API (key from aistudio.google.com/apikey). Blocking: call from Dispatchers.IO. */
-class Gemini(private val key: String, private val model: String) {
-    class Msg(val user: Boolean, val text: String)
+class Gemini(private val key: String, private val model: String) : Llm() {
+    /** A chat message; [reasoning] = the model's thoughts shown folded in the chat (if the service sends them). */
+    class Msg(val user: Boolean, val text: String, val reasoning: String? = null)
 
     companion object {
         const val DEFAULT_MODEL = "gemini-3.8-flash"
@@ -64,7 +65,7 @@ class Gemini(private val key: String, private val model: String) {
     }
 
     /** Models this key may use for text generation (for the picker in settings). */
-    fun models(): List<String> {
+    override fun models(): List<String> {
         if (key.isBlank()) throw ApiException("Не задан ключ Gemini")
         val out = mutableListOf<String>()
         var token = ""
@@ -86,7 +87,7 @@ class Gemini(private val key: String, private val model: String) {
         return out.sortedDescending()
     }
 
-    fun generate(system: String?, messages: List<Msg>, json: Boolean = false): String {
+    override fun generate(system: String?, messages: List<Msg>, json: Boolean): String {
         if (key.isBlank()) throw ApiException("Не задан ключ Gemini (⚙ Настройки)")
         val m = model.ifBlank { DEFAULT_MODEL }
         fun run(model: String) = try {
@@ -151,23 +152,4 @@ class Gemini(private val key: String, private val model: String) {
             return (0 until parts.length()).joinToString("") { parts.getJSONObject(it).optString("text") }.trim()
         }
     }
-
-    fun word(prompt: String, lang: String, target: String, word: String, sentence: String): WordMeaning {
-        val p = Prompts.fill(prompt, "lang" to lang, "target" to target, "word" to word, "sentence" to sentence)
-        val raw = generate(null, listOf(Msg(true, p)), json = true)
-        val o = runCatching { JSONObject(raw.substringAfter("{", "").let { "{$it" }.substringBeforeLast("}") + "}") }
-            .getOrElse { return WordMeaning(raw.lineSequence().first().take(60), emptyList(), "") }
-        val opts = o.optJSONArray("options")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
-        return WordMeaning(o.optString("best"), opts.filter { it.isNotBlank() }, o.optString("note"))
-    }
-
-    fun retranslate(prompt: String, lang: String, target: String, sentence: String, current: String): String =
-        generate(null, listOf(Msg(true, Prompts.fill(prompt, "lang" to lang, "target" to target, "sentence" to sentence, "current" to current))))
-
-    /** Cleans a piece of copied text (see [Prompts.CLEAN]). */
-    fun clean(prompt: String, lang: String, text: String): String =
-        generate(null, listOf(Msg(true, Prompts.fill(prompt, "lang" to lang, "text" to text)))).trim()
-
-    fun sentence(prompt: String, lang: String, target: String, sentence: String): String =
-        generate(null, listOf(Msg(true, Prompts.fill(prompt, "lang" to lang, "target" to target, "sentence" to sentence))))
 }

@@ -53,6 +53,19 @@ class Prefs(ctx: Context) {
         // gemini-2.5-* are retired for new users: move old settings to the current default
         get() = read("geminiModel", Gemini.DEFAULT_MODEL).let { if (it.startsWith("gemini-2.5")) Gemini.DEFAULT_MODEL else it }
         set(v) = write("geminiModel", v.trim().ifBlank { Gemini.DEFAULT_MODEL })
+    /** Other AI service (OpenAI-compatible): address, key, main and light model. */
+    var aiBase: String
+        get() = read("aiBase", "https://api.deepseek.com")
+        set(v) = write("aiBase", v.trim())
+    var aiKey: String
+        get() = read("aiKey")
+        set(v) = write("aiKey", v.trim())
+    var aiModel: String
+        get() = read("aiModel", "deepseek-chat")
+        set(v) = write("aiModel", v.trim())
+    var aiFastModel: String
+        get() = read("aiFastModel", "")
+        set(v) = write("aiFastModel", v.trim())
     /** Model for words, phrases and sentence translations (many small requests); blank = the main model. */
     var geminiFastModel: String
         get() = read("geminiFastModel", "")

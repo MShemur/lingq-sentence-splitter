@@ -81,12 +81,19 @@ class AppState(val ctx: Context) {
     var ghToken by mutableStateOf(prefs.ghToken)
     var trLang by mutableStateOf(prefs.trLang)
     val api: LingqApi get() = LingqApi(apiKey)
-    /** Main model: chat and retranslation. */
-    fun gemini() = Gemini(prefs.geminiKey, prefs.geminiModel)
-    /** Light model for the many small requests: words, phrases, sentence translations. */
-    fun geminiFast() = Gemini(prefs.geminiKey, prefs.geminiFastModel.ifBlank { prefs.geminiModel })
+    private val otherAi get() = prefs.translator == "openai"
+    /** Main model: chat and retranslation (Gemini or the other service). */
+    fun gemini(): Llm = if (otherAi) OpenAiCompat(prefs.aiBase, prefs.aiKey, prefs.aiModel) else Gemini(prefs.geminiKey, prefs.geminiModel)
+    /** Light model for the many small requests: words, phrases, sentence translations, cleaning. */
+    fun geminiFast(): Llm =
+        if (otherAi) OpenAiCompat(prefs.aiBase, prefs.aiKey, prefs.aiFastModel.ifBlank { prefs.aiModel })
+        else Gemini(prefs.geminiKey, prefs.geminiFastModel.ifBlank { prefs.geminiModel })
+    /** Name of the AI in use, for messages. */
+    val aiName get() = if (otherAi) "ИИ" else "Gemini"
     /** Reader translates with Gemini (chosen in settings and a key is set). */
-    val useGemini get() = prefs.translator == "gemini" && prefs.geminiKey.isNotBlank()
+    /** An AI translator is on: Gemini, or another OpenAI-compatible service. */
+    val useGemini get() = (prefs.translator == "gemini" && prefs.geminiKey.isNotBlank()) ||
+        (prefs.translator == "openai" && prefs.aiKey.isNotBlank() && prefs.aiBase.isNotBlank())
 
     var courses by mutableStateOf<List<Course>?>(null)
     var coursesError by mutableStateOf<String?>(null)
@@ -104,8 +111,12 @@ class AppState(val ctx: Context) {
     /** Called where a Gemini request failed: on a limit error the user may switch the model and [retry]. */
     fun geminiFailed(e: Throwable, fast: Boolean = false, retry: () -> Unit) {
         if (!useGemini || !isGeminiLimit(e) || modelSwitch != null) return
-        modelSwitch = if (fast) ModelSwitch(prefs.geminiFastModel.ifBlank { prefs.geminiModel }, e.message.orEmpty(), { m -> applyPrefs { geminiFastModel = m } }, retry)
-        else ModelSwitch(prefs.geminiModel, e.message.orEmpty(), { m -> applyPrefs { geminiModel = m } }, retry)
+        modelSwitch = when {
+            otherAi && fast -> ModelSwitch(prefs.aiFastModel.ifBlank { prefs.aiModel }, e.message.orEmpty(), { m -> applyPrefs { aiFastModel = m } }, retry)
+            otherAi -> ModelSwitch(prefs.aiModel, e.message.orEmpty(), { m -> applyPrefs { aiModel = m } }, retry)
+            fast -> ModelSwitch(prefs.geminiFastModel.ifBlank { prefs.geminiModel }, e.message.orEmpty(), { m -> applyPrefs { geminiFastModel = m } }, retry)
+            else -> ModelSwitch(prefs.geminiModel, e.message.orEmpty(), { m -> applyPrefs { geminiModel = m } }, retry)
+        }
     }
     private var dialogShownFor = 0
 
@@ -467,7 +478,7 @@ class ImportSession(private val app: AppState) {
 
     /** Clean with AI (light model), piece by piece; the quick clean runs first and stays if AI fails. */
     fun cleanAi() {
-        if (!app.useGemini) return app.say("Для чистки с ИИ включите Gemini: Настройки → Перевод")
+        if (!app.useGemini) return app.say("Для чистки с ИИ включите Gemini или другой ИИ: Настройки → Перевод")
         if (before == null) snapshot()
         cleaning = true; cleanProgress = 0f; cleanNote = null
         app.scope.launch {

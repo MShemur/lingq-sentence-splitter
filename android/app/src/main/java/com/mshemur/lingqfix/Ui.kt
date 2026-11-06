@@ -661,7 +661,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                     }
                 }
                 if (!state.useGemini) Text(
-                    "Чистка с ИИ: включите Gemini в Настройки → Перевод.",
+                    "Чистка с ИИ: включите Gemini или другой ИИ в Настройки → Перевод.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 if (s.cleaning) LinearProgressIndicator(progress = { s.cleanProgress }, modifier = Modifier.fillMaxWidth())

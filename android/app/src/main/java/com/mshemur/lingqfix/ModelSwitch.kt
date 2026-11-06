@@ -49,7 +49,7 @@ fun ModelSwitchDialog(state: AppState) {
     fun close() { state.modelSwitch = null }
     AlertDialog(
         onDismissRequest = ::close,
-        title = { Text(if (picking) "Другая модель Gemini" else "Gemini: лимит исчерпан") },
+        title = { Text(if (picking) "Другая модель" else "${state.aiName}: лимит исчерпан") },
         text = {
             when {
                 !picking -> Text(

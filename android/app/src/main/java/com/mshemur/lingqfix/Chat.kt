@@ -76,14 +76,33 @@ class ChatSession(
         app.scope.launch {
             try {
                 val history = messages.toList()
-                val a = withContext(Dispatchers.IO) { app.gemini().generate(system, history) }
-                messages.add(Gemini.Msg(false, a))
+                val llm = app.gemini()
+                val a = withContext(Dispatchers.IO) { llm.generate(system, history) }
+                messages.add(Gemini.Msg(false, a, llm.lastReasoning))
             } catch (e: Throwable) {
                 error = e.message ?: e.toString()
                 app.geminiFailed(e) { retry() }
             }
             sending = false
         }
+    }
+}
+
+/** The model's thoughts before the answer: folded, a tap opens them. */
+@Composable
+private fun Reasoning(text: String) {
+    var open by androidx.compose.runtime.remember { mutableStateOf(false) }
+    Column(Modifier.padding(bottom = 8.dp)) {
+        androidx.compose.material3.TextButton(onClick = { open = !open }, contentPadding = PaddingValues(0.dp)) {
+            Text(
+                if (open) "Скрыть рассуждения ▴" else "Как модель рассуждала ▾",
+                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        if (open) Text(
+            text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+        )
     }
 }
 
@@ -126,7 +145,10 @@ fun ChatScreen(c: ChatSession) {
                     ) {
                         SelectionContainer {
                             if (m.user) Text(m.text, Modifier.padding(horizontal = 14.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyLarge)
-                            else MarkdownText(m.text, Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+                            else Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                                m.reasoning?.let { Reasoning(it) }
+                                MarkdownText(m.text)
+                            }
                         }
                     }
                 }

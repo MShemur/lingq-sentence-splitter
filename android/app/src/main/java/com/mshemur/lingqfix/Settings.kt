@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.mshemur.lingqfix
 
 import androidx.compose.foundation.clickable
@@ -45,6 +47,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material3.FilterChip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
@@ -79,7 +83,7 @@ fun SettingsRoot(state: AppState) {
         ) { state.go(Screen.SettingsLingq) }
         SectionItem(
             Icons.Filled.Create, "Перевод",
-            (if (p.translator == "gemini") "Gemini · ${p.geminiModel}" else "LingQ") + " → ${state.trLang}",
+            when (p.translator) { "gemini" -> "Gemini · ${p.geminiModel}"; "openai" -> "ИИ · ${p.aiModel}"; else -> "LingQ" } + " → ${state.trLang}",
         ) { state.go(Screen.SettingsTranslation) }
         SectionItem(
             Icons.Filled.Info, "Чтение",
@@ -171,9 +175,12 @@ fun SettingsTranslation(state: AppState) {
     var trLang by remember { mutableStateOf(state.trLang) }
     var translator by remember { mutableStateOf(p.translator) }
     var gKey by remember { mutableStateOf(p.geminiKey) }
-    var gModel by remember { mutableStateOf(p.geminiModel) }
+    var aBase by remember { mutableStateOf(p.aiBase) }
+    var aKey by remember { mutableStateOf(p.aiKey) }
+    // main / light model of the service in use
+    var mainModel by remember(translator) { mutableStateOf(if (translator == "openai") p.aiModel else p.geminiModel) }
+    var fastModel by remember(translator) { mutableStateOf(if (translator == "openai") p.aiFastModel else p.geminiFastModel) }
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
-    var gFast by remember { mutableStateOf(p.geminiFastModel) }
     var modelFor by remember { mutableStateOf<String?>(null) }
     val uri = LocalUriHandler.current
     val scope = rememberCoroutineScope()
@@ -185,7 +192,8 @@ fun SettingsTranslation(state: AppState) {
         Text("Переводчик", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         listOf(
             "lingq" to ("LingQ" to "Варианты пользователей LingQ, машинный перевод предложений"),
-            "gemini" to ("Gemini" to "Перевод слова по смыслу предложения, чат. Нужен ключ"),
+            "gemini" to ("Gemini" to "Перевод слова по смыслу предложения, чат, чистка текста. Нужен ключ Google"),
+            "openai" to ("Другой ИИ" to "DeepSeek, Qwen, OpenRouter, Groq, Mistral — любой сервис с API как у OpenAI"),
         ).forEach { (id, t) ->
             Row(
                 Modifier.fillMaxWidth()
@@ -202,18 +210,37 @@ fun SettingsTranslation(state: AppState) {
                 }
             }
         }
+        if (translator == "lingq") return@Page
         HorizontalDivider()
-        Text("Gemini", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        SecretField(gKey, "Ключ Gemini API") { gKey = it; state.applyPrefs { geminiKey = it } }
-        TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text("Получить ключ бесплатно") }
+        if (translator == "gemini") {
+            Text("Gemini", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            SecretField(gKey, "Ключ Gemini API") { gKey = it; state.applyPrefs { geminiKey = it } }
+            TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text("Получить ключ бесплатно") }
+        } else {
+            Text("Сервис", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AI_PRESETS.forEach { (name, url) ->
+                    FilterChip(
+                        selected = aBase.trimEnd('/') == url, label = { Text(name) },
+                        onClick = { aBase = url; state.applyPrefs { aiBase = url } },
+                    )
+                }
+            }
+            OutlinedTextField(
+                aBase, { aBase = it.trim(); state.applyPrefs { aiBase = it } }, Modifier.fillMaxWidth(),
+                label = { Text("Адрес API") }, singleLine = true,
+            )
+            SecretField(aKey, "Ключ API") { aKey = it; state.applyPrefs { aiKey = it } }
+            Hint("Ключ берётся на сайте сервиса (platform.deepseek.com, openrouter.ai, console.groq.com…). Тексты уходят на серверы этого сервиса.")
+        }
         // two models: a light one for the many word / sentence requests, the main one for chat and retranslation
         fun pick(target: String) {
-            if (gKey.isBlank()) { state.say("Сначала вставьте ключ Gemini"); return }
+            if (!state.useGemini) { state.say("Сначала вставьте ключ"); return }
             modelFor = target
             models = emptyList()
             scope.launch {
                 try {
-                    models = withContext(Dispatchers.IO) { Gemini(gKey.trim(), gModel).models() }
+                    models = withContext(Dispatchers.IO) { state.gemini().models() }
                 } catch (e: Exception) {
                     modelFor = null
                     state.say(e.message ?: "Ошибка")
@@ -222,18 +249,20 @@ fun SettingsTranslation(state: AppState) {
         }
         ListItem(
             headlineContent = { Text("Модель для чата и повторного перевода") },
-            supportingContent = { Text(gModel) },
+            supportingContent = { Text(mainModel.ifBlank { "не выбрана" }) },
             trailingContent = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
             modifier = Modifier.clickable { pick("main") },
         )
         ListItem(
-            headlineContent = { Text("Модель для слов и предложений") },
-            supportingContent = { Text(gFast.ifBlank { "та же, что для чата" }) },
+            headlineContent = { Text("Модель для слов, предложений и чистки") },
+            supportingContent = { Text(fastModel.ifBlank { "та же, что для чата" }) },
             trailingContent = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
             modifier = Modifier.clickable { pick("fast") },
         )
         Hint(
-            "Слова и предложения — это много мелких запросов: возьмите для них лёгкую модель (flash-lite), " +
+            if (translator == "openai") "Для слов и предложений — быстрая дешёвая модель (deepseek-chat, qwen-flash…). " +
+                "«Думающие» модели (reasoner, r1) — только для чата: они медленные, их рассуждения видны в чате."
+            else "Слова и предложения — это много мелких запросов: возьмите для них лёгкую модель (flash-lite), " +
                 "у неё больше бесплатный лимит. Для чата — flash или pro.",
         )
         val target = modelFor
@@ -241,10 +270,11 @@ fun SettingsTranslation(state: AppState) {
             onDismissRequest = { modelFor = null },
             title = { Text(if (target == "fast") "Модель для слов и предложений" else "Модель для чата") },
             text = {
-                val current = if (target == "fast") gFast else gModel
+                val current = if (target == "fast") fastModel else mainModel
                 fun choose(m: String) {
-                    if (target == "fast") { gFast = m; state.applyPrefs { geminiFastModel = m } }
-                    else { gModel = m; state.applyPrefs { geminiModel = m } }
+                    val other = translator == "openai"
+                    if (target == "fast") { fastModel = m; state.applyPrefs { if (other) aiFastModel = m else geminiFastModel = m } }
+                    else { mainModel = m; state.applyPrefs { if (other) aiModel = m else geminiModel = m } }
                     modelFor = null
                 }
                 if (models.isEmpty()) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -260,8 +290,8 @@ fun SettingsTranslation(state: AppState) {
                         ) {
                             RadioButton(selected = m == current, onClick = null)
                             Text(m.ifBlank { "Та же, что для чата" }, Modifier.padding(start = 12.dp))
-                            if ("lite" in m) Text(
-                                "  больше лимит", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+                            if ("lite" in m || "flash" in m) Text(
+                                "  быстрая", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
                             )
                         }
                     }
