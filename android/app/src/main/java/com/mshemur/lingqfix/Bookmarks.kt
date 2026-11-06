@@ -54,32 +54,46 @@ data class Bookmark(
 
 /** All bookmarks, kept on the phone (filesDir/bookmarks.json). */
 class BookmarkStore(ctx: Context) {
+    companion object {
+        fun key(b: Bookmark) = "${b.lessonId}_${b.sent}"
+
+        fun toJson(b: Bookmark): JSONObject =
+            JSONObject().put("lang", b.lang).put("lessonId", b.lessonId).put("lessonTitle", b.lessonTitle)
+                .put("sent", b.sent).put("text", b.text).put("time", b.time).put("tr", b.tr)
+
+        fun fromJson(o: JSONObject) = Bookmark(
+            o.getString("lang"), o.getInt("lessonId"), o.optString("lessonTitle"),
+            o.getInt("sent"), o.optString("text"), o.optLong("time"), o.optString("tr"),
+        )
+    }
+
     private val file = File(ctx.filesDir, "bookmarks.json")
+    private val delFile = File(ctx.filesDir, "bookmarks_deleted.json")
     val items = mutableStateListOf<Bookmark>().apply { addAll(read()) }
+
+    /** Removed bookmarks with the time of removal, so the removal reaches the other device (sync). */
+    val deleted = HashMap<String, Long>().apply {
+        runCatching { val o = JSONObject(delFile.readText()); o.keys().forEach { put(it, o.getLong(it)) } }
+    }
+
+    private fun writeDeleted() { runCatching { delFile.writeText(JSONObject(deleted.toMap()).toString()) } }
+
+    /** After sync: the merged lists. */
+    fun replaceAll(list: List<Bookmark>, del: Map<String, Long>) {
+        if (list != items.toList()) { items.clear(); items.addAll(list); write() }
+        deleted.clear(); deleted.putAll(del); writeDeleted()
+    }
 
     /** Lists show the full sentences instead of two lines. */
     var expanded by mutableStateOf(false)
 
     private fun read(): List<Bookmark> = runCatching {
         val a = JSONArray(file.readText())
-        (0 until a.length()).map { i ->
-            val o = a.getJSONObject(i)
-            Bookmark(
-                o.getString("lang"), o.getInt("lessonId"), o.optString("lessonTitle"),
-                o.getInt("sent"), o.optString("text"), o.optLong("time"), o.optString("tr"),
-            )
-        }
+        (0 until a.length()).map { i -> fromJson(a.getJSONObject(i)) }
     }.getOrDefault(emptyList())
 
     private fun write() {
-        val a = JSONArray()
-        items.forEach { b ->
-            a.put(
-                JSONObject().put("lang", b.lang).put("lessonId", b.lessonId).put("lessonTitle", b.lessonTitle)
-                    .put("sent", b.sent).put("text", b.text).put("time", b.time).put("tr", b.tr),
-            )
-        }
-        runCatching { file.writeText(a.toString()) }
+        runCatching { file.writeText(jsonArrayOf(items.map { toJson(it) }).toString()) }
     }
 
     private fun indexOf(lessonId: Int, sent: Int) = items.indexOfFirst { it.lessonId == lessonId && it.sent == sent }
@@ -91,9 +105,9 @@ class BookmarkStore(ctx: Context) {
     /** Adds or removes; returns true when the sentence is bookmarked now. */
     fun toggle(lang: String, lesson: Lesson, sent: Int, text: String, tr: String = ""): Boolean {
         val i = indexOf(lesson.id, sent)
-        val now = if (i >= 0) { items.removeAt(i); false }
+        val now = if (i >= 0) { deleted[key(items[i])] = System.currentTimeMillis(); items.removeAt(i); false }
         else { items.add(Bookmark(lang, lesson.id, lesson.title, sent, text, System.currentTimeMillis(), tr)); true }
-        write()
+        write(); writeDeleted()
         return now
     }
 
@@ -104,7 +118,7 @@ class BookmarkStore(ctx: Context) {
 
     fun remove(b: Bookmark) {
         val i = indexOf(b.lessonId, b.sent)
-        if (i >= 0) { items.removeAt(i); write() }
+        if (i >= 0) { deleted[key(items[i])] = System.currentTimeMillis(); items.removeAt(i); write(); writeDeleted() }
     }
 }
 

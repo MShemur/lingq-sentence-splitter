@@ -191,6 +191,7 @@ fun App(state: AppState) {
                     Screen.SettingsUpdates -> SettingsUpdates(state)
                     Screen.SettingsReading -> SettingsReading(state)
                     Screen.Stats -> StatsScreen(state)
+                    Screen.SettingsSync -> SettingsSync(state)
                     Screen.Courses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c)) }
                     Screen.Backups -> BackupsScreen(state)
                     is Screen.Lessons -> LessonsScreen(state, screen)
@@ -258,6 +259,7 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.SettingsUpdates -> "Обновления"
     Screen.SettingsReading -> "Чтение"
     Screen.Stats -> "Статистика"
+    Screen.SettingsSync -> "Синхронизация"
     Screen.Courses -> "Мои курсы · ${state.lang}"
     Screen.Backups -> "Резервные копии"
     is Screen.Lessons -> s.title

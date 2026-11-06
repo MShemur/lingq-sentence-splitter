@@ -14,8 +14,30 @@ class ReadingProgress(ctx: Context) {
     fun read(lang: String, id: Int): Float = p.getFloat("read.${lang}_$id", 0f)
 
     fun save(lang: String, id: Int, first: Int, read: Float) {
-        val e = p.edit().putInt("pos.${lang}_$id", first)
+        val e = p.edit().putInt("pos.${lang}_$id", first).putLong("t.${lang}_$id", System.currentTimeMillis())
         if (read > read(lang, id)) e.putFloat("read.${lang}_$id", read.coerceAtMost(1f))
+        e.apply()
+    }
+
+    /** For sync: {"de_123": {pos, t, read}}. */
+    fun export(): org.json.JSONObject {
+        val o = org.json.JSONObject()
+        p.all.keys.filter { it.startsWith("pos.") }.forEach { k ->
+            val key = k.removePrefix("pos.")
+            o.put(key, org.json.JSONObject().put("pos", p.getInt(k, 0)).put("t", p.getLong("t.$key", 0L))
+                .put("read", p.getFloat("read.$key", 0f).toDouble()))
+        }
+        return o
+    }
+
+    fun import(o: org.json.JSONObject) {
+        val e = p.edit()
+        o.keys().forEach { key ->
+            val r = o.getJSONObject(key)
+            if (r.optLong("t") > p.getLong("t.$key", 0L)) e.putInt("pos.$key", r.optInt("pos")).putLong("t.$key", r.optLong("t"))
+            val read = r.optDouble("read", 0.0).toFloat()
+            if (read > p.getFloat("read.$key", 0f)) e.putFloat("read.$key", read)
+        }
         e.apply()
     }
 }

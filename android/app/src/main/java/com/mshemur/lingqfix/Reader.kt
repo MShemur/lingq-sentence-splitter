@@ -204,7 +204,7 @@ private class LessonNotes(ctx: Context, lang: String, id: Int) {
     fun save(pins: Map<WordRef, String>, words: Map<String, String>) {
         val p = JSONObject(); pins.forEach { (k, v) -> if (v.isNotEmpty() && !v.startsWith("⚠")) p.put(k.key(), v) }
         val w = JSONObject(); words.forEach { (k, v) -> w.put(k, v) }
-        file.writeText(JSONObject().put("pins", p).put("words", w).toString())
+        file.writeText(JSONObject().put("pins", p).put("words", w).put("t", System.currentTimeMillis()).toString())
     }
 }
 

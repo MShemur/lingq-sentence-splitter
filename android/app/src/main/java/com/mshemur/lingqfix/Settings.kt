@@ -94,6 +94,10 @@ fun SettingsRoot(state: AppState) {
         SectionItem(Icons.Filled.Star, "Промпты Gemini", "Как Gemini переводит и отвечает в чате") {
             state.go(Screen.SettingsPrompts)
         }
+        SectionItem(
+            Icons.Filled.Refresh, "Синхронизация",
+            if (state.sync.enabled) "Телефон и iPad · включена" else "Телефон и iPad · выключена",
+        ) { state.go(Screen.SettingsSync) }
         HorizontalDivider()
         SectionItem(Icons.Filled.Refresh, "Резервные копии", "Вернуть урок к версии до исправления") {
             state.go(Screen.Backups)
@@ -349,10 +353,11 @@ fun SettingsUpdates(state: AppState) {
             Text("Установить ${state.update?.versionName}")
         }
         HorizontalDivider()
-        SecretField(token, "GitHub-токен (только чтение)") { token = it; state.applyPrefs { ghToken = it } }
+        SecretField(token, "GitHub-токен") { token = it; state.applyPrefs { ghToken = it } }
         Hint(
             "Нужен, чтобы скачивать новые версии из приватного репозитория. GitHub → Settings → Developer settings → " +
-                "Fine-grained tokens: репозиторий lingq-sentence-splitter, права Contents: Read-only.",
+                "Fine-grained tokens: репозиторий lingq-sentence-splitter, права Contents: Read-only " +
+                "(для синхронизации — Read and write).",
         )
     }
 }

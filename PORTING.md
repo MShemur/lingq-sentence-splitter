@@ -7,6 +7,20 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- **Sync phone <-> iPad** (Settings → Синхронизация; switch, "Синхронизировать сейчас", last time / error).
+  File `sync/data.json` on branch `sync` of MShemur/lingq-sentence-splitter via GitHub contents API with the
+  same fine-grained token (Contents: Read and write). GET contents?ref=sync (404 -> create branch `sync` from
+  main via git/refs, file missing); merge local + remote; PUT with sha, branch "sync", message
+  "sync from <device> [skip ci]" ([skip ci] keeps Actions and Cloudflare from building); 409/422 -> read+merge again.
+  Runs on start and when the app is left (at most once a minute) and by the button. JSON v1:
+  `bookmarks {"<lessonId>_<sent>": {lang, lessonId, lessonTitle, sent, text, tr, time}}`,
+  `deleted {"<lessonId>_<sent>": time}` (later of item.time / deletion wins; keep a non-empty tr from either side),
+  `notes {"<lang>_<lessonId>": {t, pins {"sent:token": meaning}, words {word: meaning}}}` (whole lesson, later t),
+  `progress {"<lang>_<lessonId>": {pos, t, read}}` (pos by later t, read = max),
+  `stats {"<device>": {"YYYY-MM-DD": [seconds, words]}}` (each device writes only its own key, e.g. "android-ab12cd",
+  "web-xxxxxx"; totals = sum over devices), `seen {"<lang>_<lessonId>": index}` (max). Android `Sync.kt`.
+  Web must store the same pieces with the same keys and timestamps (ms) to merge.
+
 - Third translator "Другой ИИ": any OpenAI-compatible service (presets DeepSeek https://api.deepseek.com,
   Qwen https://dashscope-intl.aliyuncs.com/compatible-mode/v1, OpenRouter https://openrouter.ai/api/v1,
   Groq https://api.groq.com/openai/v1, Mistral https://api.mistral.ai/v1), address + key + main / light model

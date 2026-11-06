@@ -26,12 +26,14 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         state.resumed = true
+        state.sync.auto()
         state.checkUpdate(quiet = true)
     }
 
     override fun onPause() {
         state.resumed = false
         ContinueWidget.refresh(applicationContext)     // reading progress on the home screen widget
+        state.sync.auto()
         super.onPause()
     }
 

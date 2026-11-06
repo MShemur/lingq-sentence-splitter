@@ -28,6 +28,7 @@ sealed interface Screen {
     data object SettingsUpdates : Screen
     data object SettingsReading : Screen
     data object Stats : Screen
+    data object SettingsSync : Screen
     data object Courses : Screen
     data object Backups : Screen
     class Import(val session: ImportSession) : Screen
@@ -67,6 +68,7 @@ class AppState(val ctx: Context) {
     val bookmarks = BookmarkStore(ctx)
     val progress = ReadingProgress(ctx)
     val stats = ReadingStats(ctx)
+    val sync = SyncService(this)
     /** The app is on the screen (between onResume and onPause). */
     var resumed = false
     val scope = MainScope()

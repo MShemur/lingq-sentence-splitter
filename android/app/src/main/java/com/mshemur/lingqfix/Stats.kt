@@ -50,6 +50,9 @@ class ReadingStats(ctx: Context) {
     private val file = File(ctx.filesDir, "stats.json")
     private val days = HashMap<String, IntArray>()     // "2026-11-06" -> [seconds, words]
     private val seen = HashMap<String, Int>()          // "de_123" -> highest sentence index counted
+    /** Days of the other devices (from sync): device -> date -> [seconds, words]. */
+    private val others = HashMap<String, HashMap<String, IntArray>>()
+    private val othersFile = File(ctx.filesDir, "stats_others.json")
     /** Bumped on every change so screens showing the numbers recompose. */
     var version by mutableIntStateOf(0)
         private set
@@ -60,6 +63,35 @@ class ReadingStats(ctx: Context) {
             o.optJSONObject("days")?.let { d -> d.keys().forEach { k -> val a = d.getJSONArray(k); days[k] = intArrayOf(a.getInt(0), a.getInt(1)) } }
             o.optJSONObject("seen")?.let { d -> d.keys().forEach { k -> seen[k] = d.getInt(k) } }
         }
+        reloadOthers()
+    }
+
+    // --- sync ---
+
+    fun exportDays(): JSONObject = JSONObject().also { d -> days.forEach { (k, v) -> d.put(k, org.json.JSONArray().put(v[0]).put(v[1])) } }
+
+    fun exportSeen(): JSONObject = JSONObject().also { s -> seen.forEach { (k, v) -> s.put(k, v) } }
+
+    fun importSeen(o: JSONObject) {
+        var changed = false
+        o.keys().forEach { k -> val v = o.getInt(k); if (v > (seen[k] ?: -1)) { seen[k] = v; changed = true } }
+        if (changed) save()
+    }
+
+    fun importOthers(o: JSONObject) { runCatching { othersFile.writeText(o.toString()) } }
+
+    fun reloadOthers() {
+        others.clear()
+        runCatching {
+            val o = JSONObject(othersFile.readText())
+            o.keys().forEach { dev ->
+                val d = o.getJSONObject(dev)
+                others[dev] = HashMap<String, IntArray>().apply {
+                    d.keys().forEach { k -> val a = d.getJSONArray(k); put(k, intArrayOf(a.getInt(0), a.getInt(1))) }
+                }
+            }
+        }
+        version++
     }
 
     private fun save() {
@@ -87,7 +119,13 @@ class ReadingStats(ctx: Context) {
         save()
     }
 
-    fun day(d: LocalDate): IntArray = days[d.toString()] ?: intArrayOf(0, 0)
+    /** Totals of a day over all devices. */
+    fun day(d: LocalDate): IntArray {
+        val k = d.toString()
+        val out = (days[k] ?: intArrayOf(0, 0)).copyOf()
+        others.values.forEach { m -> m[k]?.let { out[0] += it[0]; out[1] += it[1] } }
+        return out
+    }
 
     /** Totals [seconds, words] from [from] to today. */
     fun since(from: LocalDate): IntArray {
