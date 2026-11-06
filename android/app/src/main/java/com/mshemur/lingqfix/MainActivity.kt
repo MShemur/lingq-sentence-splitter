@@ -34,7 +34,13 @@ class MainActivity : ComponentActivity() {
     /** Every time the app comes to the screen: look for a new version (pop-up if there is one). */
     override fun onResume() {
         super.onResume()
+        state.resumed = true
         state.checkUpdate(quiet = true)
+    }
+
+    override fun onPause() {
+        state.resumed = false
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {

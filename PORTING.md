@@ -7,6 +7,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- Statistics (library top bar, chart icon): reading time counts in 15 s steps while a lesson is open and the app
+  is in front, unless nothing was touched for 3 min; words = words of sentences seen for the first time in a lesson
+  (highest sentence index counted per lesson). Screen: "Сегодня" card (time, words, streak = days in a row with
+  >= 1 min), cards Неделя (from Monday) / Месяц / Год, bar chart "Минуты чтения за 2 недели" (tap a day for its
+  numbers). Android `Stats.kt` (`ReadingStats`, `ReadingTimer`, `StatsScreen`). Will be synced later.
+
 - Settings → "Чтение" (also from the reader menu "Оформление и экран"): page colours of the reader
   (Как в системе, Белая FFFFFF/1C1B1F, Кремовая FBF7EE/2D2A26, Сепия F4ECD8/5B4636, Мятная CCE8CF/233626,
   Серая E6E6E6/222222, Сумерки 3A3A3C/E3E3E3, Тёмная 1E1E1E/DADADA, Чёрная 000000/C8C8C8; surfaces of bars and

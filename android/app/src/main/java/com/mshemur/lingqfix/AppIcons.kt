@@ -44,6 +44,10 @@ object AppIcons {
         )
     }
 
+    val BarChart: ImageVector by lazy {
+        icon("BarChart", "M5,9.2h3V19H5V9.2zM10.6,5h2.8v14h-2.8V5zM16.2,13H19v6h-2.8V13z")
+    }
+
     val Translate: ImageVector by lazy {
         icon(
             "Translate",

@@ -125,7 +125,7 @@ fun App(state: AppState) {
                 }
             },
         ) {
-        if (screen is Screen.Reader) KeepScreenOn(state)
+        if (screen is Screen.Reader) { KeepScreenOn(state); ReadingTimer(state) }
         Scaffold(
             topBar = {
                 // reader: close cross, progress in the middle, no lesson title
@@ -148,6 +148,9 @@ fun App(state: AppState) {
                         when (screen) {
                             Screen.Bookmarks -> { if (state.bookmarks.items.isNotEmpty()) BookmarksExpandButton(state) }
                             Screen.ReaderCourses -> {
+                                IconButton(onClick = { state.go(Screen.Stats) }) {
+                                    Icon(AppIcons.BarChart, contentDescription = "Статистика")
+                                }
                                 IconButton(onClick = { state.go(Screen.Bookmarks) }) {
                                     Icon(AppIcons.Bookmark, contentDescription = "Закладки")
                                 }
@@ -184,6 +187,7 @@ fun App(state: AppState) {
                     Screen.SettingsPrompts -> SettingsPrompts(state)
                     Screen.SettingsUpdates -> SettingsUpdates(state)
                     Screen.SettingsReading -> SettingsReading(state)
+                    Screen.Stats -> StatsScreen(state)
                     Screen.Courses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c)) }
                     Screen.Backups -> BackupsScreen(state)
                     is Screen.Lessons -> LessonsScreen(state, screen)
@@ -250,6 +254,7 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.SettingsPrompts -> "Промпты Gemini"
     Screen.SettingsUpdates -> "Обновления"
     Screen.SettingsReading -> "Чтение"
+    Screen.Stats -> "Статистика"
     Screen.Courses -> "Мои курсы · ${state.lang}"
     Screen.Backups -> "Резервные копии"
     is Screen.Lessons -> s.title

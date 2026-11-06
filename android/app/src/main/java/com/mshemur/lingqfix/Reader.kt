@@ -219,6 +219,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         if (sentences.isEmpty()) return
         val i = sentences.indexOfFirst { it.id == last }
         app.progress.save(lang, lesson.id, first, (i + 1f) / sentences.size)
+        val f = sentences.indexOfFirst { it.id == first }
+        if (f >= 0 && i >= f) app.stats.read(lang, lesson.id, f, i) { k -> sentences[k].tokens.count { it.isWord } }
     }
 
     fun jumpTo(id: Int) {

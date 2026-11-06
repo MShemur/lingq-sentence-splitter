@@ -27,6 +27,7 @@ sealed interface Screen {
     data object SettingsPrompts : Screen
     data object SettingsUpdates : Screen
     data object SettingsReading : Screen
+    data object Stats : Screen
     data object Courses : Screen
     data object Backups : Screen
     class Import(val session: ImportSession) : Screen
@@ -65,6 +66,9 @@ class AppState(val ctx: Context) {
     val backups = Backups(ctx)
     val bookmarks = BookmarkStore(ctx)
     val progress = ReadingProgress(ctx)
+    val stats = ReadingStats(ctx)
+    /** The app is on the screen (between onResume and onPause). */
+    var resumed = false
     val scope = MainScope()
     val snackbar = SnackbarHostState()
 
