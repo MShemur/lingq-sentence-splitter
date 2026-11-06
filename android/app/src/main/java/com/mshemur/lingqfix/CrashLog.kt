@@ -5,7 +5,7 @@ import android.os.Build
 import java.io.File
 import java.util.Date
 
-/** Saves the stack trace of a crash; the next start shows it so the user can copy or share it. */
+/** Saves the stack trace of a crash; the next start shows it so the user can copy or share it (Ui.kt). */
 object CrashLog {
     private fun file(ctx: Context) = File(ctx.filesDir, "crash.txt")
 
