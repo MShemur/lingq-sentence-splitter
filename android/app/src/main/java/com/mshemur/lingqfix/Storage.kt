@@ -53,6 +53,10 @@ class Prefs(ctx: Context) {
         // gemini-2.5-* are retired for new users: move old settings to the current default
         get() = read("geminiModel", Gemini.DEFAULT_MODEL).let { if (it.startsWith("gemini-2.5")) Gemini.DEFAULT_MODEL else it }
         set(v) = write("geminiModel", v.trim().ifBlank { Gemini.DEFAULT_MODEL })
+    /** Model for words, phrases and sentence translations (many small requests); blank = the main model. */
+    var geminiFastModel: String
+        get() = read("geminiFastModel", "")
+        set(v) = write("geminiFastModel", v.trim())
     var promptWord: String
         get() = read("promptWord", Prompts.WORD).ifBlank { Prompts.WORD }
         set(v) = p.edit().putString("promptWord", v).apply()

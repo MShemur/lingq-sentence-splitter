@@ -81,7 +81,10 @@ class AppState(val ctx: Context) {
     var ghToken by mutableStateOf(prefs.ghToken)
     var trLang by mutableStateOf(prefs.trLang)
     val api: LingqApi get() = LingqApi(apiKey)
+    /** Main model: chat and retranslation. */
     fun gemini() = Gemini(prefs.geminiKey, prefs.geminiModel)
+    /** Light model for the many small requests: words, phrases, sentence translations. */
+    fun geminiFast() = Gemini(prefs.geminiKey, prefs.geminiFastModel.ifBlank { prefs.geminiModel })
     /** Reader translates with Gemini (chosen in settings and a key is set). */
     val useGemini get() = prefs.translator == "gemini" && prefs.geminiKey.isNotBlank()
 
@@ -99,8 +102,10 @@ class AppState(val ctx: Context) {
     var modelSwitch by mutableStateOf<ModelSwitch?>(null)
 
     /** Called where a Gemini request failed: on a limit error the user may switch the model and [retry]. */
-    fun geminiFailed(e: Throwable, retry: () -> Unit) {
-        if (useGemini && isGeminiLimit(e) && modelSwitch == null) modelSwitch = ModelSwitch(prefs.geminiModel, e.message.orEmpty(), retry)
+    fun geminiFailed(e: Throwable, fast: Boolean = false, retry: () -> Unit) {
+        if (!useGemini || !isGeminiLimit(e) || modelSwitch != null) return
+        modelSwitch = if (fast) ModelSwitch(prefs.geminiFastModel.ifBlank { prefs.geminiModel }, e.message.orEmpty(), { m -> applyPrefs { geminiFastModel = m } }, retry)
+        else ModelSwitch(prefs.geminiModel, e.message.orEmpty(), { m -> applyPrefs { geminiModel = m } }, retry)
     }
     private var dialogShownFor = 0
 

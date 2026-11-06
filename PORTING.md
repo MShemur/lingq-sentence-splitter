@@ -7,6 +7,11 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- Two Gemini models in Settings → Перевод: "Модель для чата и повторного перевода" (geminiModel) and "Модель для
+  слов и предложений" (geminiFastModel, blank = same as chat; hint: take flash-lite, bigger free limit). Words,
+  phrases, sentence translations and bookmark translations use the light one; the limit window switches the model
+  of the request that failed. Android `AppState.geminiFast`, `Settings.kt`, `ModelSwitch.apply`.
+
 - Statistics (library top bar, chart icon): reading time counts in 15 s steps while a lesson is open and the app
   is in front, unless nothing was touched for 3 min; words = words of sentences seen for the first time in a lesson
   (highest sentence index counted per lesson). Screen: "Сегодня" card (time, words, streak = days in a row with

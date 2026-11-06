@@ -29,7 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Gemini refused because of limits/overload; [retry] repeats what failed once another model is chosen. */
-class ModelSwitch(val model: String, val message: String, val retry: () -> Unit)
+class ModelSwitch(val model: String, val message: String, val apply: (String) -> Unit, val retry: () -> Unit)
 
 /** Limit / overload errors of Gemini (after its own retries and fallback). */
 fun isGeminiLimit(e: Throwable): Boolean {
@@ -64,7 +64,7 @@ fun ModelSwitchDialog(state: AppState) {
                         Row(
                             Modifier.fillMaxWidth()
                                 .selectable(selected = false, role = Role.RadioButton) {
-                                    state.applyPrefs { geminiModel = m }
+                                    sw.apply(m)
                                     close()
                                     state.say("Модель: $m")
                                     sw.retry()

@@ -109,7 +109,7 @@ class BookmarkStore(ctx: Context) {
 }
 
 private suspend fun translateBookmark(state: AppState, b: Bookmark): String = withContext(Dispatchers.IO) {
-    if (state.useGemini) state.gemini().sentence(state.prefs.promptSentence, b.lang, state.trLang, b.text)
+    if (state.useGemini) state.geminiFast().sentence(state.prefs.promptSentence, b.lang, state.trLang, b.text)
     else state.api.translate(b.lang, state.trLang, b.text)
 }
 

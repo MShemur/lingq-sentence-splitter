@@ -337,7 +337,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 if (app.useGemini) {
                     val prompt = app.prefs.promptWord + "\n\nВажно: «{word}» — не одно слово, а словосочетание. " +
                         "Переведи его целиком как единое целое по смыслу в этом предложении; best может быть длиннее трёх слов."
-                    val m = withContext(Dispatchers.IO) { app.gemini().word(prompt, lang, target, text, st.text) }
+                    val m = withContext(Dispatchers.IO) { app.geminiFast().word(prompt, lang, target, text, st.text) }
                     if (phrase != p) return@launch
                     phraseBest = chosen[text.lowercase()] ?: m.best
                     phraseOptions = dedupe(listOf(m.best) + m.options)
@@ -351,7 +351,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 }
             } catch (e: Throwable) {
                 if (phrase == p) phraseError = e.message ?: e.toString()
-                app.geminiFailed(e) { if (phrase == p) openPhrase(sent, from, to) }
+                app.geminiFailed(e, fast = true) { if (phrase == p) openPhrase(sent, from, to) }
             }
             if (phrase == p) phraseLoading = false
         }
@@ -504,7 +504,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") }?.let { return it }
         val s = sentById.getValue(id)
         val t = s.translations[target] ?: withContext(Dispatchers.IO) {
-            if (app.useGemini) app.gemini().sentence(app.prefs.promptSentence, lang, target, s.text)
+            if (app.useGemini) app.geminiFast().sentence(app.prefs.promptSentence, lang, target, s.text)
             else app.api.translate(lang, target, s.text)
         }
         sentTr[id] = t
@@ -516,7 +516,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         app.scope.launch {
             try { sentenceTranslation(id) } catch (e: Throwable) {
                 sentTr[id] = "⚠ ${e.message}"
-                app.geminiFailed(e) { sentTr.remove(id); ensureSentence(id) }
+                app.geminiFailed(e, fast = true) { sentTr.remove(id); ensureSentence(id) }
             }
             loadingSentences.remove(id)
         }
@@ -576,7 +576,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     private suspend fun ai(ref: WordRef): WordMeaning {
         aiCache[ref]?.let { return it }
         val s = sentById.getValue(ref.sent)
-        val m = withContext(Dispatchers.IO) { app.gemini().word(app.prefs.promptWord, lang, target, word(ref), s.text) }
+        val m = withContext(Dispatchers.IO) { app.geminiFast().word(app.prefs.promptWord, lang, target, word(ref), s.text) }
         aiCache[ref] = m
         return m
     }
@@ -639,7 +639,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         }
         app.scope.launch {
             val best = runCatching { ai(ref).best }
-                .onFailure { e -> app.geminiFailed(e) { pins.remove(ref); provisional.remove(ref); tap(ref) } }.getOrNull()
+                .onFailure { e -> app.geminiFailed(e, fast = true) { pins.remove(ref); provisional.remove(ref); tap(ref) } }.getOrNull()
             if (!pins.containsKey(ref)) return@launch            // removed meanwhile
             provisional.remove(ref)
             when {
@@ -675,7 +675,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                         popupBest = quickGuess(ref, h)
                         popupThinking = true
                         val m = runCatching { ai(ref) }
-                            .onFailure { e -> app.geminiFailed(e) { if (popup == ref) openPopup(ref) } }.getOrNull()
+                            .onFailure { e -> app.geminiFailed(e, fast = true) { if (popup == ref) openPopup(ref) } }.getOrNull()
                         popupThinking = false
                         if (popup != ref) return@launch
                         if (m != null) {

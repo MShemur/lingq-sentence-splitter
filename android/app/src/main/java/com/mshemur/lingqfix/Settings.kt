@@ -173,7 +173,8 @@ fun SettingsTranslation(state: AppState) {
     var gKey by remember { mutableStateOf(p.geminiKey) }
     var gModel by remember { mutableStateOf(p.geminiModel) }
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
-    var modelMenu by remember { mutableStateOf(false) }
+    var gFast by remember { mutableStateOf(p.geminiFastModel) }
+    var modelFor by remember { mutableStateOf<String?>(null) }
     val uri = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     Page {
@@ -205,48 +206,68 @@ fun SettingsTranslation(state: AppState) {
         Text("Gemini", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         SecretField(gKey, "Ключ Gemini API") { gKey = it; state.applyPrefs { geminiKey = it } }
         TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text("Получить ключ бесплатно") }
+        // two models: a light one for the many word / sentence requests, the main one for chat and retranslation
+        fun pick(target: String) {
+            if (gKey.isBlank()) { state.say("Сначала вставьте ключ Gemini"); return }
+            modelFor = target
+            models = emptyList()
+            scope.launch {
+                try {
+                    models = withContext(Dispatchers.IO) { Gemini(gKey.trim(), gModel).models() }
+                } catch (e: Exception) {
+                    modelFor = null
+                    state.say(e.message ?: "Ошибка")
+                }
+            }
+        }
         ListItem(
-            headlineContent = { Text("Модель") },
+            headlineContent = { Text("Модель для чата и повторного перевода") },
             supportingContent = { Text(gModel) },
             trailingContent = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
-            modifier = Modifier.clickable {
-                if (gKey.isBlank()) { state.say("Сначала вставьте ключ Gemini"); return@clickable }
-                modelMenu = true
-                models = emptyList()
-                scope.launch {
-                    try {
-                        models = withContext(Dispatchers.IO) { Gemini(gKey.trim(), gModel).models() }
-                    } catch (e: Exception) {
-                        modelMenu = false
-                        state.say(e.message ?: "Ошибка")
-                    }
-                }
-            },
+            modifier = Modifier.clickable { pick("main") },
         )
-        Hint("flash — быстро, для перевода слов; pro — умнее, но медленнее")
-        if (modelMenu) AlertDialog(
-            onDismissRequest = { modelMenu = false },
-            title = { Text("Модель Gemini") },
+        ListItem(
+            headlineContent = { Text("Модель для слов и предложений") },
+            supportingContent = { Text(gFast.ifBlank { "та же, что для чата" }) },
+            trailingContent = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+            modifier = Modifier.clickable { pick("fast") },
+        )
+        Hint(
+            "Слова и предложения — это много мелких запросов: возьмите для них лёгкую модель (flash-lite), " +
+                "у неё больше бесплатный лимит. Для чата — flash или pro.",
+        )
+        val target = modelFor
+        if (target != null) AlertDialog(
+            onDismissRequest = { modelFor = null },
+            title = { Text(if (target == "fast") "Модель для слов и предложений" else "Модель для чата") },
             text = {
+                val current = if (target == "fast") gFast else gModel
+                fun choose(m: String) {
+                    if (target == "fast") { gFast = m; state.applyPrefs { geminiFastModel = m } }
+                    else { gModel = m; state.applyPrefs { geminiModel = m } }
+                    modelFor = null
+                }
                 if (models.isEmpty()) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 } else LazyColumn(Modifier.heightIn(max = 420.dp)) {
-                    items(models) { m ->
+                    val options = (if (target == "fast") listOf("") else emptyList()) + models
+                    items(options) { m ->
                         Row(
                             Modifier.fillMaxWidth()
-                                .selectable(selected = m == gModel, role = Role.RadioButton) {
-                                    gModel = m; state.applyPrefs { geminiModel = m }; modelMenu = false
-                                }
+                                .selectable(selected = m == current, role = Role.RadioButton) { choose(m) }
                                 .padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(selected = m == gModel, onClick = null)
-                            Text(m, Modifier.padding(start = 12.dp))
+                            RadioButton(selected = m == current, onClick = null)
+                            Text(m.ifBlank { "Та же, что для чата" }, Modifier.padding(start = 12.dp))
+                            if ("lite" in m) Text(
+                                "  больше лимит", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
+                            )
                         }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { modelMenu = false }) { Text("Закрыть") } },
+            confirmButton = { TextButton(onClick = { modelFor = null }) { Text("Закрыть") } },
         )
     }
 }
