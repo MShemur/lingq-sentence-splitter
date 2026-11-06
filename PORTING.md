@@ -13,24 +13,24 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- Page-turn buttons: no circle/background/border/shadow any more, just a faint arrow (~45% opacity; a light
+(nothing)
+
+## Done
+
+- android 0fa91c9: Page-turn buttons: no circle/background/border/shadow any more, just a faint arrow (~45% opacity; a light
   tint only while pressed). The user found them too conspicuous. web v1.13 styles `.turn-btn`.
 
-- Paged text: pages are laid out from the bare text only. Pinned word translations, shown sentence translations
+- android 0fa91c9: Paged text: pages are laid out from the bare text only. Pinned word translations, shown sentence translations
   and bookmark marks no longer re-split the pages or move text to other pages; a page that grows scrolls up and
   down by itself (only that page). The spare room left at the top/bottom of a page for that is removed (web: 6px). No visible scrollbar on the pages (web v1.12).
   web v1.11 `Reader.tsx` (`paginate`, `Paragraph plain`).
-- Remember where reading stopped in every lesson: the first sentence on the page (sentence mode: its sentence) is
+- android 0fa91c9: Remember where reading stopped in every lesson: the first sentence on the page (sentence mode: its sentence) is
   saved on every page turn; the lesson opens there next time (a bookmark's "go to source" still wins). The lesson
   list shows "Прочитано N %" with a small progress bar: furthest point read = (last sentence on screen + 1) /
   sentences, never goes down. web v1.11 `progress.ts` (localStorage `pos.{lang}_{lesson}`), `Library.tsx`.
 
-- Long meanings in the word / phrase window: chips must grow in height with wrapped text (web chips had a fixed
+- android 0fa91c9: Long meanings in the word / phrase window: chips must grow in height with wrapped text (web chips had a fixed
   height, lines overlapped other chips). Check the Android FilterChips with a long LingQ meaning too. web v1.10.
-
-(nothing)
-
-## Done
 
 - android ec96295: Narrow screen (phone, width <= 600 dp): no page-turn buttons and no side padding for them; the word panel is
   never docked there (pin button hidden), the pop-up sheet is used. With the panel docked, sentence mode shows the
