@@ -178,6 +178,11 @@ class LingqApi(private val key: String) {
         obj("$BASE/v3/$lang/lessons/$id/editor/").optJSONArray("paragraphs") ?: JSONArray()
 
     /** Saves the sentence structure exactly as sent (LingQ does not re-split it). */
+    /** Lesson level 1..6 (Beginner 1 .. Advanced 2). */
+    fun setLevel(lang: String, id: Int, level: Int) {
+        call("PATCH", "$BASE/v3/$lang/lessons/$id/", JSONObject().put("level", level).toString())
+    }
+
     fun saveParagraphs(lang: String, id: Int, paragraphs: JSONArray) {
         call("PATCH", "$BASE/v3/$lang/lessons/$id/", JSONObject().put("paragraphs", paragraphs).toString())
     }

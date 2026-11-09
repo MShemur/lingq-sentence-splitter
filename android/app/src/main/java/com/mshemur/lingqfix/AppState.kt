@@ -546,6 +546,8 @@ class ImportSession(private val app: AppState) {
     var newCourse by mutableStateOf(false)
     var newCourseTitle by mutableStateOf("")
     var autoFix by mutableStateOf(true)
+    /** The AI sets the level of each uploaded lesson (remembered). */
+    var autoLevel by mutableStateOf(app.prefs.autoLevel)
     var splitWords by mutableStateOf("3000")
     var running by mutableStateOf(false)
     var finished by mutableStateOf(false)
@@ -740,7 +742,8 @@ class ImportSession(private val app: AppState) {
                             line(i, "❌ ${e.message} ·"); failed++; done++; progress = done.toFloat() / jobs.size
                             continue
                         }
-                        if (!autoFix) {
+                        val level = autoLevel && app.useGemini
+                        if (!autoFix && !level) {
                             line(i, "✅"); done++; progress = done.toFloat() / jobs.size
                             continue
                         }
@@ -748,9 +751,20 @@ class ImportSession(private val app: AppState) {
                         launch {
                             val msg = try {
                                 limit.withPermit {
-                                    val r = withContext(Dispatchers.IO) { fixImported(lang, id, title) }
-                                    found[i] = r
-                                    if (r != null) "✅ исправлено ${r.changes.size} ·" else "✅ в порядке ·"
+                                    val parts = mutableListOf<String>()
+                                    if (autoFix) {
+                                        val r = withContext(Dispatchers.IO) { fixImported(lang, id, title) }
+                                        found[i] = r
+                                        parts += if (r != null) "исправлено ${r.changes.size}" else "разбивка в порядке"
+                                    }
+                                    if (level) parts += try {
+                                        withContext(Dispatchers.IO) { aiLevel(lang, id, text) }
+                                    } catch (e: Throwable) {
+                                        AppLog.error("import", "Уровень урока $id", e)
+                                        app.geminiFailed(e, fast = true) {}
+                                        "уровень не определён"
+                                    }
+                                    "✅ ${parts.joinToString(", ")} ·"
                                 }
                             } catch (e: Throwable) {
                                 failed++; "❌ ${e.message} ·"
@@ -770,6 +784,15 @@ class ImportSession(private val app: AppState) {
             }
             running = false
         }
+    }
+
+    /** The AI estimates the level of a fresh lesson and saves it on LingQ; returns e.g. "уровень B1". */
+    private fun aiLevel(lang: String, id: Int, text: String): String {
+        val (lvl, _) = app.geminiFast().level(lang, text)
+        app.api.waitProcessed(lang, id)
+        app.api.setLevel(lang, id, lvl)
+        AppLog.add("import", "Урок $id: уровень ${levelName(lvl)}")
+        return "уровень ${CEFR[lvl - 1]}"
     }
 
     /** Waits until LingQ finished processing a fresh lesson, fixes its split and checks the fix stayed. */

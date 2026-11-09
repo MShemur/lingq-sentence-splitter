@@ -972,6 +972,37 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** Sentence whose edit window is open. */
     var editing by mutableStateOf<Int?>(null)
+
+    // --- level of the lesson by the AI ---
+
+    var levelBusy by mutableStateOf(false)
+    /** Result for the dialog: level 1..6 and the reason. */
+    var levelResult by mutableStateOf<Pair<Int, String>?>(null)
+
+    fun detectLevel() {
+        if (levelBusy) return
+        if (!app.useGemini) { app.say("Нужен Gemini или другой ИИ: Настройки → Перевод"); return }
+        val text = sentences.joinToString(" ") { it.text }
+        if (text.isBlank()) return
+        levelBusy = true
+        app.say("ИИ оценивает уровень…")
+        app.scope.launch {
+            try {
+                val r = withContext(Dispatchers.IO) {
+                    val r = app.geminiFast().level(lang, text)
+                    app.api.setLevel(lang, lesson.id, r.first)
+                    r
+                }
+                AppLog.add("reader", "Уровень урока ${lesson.id}: ${levelName(r.first)}")
+                levelResult = r
+            } catch (e: Throwable) {
+                AppLog.error("reader", "Уровень урока ${lesson.id}", e)
+                app.say(e.message ?: "Не удалось определить уровень")
+                app.geminiFailed(e, fast = true) { detectLevel() }
+            }
+            levelBusy = false
+        }
+    }
     var editSaving by mutableStateOf(false)
     var editError by mutableStateOf<String?>(null)
 
@@ -1117,6 +1148,12 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             onClick = { menu = false; state.playLesson(s.lang, Lesson(s.lesson.id, s.title, s.lesson.imageUrl, courseTitle = s.lesson.courseTitle)) },
         )
         DropdownMenuItem(
+            text = { Text(if (s.levelBusy) "Определяю уровень…" else "Определить уровень (ИИ)") },
+            leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
+            enabled = !s.levelBusy,
+            onClick = { menu = false; s.detectLevel() },
+        )
+        DropdownMenuItem(
             text = { Text("Статистика") },
             leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
             onClick = { menu = false; state.go(Screen.Stats) },
@@ -1180,6 +1217,7 @@ private fun ReaderHelp(onClose: () -> Unit) {
             "Играет и в фоне: управление в шторке, на экране блокировки и кнопками наушников.",
         ),
         "Меню и кнопки" to listOf(
+            "⋮ → «Определить уровень (ИИ)» — ИИ оценивает текст (A1–C2) и записывает уровень урока в LingQ.",
             "Закладка вверху — закладки этого урока; все закладки — в библиотеке.",
             "«Чат» внизу — разговор с ИИ о всём тексте.",
             "⋮ → «Оформление и экран»: фон страницы, цвет выделения слов, сколько экран не гаснет.",
@@ -1251,6 +1289,14 @@ fun ReaderProgress(s: ReaderSession) {
 fun ReaderScreen(s: ReaderSession) {
     LaunchedEffect(s) { if (s.paragraphs == null) s.load() }
     SentenceEditDialog(s)
+    s.levelResult?.let { (lvl, why) ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { s.levelResult = null },
+            title = { Text("Уровень: ${levelName(lvl)}") },
+            text = { Text((if (why.isNotBlank()) "$why\n\n" else "") + "Сохранено в уроке на LingQ.") },
+            confirmButton = { TextButton(onClick = { s.levelResult = null }) { Text("OK") } },
+        )
+    }
     val wide = LocalConfiguration.current.screenWidthDp > 600
     SideEffect { s.wide = wide }
     val paras = s.paragraphs

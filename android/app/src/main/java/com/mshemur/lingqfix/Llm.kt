@@ -43,9 +43,25 @@ abstract class Llm {
     fun clean(prompt: String, lang: String, text: String): String =
         generate(null, listOf(Gemini.Msg(true, Prompts.fill(prompt, "lang" to lang, "text" to text)))).trim()
 
+    /** CEFR level of a text: LingQ level 1..6 (A1..C2) and a short reason. */
+    fun level(lang: String, text: String): Pair<Int, String> {
+        val raw = generate(null, listOf(Gemini.Msg(true, Prompts.fill(Prompts.LEVEL, "lang" to lang, "text" to text.take(6000)))), json = true)
+        val o = runCatching { JSONObject("{" + raw.substringAfter("{", "").substringBeforeLast("}") + "}") }.getOrNull()
+        val cefr = (o?.optString("cefr") ?: raw).uppercase()
+        val i = Regex("[ABC][12]").find(cefr)?.value?.let { CEFR.indexOf(it) } ?: -1
+        if (i < 0) throw ApiException("ИИ не назвал уровень: ${raw.take(120)}")
+        return (i + 1) to o?.optString("why").orEmpty()
+    }
+
     fun sentence(prompt: String, lang: String, target: String, sentence: String): String =
         generate(null, listOf(Gemini.Msg(true, Prompts.fill(prompt, "lang" to lang, "target" to target, "sentence" to sentence))))
 }
+
+/** LingQ lesson levels 1..6 and their CEFR names. */
+val CEFR = listOf("A1", "A2", "B1", "B2", "C1", "C2")
+val LINGQ_LEVELS = listOf("Beginner 1", "Beginner 2", "Intermediate 1", "Intermediate 2", "Advanced 1", "Advanced 2")
+
+fun levelName(level: Int) = "${CEFR.getOrElse(level - 1) { "?" }} · ${LINGQ_LEVELS.getOrElse(level - 1) { "" }}"
 
 /** Ready addresses of OpenAI-compatible services. */
 val AI_PRESETS = listOf(

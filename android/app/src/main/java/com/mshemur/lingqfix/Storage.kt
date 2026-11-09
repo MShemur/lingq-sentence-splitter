@@ -121,6 +121,10 @@ class Prefs(ctx: Context) {
         get() = read("promptClean", Prompts.CLEAN).ifBlank { Prompts.CLEAN }
         set(v) = p.edit().putString("promptClean", v).apply()
     /** Import: quick clean right after text is pasted / read. */
+    /** Import: the AI sets the level of every uploaded lesson. */
+    var autoLevel: Boolean
+        get() = read("autoLevel", "1") == "1"
+        set(v) = write("autoLevel", if (v) "1" else "0")
     var autoClean: Boolean
         get() = read("autoClean", "1") == "1"
         set(v) = write("autoClean", if (v) "1" else "0")

@@ -767,6 +767,19 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 Text("Сразу исправить разбивку на предложения")
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = s.autoLevel && state.useGemini, enabled = state.useGemini,
+                    onCheckedChange = { v -> s.autoLevel = v; state.applyPrefs { autoLevel = v } },
+                )
+                Column {
+                    Text("ИИ определит уровень сложности (A1–C2)")
+                    if (!state.useGemini) Text(
+                        "Нужен Gemini или другой ИИ: Настройки → Перевод",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Делить длинные тексты по", Modifier.weight(1f))
                 OutlinedTextField(
                     s.splitWords, { v -> s.splitWords = v.filter { it.isDigit() } }, Modifier.width(96.dp),

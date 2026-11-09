@@ -53,6 +53,13 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   with a "« 5 с" bubble; window ↔ full text cross-fade. Home screen widget of the player (Android only).
   `Extras.kt` (`skeleton`, `TodayCard`, `MiniPlayer`, `SpeedSheet`), `Ui.kt`, `Player.kt`.
 
+- Android: AI sets the lesson level. `PATCH /api/v3/{lang}/lessons/{id}/ {"level": N}` (verified: N = 1..6 =
+  Beginner 1, Beginner 2, Intermediate 1, Intermediate 2, Advanced 1, Advanced 2 ~ A1..C2). Prompt `Prompts.LEVEL`
+  (first 6000 chars, JSON {"cefr","why"}), light model. Import: checkbox "ИИ определит уровень сложности (A1–C2)",
+  on by default, remembered; runs after LingQ processed the lesson (waitProcessed), log line "… уровень B1".
+  Reader ⋮ "Определить уровень (ИИ)": whole lesson text -> sets the level -> dialog "Уровень: B1 · Intermediate 1" + reason.
+  `Llm.level`, `LingqApi.setLevel`, `ImportSession.aiLevel`, `ReaderSession.detectLevel`.
+
 ## To do on Android
 
 ## Done
