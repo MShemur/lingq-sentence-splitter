@@ -267,12 +267,14 @@ object AudioEngine {
 
 /** Background playback: media notification, lock screen, headphone buttons. */
 class PlaybackService : MediaSessionService() {
+    companion object { const val ACTION_PLAYER = "com.mshemur.lingqfix.PLAYER" }
+
     private var session: MediaSession? = null
 
     override fun onCreate() {
         super.onCreate()
         val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            this, 0, Intent(this, MainActivity::class.java).setAction(ACTION_PLAYER).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         session = MediaSession.Builder(this, AudioEngine.get(this)).setSessionActivity(open).build()

@@ -9,6 +9,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- Android (replaces the player-in-reader line below): the player is NOT in the reader any more. Main screen has bottom tabs
+  "Библиотека" / "Плеер" (like LingQ). Player tab: lesson header + "Другой урок" (recent lessons that have `audioUrl`);
+  collapsed: a card with previous / current (bold) / next sentence, tap -> whole text (follows the audio, pauses following
+  6 s after the user scrolls), sounding sentence bold (whole sentence, not words); tap a word = pin translation, long press =
+  sentence translation in a strip above the player; word/phrase sheets as in the reader. Controls + loop sheet as below.
+  Reader: menu ⋮ "Слушать в плеере" (only if the lesson has audio). Notification tap opens the player tab. Android `Player.kt`.
 - Android: lesson audio player. LingQ editor JSON has `audio` (MP3 URL or null) and every sentence `timestamp: [startSec, endSec]`.
   Bottom bar "Аудио" (only when the lesson has audio) shows a player bar under the text and in sentence mode: time line,
   speed menu (0.5–1.5, remembered), ⏮/⏭ previous/next sentence (⏮ restarts the sentence if >1.5 s into it), ±5 s, play/pause,

@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -167,9 +168,10 @@ fun App(state: AppState) {
                 )
             },
             bottomBar = {
-                if (screen is Screen.Reader) Column {
-                    if (screen.session.audioUrl != null && screen.session.showAudio) AudioBar(screen.session)
-                    ReaderBottomBar(screen.session)
+                when (screen) {
+                    is Screen.Reader -> ReaderBottomBar(screen.session)
+                    Screen.ReaderCourses, Screen.Player -> MainTabs(state, screen)
+                    else -> {}
                 }
             },
             floatingActionButton = {
@@ -198,6 +200,7 @@ fun App(state: AppState) {
                     Screen.Stats -> StatsScreen(state)
                     Screen.SettingsSync -> SettingsSync(state)
                     Screen.Log -> LogScreen(state)
+                    Screen.Player -> PlayerScreen(state)
                     Screen.Courses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c)) }
                     Screen.Backups -> BackupsScreen(state)
                     is Screen.Lessons -> LessonsScreen(state, screen)
@@ -252,6 +255,21 @@ fun App(state: AppState) {
       }
 }
 
+/** Bottom tabs of the main screen, as in LingQ: library and player. */
+@Composable
+private fun MainTabs(state: AppState, screen: Screen) {
+    androidx.compose.material3.NavigationBar {
+        androidx.compose.material3.NavigationBarItem(
+            selected = screen == Screen.ReaderCourses, onClick = { state.switchTab(Screen.ReaderCourses) },
+            icon = { Icon(Icons.Filled.Home, contentDescription = null) }, label = { Text("Библиотека") },
+        )
+        androidx.compose.material3.NavigationBarItem(
+            selected = screen == Screen.Player, onClick = { state.switchTab(Screen.Player) },
+            icon = { Icon(AppIcons.Headphones, contentDescription = null) }, label = { Text("Плеер") },
+        )
+    }
+}
+
 private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.Home -> "Импорт"
     Screen.ReaderCourses -> "Библиотека · ${state.lang}"
@@ -267,6 +285,7 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.Stats -> "Статистика"
     Screen.SettingsSync -> "Синхронизация"
     Screen.Log -> "Журнал действий"
+    Screen.Player -> "Плеер"
     Screen.Courses -> "Мои курсы · ${state.lang}"
     Screen.Backups -> "Резервные копии"
     is Screen.Lessons -> s.title

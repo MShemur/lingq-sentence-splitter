@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             Intent.ACTION_VIEW -> i.data?.let { state.openImportFile(it) }
+            PlaybackService.ACTION_PLAYER -> state.switchTab(Screen.Player)
             ContinueWidget.ACTION_OPEN -> {
                 val id = i.getIntExtra("id", -1)
                 if (id >= 0) state.openLesson(i.getStringExtra("lang") ?: state.lang, id, i.getStringExtra("title").orEmpty())

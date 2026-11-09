@@ -495,6 +495,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     Triple(l.title, parse(o.optJSONArray("paragraphs") ?: JSONArray()), audio)
                 }
                 audioUrl = au
+                if (autoPlay && au != null) { autoPlay = false; togglePlay() }
                 val (p, w, ph) = withContext(Dispatchers.IO) { notes.load() }
                 pins.putAll(p); chosen.putAll(w); phrasePins.putAll(ph)
                 title = t
@@ -610,6 +611,11 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     }
 
     fun toggleSentence(id: Int) {
+        if (sentenceAtBottom) {
+            bottomSent = if (bottomSent == id) null else id
+            if (bottomSent != null) { focusSent = id; ensureSentence(id) }
+            return
+        }
         AppLog.add("reader", "Перевод предложения $id")
         focusSent = id
         if (shownSentences[id] == true) shownSentences.remove(id)
@@ -885,14 +891,16 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         sentences.filter { it.start > pos + 50 }.minByOrNull { it.start }?.let { AudioEngine.seekTo(it.start) }
     }
 
-    /** The audio moved to sentence [id]: the text follows (page / sentence mode). */
-    fun followAudio(id: Int?) {
-        if (id == playingSent) return
-        playingSent = id
-        if (id == null || !AudioEngine.playing) return
-        if (sentenceMode) followSent = id
-        else if (id !in visibleSents) syncTo = id
-    }
+    /** Player tab: the audio is at sentence [id] (shown bold). */
+    fun trackAudio(id: Int?) { if (id != playingSent) playingSent = id }
+
+    val appCtx get() = app.ctx
+
+    /** Player tab: a long press shows the sentence translation at the bottom, not under the sentence. */
+    var sentenceAtBottom = false
+    var bottomSent by mutableStateOf<Int?>(null)
+    /** Start playing as soon as the lesson (and its audio) is loaded. */
+    var autoPlay = false
 
     // --- editing a sentence (saved to the lesson on LingQ) ---
 
@@ -1037,6 +1045,11 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
             onClick = { menu = false; s.chatText() },
         )
+        if (s.audioUrl != null) DropdownMenuItem(
+            text = { Text("Слушать в плеере") },
+            leadingIcon = { Icon(AppIcons.Headphones, contentDescription = null) },
+            onClick = { menu = false; state.playLesson(s.lang, Lesson(s.lesson.id, s.title, s.lesson.imageUrl, courseTitle = s.lesson.courseTitle)) },
+        )
         DropdownMenuItem(
             text = { Text("Статистика") },
             leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
@@ -1090,12 +1103,13 @@ private fun ReaderHelp(onClose: () -> Unit) {
             "«Скрыть / Показать перевод» под предложением — сворачивает перевод для всех предложений.",
             "Урок открывается там, где вы остановились; прочитанный процент виден в списке уроков.",
         ),
-        "Аудио" to listOf(
-            "Если у урока есть аудио, внизу появляется кнопка «Аудио» — она открывает плеер.",
-            "Звучащее предложение выделено цветом, страница (и режим по предложениям) перелистывается вслед за звуком.",
-            "▶ у перевода предложения — слушать с этого предложения. ⏮ ⏭ — к предыдущему / следующему предложению, ↺ ↻ — на 5 секунд.",
+        "Аудио — во вкладке «Плеер»" to listOf(
+            "Плеер — вкладка внизу главного экрана (рядом с «Библиотекой»). Урок с аудио: ⋮ → «Слушать в плеере».",
+            "В плеере окно с текстом: звучащее предложение жирным. Нажатие на окно — весь текст, он прокручивается вслед за звуком.",
+            "В тексте плеера: нажатие на слово — перевод над ним, долгое нажатие — перевод предложения внизу.",
+            "⏮ ⏭ — к предыдущему / следующему предложению, ↺ ↻ — на 5 секунд, скорость — слева.",
             "🔁 — повтор участка: это предложение, последние или следующие 1 / 2 / 3 / 5 минут, свой участок A–B, пауза между повторами.",
-            "Играет и в фоне: управление в шторке, на экране блокировки и кнопками наушников. Скорость — слева в плеере.",
+            "Играет и в фоне: управление в шторке, на экране блокировки и кнопками наушников.",
         ),
         "Меню и кнопки" to listOf(
             "Закладка вверху — закладки этого урока; все закладки — в библиотеке.",
@@ -1137,10 +1151,6 @@ fun ReaderBottomBar(s: ReaderSession) {
             icon = { Icon(AppIcons.Translate, contentDescription = null) },
             label = { Text("Переводы") },
         )
-        if (s.audioUrl != null) NavigationBarItem(
-            selected = s.showAudio, onClick = { s.toggleAudioBar() },
-            icon = { Icon(AppIcons.Headphones, contentDescription = null) }, label = { Text("Аудио") },
-        )
         NavigationBarItem(
             selected = false, onClick = { s.chatText() },
             icon = { Icon(AppIcons.Chat, contentDescription = null) }, label = { Text("Чат") },
@@ -1173,10 +1183,6 @@ fun ReaderProgress(s: ReaderSession) {
 fun ReaderScreen(s: ReaderSession) {
     LaunchedEffect(s) { if (s.paragraphs == null) s.load() }
     SentenceEditDialog(s)
-    LaunchedEffect(s) {
-        snapshotFlow { if (AudioEngine.key == s.audioKey) AudioEngine.position else -1L }
-            .collect { ms -> s.followAudio(if (ms < 0) null else s.sentenceAt(ms)) }
-    }
     val wide = LocalConfiguration.current.screenWidthDp > 600
     SideEffect { s.wide = wide }
     val paras = s.paragraphs
@@ -1462,7 +1468,7 @@ private fun Paragraph(s: ReaderSession, para: List<Sent>) {
 }
 
 @Composable
-private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f, area: String = "text", center: Boolean = false) {
+internal fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f, area: String = "text", center: Boolean = false) {
     val size = s.font * scale
     val haptic = LocalHapticFeedback.current
     val selBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
@@ -1480,7 +1486,7 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f,
             )
             val phr = s.phrasesIn(sent.id)
             val sounding = s.playingSent == sent.id && AudioEngine.key == s.audioKey
-            val ts = if (sounding) textStyle.copy(color = playColor) else textStyle
+            val ts = if (sounding) textStyle.copy(fontWeight = FontWeight.Bold) else textStyle
             // a chunk belongs to a phrase by its words, or by a dash standing strictly inside it ("Nürnberg – Wiege")
             fun phraseOf(c: List<Token>) = phr.firstOrNull { (r, _) ->
                 c.any { if (it.isWord) it.index in r else it.index > r.first && it.index < r.last }
@@ -1582,11 +1588,6 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, ce
             modifier = Modifier.weight(1f),
         )
         BookmarkButton(s, id)
-        if (s.audioUrl != null && (s.sentences.firstOrNull { it.id == id }?.start ?: -1L) >= 0) {
-            IconButton(onClick = { s.playFrom(id) }, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Filled.PlayArrow, contentDescription = "Слушать отсюда", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-            }
-        }
         IconButton(onClick = { s.startEdit(id) }, modifier = Modifier.size(36.dp)) {
             Icon(Icons.Filled.Edit, contentDescription = "Редактировать предложение",
                 modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
@@ -1708,7 +1709,6 @@ private fun SentencePager(s: ReaderSession) {
                 DockedPanel(s, Modifier.width(PANEL_WIDTH).fillMaxHeight())
             }
         }
-        if (s.audioUrl != null && s.showAudio) AudioBar(s)
     }
 }
 
@@ -1723,7 +1723,7 @@ private fun SmTranslationToggle(s: ReaderSession) {
 }
 
 @Composable
-private fun WordSheet(s: ReaderSession, ref: WordRef) {
+internal fun WordSheet(s: ReaderSession, ref: WordRef) {
     ModalBottomSheet(onDismissRequest = { s.popup = null }) {
         Box(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
             WordContent(s, ref)
@@ -1853,7 +1853,7 @@ private suspend fun PointerInputScope.wordGestures(s: ReaderSession, area: Strin
 
 /** Window for several words translated together. */
 @Composable
-private fun PhraseSheet(s: ReaderSession, p: Phrase) {
+internal fun PhraseSheet(s: ReaderSession, p: Phrase) {
     ModalBottomSheet(onDismissRequest = { s.closePhrase() }) {
         Box(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
             PhraseContent(s, p)

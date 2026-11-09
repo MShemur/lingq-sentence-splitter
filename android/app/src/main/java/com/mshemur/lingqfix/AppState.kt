@@ -30,6 +30,8 @@ sealed interface Screen {
     data object Stats : Screen
     data object SettingsSync : Screen
     data object Log : Screen
+    /** Tab "Плеер": lesson audio with its text. */
+    data object Player : Screen
     data object Courses : Screen
     data object Backups : Screen
     class Import(val session: ImportSession) : Screen
@@ -199,6 +201,25 @@ class AppState(val ctx: Context) {
                 try { withContext(Dispatchers.IO) { api.lessons(lang, id).second.sumOf { it.words } } } finally { wordsLimit.release() }
             }.onSuccess { setCourseWords(id, it) }.onFailure { wordsFetched.remove(id) }
         }
+    }
+
+    /** The lesson in the player tab (its own session: pins, translations), null = nothing chosen. */
+    var player by mutableStateOf<ReaderSession?>(null)
+
+    /** Bottom tabs of the main screen: Библиотека / Плеер. */
+    fun switchTab(s: Screen) {
+        if (stack.size == 1 && stack[0] == s) return
+        stack.clear(); stack.add(s)
+        AppLog.add("nav", "Вкладка ${s.javaClass.simpleName}")
+    }
+
+    /** Listen to a lesson in the player tab (starts playing when its audio is known). */
+    fun playLesson(lang: String, l: Lesson) {
+        val cur = player
+        if (cur == null || cur.lesson.id != l.id || cur.lang != lang) {
+            player = ReaderSession(this, lang, l).apply { sentenceAtBottom = true; autoPlay = true }
+        } else if (AudioEngine.key != cur.audioKey || !AudioEngine.playing) cur.togglePlay()
+        switchTab(Screen.Player)
     }
 
     /** Lessons opened lately, for the "continue" row of the library. */

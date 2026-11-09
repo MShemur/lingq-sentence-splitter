@@ -8,6 +8,8 @@ data class Lesson(
     val words: Int = 0, val newWords: Int = 0, val courseTitle: String = "",
     /** When the lesson was last opened (epoch ms; 0 = unknown). */
     val opened: Long = 0,
+    /** MP3 of the lesson ("" = none / unknown). */
+    val audio: String = "",
 )
 data class Language(val code: String, val title: String)
 

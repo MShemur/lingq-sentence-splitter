@@ -94,6 +94,7 @@ class LingqApi(private val key: String) {
     private fun lessonOf(o: JSONObject) = Lesson(
         o.getInt("id"), o.optString("title"), o.optString("imageUrl"), o.optString("level"),
         o.optInt("wordCount"), o.optInt("newWordsCount"), o.optString("collectionTitle"),
+        audio = if (o.isNull("audioUrl")) "" else o.optString("audioUrl"),
     )
 
     /** Course title (may be empty) and its lessons in course order. */
