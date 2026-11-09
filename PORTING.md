@@ -11,9 +11,26 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-(nothing)
+- web v1.20: phrase translation above several words breaks in two at a dash: "Dürers Nürnberg – Wiege" selected ->
+  the " – " chunk has no word, `phraseOf` returns null for it. Fix: a chunk belongs to a phrase also when a non-word
+  token of it lies strictly inside the range (index > from && < to); highlight that dash too. Web `Reader.tsx` `SentenceFlow`.
 
 ## Done
+
+- android cabc9fd -> web v1.20 (fixes): (1) a dash between spaces ("Dürer – Maler") vanished: a non-word token " – " was split
+  into "before space"/"after space" and the middle was dropped; now each part between spaces is its own chunk
+  (`Sent.chunks`). Check the web tokenizer for the same bug. (2) "Продолжить" row: newest first - LingQ's
+  `openDate` + lessons opened in the app (kept locally) + reading-progress time, sorted by time desc, top 10
+  (`AppState.mergeRecent`). (3) Word prompt gets a note: a verb whose separable prefix stands later in the
+  sentence is translated with the prefix ("fing … an" -> anfangen); also for the prefix itself (`SEPARABLE`).
+  (4) Several words selected: their translation is pinned above all of them as one (highlighted together),
+  saved in lesson notes as "phrases": {"sent:from:to": text}; tapping any of its words removes it; overlapping
+  phrases give way; "Очистить переводы" clears them too. `Reader.kt` (`phrasePins`, `ChunkRow`).
+  Web v1.20: same bug was there, fixed (`session.ts` chunks); "Продолжить" = LingQ openDate + localStorage `recent`
+  + position time (`app.ts` `recent` computed, `lessonOpened`); SEPARABLE note on word prompt and phrase prompt;
+  phrase pins in notes `phrases` (synced with the notes), `Reader.tsx` `SentenceFlow` (`.phrase`). A dash chunk
+  inside a phrase belongs to it (Android `phraseOf` looks only at words, so a phrase over "Nürnberg – Wiege"
+  splits in two there: worth the same fix).
 
 - web v1.19: Reader menu ⋮ → "Как пользоваться": dialog with gestures and buttons (Слова / Предложения / Страницы и режимы /
   Меню и кнопки). Android 699067e `ReaderHelp` (not listed here, found in the log). Web adds the iPad extras: docked panel
@@ -150,13 +167,8 @@ ferstich" and lines broken inside a sentence), "С ИИ" = quick clean first,
   (Gemini word prompt + "this is a phrase" note; LingQ: hints + machine translation), chips to choose,
   own variant (saved per lesson like word meanings). Long press without dragging = sentence translation as
   before. Android `Reader.kt` (`wordGestures`, `openPhrase`, `PhraseSheet`).
-
-- Android (fixes): (1) a dash between spaces ("Dürer – Maler") vanished: a non-word token " – " was split
-  into "before space"/"after space" and the middle was dropped; now each part between spaces is its own chunk
-  (`Sent.chunks`). Check the web tokenizer for the same bug. (2) "Продолжить" row: newest first - LingQ's
-  `openDate` + lessons opened in the app (kept locally) + reading-progress time, sorted by time desc, top 10
-  (`AppState.mergeRecent`). (3) Word prompt gets a note: a verb whose separable prefix stands later in the
-  sentence is translated with the prefix ("fing … an" -> anfangen); also for the prefix itself (`SEPARABLE`).
-  (4) Several words selected: their translation is pinned above all of them as one (highlighted together),
-  saved in lesson notes as "phrases": {"sent:from:to": text}; tapping any of its words removes it; overlapping
-  phrases give way; "Очистить переводы" clears them too. `Reader.kt` (`phrasePins`, `ChunkRow`).
+- Android: edit a sentence: pencil in the sentence-translation row -> window with the sentence and its translation;
+  "Сохранить" re-reads the lesson editor JSON, keeps a backup, changes only that sentence (`text`, `cleanText`,
+  own-language entry in `translations`) and PATCHes the paragraphs; the sentence is replaced on screen, its word
+  and phrase pins are dropped if the text changed. `Reader.kt` (`saveEdit`, `SentenceEditDialog`).
+  Reader menu ⋮ also has "Статистика".

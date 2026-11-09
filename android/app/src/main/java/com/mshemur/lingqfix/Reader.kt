@@ -787,6 +787,126 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     }
 
     fun word(ref: WordRef) = sentById[ref.sent]?.tokens?.getOrNull(ref.token)?.text.orEmpty()
+
+    // --- editing a sentence (saved to the lesson on LingQ) ---
+
+    /** Sentence whose edit window is open. */
+    var editing by mutableStateOf<Int?>(null)
+    var editSaving by mutableStateOf(false)
+    var editError by mutableStateOf<String?>(null)
+
+    fun startEdit(id: Int) { editError = null; editSaving = false; editing = id }
+
+    /** Current translation shown for the sentence (for the edit window). */
+    fun shownTranslation(id: Int): String =
+        sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") } ?: sentById[id]?.translations?.get(target).orEmpty()
+
+    /**
+     * Writes the new text (and translation) of sentence [id] into the lesson on LingQ: the lesson is read again,
+     * a backup is kept on the phone, only this sentence is changed, the structure is saved as is.
+     */
+    fun saveEdit(id: Int, text: String, translation: String) {
+        val s = sentById[id] ?: return
+        val newText = text.trim().replace(Regex("\\s+"), " ")
+        val newTr = translation.trim()
+        if (newText.isEmpty()) { editError = "Предложение не может быть пустым"; return }
+        if (newText == s.text && newTr == shownTranslation(id)) { editing = null; return }
+        editSaving = true; editError = null
+        app.scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val paras = app.api.editor(lang, lesson.id)
+                    val js = findSentence(paras, s) ?: throw ApiException("Предложение не найдено в уроке на LingQ — обновите урок")
+                    app.backups.save(lang, Lesson(lesson.id, title), JSONArray(paras.toString()))
+                    if (newText != s.text) {
+                        js.put("text", newText)
+                        js.put("cleanText", newText)
+                    }
+                    if (newTr.isNotEmpty() && newTr != s.translations[target]) {
+                        val ta = js.optJSONArray("translations") ?: JSONArray().also { js.put("translations", it) }
+                        val own = (0 until ta.length()).map { ta.getJSONObject(it) }
+                            .firstOrNull { it.optString("language") == target }
+                        if (own != null) own.put("text", newTr)
+                        else ta.put(JSONObject().put("language", target).put("text", newTr))
+                    }
+                    app.api.saveParagraphs(lang, lesson.id, paras)
+                }
+                replaceSentence(s, newText, newTr)
+                editing = null
+                app.say("Предложение сохранено")
+            } catch (e: Throwable) {
+                editError = e.message ?: e.toString()
+            }
+            editSaving = false
+        }
+    }
+
+    /** The sentence in LingQ's paragraphs: by its index, else by the same order as [parse] (non-empty sentences). */
+    private fun findSentence(paras: JSONArray, s: Sent): JSONObject? {
+        val all = mutableListOf<JSONObject>()
+        for (i in 0 until paras.length()) {
+            val ss = paras.getJSONObject(i).optJSONArray("sentences") ?: continue
+            for (j in 0 until ss.length()) all += ss.getJSONObject(j)
+        }
+        all.firstOrNull { it.optInt("index", -1) == s.lingqIndex && it.optString("text").trim() == s.text }?.let { return it }
+        val nonEmpty = all.filter { it.optString("text").trim().isNotEmpty() }
+        return nonEmpty.getOrNull(s.id)?.takeIf { it.optString("text").trim() == s.text }
+            ?: all.firstOrNull { it.optInt("index", -1) == s.lingqIndex }
+    }
+
+    /** The edited sentence replaces the old one on screen; its word pins are dropped (the words moved). */
+    private fun replaceSentence(old: Sent, text: String, tr: String) {
+        val trs = HashMap(old.translations).apply { if (tr.isNotEmpty()) put(target, tr) }
+        val n = Sent(old.id, text, trs, old.lingqIndex)
+        sentById[n.id] = n
+        paragraphs = paragraphs?.map { p -> p.map { if (it.id == n.id) n else it } }
+        sentences = sentences.map { if (it.id == n.id) n else it }
+        if (tr.isNotEmpty()) sentTr[n.id] = tr else sentTr.remove(n.id)
+        if (text != old.text) {
+            pins.keys.filter { it.sent == n.id }.forEach { pins.remove(it) }
+            phrasePins.keys.filter { it.startsWith("${n.id}:") }.forEach { phrasePins.remove(it) }
+            aiCache.keys.filter { it.sent == n.id }.forEach { aiCache.remove(it) }
+            persist()
+        }
+    }
+}
+
+/** Window to correct a sentence and its translation; saving writes them into the lesson on LingQ. */
+@Composable
+fun SentenceEditDialog(s: ReaderSession) {
+    val id = s.editing ?: return
+    val sent = s.sentences.firstOrNull { it.id == id } ?: return
+    var text by remember(id) { mutableStateOf(sent.text) }
+    var tr by remember(id) { mutableStateOf(s.shownTranslation(id)) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { if (!s.editSaving) s.editing = null },
+        icon = { Icon(androidx.compose.material.icons.Icons.Filled.Edit, contentDescription = null) },
+        title = { Text("Редактировать предложение") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    text, { text = it }, Modifier.fillMaxWidth(), label = { Text("Предложение") },
+                    minLines = 2, enabled = !s.editSaving,
+                )
+                OutlinedTextField(
+                    tr, { tr = it }, Modifier.fillMaxWidth(), label = { Text("Перевод") },
+                    minLines = 2, enabled = !s.editSaving,
+                )
+                Text(
+                    "Изменения сохранятся в уроке на LingQ (копия урока до правки — в «Резервных копиях»). " +
+                        "Переводы слов этого предложения сбросятся, если изменить текст.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                s.editError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { s.saveEdit(id, text, tr) }, enabled = !s.editSaving && text.isNotBlank()) {
+                if (s.editSaving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Сохранить")
+            }
+        },
+        dismissButton = { TextButton(onClick = { s.editing = null }, enabled = !s.editSaving) { Text("Отмена") } },
+    )
 }
 
 // --- UI ------------------------------------------------------------------------------------------
@@ -810,6 +930,11 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             onClick = { menu = false; s.chatText() },
         )
         DropdownMenuItem(
+            text = { Text("Статистика") },
+            leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
+            onClick = { menu = false; state.go(Screen.Stats) },
+        )
+        DropdownMenuItem(
             text = { Text("Как пользоваться") },
             leadingIcon = { Icon(Icons.Filled.Info, contentDescription = null) },
             onClick = { menu = false; help = true },
@@ -821,10 +946,10 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
         HorizontalDivider()
         DropdownMenuItem(text = { Text("Шрифт крупнее  A+") }, onClick = { s.changeFont(+2) })
         DropdownMenuItem(text = { Text("Шрифт мельче  A−") }, onClick = { s.changeFont(-2) })
-        if (s.pins.isNotEmpty()) {
+        if (s.pins.isNotEmpty() || s.phrasePins.isNotEmpty()) {
             HorizontalDivider()
             DropdownMenuItem(
-                text = { Text("Снять все переводы над словами (${s.pins.size})") },
+                text = { Text("Снять все переводы над словами (${s.pins.size + s.phrasePins.size})") },
                 onClick = { s.clearPins(); menu = false },
             )
         }
@@ -843,7 +968,8 @@ private fun ReaderHelp(onClose: () -> Unit) {
         ),
         "Предложения" to listOf(
             "Долгое нажатие на слово — перевод предложения под ним (ещё раз — скрыть).",
-            "У перевода: закладка, «перевести заново» (↻) и чат о предложении.",
+            "У перевода: закладка, карандаш — исправить предложение и его перевод (сохраняется в уроке на LingQ), " +
+                "«перевести заново» (↻) и чат о предложении.",
             "Внизу «Переводы» — показать переводы всех предложений сразу.",
         ),
         "Страницы и режимы" to listOf(
@@ -923,6 +1049,7 @@ fun ReaderProgress(s: ReaderSession) {
 @Composable
 fun ReaderScreen(s: ReaderSession) {
     LaunchedEffect(s) { if (s.paragraphs == null) s.load() }
+    SentenceEditDialog(s)
     val wide = LocalConfiguration.current.screenWidthDp > 600
     SideEffect { s.wide = wide }
     val paras = s.paragraphs
@@ -1322,6 +1449,10 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, ce
             modifier = Modifier.weight(1f),
         )
         BookmarkButton(s, id)
+        IconButton(onClick = { s.startEdit(id) }, modifier = Modifier.size(36.dp)) {
+            Icon(androidx.compose.material.icons.Icons.Filled.Edit, contentDescription = "Редактировать предложение",
+                modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+        }
         RetranslateButton(s, id)
         IconButton(onClick = { s.chatSentence(id) }, modifier = Modifier.size(36.dp)) {
             Icon(AppIcons.Chat, contentDescription = "Чат о предложении", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
