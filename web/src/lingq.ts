@@ -5,7 +5,11 @@ export class ApiError extends Error {}
 
 export interface Course { id: number; title: string; imageUrl?: string }
 /** [imageUrl] '' when LingQ has only its stock picture; [words] 0 when unknown. */
-export interface Lesson { id: number; title: string; imageUrl?: string; level?: string; words?: number; courseTitle?: string }
+export interface Lesson {
+  id: number; title: string; imageUrl?: string; level?: string; words?: number; courseTitle?: string
+  /** When the lesson was last opened (ms; 0 / missing = unknown). */
+  opened?: number
+}
 export interface Language { code: string; title: string }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -73,9 +77,16 @@ const lessonOf = (o: any): Lesson => ({
 })
 
 /** Lessons opened lately (LingQ's "my lessons" shelf, most recent first). */
-export async function recentLessons(lang: string, count = 10): Promise<Lesson[]> {
+export async function recentLessons(lang: string, count = 20): Promise<Lesson[]> {
   const d = await call('GET', `/api/v3/${lang}/search/?shelf=my_lessons&sortBy=recentlyOpened&page=1&page_size=${count}`)
-  return (d?.results ?? []).map(lessonOf)
+  return (d?.results ?? []).map((o: any) => ({ ...lessonOf(o), opened: parseTime(o.openDate) }))
+}
+
+/** ISO time from LingQ (with or without a zone; none = UTC) -> ms, 0 if missing. */
+function parseTime(s: unknown): number {
+  if (typeof s !== 'string' || !s) return 0
+  const t = Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z')
+  return Number.isFinite(t) ? t : 0
 }
 
 /** Course title (may be empty) and its lessons in course order. */
@@ -86,7 +97,7 @@ export async function lessons(lang: string, course: number): Promise<{ title: st
 
 export async function lesson(lang: string, id: number): Promise<Lesson> {
   const d = await call('GET', `/api/v3/${lang}/lessons/${id}/`)
-  return { id, title: d?.title ?? '' }
+  return { id, title: d?.title ?? '', imageUrl: image(d?.imageUrl), courseTitle: d?.collectionTitle ?? '' }
 }
 
 /** Lesson as the web editor sees it: paragraphs -> sentences (text, translations, index ...). */

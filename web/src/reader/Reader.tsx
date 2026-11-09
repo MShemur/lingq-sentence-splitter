@@ -11,7 +11,7 @@ import { prefs } from '../settings'
 import { Chip, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ReaderHelp } from './Help'
-import { ref as wordRef, refSent, type ReaderSession, type Sent, type WordRef } from './session'
+import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef } from './session'
 
 /** A long-press selection is being dragged: the page must not scroll under the finger (iOS). */
 let selecting = false
@@ -484,32 +484,66 @@ function Paragraph({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain
   return <div class="para">{parts}</div>
 }
 
+type PhrasePin = { from: number; to: number; text: string }
+
 function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain?: boolean }) {
   const pins = plain ? {} : s.pins.value
   const prov = s.provisional.value
   const popup = plain ? null : s.popup.value
+
+  /** One chunk (a word with its punctuation); [ph]: the pinned phrase it belongs to. */
+  const chunkView = (sent: Sent, chunk: Token[], ph: PhrasePin | null, key: number) => (
+    <span class="chunk" data-se={sent.id} key={key}>
+      {chunk.map((t) => {
+        const inPhrase = !!ph && t.index >= ph.from && t.index <= ph.to
+        const picked = !plain && s.inSelection(sent.id, t.index)
+        if (!t.isWord) {
+          const between = !!ph && t.index > ph.from && t.index < ph.to
+          return <span class={'punct' + (picked ? ' picked' : between ? ' sel' : '')}>{t.text}</span>
+        }
+        const r = wordRef(sent.id, t.index)
+        const tr = inPhrase ? undefined : pins[r]
+        const selected = tr !== undefined || popup === r || inPhrase
+        return (
+          <span class={'w' + (selected ? ' sel' : '') + (picked ? ' picked' : '')} data-w={r}>
+            {tr !== undefined && <span class={'pin' + (prov[r] ? ' prov' : '')}>{tr || '…'}</span>}
+            <span class="wt">{t.text}</span>
+          </span>
+        )
+      })}
+    </span>
+  )
+
+  const sentView = (sent: Sent) => {
+    const phr = plain ? [] : s.phrasesIn(sent.id)
+    // a chunk belongs to a phrase by one of its words, or by anything lying inside it (a dash between its words)
+    const phraseOf = (c: Token[]) => phr.find((p) => c.some((t) =>
+      t.isWord ? t.index >= p.from && t.index <= p.to : t.index > p.from && t.index < p.to)) ?? null
+    const out: JSX.Element[] = []
+    const ch = sent.chunks
+    for (let i = 0; i < ch.length;) {
+      const ph = phraseOf(ch[i])
+      if (!ph) { out.push(chunkView(sent, ch[i], null, i)); i++; continue }
+      // several words translated together: one translation above all of them
+      let j = i
+      while (j < ch.length && phraseOf(ch[j]) === ph) j++
+      out.push(
+        <span class="phrase" key={'p' + i}>
+          <span class="pin phrase-pin">{ph.text || '…'}</span>
+          <span class="phrase-words">{ch.slice(i, j).map((c, n) => chunkView(sent, c, ph, i + n))}</span>
+        </span>,
+      )
+      i = j
+    }
+    return out
+  }
+
   return (
     <div class="flow">
       {sents.map((sent) => (
         <Fragment key={sent.id}>
           {!plain && s.isBookmarked(sent.id) && <span class="flow-mark" data-se={sent.id}><Icon name="bookmark" /></span>}
-          {sent.chunks.map((chunk) => (
-            <span class="chunk" data-se={sent.id}>
-              {chunk.map((t) => {
-                if (!t.isWord) return <span class="punct">{t.text}</span>
-                const r = wordRef(sent.id, t.index)
-                const tr = pins[r]
-                const selected = tr !== undefined || popup === r
-                const picked = !plain && s.inSelection(sent.id, t.index)
-                return (
-                  <span class={'w' + (selected ? ' sel' : '') + (picked ? ' picked' : '')} data-w={r}>
-                    {tr !== undefined && <span class={'pin' + (prov[r] ? ' prov' : '')}>{tr || '…'}</span>}
-                    <span class="wt">{t.text}</span>
-                  </span>
-                )
-              })}
-            </span>
-          ))}
+          {sentView(sent)}
         </Fragment>
       ))}
     </div>

@@ -252,6 +252,13 @@ div.list-item { cursor: default; }
   max-width: 11em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .pin.prov { color: var(--outline); }
+/* several words with one translation above them */
+.phrase { display: inline-flex; flex-direction: column; align-items: center; margin-right: 0.3em; max-width: 100%; }
+.phrase-words { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: center; row-gap: 2px; }
+.phrase-words > .chunk:last-child { margin-right: 0; }
+.phrase-pin { max-width: 100%; -webkit-line-clamp: 3; }
+.punct.sel { background: var(--green-bg); }
+.punct.picked { background: color-mix(in srgb, var(--primary) 28%, transparent); }
 .sent-tr {
   display: flex; align-items: center; background: color-mix(in srgb, var(--surface-variant) 50%, transparent);
   border-radius: 6px; padding: 4px 2px 4px 12px;

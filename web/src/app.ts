@@ -1,11 +1,12 @@
 // App-wide state: screen stack, messages, library cache. Port of AppState.kt (reader part).
-import { signal } from '@preact/signals'
+import { computed, signal } from '@preact/signals'
 import * as api from './lingq'
 import type { Course, Lesson } from './lingq'
 import { lang, otherAi, prefs, useGemini } from './settings'
 import type { ReaderSession } from './reader/session'
 import type { ChatSession } from './chat'
 import type { ImportSession } from './importer/session'
+import { positions } from './progress'
 
 export class LessonsScreen {
   readonly k = 'lessons'
@@ -103,15 +104,53 @@ export async function loadCourses(force = false) {
   }
 }
 
-/** Lessons opened lately, for the "Продолжить" row of the library. */
-export const recent = signal<Lesson[] | null>(null)
+// --- "Продолжить" row: LingQ's list + lessons opened here (LingQ does not always notice an opening through the API);
+// the lesson opened or read last comes first ---
+
+const recentApi = signal<{ lang: string; list: Lesson[] } | null>(null)
+const recentLocal = signal<Record<string, Lesson[]>>(loadRecentLocal())
+
+function loadRecentLocal(): Record<string, Lesson[]> {
+  try { return JSON.parse(localStorage.getItem('recent') ?? '{}') } catch { return {} }
+}
+
+/** A lesson was opened in the reader: it goes first in the row. */
+export function lessonOpened(l: string, lesson: Lesson) {
+  const list = recentLocal.value[l] ?? []
+  const old = list.find((x) => x.id === lesson.id)
+  const now: Lesson = {
+    id: lesson.id, title: lesson.title || old?.title || '', imageUrl: lesson.imageUrl || old?.imageUrl || '',
+    level: lesson.level || old?.level || '', words: lesson.words || old?.words || 0,
+    courseTitle: lesson.courseTitle || old?.courseTitle || '', opened: Date.now(),
+  }
+  recentLocal.value = { ...recentLocal.value, [l]: [now, ...list.filter((x) => x.id !== lesson.id)].slice(0, 20) }
+  try { localStorage.setItem('recent', JSON.stringify(recentLocal.value)) } catch { /* ignore */ }
+}
+
+/** Lessons opened lately, newest first (top 10); null until there is anything to show. */
+export const recent = computed<Lesson[] | null>(() => {
+  const l = lang()
+  const remote = recentApi.value?.lang === l ? recentApi.value.list : []
+  const local = recentLocal.value[l] ?? []
+  if (!remote.length && !local.length) return recentApi.value?.lang === l ? [] : null
+  const pos = positions.value
+  const byId = new Map<number, Lesson>()
+  for (const x of [...remote, ...local]) {
+    const a = byId.get(x.id)
+    const t = Math.max(a?.opened ?? 0, x.opened ?? 0, pos[`${l}_${x.id}`]?.t ?? 0)
+    byId.set(x.id, a ? {
+      ...a, title: a.title || x.title, imageUrl: a.imageUrl || x.imageUrl, courseTitle: a.courseTitle || x.courseTitle, opened: t,
+    } : { ...x, opened: t })
+  }
+  return [...byId.values()].sort((a, b) => (b.opened ?? 0) - (a.opened ?? 0)).slice(0, 10)
+})
 
 export async function loadRecent() {
   const l = lang()
   try {
     const list = await api.recentLessons(l)
-    if (lang() === l) recent.value = list
-  } catch { /* the row is just not shown */ }
+    if (lang() === l) recentApi.value = { lang: l, list }
+  } catch { /* the row shows only lessons opened here */ }
 }
 
 // --- words per course: sum over its lessons, fetched in the background (3 at a time), kept on the device ---

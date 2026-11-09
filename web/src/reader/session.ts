@@ -6,7 +6,7 @@ import * as gemini from '../gemini'
 import type { WordMeaning } from '../gemini'
 import { prefs, prompt, trLang, useGemini } from '../settings'
 import { fill } from '../prompts'
-import { go, say, stack, errorText, geminiFailed } from '../app'
+import { go, say, stack, errorText, geminiFailed, lessonOpened } from '../app'
 import { ChatSession } from '../chat'
 import { hasBookmark, toggleBookmark as toggleBm, type Bookmark } from '../bookmarks'
 import { positionOf, savePosition } from '../progress'
@@ -39,12 +39,15 @@ function chunks(tokens: Token[]): Token[][] {
   let cur: Token[] = []
   for (const t of tokens) {
     if (!t.isWord && /\s/.test(t.text)) {
-      const before = t.text.match(/^\S*/)![0]
-      const after = t.text.match(/\S*$/)![0]
-      if (before) cur.push({ text: before, isWord: false, index: t.index })
+      // " – ": the part before the space ends a chunk, the part after starts the next,
+      // anything between spaces (a dash) is a chunk of its own
+      const parts = t.text.split(/\s+/)
+      if (parts[0]) cur.push({ text: parts[0], isWord: false, index: t.index })
       if (cur.length) out.push(cur)
       cur = []
-      if (after) cur.push({ text: after, isWord: false, index: t.index })
+      for (const m of parts.slice(1, -1)) if (m) out.push([{ text: m, isWord: false, index: t.index }])
+      const last = parts[parts.length - 1]
+      if (parts.length > 1 && last) cur.push({ text: last, isWord: false, index: t.index })
     } else cur.push(t)
   }
   if (cur.length) out.push(cur)
@@ -68,6 +71,15 @@ export const refSent = (r: WordRef) => Number(r.split(':')[0])
 const refToken = (r: WordRef) => Number(r.split(':')[1])
 
 const isError = (t: string | undefined) => !t || t.startsWith('⚠')
+
+/** Added to the word prompt: German-style verbs whose prefix stands apart ("fing … an"). */
+const SEPARABLE = '\n\nУчитывай грамматику всего предложения. Если «{word}» — глагол с отделяемой приставкой ' +
+  '(или часть составного глагола), а приставка стоит отдельно дальше в предложении (нем. «Er fing gestern an» → anfangen, ' +
+  '«Sie kommt morgen zurück» → zurückkommen), переводи глагол вместе с этой приставкой, а в note укажи инфинитив с приставкой. ' +
+  'Если «{word}» — сама отделённая приставка, переводи весь глагол так же.'
+
+/** Pinned phrase key "sent:from:to" -> [sent, from, to]. */
+const phraseParts = (k: string) => k.split(':').map(Number)
 
 // --- helpers for immutable records in signals ---
 
@@ -151,6 +163,7 @@ export class ReaderSession {
       const paras = this.parse(raw)
       this.loadNotes()
       this.title.value = l.title
+      this.opened(l)
       this.sentences.value = paras.flat()
       // open where reading stopped last time (a bookmark's sentence wins)
       const start = this.jump.value ?? positionOf(this.lang, this.lesson.id)?.s ?? null
@@ -159,6 +172,15 @@ export class ReaderSession {
     } catch (e) {
       this.error.value = errorText(e)
     }
+  }
+
+  /** For the library's "Продолжить" row (the cover is fetched if missing). */
+  private opened(l: Lesson) {
+    const lesson = { ...this.lesson, ...l, title: l.title || this.lesson.title }
+    lessonOpened(this.lang, lesson)
+    if (!lesson.imageUrl) api.lesson(this.lang, lesson.id).then((f) => {
+      if (f.imageUrl) lessonOpened(this.lang, { ...lesson, imageUrl: f.imageUrl, courseTitle: lesson.courseTitle || f.courseTitle })
+    }, () => {})
   }
 
   /** Remembers where the reader is: [first] sentence on screen, [last] one (for the percentage read). */
@@ -205,16 +227,19 @@ export class ReaderSession {
       const o = JSON.parse(localStorage.getItem(this.notesKey) ?? '{}')
       this.pins.value = o.pins ?? {}
       this.chosen.value = o.words ?? {}
+      this.phrasePins.value = o.phrases ?? {}
     } catch { /* none yet */ }
   }
 
   private persist() {
     const pins: Record<string, string> = {}
     for (const [k, v] of Object.entries(this.pins.value)) if (v && !v.startsWith('⚠')) pins[k] = v
-    try { localStorage.setItem(this.notesKey, JSON.stringify({ pins, words: this.chosen.value, t: Date.now() })) } catch { /* ignore */ }
+    const phrases: Record<string, string> = {}
+    for (const [k, v] of Object.entries(this.phrasePins.value)) if (v && !v.startsWith('⚠')) phrases[k] = v
+    try { localStorage.setItem(this.notesKey, JSON.stringify({ pins, words: this.chosen.value, phrases, t: Date.now() })) } catch { /* ignore */ }
   }
 
-  clearPins() { this.pins.value = {}; this.provisional.value = {}; this.persist() }
+  clearPins() { this.pins.value = {}; this.provisional.value = {}; this.phrasePins.value = {}; this.persist() }
 
   changeFont(d: number) {
     const f = Math.min(40, Math.max(13, Number(prefs.readerFont.value) + d))
@@ -337,7 +362,7 @@ export class ReaderSession {
     const c = this.aiCache.get(r)
     if (c) return c
     const s = this.sentById.get(refSent(r))!
-    const m = await gemini.word(prompt.word(), this.lang, this.target, this.word(r), s.text)
+    const m = await gemini.word(prompt.word() + SEPARABLE, this.lang, this.target, this.word(r), s.text)
     this.aiCache.set(r, m)
     return m
   }
@@ -383,6 +408,8 @@ export class ReaderSession {
   /** One tap: translation pinned above the word (tap again removes it). */
   tap(r: WordRef) {
     this.focusSent = refSent(r)
+    const pk = this.phraseKeyAt(r)
+    if (pk) { drop(this.phrasePins, pk); this.persist(); return }
     if (r in this.pins.value) { drop(this.pins, r); drop(this.provisional, r); this.persist(); return }
     put(this.pins, r, '')
     const saved = this.chosen.value[this.word(r).toLowerCase()]
@@ -505,6 +532,24 @@ export class ReaderSession {
   phraseLoading = signal(false)
   phraseError = signal<string | null>(null)
 
+  /** Translations of several words shown above them as one: "sent:from:to" -> text ("" while loading). */
+  phrasePins = signal<Record<string, string>>({})
+
+  /** Phrases pinned in sentence [sent]: token ranges and their translation. */
+  phrasesIn(sent: number): { from: number; to: number; text: string }[] {
+    const out: { from: number; to: number; text: string }[] = []
+    for (const [k, v] of Object.entries(this.phrasePins.value)) {
+      const [s, from, to] = phraseParts(k)
+      if (s === sent) out.push({ from, to, text: v })
+    }
+    return out
+  }
+
+  private phraseKeyAt(r: WordRef): string | undefined {
+    const sent = refSent(r), t = refToken(r)
+    return Object.keys(this.phrasePins.value).find((k) => { const [s, f, e] = phraseParts(k); return s === sent && t >= f && t <= e })
+  }
+
   inSelection(sent: number, token: number) {
     const x = this.sel.value
     return !!x && x.sent === sent && token >= x.from && token <= x.to
@@ -547,23 +592,43 @@ export class ReaderSession {
     this.phraseNote.value = ''
     this.phraseError.value = null
     this.phraseLoading.value = true
+    // the translation goes above the words as one; overlapping phrases of this sentence give way
+    const key = `${sentId}:${from}:${to}`
+    const pinsNow: Record<string, string> = {}
+    for (const [k, v] of Object.entries(this.phrasePins.value)) {
+      const [s, f, e] = phraseParts(k)
+      if (k === key || s !== sentId || f > to || e < from) pinsNow[k] = v
+    }
+    pinsNow[key] = this.phraseBest.value ?? pinsNow[key] ?? ''
+    this.phrasePins.value = pinsNow
+    const pinned = (v: string) => { if (key in this.phrasePins.value) put(this.phrasePins, key, v) }
     try {
+      let best: string
       if (useGemini()) {
         const pr = prompt.word() + '\n\nВажно: «{word}» — не одно слово, а словосочетание. ' +
-          'Переведи его целиком как единое целое по смыслу в этом предложении; best может быть длиннее трёх слов.'
+          'Переведи его целиком как единое целое по смыслу в этом предложении; best может быть длиннее трёх слов. ' +
+          'Если в нём есть глагол, чья отделяемая приставка стоит дальше в предложении, переводи глагол вместе с приставкой.'
         const m = await gemini.word(pr, this.lang, this.target, text, st.text)
-        if (this.phrase.value !== p) return
-        this.phraseBest.value = this.chosen.value[text.toLowerCase()] ?? m.best
-        this.phraseOptions.value = this.dedupe([m.best, ...m.options])
-        this.phraseNote.value = m.note
+        best = this.chosen.value[text.toLowerCase()] ?? m.best
+        if (this.phrase.value === p) {
+          this.phraseBest.value = best
+          this.phraseOptions.value = this.dedupe([m.best, ...m.options])
+          this.phraseNote.value = m.note
+        }
       } else {
         const h = await this.hints(text).catch(() => [] as string[])
         const t = await api.translate(this.lang, this.target, text)
-        if (this.phrase.value !== p) return
-        this.phraseBest.value = this.chosen.value[text.toLowerCase()] ?? t
-        this.phraseOptions.value = this.dedupe([t, ...h.slice(0, 8)])
+        best = this.chosen.value[text.toLowerCase()] ?? t
+        if (this.phrase.value === p) {
+          this.phraseBest.value = best
+          this.phraseOptions.value = this.dedupe([t, ...h.slice(0, 8)])
+        }
       }
+      // the window may have been closed meanwhile: the words still get their translation
+      if (!this.phrasePins.value[key] || this.phrase.value === p) pinned(this.phrase.value === p ? this.phraseBest.value ?? best : best)
+      this.persist()
     } catch (e) {
+      if (!this.phrasePins.value[key]) drop(this.phrasePins, key)
       if (this.phrase.value === p) this.phraseError.value = errorText(e)
       geminiFailed(e, () => { if (this.phrase.value === p) void this.openPhrase(sentId, from, to) }, true)
     }
@@ -576,6 +641,7 @@ export class ReaderSession {
     if (!p || !m) return
     put(this.chosen, p.text.toLowerCase(), m)
     this.phraseBest.value = m
+    put(this.phrasePins, `${p.sent}:${p.from}:${p.to}`, m)
     this.persist()
   }
 
