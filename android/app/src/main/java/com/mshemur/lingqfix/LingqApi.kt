@@ -95,7 +95,12 @@ class LingqApi(private val key: String) {
         o.getInt("id"), o.optString("title"), o.optString("imageUrl"), o.optString("level"),
         o.optInt("wordCount"), o.optInt("newWordsCount"), o.optString("collectionTitle"),
         audio = if (o.isNull("audioUrl")) "" else o.optString("audioUrl"),
+        duration = o.optInt("duration"),
     )
+
+    /** MP3 of a lesson ("" = none); course lesson lists do not include it. */
+    fun audioUrl(lang: String, id: Int): String =
+        obj("$BASE/v3/$lang/lessons/$id/").let { if (it.isNull("audioUrl")) "" else it.optString("audioUrl") }
 
     /** Course title (may be empty) and its lessons in course order. */
     fun lessons(lang: String, course: Int): Pair<String, List<Lesson>> {

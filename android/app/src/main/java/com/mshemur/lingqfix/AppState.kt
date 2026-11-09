@@ -14,6 +14,8 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -211,6 +213,57 @@ class AppState(val ctx: Context) {
         if (stack.size == 1 && stack[0] == s) return
         stack.clear(); stack.add(s)
         AppLog.add("nav", "Вкладка ${s.javaClass.simpleName}")
+    }
+
+    /** "Слушать все": lessons are being prepared (their audio addresses fetched). */
+    var queueLoading by mutableStateOf(false)
+    private val queueLessons = HashMap<String, Pair<String, Lesson>>()
+
+    /** Plays [lessons] one after another (the player shows the text of the one sounding). */
+    fun playAll(lang: String, lessons: List<Lesson>) {
+        if (lessons.isEmpty() || queueLoading) return
+        queueLoading = true
+        scope.launch {
+            try {
+                val limit = Semaphore(4)
+                val ready = withContext(Dispatchers.IO) {
+                    coroutineScope {
+                        lessons.map { l ->
+                            async {
+                                if (l.audio.isNotBlank()) l
+                                else limit.withPermit { runCatching { l.copy(audio = api.audioUrl(lang, l.id)) }.getOrDefault(l) }
+                            }
+                        }.awaitAll()
+                    }
+                }.filter { it.audio.isNotBlank() }
+                if (ready.isEmpty()) { say("У этих уроков нет аудио"); return@launch }
+                queueLessons.clear()
+                ready.forEach { queueLessons["${lang}_${it.id}"] = lang to it }
+                val first = ready.first()
+                val cur = player
+                if (cur == null || cur.lesson.id != first.id || cur.lang != lang) {
+                    player = ReaderSession(this@AppState, lang, first).apply { sentenceAtBottom = true }
+                }
+                AudioEngine.onTrack = { k -> onTrack(k) }
+                AudioEngine.loadQueue(
+                    ctx, ready.map { AudioEngine.Track("${lang}_${it.id}", it.audio, it.title, it.imageUrl) },
+                    AudioEngine.savedPos(ctx, "${lang}_${first.id}"),
+                )
+                AudioEngine.play()
+                switchTab(Screen.Player)
+            } catch (e: Throwable) {
+                AppLog.error("audio", "Слушать все", e)
+                say(e.message ?: "Не удалось собрать очередь")
+            } finally {
+                queueLoading = false
+            }
+        }
+    }
+
+    /** The queue went on to the next lesson: the player shows its text. */
+    private fun onTrack(k: String) {
+        val (lang, l) = queueLessons[k] ?: return
+        if (player?.audioKey != k) player = ReaderSession(this, lang, l).apply { sentenceAtBottom = true }
     }
 
     /** Audio bookmark: the player tab, from that place. */

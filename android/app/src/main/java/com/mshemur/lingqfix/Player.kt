@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,6 +28,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.FilterChip
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.layout.offset
@@ -81,13 +84,7 @@ import androidx.compose.ui.unit.sp
 fun PlayerScreen(state: AppState) {
     val s = state.player
     if (s == null) {
-        Column(Modifier.fillMaxSize()) {
-            Text(
-                "Что слушать", style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp),
-            )
-            AudioLessons(state, Modifier.weight(1f)) { lang, l -> state.playLesson(lang, l) }
-        }
+        AudioLessons(state, Modifier.fillMaxSize()) { lang, l -> state.playLesson(lang, l) }
         return
     }
     LaunchedEffect(s) { if (s.paragraphs == null && s.error == null) s.load() }
@@ -321,31 +318,108 @@ private fun MarksSheet(s: ReaderSession, onClose: () -> Unit) {
     }
 }
 
-/** Lessons with audio among the recently opened ones. */
+/** What to listen to: recent lessons with audio or a course; big cards with covers; "play all". */
 @Composable
 private fun AudioLessons(state: AppState, modifier: Modifier, onPick: (String, Lesson) -> Unit) {
-    LaunchedEffect(state.lang) { if (state.recent == null) state.loadRecent() }
-    val all = state.recent
-    val withAudio = all.orEmpty().filter { it.audio.isNotBlank() }
+    LaunchedEffect(state.lang) { if (state.recent == null) state.loadRecent(); state.loadCourses() }
+    var course by remember { mutableStateOf<Course?>(null) }
+    var courseLessons by remember { mutableStateOf<List<Lesson>?>(null) }
+    var courseError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(course) {
+        val c = course ?: return@LaunchedEffect
+        courseLessons = null; courseError = null
+        runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { state.api.lessons(state.lang, c.id).second } }
+            .onSuccess { courseLessons = it.filter { l -> l.duration > 0 || l.audio.isNotBlank() } }
+            .onFailure { courseError = it.message }
+    }
+    val list: List<Lesson>? = if (course == null) state.recent?.filter { it.audio.isNotBlank() || it.duration > 0 } else courseLessons
     Column(modifier) {
-        when {
-            all == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            withAudio.isEmpty() -> Text(
-                "Среди последних уроков нет уроков с аудио. Откройте урок с аудио и выберите ⋮ → «Слушать в плеере».",
-                Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            else -> LazyColumn {
-                itemsIndexed(withAudio, key = { _, l -> l.id }) { n, l ->
-                    if (n > 0) HorizontalDivider()
-                    ListItem(
-                        headlineContent = { Text(l.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                        supportingContent = { Text(l.courseTitle.ifBlank { "Урок ${l.id}" }, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        leadingContent = { Icon(AppIcons.Headphones, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        trailingContent = { if (state.player?.lesson?.id == l.id) Text("сейчас", color = MaterialTheme.colorScheme.primary) },
-                        modifier = Modifier.clickable { onPick(state.lang, l) },
-                    )
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item { FilterChip(course == null, onClick = { course = null }, label = { Text("Недавние") }) }
+            state.courses.orEmpty().forEach { c ->
+                item(key = c.id) {
+                    FilterChip(course?.id == c.id, onClick = { course = c }, label = { Text(c.title.ifBlank { "Курс ${c.id}" }, maxLines = 1) })
                 }
             }
+        }
+        when {
+            courseError != null -> Text("Ошибка: $courseError", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
+            list == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            list.isEmpty() -> Text(
+                if (course == null) "Среди последних уроков нет уроков с аудио. Выберите курс выше или откройте урок с аудио → ⋮ → «Слушать в плеере»."
+                else "В этом курсе нет уроков с аудио.",
+                Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            else -> {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(course?.title ?: "Недавние", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        val total = list.sumOf { it.duration }
+                        Text(
+                            "${list.size} " + plural(list.size, "урок", "урока", "уроков") + if (total > 0) " · ${fmtLength(total)}" else "",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    androidx.compose.material3.FilledTonalButton(onClick = { state.playAll(state.lang, list) }, enabled = !state.queueLoading) {
+                        if (state.queueLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Text("Слушать все", Modifier.padding(start = 6.dp))
+                    }
+                }
+                LazyColumn(
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    itemsIndexed(list, key = { _, l -> l.id }) { _, l ->
+                        AudioLessonCard(l, current = state.player?.lesson?.id == l.id) { onPick(state.lang, l) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun fmtLength(sec: Int): String {
+    val m = (sec + 30) / 60
+    return if (m < 60) "$m мин" else "${m / 60} ч ${m % 60} мин"
+}
+
+/** A lesson in the player list: big cover, title, course, length. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AudioLessonCard(l: Lesson, current: Boolean, onClick: () -> Unit) {
+    androidx.compose.material3.ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box {
+                Cover(l.imageUrl, l.title, Modifier.size(96.dp))
+                if (current) Surface(
+                    shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(AppIcons.Headphones, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+            Column(Modifier.weight(1f).padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(l.title.ifBlank { "Урок ${l.id}" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (l.courseTitle.isNotBlank()) Text(
+                    l.courseTitle, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    listOfNotNull(
+                        if (l.duration > 0) fmtLength(l.duration) else null,
+                        if (current) "сейчас в плеере" else null,
+                    ).joinToString(" · ").ifEmpty { "аудио" },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                )
+            }
+            Icon(Icons.Filled.PlayArrow, contentDescription = "Слушать", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 8.dp).size(28.dp))
         }
     }
 }
@@ -355,6 +429,6 @@ private fun AudioLessons(state: AppState, modifier: Modifier, onPick: (String, L
 private fun PickerSheet(state: AppState, onClose: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onClose) {
         Text("Что слушать", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp))
-        AudioLessons(state, Modifier.fillMaxWidth().padding(bottom = 24.dp)) { lang, l -> onClose(); state.playLesson(lang, l) }
+        AudioLessons(state, Modifier.fillMaxWidth().fillMaxHeight(0.85f)) { lang, l -> onClose(); state.playLesson(lang, l) }
     }
 }

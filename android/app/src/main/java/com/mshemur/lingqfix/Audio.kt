@@ -65,6 +65,17 @@ import androidx.media3.session.SessionToken
  * All calls on the main thread.
  */
 object AudioEngine {
+    /** One lesson of a "play all" queue. */
+    class Track(val key: String, val url: String, val title: String, val image: String)
+
+    /** Called when the queue moves on to the lesson with this key. */
+    var onTrack: ((String) -> Unit)? = null
+    /** Lessons in the queue and the one playing (1 = a single lesson). */
+    var queueSize by mutableIntStateOf(1)
+        private set
+    var queueIndex by mutableIntStateOf(0)
+        private set
+
     private var player: ExoPlayer? = null
     private var controller: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
     private val main = Handler(Looper.getMainLooper())
@@ -133,6 +144,19 @@ object AudioEngine {
                 if (state == Player.STATE_ENDED) { position = p.currentPosition; AppLog.add("audio", "Конец аудио") }
             }
 
+            override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
+                val k = item?.mediaId ?: return
+                queueIndex = p.currentMediaItemIndex
+                if (k == key) return
+                key?.let { old -> appCtx?.let { prefs(it).edit().putLong("pos.$old", 0L).apply() } }   // finished: next time from the start
+                key = k
+                title = item.mediaMetadata.title?.toString().orEmpty()
+                clearLoop(); stopAt = -1
+                duration = 0
+                AppLog.add("audio", "Дальше в очереди: $k")
+                onTrack?.invoke(k)
+            }
+
             override fun onPlayerError(e: PlaybackException) {
                 error = "Аудио: ${e.errorCodeName}"
                 AppLog.error("audio", "Ошибка плеера", e)
@@ -164,16 +188,40 @@ object AudioEngine {
         stopAt = -1
         duration = 0
         position = startMs
-        p.setMediaItem(
-            MediaItem.Builder().setUri(url).setMediaId(k)
-                .setMediaMetadata(MediaMetadata.Builder().setTitle(lessonTitle).setArtist("LingQ Fix").build())
-                .build(),
-            startMs,
-        )
+        p.setMediaItem(item(Track(k, url, lessonTitle, "")), startMs)
+        queueSize = 1; queueIndex = 0
         p.prepare()
         connect(ctx)
         AppLog.add("audio", "Загружено аудио урока $k с ${fmtTime(startMs)}")
     }
+
+    private fun item(t: Track): MediaItem = MediaItem.Builder().setUri(t.url).setMediaId(t.key)
+        .setMediaMetadata(
+            MediaMetadata.Builder().setTitle(t.title).setArtist("LingQ Fix")
+                .apply { if (t.image.isNotBlank()) setArtworkUri(android.net.Uri.parse(t.image)) }.build(),
+        )
+        .build()
+
+    /** "Слушать все": the lessons one after another, the first from [startMs]. */
+    fun loadQueue(ctx: Context, tracks: List<Track>, startMs: Long) {
+        if (tracks.isEmpty()) return
+        val p = get(ctx)
+        save()
+        key = tracks[0].key
+        title = tracks[0].title
+        error = null
+        clearLoop(); stopAt = -1
+        duration = 0
+        position = startMs
+        p.setMediaItems(tracks.map { item(it) }, 0, startMs)
+        queueSize = tracks.size; queueIndex = 0
+        p.prepare()
+        connect(ctx)
+        AppLog.add("audio", "Очередь: ${tracks.size} уроков")
+    }
+
+    fun nextTrack() { player?.let { if (it.hasNextMediaItem()) it.seekToNextMediaItem() } }
+    fun prevTrack() { player?.let { if (it.hasPreviousMediaItem()) it.seekToPreviousMediaItem() } }
 
     fun play() { val p = player ?: return; if (p.playbackState == Player.STATE_ENDED) p.seekTo(0); waitingGap = false; p.play() }
     fun pause() { waitingGap = false; main.removeCallbacks(resume); player?.pause() }
@@ -332,6 +380,16 @@ fun AudioBar(s: ReaderSession) {
                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
+            if (mine && AudioEngine.queueSize > 1) Row(
+                Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = { AudioEngine.prevTrack() }, enabled = AudioEngine.queueIndex > 0) { Text("‹ Урок") }
+                Text(
+                    "${AudioEngine.queueIndex + 1} из ${AudioEngine.queueSize}",
+                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                TextButton(onClick = { AudioEngine.nextTrack() }, enabled = AudioEngine.queueIndex < AudioEngine.queueSize - 1) { Text("Урок ›") }
+            }
             if (mine) AudioEngine.error?.let {
                 Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.CenterHorizontally))
             }

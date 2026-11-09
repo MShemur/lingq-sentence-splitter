@@ -10,6 +10,8 @@ data class Lesson(
     val opened: Long = 0,
     /** MP3 of the lesson ("" = none / unknown). */
     val audio: String = "",
+    /** Length of the audio, s (0 = no audio). */
+    val duration: Int = 0,
 )
 data class Language(val code: String, val title: String)
 

@@ -37,6 +37,13 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   "Другой урок". Bookmarks screen shows them with a headphones icon and "1:23 · " before the text; long press →
   "Слушать с этого места" opens the player there. `Bookmarks.kt` (`addAudio`, `audioFor`), `Player.kt`, `AppState.openAudioBookmark`.
 
+- Android: player lesson list = big elevated cards (96 dp cover from `imageUrl`, title, course, length from `duration`,
+  "сейчас в плеере" badge); chips row "Недавние" + my courses (course lessons from collections/{id}/lessons with
+  `duration > 0`; that list has no audioUrl -> fetched from lessons/{id}/ `audioUrl`); header "N уроков · 1 ч 20 мин" +
+  "Слушать все": a queue of all lessons in the list, played one after another (Media3 playlist; on transition the player
+  shows the next lesson's text; finished lesson's saved position reset to 0); player bar shows "‹ Урок  2 из 5  Урок ›".
+  `Player.kt AudioLessons/AudioLessonCard`, `AppState.playAll`, `AudioEngine.loadQueue`.
+
 ## To do on Android
 
 ## Done
