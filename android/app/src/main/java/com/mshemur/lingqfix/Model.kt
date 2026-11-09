@@ -6,6 +6,8 @@ data class Course(val id: Int, val title: String, val imageUrl: String = "")
 data class Lesson(
     val id: Int, val title: String, val imageUrl: String = "", val level: String = "",
     val words: Int = 0, val newWords: Int = 0, val courseTitle: String = "",
+    /** When the lesson was last opened (epoch ms; 0 = unknown). */
+    val opened: Long = 0,
 )
 data class Language(val code: String, val title: String)
 

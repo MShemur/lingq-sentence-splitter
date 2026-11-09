@@ -72,11 +72,20 @@ class LingqApi(private val key: String) {
             .map { Course(it.getInt("id"), it.optString("title"), it.optString("imageUrl")) }
 
     /** Lessons opened lately (LingQ's "my lessons" shelf, most recent first). */
-    fun recentLessons(lang: String, count: Int = 10): List<Lesson> {
+    fun recentLessons(lang: String, count: Int = 20): List<Lesson> {
         val a = obj("$BASE/v3/$lang/search/?shelf=my_lessons&sortBy=recentlyOpened&page=1&page_size=$count")
             .optJSONArray("results") ?: JSONArray()
-        return (0 until a.length()).map { lessonOf(a.getJSONObject(it)) }
+        return (0 until a.length()).map { i ->
+            val o = a.getJSONObject(i)
+            lessonOf(o).copy(opened = parseTime(o.optString("openDate")))
+        }
     }
+
+    private fun parseTime(s: String): Long = if (s.isBlank()) 0L else runCatching {
+        java.time.OffsetDateTime.parse(s).toInstant().toEpochMilli()
+    }.recoverCatching { java.time.Instant.parse(s).toEpochMilli() }
+        .recoverCatching { java.time.LocalDateTime.parse(s).atZone(java.time.ZoneOffset.UTC).toInstant().toEpochMilli() }
+        .getOrDefault(0L)
 
     private fun lessonOf(o: JSONObject) = Lesson(
         o.getInt("id"), o.optString("title"), o.optString("imageUrl"), o.optString("level"),

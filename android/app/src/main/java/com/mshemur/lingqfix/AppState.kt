@@ -195,10 +195,60 @@ class AppState(val ctx: Context) {
     /** Lessons opened lately, for the "continue" row of the library. */
     var recent by mutableStateOf<List<Lesson>?>(null)
 
+    private val recentPrefs = ctx.getSharedPreferences("recent", android.content.Context.MODE_PRIVATE)
+    private var recentApi: List<Lesson> = emptyList()
+
+    /** Lessons opened in this app (LingQ does not always notice an opening through the API). */
+    private fun localRecent(l: String): List<Lesson> = runCatching {
+        val a = org.json.JSONArray(recentPrefs.getString(l, "[]"))
+        (0 until a.length()).map { i ->
+            val o = a.getJSONObject(i)
+            Lesson(o.getInt("id"), o.optString("title"), o.optString("imageUrl"), o.optString("level"),
+                o.optInt("words"), 0, o.optString("course"), o.optLong("t"))
+        }
+    }.getOrDefault(emptyList())
+
+    private fun rememberOpened(l: String, lesson: Lesson) {
+        val old = localRecent(l).firstOrNull { it.id == lesson.id }
+        val now = Lesson(
+            lesson.id, lesson.title.ifBlank { old?.title.orEmpty() }, lesson.imageUrl.ifBlank { old?.imageUrl.orEmpty() },
+            lesson.level.ifBlank { old?.level.orEmpty() }, if (lesson.words > 0) lesson.words else old?.words ?: 0, 0,
+            lesson.courseTitle.ifBlank { old?.courseTitle.orEmpty() }, System.currentTimeMillis(),
+        )
+        val list = (listOf(now) + localRecent(l).filter { it.id != lesson.id }).take(20)
+        val a = org.json.JSONArray()
+        list.forEach { x ->
+            a.put(org.json.JSONObject().put("id", x.id).put("title", x.title).put("imageUrl", x.imageUrl).put("level", x.level)
+                .put("words", x.words).put("course", x.courseTitle).put("t", x.opened))
+        }
+        recentPrefs.edit().putString(l, a.toString()).apply()
+        if (lang == l) recent = mergeRecent(l)
+    }
+
+    /** LingQ's list + lessons opened here; the one opened last comes first. */
+    private fun mergeRecent(l: String): List<Lesson> {
+        val local = localRecent(l).associateBy { it.id }
+        val ids = LinkedHashSet<Int>().apply { recentApi.forEach { add(it.id) }; local.keys.forEach { add(it) } }
+        return ids.map { id ->
+            val a = recentApi.firstOrNull { it.id == id }
+            val b = local[id]
+            val base = a ?: b!!
+            val t = maxOf(a?.opened ?: 0L, b?.opened ?: 0L, progress.time(l, id))
+            base.copy(
+                title = base.title.ifBlank { b?.title.orEmpty() }, imageUrl = base.imageUrl.ifBlank { b?.imageUrl.orEmpty() },
+                courseTitle = base.courseTitle.ifBlank { b?.courseTitle.orEmpty() }, opened = t,
+            )
+        }.sortedByDescending { it.opened }.take(10)
+    }
+
     fun loadRecent() {
         val l = lang
+        recentApi = emptyList()
+        if (localRecent(l).isNotEmpty()) recent = mergeRecent(l)
         scope.launch {
-            runCatching { withContext(Dispatchers.IO) { api.recentLessons(l) } }.onSuccess { if (lang == l) recent = it }
+            runCatching { withContext(Dispatchers.IO) { api.recentLessons(l) } }.onSuccess {
+                if (lang == l) { recentApi = it; recent = mergeRecent(l) }
+            }
         }
     }
 
@@ -228,10 +278,12 @@ class AppState(val ctx: Context) {
 
     /** A lesson was opened in the reader: remember it for the widget (cover fetched if missing). */
     fun lessonOpened(lang: String, l: Lesson) {
+        rememberOpened(lang, l)
         ContinueWidget.save(ctx, lang, l)
         if (l.imageUrl.isBlank()) scope.launch {
             runCatching { withContext(Dispatchers.IO) { api.lesson(lang, l.id) } }.onSuccess { full ->
                 if (full.imageUrl.isNotBlank()) ContinueWidget.save(ctx, lang, full.copy(title = l.title.ifBlank { full.title }))
+                rememberOpened(lang, full.copy(title = l.title.ifBlank { full.title }))
             }
         }
     }

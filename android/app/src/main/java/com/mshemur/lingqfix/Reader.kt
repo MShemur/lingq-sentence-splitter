@@ -144,6 +144,7 @@ class Sent(val id: Int, val text: String, val translations: Map<String, String>,
 
     companion object {
         private val WORD = Regex("[\\p{L}\\p{N}]+(?:[-'’][\\p{L}\\p{N}]+)*")
+        private val SPACES = Regex("\\s+")
 
         fun tokenize(t: String): List<Token> {
             val out = mutableListOf<Token>()
@@ -164,12 +165,14 @@ class Sent(val id: Int, val text: String, val translations: Map<String, String>,
             var cur = mutableListOf<Token>()
             for (t in tokens) {
                 if (!t.isWord && t.text.any { it.isWhitespace() }) {
-                    val before = t.text.takeWhile { !it.isWhitespace() }
-                    val after = t.text.takeLastWhile { !it.isWhitespace() }
-                    if (before.isNotEmpty()) cur += Token(before, false, t.index)
+                    // " – " : the part before the space ends a chunk, the part after starts the next,
+                    // anything between spaces (a dash) is a chunk of its own
+                    val parts = t.text.split(SPACES)
+                    if (parts.first().isNotEmpty()) cur += Token(parts.first(), false, t.index)
                     if (cur.isNotEmpty()) out += cur
                     cur = mutableListOf()
-                    if (after.isNotEmpty()) cur += Token(after, false, t.index)
+                    for (m in parts.subList(1, maxOf(1, parts.size - 1))) if (m.isNotEmpty()) out += listOf(Token(m, false, t.index))
+                    if (parts.size > 1 && parts.last().isNotEmpty()) cur += Token(parts.last(), false, t.index)
                 } else cur += t
             }
             if (cur.isNotEmpty()) out += cur
@@ -177,6 +180,12 @@ class Sent(val id: Int, val text: String, val translations: Map<String, String>,
         }
     }
 }
+
+/** Added to the word prompt: German-style verbs whose prefix stands apart ("fing … an"). */
+private const val SEPARABLE = "\n\nУчитывай грамматику всего предложения. Если «{word}» — глагол с отделяемой приставкой " +
+    "(или часть составного глагола), а приставка стоит отдельно дальше в предложении (нем. «Er fing gestern an» → anfangen, " +
+    "«Sie kommt morgen zurück» → zurückkommen), переводи глагол вместе с этой приставкой, а в note укажи инфинитив с приставкой. " +
+    "Если «{word}» — сама отделённая приставка, переводи весь глагол так же."
 
 /** Several words of one sentence selected together: tokens [from]..[to]. */
 data class Phrase(val sent: Int, val from: Int, val to: Int, val text: String)
@@ -194,18 +203,23 @@ data class WordRef(val sent: Int, val token: Int) {
 private class LessonNotes(ctx: Context, lang: String, id: Int) {
     private val file = File(File(ctx.filesDir, "reader").apply { mkdirs() }, "${lang}_$id.json")
 
-    fun load(): Pair<Map<WordRef, String>, Map<String, String>> = runCatching {
+    fun load(): Triple<Map<WordRef, String>, Map<String, String>, Map<String, String>> = runCatching {
         val o = JSONObject(file.readText())
         val pins = o.optJSONObject("pins") ?: JSONObject()
         val words = o.optJSONObject("words") ?: JSONObject()
-        pins.keys().asSequence().associate { WordRef.of(it) to pins.getString(it) } to
-            words.keys().asSequence().associateWith { words.getString(it) }
-    }.getOrElse { emptyMap<WordRef, String>() to emptyMap() }
+        val phr = o.optJSONObject("phrases") ?: JSONObject()
+        Triple(
+            pins.keys().asSequence().associate { WordRef.of(it) to pins.getString(it) },
+            words.keys().asSequence().associateWith { words.getString(it) },
+            phr.keys().asSequence().associateWith { phr.getString(it) },
+        )
+    }.getOrElse { Triple(emptyMap(), emptyMap(), emptyMap()) }
 
-    fun save(pins: Map<WordRef, String>, words: Map<String, String>) {
+    fun save(pins: Map<WordRef, String>, words: Map<String, String>, phrases: Map<String, String>) {
         val p = JSONObject(); pins.forEach { (k, v) -> if (v.isNotEmpty() && !v.startsWith("⚠")) p.put(k.key(), v) }
         val w = JSONObject(); words.forEach { (k, v) -> w.put(k, v) }
-        file.writeText(JSONObject().put("pins", p).put("words", w).put("t", System.currentTimeMillis()).toString())
+        val ph = JSONObject(); phrases.forEach { (k, v) -> if (v.isNotEmpty() && !v.startsWith("⚠")) ph.put(k, v) }
+        file.writeText(JSONObject().put("pins", p).put("words", w).put("phrases", ph).put("t", System.currentTimeMillis()).toString())
     }
 }
 
@@ -316,6 +330,23 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     }
 
     var phrase by mutableStateOf<Phrase?>(null)
+
+    /** Translations of several words shown above them as one: "sent:from:to" -> text ("" while loading). */
+    val phrasePins = mutableStateMapOf<String, String>()
+
+    private fun phraseKey(sent: Int, from: Int, to: Int) = "$sent:$from:$to"
+
+    /** Phrases pinned in sentence [sent]: token ranges and their translation. */
+    fun phrasesIn(sent: Int): List<Pair<IntRange, String>> = phrasePins.mapNotNull { (k, v) ->
+        val p = k.split(':')
+        if (p.size == 3 && p[0].toIntOrNull() == sent) (p[1].toInt()..p[2].toInt()) to v else null
+    }
+
+    private fun phraseKeyAt(ref: WordRef): String? = phrasePins.keys.firstOrNull { k ->
+        val p = k.split(':')
+        p.size == 3 && p[0].toIntOrNull() == ref.sent && ref.token in p[1].toInt()..p[2].toInt()
+    }
+
     var phraseBest by mutableStateOf<String?>(null)
     var phraseOptions by mutableStateOf<List<String>>(emptyList())
     var phraseNote by mutableStateOf("")
@@ -333,25 +364,36 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         phrase = p
         phraseBest = chosen[text.lowercase()]
         phraseOptions = emptyList(); phraseNote = ""; phraseError = null; phraseLoading = true
+        // the translation goes above the words as one; overlapping phrases of this sentence give way
+        val key = phraseKey(sent, from, to)
+        phrasePins.keys.filter { k ->
+            val q = k.split(':'); q.size == 3 && q[0].toIntOrNull() == sent && q[1].toInt() <= to && q[2].toInt() >= from && k != key
+        }.forEach { phrasePins.remove(it) }
+        phrasePins[key] = phraseBest ?: phrasePins[key].orEmpty()
         app.scope.launch {
             try {
                 if (app.useGemini) {
                     val prompt = app.prefs.promptWord + "\n\nВажно: «{word}» — не одно слово, а словосочетание. " +
-                        "Переведи его целиком как единое целое по смыслу в этом предложении; best может быть длиннее трёх слов."
+                        "Переведи его целиком как единое целое по смыслу в этом предложении; best может быть длиннее трёх слов. " +
+                        "Если в нём есть глагол, чья отделяемая приставка стоит дальше в предложении, переводи глагол вместе с приставкой."
                     val m = withContext(Dispatchers.IO) { app.geminiFast().word(prompt, lang, target, text, st.text) }
                     if (phrase != p) return@launch
                     phraseBest = chosen[text.lowercase()] ?: m.best
                     phraseOptions = dedupe(listOf(m.best) + m.options)
                     phraseNote = m.note
+                    if (phrasePins.containsKey(key)) phrasePins[key] = phraseBest.orEmpty()
                 } else {
                     val h = runCatching { hints(text) }.getOrDefault(emptyList())
                     val t = withContext(Dispatchers.IO) { app.api.translate(lang, target, text) }
                     if (phrase != p) return@launch
                     phraseBest = chosen[text.lowercase()] ?: t
                     phraseOptions = dedupe(listOf(t) + h.take(8))
+                    if (phrasePins.containsKey(key)) phrasePins[key] = phraseBest.orEmpty()
                 }
+                persist()
             } catch (e: Throwable) {
                 if (phrase == p) phraseError = e.message ?: e.toString()
+                if (phrasePins[key].isNullOrEmpty()) phrasePins.remove(key)
                 app.geminiFailed(e, fast = true) { if (phrase == p) openPhrase(sent, from, to) }
             }
             if (phrase == p) phraseLoading = false
@@ -363,6 +405,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         val m = meaning.trim().ifEmpty { return }
         chosen[p.text.lowercase()] = m
         phraseBest = m
+        phrasePins[phraseKey(p.sent, p.from, p.to)] = m
         persist()
     }
 
@@ -441,8 +484,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     val l = if (lesson.title.isBlank()) app.api.lesson(lang, lesson.id) else lesson
                     l.title to parse(app.api.editor(lang, lesson.id))
                 }
-                val (p, w) = withContext(Dispatchers.IO) { notes.load() }
-                pins.putAll(p); chosen.putAll(w)
+                val (p, w, ph) = withContext(Dispatchers.IO) { notes.load() }
+                pins.putAll(p); chosen.putAll(w); phrasePins.putAll(ph)
                 title = t
                 app.lessonOpened(lang, lesson.copy(title = t))
                 sentences = paras.flatten()
@@ -483,8 +526,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     }
 
     private fun persist() {
-        val p = pins.toMap(); val w = chosen.toMap()
-        app.scope.launch(Dispatchers.IO) { runCatching { notes.save(p, w) } }
+        val p = pins.toMap(); val w = chosen.toMap(); val ph = phrasePins.toMap()
+        app.scope.launch(Dispatchers.IO) { runCatching { notes.save(p, w, ph) } }
     }
 
     fun setMode(inline: Boolean) {
@@ -497,7 +540,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         app.prefs.readerFont = font
     }
 
-    fun clearPins() { pins.clear(); persist() }
+    fun clearPins() { pins.clear(); phrasePins.clear(); persist() }
 
     // --- translations ---
 
@@ -578,7 +621,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     private suspend fun ai(ref: WordRef): WordMeaning {
         aiCache[ref]?.let { return it }
         val s = sentById.getValue(ref.sent)
-        val m = withContext(Dispatchers.IO) { app.geminiFast().word(app.prefs.promptWord, lang, target, word(ref), s.text) }
+        val m = withContext(Dispatchers.IO) { app.geminiFast().word(app.prefs.promptWord + SEPARABLE, lang, target, word(ref), s.text) }
         aiCache[ref] = m
         return m
     }
@@ -622,6 +665,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** One tap: translation pinned above the word (tap again removes it). */
     fun tap(ref: WordRef) {
         focusSent = ref.sent
+        phraseKeyAt(ref)?.let { phrasePins.remove(it); persist(); return }
         if (pins.containsKey(ref)) { pins.remove(ref); provisional.remove(ref); persist(); return }
         pins[ref] = ""
         val saved = chosen[word(ref).lowercase()]
@@ -1179,37 +1223,81 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f,
                 AppIcons.Bookmark, contentDescription = "Закладка", tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.align(Alignment.Bottom).padding(end = 2.dp, bottom = 4.dp).size((size * 0.9).dp),
             )
-            for (chunk in sent.chunks) {
-                // bottom-aligned: a translation above one word pushes the whole line down
-                Row(Modifier.align(Alignment.Bottom).padding(end = (size * 0.3).dp), verticalAlignment = Alignment.Bottom) {
-                    for (t in chunk) {
-                        val ref = WordRef(sent.id, t.index)
-                        val tr = if (t.isWord) s.pins[ref] else null
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            if (tr != null) Text(
-                                tr.ifEmpty { "…" }, style = trStyle, maxLines = 2,
-                                color = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else LocalHighlight.current.text,
-                                modifier = Modifier.padding(horizontal = 1.dp),
-                            )
-                            val selected = tr != null || s.popup == ref
-                            val bg = when {
-                                s.inSelection(ref) -> selBg
-                                selected -> LocalHighlight.current.bg
-                                else -> Color.Transparent
-                            }
-                            if (t.isWord) DisposableEffect(area, ref) { onDispose { s.wordCoords.remove(area to ref) } }
-                            Text(
-                                t.text, style = textStyle,
-                                modifier = if (!t.isWord) Modifier.background(
-                                    if (s.inSelection(ref)) selBg else Color.Transparent,
-                                ) else Modifier
-                                    .background(bg, RoundedCornerShape(4.dp))
-                                    .onGloballyPositioned { s.wordCoords[area to ref] = it }
-                                    .pointerInput(ref, area) { wordGestures(s, area, ref, haptic) },
-                            )
+            val phr = s.phrasesIn(sent.id)
+            fun phraseOf(c: List<Token>) = phr.firstOrNull { (r, _) -> c.any { it.isWord && it.index in r } }
+            var i = 0
+            val chunks = sent.chunks
+            while (i < chunks.size) {
+                val ph = phraseOf(chunks[i])
+                if (ph == null) {
+                    ChunkRow(s, sent, chunks[i], area, textStyle, trStyle, selBg, haptic, null,
+                        Modifier.align(Alignment.Bottom).padding(end = (size * 0.3).dp))
+                    i++
+                    continue
+                }
+                // several words translated together: one translation above all of them
+                var j = i
+                while (j < chunks.size && phraseOf(chunks[j]) == ph) j++
+                val group = chunks.subList(i, j)
+                Column(
+                    Modifier.align(Alignment.Bottom).padding(end = (size * 0.3).dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        ph.second.ifEmpty { "…" }, style = trStyle, maxLines = 3, textAlign = TextAlign.Center,
+                        color = LocalHighlight.current.text, modifier = Modifier.padding(horizontal = 1.dp),
+                    )
+                    FlowRow(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        group.forEachIndexed { n, c ->
+                            ChunkRow(s, sent, c, area, textStyle, trStyle, selBg, haptic, ph.first,
+                                if (n < group.size - 1) Modifier.padding(end = (size * 0.3).dp) else Modifier)
                         }
                     }
                 }
+                i = j
+            }
+        }
+    }
+}
+
+/** One chunk of a sentence (a word with its punctuation); [phrase] = token range of a pinned phrase it belongs to. */
+@Composable
+private fun ChunkRow(
+    s: ReaderSession, sent: Sent, chunk: List<Token>, area: String,
+    textStyle: TextStyle, trStyle: TextStyle, selBg: Color, haptic: HapticFeedback, phrase: IntRange?, modifier: Modifier,
+) {
+    // bottom-aligned: a translation above one word pushes the whole line down
+    Row(modifier, verticalAlignment = Alignment.Bottom) {
+        for (t in chunk) {
+            val ref = WordRef(sent.id, t.index)
+            val inPhrase = phrase != null && t.index in phrase
+            val tr = if (t.isWord && !inPhrase) s.pins[ref] else null
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (tr != null) Text(
+                    tr.ifEmpty { "…" }, style = trStyle, maxLines = 2,
+                    color = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else LocalHighlight.current.text,
+                    modifier = Modifier.padding(horizontal = 1.dp),
+                )
+                val selected = tr != null || s.popup == ref || inPhrase
+                val bg = when {
+                    s.inSelection(ref) -> selBg
+                    selected -> LocalHighlight.current.bg
+                    else -> Color.Transparent
+                }
+                if (t.isWord) DisposableEffect(area, ref) { onDispose { s.wordCoords.remove(area to ref) } }
+                Text(
+                    t.text, style = textStyle,
+                    modifier = if (!t.isWord) Modifier.background(
+                        when {
+                            s.inSelection(ref) -> selBg
+                            phrase != null && t.index > phrase.first && t.index < phrase.last -> LocalHighlight.current.bg
+                            else -> Color.Transparent
+                        },
+                    ) else Modifier
+                        .background(bg, RoundedCornerShape(4.dp))
+                        .onGloballyPositioned { s.wordCoords[area to ref] = it }
+                        .pointerInput(ref, area) { wordGestures(s, area, ref, haptic) },
+                )
             }
         }
     }

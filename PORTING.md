@@ -150,3 +150,13 @@ ferstich" and lines broken inside a sentence), "С ИИ" = quick clean first,
   (Gemini word prompt + "this is a phrase" note; LingQ: hints + machine translation), chips to choose,
   own variant (saved per lesson like word meanings). Long press without dragging = sentence translation as
   before. Android `Reader.kt` (`wordGestures`, `openPhrase`, `PhraseSheet`).
+
+- Android (fixes): (1) a dash between spaces ("Dürer – Maler") vanished: a non-word token " – " was split
+  into "before space"/"after space" and the middle was dropped; now each part between spaces is its own chunk
+  (`Sent.chunks`). Check the web tokenizer for the same bug. (2) "Продолжить" row: newest first - LingQ's
+  `openDate` + lessons opened in the app (kept locally) + reading-progress time, sorted by time desc, top 10
+  (`AppState.mergeRecent`). (3) Word prompt gets a note: a verb whose separable prefix stands later in the
+  sentence is translated with the prefix ("fing … an" -> anfangen); also for the prefix itself (`SEPARABLE`).
+  (4) Several words selected: their translation is pinned above all of them as one (highlighted together),
+  saved in lesson notes as "phrases": {"sent:from:to": text}; tapping any of its words removes it; overlapping
+  phrases give way; "Очистить переводы" clears them too. `Reader.kt` (`phrasePins`, `ChunkRow`).

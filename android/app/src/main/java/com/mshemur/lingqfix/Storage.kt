@@ -13,6 +13,9 @@ class ReadingProgress(ctx: Context) {
 
     fun read(lang: String, id: Int): Float = p.getFloat("read.${lang}_$id", 0f)
 
+    /** When the lesson was last read here or on the other device (epoch ms, 0 = never). */
+    fun time(lang: String, id: Int): Long = p.getLong("t.${lang}_$id", 0L)
+
     fun save(lang: String, id: Int, first: Int, read: Float) {
         val e = p.edit().putInt("pos.${lang}_$id", first).putLong("t.${lang}_$id", System.currentTimeMillis())
         if (read > read(lang, id)) e.putFloat("read.${lang}_$id", read.coerceAtMost(1f))
