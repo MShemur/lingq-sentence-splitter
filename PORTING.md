@@ -9,6 +9,11 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- Android 33c623b: action journal for bug reports: screens, taps on words/phrases/sentences, LingQ requests (method,
+  path without query, status, ms), AI requests (model, ms, ok/error, fallback), sync, snackbars, crashes; kept 48 h /
+  3000 lines; Settings and reader ⋮ → "Журнал действий" with Копировать / Поделиться / Очистить, newest first; header
+  with version and device. No keys/tokens. Android `AppLog.kt`. Web: localStorage ring buffer is enough.
+
 ## To do on Android
 
 ## Done
