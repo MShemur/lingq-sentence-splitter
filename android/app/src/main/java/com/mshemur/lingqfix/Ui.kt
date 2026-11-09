@@ -36,6 +36,8 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -258,12 +260,12 @@ fun App(state: AppState) {
 /** Bottom tabs of the main screen, as in LingQ: library and player. */
 @Composable
 private fun MainTabs(state: AppState, screen: Screen) {
-    androidx.compose.material3.NavigationBar {
-        androidx.compose.material3.NavigationBarItem(
+    NavigationBar {
+        NavigationBarItem(
             selected = screen == Screen.ReaderCourses, onClick = { state.switchTab(Screen.ReaderCourses) },
             icon = { Icon(Icons.Filled.Home, contentDescription = null) }, label = { Text("Библиотека") },
         )
-        androidx.compose.material3.NavigationBarItem(
+        NavigationBarItem(
             selected = screen == Screen.Player, onClick = { state.switchTab(Screen.Player) },
             icon = { Icon(AppIcons.Headphones, contentDescription = null) }, label = { Text("Плеер") },
         )
