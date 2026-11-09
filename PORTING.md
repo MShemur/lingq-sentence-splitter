@@ -9,13 +9,26 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- Android: edit a sentence: pencil in the sentence-translation row -> window with the sentence and its translation;
+  "Сохранить" re-reads the lesson editor JSON, keeps a backup, changes only that sentence (`text`, `cleanText`,
+  own-language entry in `translations`) and PATCHes the paragraphs; the sentence is replaced on screen, its word
+  and phrase pins are dropped if the text changed. `Reader.kt` (`saveEdit`, `SentenceEditDialog`).
+  Reader menu ⋮ also has "Статистика".
+- Android: keys sync (encrypted): sync data gets `secrets: {v:1, iter, salt, iv, ct, t}` = JSON
+  {"lingq","gemini","aiBase","aiKey","aiModel","aiFastModel"} encrypted with a sync password set on each device
+  (Settings → Синхронизация → "Пароль синхронизации ключей"; stored only on the device). PBKDF2-HMAC-SHA256,
+  `iter` rounds (210000), 16-byte salt -> AES-256-GCM, 12-byte iv, tag appended to ct (WebCrypto does the same),
+  standard base64. Newer `t` wins; `t` = time the keys last changed on that device (detect by a hash of the
+  plain JSON). First sync after setting the password: take the remote keys first (blank values never erase
+  local ones), then send the union if this device had more. Never overwrite remote secrets that the password
+  cannot decrypt (show "Пароль не подходит"). GitHub token is not synced. Android `Sync.kt` (`syncKeys`, `KeyVault`).
+
 ## To do on Android
 
-- web v1.20: phrase translation above several words breaks in two at a dash: "Dürers Nürnberg – Wiege" selected ->
-  the " – " chunk has no word, `phraseOf` returns null for it. Fix: a chunk belongs to a phrase also when a non-word
-  token of it lies strictly inside the range (index > from && < to); highlight that dash too. Web `Reader.tsx` `SentenceFlow`.
-
 ## Done
+
+- web v1.20 -> android: phrase translation no longer breaks in two at a dash inside the selection
+  (`phraseOf` counts a non-word chunk strictly inside the range; the dash is highlighted too).
 
 - android cabc9fd -> web v1.20 (fixes): (1) a dash between spaces ("Dürer – Maler") vanished: a non-word token " – " was split
   into "before space"/"after space" and the middle was dropped; now each part between spaces is its own chunk
@@ -167,8 +180,3 @@ ferstich" and lines broken inside a sentence), "С ИИ" = quick clean first,
   (Gemini word prompt + "this is a phrase" note; LingQ: hints + machine translation), chips to choose,
   own variant (saved per lesson like word meanings). Long press without dragging = sentence translation as
   before. Android `Reader.kt` (`wordGestures`, `openPhrase`, `PhraseSheet`).
-- Android: edit a sentence: pencil in the sentence-translation row -> window with the sentence and its translation;
-  "Сохранить" re-reads the lesson editor JSON, keeps a backup, changes only that sentence (`text`, `cleanText`,
-  own-language entry in `translations`) and PATCHes the paragraphs; the sentence is replaced on screen, its word
-  and phrase pins are dropped if the text changed. `Reader.kt` (`saveEdit`, `SentenceEditDialog`).
-  Reader menu ⋮ also has "Статистика".

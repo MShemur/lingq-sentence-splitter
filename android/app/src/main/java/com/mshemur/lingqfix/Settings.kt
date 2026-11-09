@@ -123,7 +123,7 @@ private fun Hint(text: String) {
 
 /** Text field for a key/token: hidden, with "Показать". */
 @Composable
-private fun SecretField(value: String, label: String, onChange: (String) -> Unit) {
+internal fun SecretField(value: String, label: String, onChange: (String) -> Unit) {
     var show by remember { mutableStateOf(false) }
     OutlinedTextField(
         value, onChange, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = true,

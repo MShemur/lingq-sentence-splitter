@@ -1351,7 +1351,10 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f,
                 modifier = Modifier.align(Alignment.Bottom).padding(end = 2.dp, bottom = 4.dp).size((size * 0.9).dp),
             )
             val phr = s.phrasesIn(sent.id)
-            fun phraseOf(c: List<Token>) = phr.firstOrNull { (r, _) -> c.any { it.isWord && it.index in r } }
+            // a chunk belongs to a phrase by its words, or by a dash standing strictly inside it ("Nürnberg – Wiege")
+            fun phraseOf(c: List<Token>) = phr.firstOrNull { (r, _) ->
+                c.any { if (it.isWord) it.index in r else it.index > r.first && it.index < r.last }
+            }
             var i = 0
             val chunks = sent.chunks
             while (i < chunks.size) {

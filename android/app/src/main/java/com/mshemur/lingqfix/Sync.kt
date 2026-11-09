@@ -50,6 +50,8 @@ import java.util.Locale
  * - progress: {"<lang>_<lessonId>": {pos, t, read}} — pos by later `t`, read = max;
  * - stats: {"<device>": {"<date>": [seconds, words]}} — every device writes only its own part;
  * - seen: {"<lang>_<lessonId>": index} — max.
+ * - secrets: {v, iter, salt, iv, ct, t} — the keys (LingQ, Gemini, other AI), encrypted with the sync password
+ *   (PBKDF2-SHA256 → AES-256-GCM, tag appended to ct, base64); the later `t` wins. See [KeyVault].
  */
 class SyncService(private val app: AppState) {
     companion object {
@@ -77,6 +79,21 @@ class SyncService(private val app: AppState) {
         prefs.edit().putString("device", it).apply()
     }
 
+    /** Password the keys are encrypted with (only on this device; blank = keys are not synced). */
+    var password by mutableStateOf(prefs.getString("pass", "").orEmpty())
+        private set
+    /** Keys sync: last result for the settings screen. */
+    var keysNote by mutableStateOf<String?>(null)
+        private set
+
+    fun setPass(p: String) {
+        password = p
+        prefs.edit().putString("pass", p).remove("keysT").remove("keysHash").apply()   // the new password re-encrypts
+    }
+
+    /** Keys from the other device, applied on the main thread after the sync. */
+    @Volatile private var pendingKeys: JSONObject? = null
+
     fun turn(on: Boolean) {
         enabled = on
         prefs.edit().putBoolean("on", on).apply()
@@ -101,6 +118,8 @@ class SyncService(private val app: AppState) {
                     // two tries: if the iPad wrote in between, read again and merge again
                     try { syncOnce() } catch (e: Conflict) { syncOnce() }
                 }
+                pendingKeys?.let { applyKeys(it) }
+                pendingKeys = null
                 lastSync = System.currentTimeMillis()
                 prefs.edit().putLong("last", lastSync).apply()
                 lastError = null
@@ -180,7 +199,71 @@ class SyncService(private val app: AppState) {
         val (remote, sha) = download()
         val merged = merge(local, remote)
         importLocal(merged)
+        syncKeys(remote, merged)
         if (merged.toString() != remote.toString()) upload(merged.put("v", 1), sha)
+    }
+
+    // --- keys (encrypted) ---
+
+    private fun localKeys(): JSONObject {
+        val p = app.prefs
+        return JSONObject().put("lingq", p.apiKey).put("gemini", p.geminiKey)
+            .put("aiBase", p.aiBase).put("aiKey", p.aiKey).put("aiModel", p.aiModel).put("aiFastModel", p.aiFastModel)
+    }
+
+    private fun hash(s: String) = java.security.MessageDigest.getInstance("SHA-256").digest(s.toByteArray())
+        .joinToString("") { "%02x".format(it) }
+
+    /** Picks the newer keys: ours are encrypted into [merged], or the other device's are decrypted for [applyKeys]. */
+    private fun syncKeys(remote: JSONObject, merged: JSONObject) {
+        val r = remote.optJSONObject("secrets")
+        if (r != null) merged.put("secrets", r)
+        val pass = password
+        if (pass.isBlank()) { keysNote = if (r != null) "На GitHub есть ключи — задайте пароль, чтобы получить их" else null; return }
+        val mine = localKeys().toString()
+        val h = hash(mine)
+        var myT = prefs.getLong("keysT", 0L)
+        val fresh = prefs.getString("keysHash", null) == null   // first sync with this password: take the stored keys first
+        if (fresh && r != null) myT = 0L
+        else if (prefs.getString("keysHash", null) != h) {          // keys changed here since the last sync
+            myT = System.currentTimeMillis()
+            prefs.edit().putLong("keysT", myT).putString("keysHash", h).apply()
+        }
+        val rT = r?.optLong("t") ?: -1L
+        when {
+            r != null && rT > myT -> {
+                val plain = KeyVault.open(pass, r)
+                if (plain == null) { keysNote = "Пароль не подходит к ключам на GitHub (на другом устройстве другой пароль?)"; return }
+                pendingKeys = JSONObject(plain)
+                prefs.edit().putLong("keysT", rT).apply()   // hash is stored after the keys are applied
+                keysNote = "Ключи получены с другого устройства"
+            }
+            r == null || myT > rT -> {
+                // don't overwrite keys we cannot read with a different password
+                if (r != null && KeyVault.open(pass, r) == null) { keysNote = "Пароль не подходит к ключам на GitHub (на другом устройстве другой пароль?)"; return }
+                merged.put("secrets", KeyVault.seal(pass, mine, myT))
+                keysNote = "Ключи отправлены (зашифрованы)"
+            }
+            else -> keysNote = "Ключи совпадают"
+        }
+    }
+
+    /** Fills in the keys from the other device (blank values do not erase ours). */
+    private fun applyKeys(k: JSONObject) {
+        fun v(n: String) = k.optString(n).trim()
+        app.applyPrefs {
+            if (v("lingq").isNotEmpty()) apiKey = v("lingq")
+            if (v("gemini").isNotEmpty()) geminiKey = v("gemini")
+            if (v("aiBase").isNotEmpty()) aiBase = v("aiBase")
+            if (v("aiKey").isNotEmpty()) aiKey = v("aiKey")
+            if (v("aiModel").isNotEmpty()) aiModel = v("aiModel")
+            if (k.has("aiFastModel")) aiFastModel = v("aiFastModel")
+        }
+        val now = localKeys()
+        val e = prefs.edit().putString("keysHash", hash(now.toString()))
+        // this device had keys the other one lacked: send the union next time
+        if (now.toString() != k.toString()) e.putLong("keysT", System.currentTimeMillis())
+        e.apply()
     }
 
     // --- local data ---
@@ -300,7 +383,7 @@ fun SettingsSync(state: AppState) {
     ) {
         Text(
             "Закладки, выбранные переводы слов, место чтения, «Прочитано N %» и статистика — общие для телефона и iPad. " +
-                "Хранятся в вашем приватном репозитории GitHub (ветка sync). Ключи ИИ и LingQ не передаются.",
+                "Хранятся в вашем приватном репозитории GitHub (ветка sync). Ключи — только зашифрованными, если задан пароль ниже.",
             style = MaterialTheme.typography.bodyMedium,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -323,6 +406,22 @@ fun SettingsSync(state: AppState) {
         }
         Text("Сама запускается при открытии приложения и когда вы из него выходите.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         HorizontalDivider()
+        Text("Ключи", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text(
+            "Ключи LingQ, Gemini и другого ИИ (DeepSeek и т. п.) переходят на другое устройство зашифрованными этим паролем. " +
+                "Задайте одинаковый пароль на телефоне и на iPad. Пароль хранится только на устройстве; без него ключи на GitHub " +
+                "не прочитать. Забыли пароль — задайте новый, ключи зашифруются заново. GitHub-токен не передаётся: " +
+                "его нужно ввести на каждом устройстве.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        var pass by remember { mutableStateOf(s.password) }
+        SecretField(pass, "Пароль синхронизации ключей") { pass = it }
+        if (pass != s.password) Button(
+            onClick = { s.setPass(pass.trim()); pass = pass.trim(); if (s.enabled) s.now() },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(if (pass.isBlank()) "Не синхронизировать ключи" else "Сохранить пароль") }
+        s.keysNote?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        HorizontalDivider()
         Text("Токен", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         Text(
             "Нужен тот же GitHub-токен, что для обновлений, но с правом записи. Один раз: github.com → Settings → " +
@@ -335,6 +434,43 @@ fun SettingsSync(state: AppState) {
             if (state.ghToken.isBlank()) TextButton(onClick = { state.go(Screen.SettingsUpdates) }) { Text("Вставить токен") }
         }
     }
+}
+
+/**
+ * Encryption of the keys for sync: PBKDF2-HMAC-SHA256 ([ITER] rounds, 16-byte salt) → AES-256-GCM (12-byte iv,
+ * 128-bit tag appended to the ciphertext, as WebCrypto does). All binary fields are standard base64.
+ */
+object KeyVault {
+    private const val ITER = 210_000
+
+    private fun key(pass: String, salt: ByteArray, iter: Int): javax.crypto.spec.SecretKeySpec {
+        val f = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val raw = f.generateSecret(javax.crypto.spec.PBEKeySpec(pass.toCharArray(), salt, iter, 256)).encoded
+        return javax.crypto.spec.SecretKeySpec(raw, "AES")
+    }
+
+    private fun b64(b: ByteArray) = Base64.encodeToString(b, Base64.NO_WRAP)
+    private fun unb64(s: String) = Base64.decode(s, Base64.DEFAULT)
+
+    fun seal(pass: String, plain: String, t: Long): JSONObject {
+        val rnd = java.security.SecureRandom()
+        val salt = ByteArray(16).also { rnd.nextBytes(it) }
+        val iv = ByteArray(12).also { rnd.nextBytes(it) }
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(javax.crypto.Cipher.ENCRYPT_MODE, key(pass, salt, ITER), javax.crypto.spec.GCMParameterSpec(128, iv))
+        val ct = c.doFinal(plain.toByteArray(Charsets.UTF_8))
+        return JSONObject().put("v", 1).put("iter", ITER).put("salt", b64(salt)).put("iv", b64(iv)).put("ct", b64(ct)).put("t", t)
+    }
+
+    /** The plain text, or null if the password does not fit. */
+    fun open(pass: String, o: JSONObject): String? = runCatching {
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(
+            javax.crypto.Cipher.DECRYPT_MODE, key(pass, unb64(o.getString("salt")), o.optInt("iter", ITER)),
+            javax.crypto.spec.GCMParameterSpec(128, unb64(o.getString("iv"))),
+        )
+        String(c.doFinal(unb64(o.getString("ct"))), Charsets.UTF_8)
+    }.getOrNull()
 }
 
 /** Serialises arrays of the bookmark store for sync. */
