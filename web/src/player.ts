@@ -86,16 +86,20 @@ function onTrack(k: string) {
 }
 
 /** Audio bookmark: the player tab, from that place. */
-export function openAudioBookmark(b: Bookmark) {
+export const openAudioBookmark = (b: Bookmark) => listenAt(b.lang, { id: b.lessonId, title: b.lessonTitle }, b.ms ?? 0)
+
+/** The player tab, lesson [l] from [ms]. */
+export function listenAt(lang: string, l: Lesson, ms: number) {
   audio.unlock()
-  const ms = b.ms ?? 0
   const cur = player.value
-  if (cur && cur.lesson.id === b.lessonId && cur.lang === b.lang && cur.audioUrl.value) {
+  if (cur && cur.lesson.id === l.id && cur.lang === lang && cur.audioUrl.value) {
     if (audio.audioKey.value === cur.audioKey) { audio.seekTo(ms); audio.play() } else { cur.startAt = ms; cur.togglePlay() }
   } else {
-    const s = session(b.lang, { id: b.lessonId, title: b.lessonTitle })
-    s.autoPlay = true; s.startAt = ms
+    const s = session(lang, l)
+    s.startAt = ms
     player.value = s
+    if (l.audio) s.togglePlay() // still inside the tap
+    else s.autoPlay = true
   }
   switchTab('player')
 }

@@ -235,7 +235,7 @@ export class ImportSession {
   /** The AI's level for a new lesson (after LingQ processed it); " · уровень B1" for the log, '' when it failed. */
   private async setLevel(l: string, id: number, text: string): Promise<string> {
     try {
-      const [n] = await gemini.level(l, text)
+      const [n] = await gemini.level(prompt.level(), l, text)
       await api.setLevel(l, id, n)
       return ` · уровень ${api.CEFR[n - 1]}`
     } catch (e) {

@@ -200,6 +200,11 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
       {!docked() && s.phrase.value && <PhraseSheet s={s} />}
       {s.bookmarksOpen.value && <LessonBookmarksDialog s={s} onClose={() => { s.bookmarksOpen.value = false }} />}
       {s.editing.value != null && <SentenceEditDialog s={s} id={s.editing.value} />}
+      {s.wordMenu.value && (
+        <WordMenuAt r={s.wordMenu.value} box={s.sentenceMode.value ? '.sentence-overlay' : '.text-area'} onClose={() => { s.wordMenu.value = null }}>
+          {(close) => <ReaderMenuItems s={s} id={refSent(s.wordMenu.value!)} close={close} />}
+        </WordMenuAt>
+      )}
       {s.levelResult.value && (
         <Dialog title="Уровень урока" onClose={() => { s.levelResult.value = null }}
           actions={<button class="btn text" onClick={() => { s.levelResult.value = null }}>OK</button>}>
@@ -225,7 +230,7 @@ function ReaderActions({ s }: { s: ReaderSession }) {
         <IconButton icon="more" label="Ещё" onClick={() => { s.menuOpen.value = true }} />
         {menu && (
           <Menu onClose={close}>
-            <MenuItem icon="chat" onClick={() => { close(); s.chatText() }}>Чат о тексте</MenuItem>
+            <div class="menu-group">Урок</div>
             {s.audioUrl.value && (
               <MenuItem icon="headphones" onClick={() => {
                 close()
@@ -235,15 +240,15 @@ function ReaderActions({ s }: { s: ReaderSession }) {
             <MenuItem icon="chart" onClick={() => { close(); void s.detectLevel() }}>
               {s.levelBusy.value ? 'Определяю уровень…' : 'Определить уровень (ИИ)'}
             </MenuItem>
-            <MenuItem icon="chart" onClick={() => { close(); go({ k: 'stats' }) }}>Статистика</MenuItem>
-            <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
-            <MenuItem icon="info" onClick={() => { close(); setHelp(true) }}>Как пользоваться</MenuItem>
-            <MenuItem icon="history" onClick={() => { close(); go({ k: 'log' }) }}>Журнал действий</MenuItem>
             <hr />
+            <div class="menu-group">Вид</div>
             <MenuItem onClick={() => s.changeFont(+2)}>Шрифт крупнее&nbsp; A+</MenuItem>
             <MenuItem onClick={() => s.changeFont(-2)}>Шрифт мельче&nbsp; A−</MenuItem>
-            {pinCount > 0 && <hr />}
-            {pinCount > 0 && <MenuItem onClick={() => { s.clearPins(); close() }}>Снять все переводы над словами ({pinCount})</MenuItem>}
+            <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
+            {pinCount > 0 && <MenuItem onClick={() => { s.clearPins(); close() }}>Снять переводы над словами ({pinCount})</MenuItem>}
+            <hr />
+            <div class="menu-group">Помощь</div>
+            <MenuItem icon="info" onClick={() => { close(); setHelp(true) }}>Как пользоваться</MenuItem>
           </Menu>
         )}
       </div>
@@ -579,11 +584,42 @@ function SentenceTranslation({ s, id }: { s: ReaderSession; id: number }) {
   return (
     <div class="sent-tr" data-se={id}>
       <div class="sent-tr-text" onClick={() => { if (!s.allSentences.value) s.toggleSentence(id) }}>{tr || '…'}</div>
-      <BookmarkButton s={s} id={id} />
-      <EditButton s={s} id={id} />
       <RetranslateButton s={s} id={id} />
-      <IconButton icon="chat" label="Чат о предложении" size={20} class="small primary" onClick={() => s.chatSentence(id)} />
     </div>
+  )
+}
+
+/** A menu right under the long-pressed word [r] (searched inside [box]). */
+export function WordMenuAt({ r, box, onClose, children }: {
+  r: WordRef; box: string; onClose: () => void; children: (close: () => void) => JSX.Element
+}) {
+  const el = [...document.querySelectorAll(`${box} [data-w="${r}"]`)].find((e) => (e as HTMLElement).offsetParent) as HTMLElement | undefined
+  const rect = el?.getBoundingClientRect()
+  const left = rect ? Math.max(8, Math.min(rect.left, window.innerWidth - 260)) : 16
+  const topPx = rect ? Math.min(rect.bottom + 4, window.innerHeight - 300) : 80
+  return (
+    <Menu onClose={onClose} class="word-menu">
+      <style>{`.word-menu { position: fixed; left: ${left}px; top: ${topPx}px; right: auto; }`}</style>
+      {children(onClose)}
+    </Menu>
+  )
+}
+
+/** Reader: what to do with the sentence of a long-pressed word. */
+function ReaderMenuItems({ s, id, close }: { s: ReaderSession; id: number; close: () => void }) {
+  const marked = s.isBookmarked(id)
+  return (
+    <>
+      <MenuItem icon="translate" onClick={() => { close(); s.toggleSentence(id) }}>
+        {s.shown.value[id] ? 'Скрыть перевод предложения' : 'Перевод предложения'}
+      </MenuItem>
+      <MenuItem icon={marked ? 'bookmark' : 'bookmarkBorder'} onClick={() => { close(); s.toggleBookmark(id) }}>
+        {marked ? 'Убрать закладку' : 'В закладки'}
+      </MenuItem>
+      <MenuItem icon="edit" onClick={() => { close(); s.startEdit(id) }}>Исправить предложение</MenuItem>
+      {s.hasTime(id) && <MenuItem icon="headphones" onClick={() => { close(); s.listenFrom(id) }}>Слушать отсюда</MenuItem>}
+      <MenuItem icon="chat" onClick={() => { close(); s.chatSentence(id) }}>Чат о предложении</MenuItem>
+    </>
   )
 }
 
@@ -762,10 +798,7 @@ function SentenceTranslationPage({ s, id }: { s: ReaderSession; id: number }) {
         <div class="fold-inner">
           <div class="sent-tr big">
             <div class="sent-tr-text">{tr || '…'}</div>
-            <BookmarkButton s={s} id={id} />
-            <EditButton s={s} id={id} />
             <RetranslateButton s={s} id={id} />
-            <IconButton icon="chat" label="Чат о предложении" size={20} class="small primary" onClick={() => s.chatSentence(id)} />
           </div>
         </div>
       </div>

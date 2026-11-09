@@ -400,6 +400,17 @@ export class ReaderSession {
   wordMenu = signal<WordRef | null>(null)
   /** Sentence sounding now (bold). */
   playingSent = computed(() => (audio.audioKey.value === this.audioKey ? this.sentenceAt(audio.position.value) : null))
+  /** Reader: the sentence has a place in the lesson audio. */
+  hasTime(id: number) { return !!this.audioUrl.value && (this.sentById.get(id)?.start ?? -1) >= 0 }
+
+  /** Reader: listen from this sentence in the player tab. */
+  listenFrom(id: number) {
+    const st = this.sentById.get(id)
+    if (!st || st.start < 0) return
+    void import('../player').then((p) => p.listenAt(this.lang,
+      { ...this.lesson, title: this.title.value, audio: this.audioUrl.value ?? '' }, st.start))
+  }
+
   get hasTimes() { return this.sentences.value.some((x) => x.start >= 0) }
 
   private ensureAudio(): boolean {
@@ -517,7 +528,7 @@ export class ReaderSession {
     this.levelBusy.value = true
     say('ИИ оценивает уровень…')
     try {
-      const r = await gemini.level(this.lang, text)
+      const r = await gemini.level(prompt.level(), this.lang, text)
       await api.setLevel(this.lang, this.lesson.id, r[0])
       log('reader', `Уровень урока ${this.lesson.id}: ${api.levelName(r[0])}`)
       this.levelResult.value = r
@@ -830,7 +841,7 @@ export class ReaderSession {
     const words = sent ? sent.tokens.slice(x!.from, x!.to + 1).filter((t) => t.isWord).length : 0
     if (!x || !sent || words < 2) {
       this.sel.value = null
-      if (sent) { if (this.player) this.wordMenu.value = ref(sent.id, x!.from); else this.toggleSentence(sent.id) }
+      if (sent) this.wordMenu.value = ref(sent.id, x!.from) // a small menu right at the word
       return
     }
     void this.openPhrase(sent.id, x.from, x.to)

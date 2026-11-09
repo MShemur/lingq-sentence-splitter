@@ -9,17 +9,20 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- Android UX tidy-up: reader long press (no drag) = small menu right under the word (no direct sentence translation any
+## To do on Android
+
+## Done
+
+- android 90660e4 -> web v1.24: UX tidy-up: reader long press (no drag) = small menu right under the word (no direct sentence translation any
   more): Перевод предложения / В закладки / Исправить предложение / Слушать отсюда (only with audio; opens the player
   there) / Чат о предложении; same in sentence mode. Sentence-translation row keeps only ↻. Reader ⋮ grouped with small
   headings: Урок (Слушать в плеере, Определить уровень) / Вид (A+, A−, Оформление, Снять переводы) / Помощь (Как
   пользоваться); removed Чат о тексте (bottom bar has it), Статистика (today card), Журнал (Settings). Library top bar:
   no stats icon. Player: lesson title with ⌄ opens the lesson list (removed from ⋮). Bookmarks: chips Все / Текст / Аудио.
   Prompts settings: "Уровень текста" prompt. `Reader.kt WordMenuLayer/ReaderMenuItems`, `Player.kt`, `Bookmarks.kt`.
-
-## To do on Android
-
-## Done
+  Web v1.24: `WordMenuAt` (menu placed under the word's rect) + `ReaderMenuItems` in the reader and sentence mode,
+  player items reuse it; `listenAt` in player.ts (audio bookmarks use it too); `prompt.level()`; Журнал stays in
+  Settings only.
 
 - android -> web v1.23: (replaces the player-in-reader line below): the player is NOT in the reader any more. Main screen has bottom tabs
   "Библиотека" / "Плеер" (like LingQ). Player tab: lesson header + "Другой урок" (recent lessons that have `audioUrl`);

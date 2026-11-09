@@ -371,6 +371,7 @@ export function SettingsPrompts() {
     ['promptChatWord', 'Чат о слове («Спросить» в окне слова)'],
     ['promptChatText', 'Чат о всём тексте'],
     ['promptClean', 'Очистка текста при загрузке ({text} — кусок текста)'],
+    ['promptLevel', 'Уровень текста (JSON: cefr, why)'],
   ]
   const reset = () => {
     prefs.promptWord.value = Prompts.WORD
@@ -380,6 +381,7 @@ export function SettingsPrompts() {
     prefs.promptChatWord.value = Prompts.CHAT_WORD
     prefs.promptChatText.value = Prompts.CHAT_TEXT
     prefs.promptClean.value = Prompts.CLEAN
+    prefs.promptLevel.value = Prompts.LEVEL
     say('Стандартные промпты восстановлены')
   }
   return (

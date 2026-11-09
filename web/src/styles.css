@@ -714,3 +714,7 @@ div.list-item { cursor: default; }
 .al-len.now { color: var(--primary); }
 .al-play { color: var(--primary); flex: none; }
 .snackbar.high { bottom: calc(190px + env(safe-area-inset-bottom)); }
+.menu-group { font-size: 12px; font-weight: 500; color: var(--primary); padding: 6px 16px 2px; }
+button.player-head-text { border: 0; background: none; color: inherit; text-align: left; padding: 4px 8px; margin-left: -8px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; }
+button.player-head-text:active { background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
+.title-chevron { vertical-align: middle; margin-left: 2px; }

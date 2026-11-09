@@ -46,6 +46,7 @@ export const prefs = {
   promptChatWord: pref('promptChatWord', Prompts.CHAT_WORD),
   promptChatText: pref('promptChatText', Prompts.CHAT_TEXT),
   promptClean: pref('promptClean', Prompts.CLEAN),
+  promptLevel: pref('promptLevel', Prompts.LEVEL),
   /** Import: quick clean right after pasting / opening a file. */
   autoClean: pref('autoClean', '1'),
   readerFont: pref('readerFont', '20'),
@@ -64,6 +65,7 @@ export const prompt = {
   chatWord: () => prefs.promptChatWord.value.trim() || Prompts.CHAT_WORD,
   chatText: () => prefs.promptChatText.value.trim() || Prompts.CHAT_TEXT,
   clean: () => prefs.promptClean.value.trim() || Prompts.CLEAN,
+  level: () => prefs.promptLevel.value.trim() || Prompts.LEVEL,
 }
 
 export const lang = () => prefs.lang.value.trim() || 'de'

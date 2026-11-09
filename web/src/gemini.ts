@@ -151,8 +151,8 @@ export const cleanPiece = async (prompt: string, lang: string, text: string) =>
   (await generate(null, [{ user: true, text: fill(prompt, { lang, text }) }], false, true)).trim()
 
 /** CEFR level of a text: LingQ level 1..6 (A1..C2) and a short reason (light model). */
-export async function level(lang: string, text: string): Promise<[number, string]> {
-  const raw = await generate(null, [{ user: true, text: fill(Prompts.LEVEL, { lang, text: text.slice(0, 6000) }) }], true, true)
+export async function level(prompt: string, lang: string, text: string): Promise<[number, string]> {
+  const raw = await generate(null, [{ user: true, text: fill(prompt || Prompts.LEVEL, { lang, text: text.slice(0, 6000) }) }], true, true)
   let o: any = null
   try { o = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) } catch { /* plain text */ }
   const m = String(o?.cefr ?? raw).toUpperCase().match(/[ABC][12]/)
