@@ -277,6 +277,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** A tap: translation above the word; with the docked panel the word also shows there. */
     fun tapWord(ref: WordRef) {
+        if (sentenceAtBottom) { seekToSentence(ref.sent); return }     // player: back to the start of this sentence
         tap(ref)
         if (panelActive) openPopup(ref)
     }
@@ -331,7 +332,12 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun selectEnd() {
         val sent = sentById[selSent]
         val words = sent?.tokens?.subList(selFrom, selTo + 1)?.count { it.isWord } ?: 0
-        if (sent == null || words < 2) { val id = selSent; clearSelection(); if (sent != null) toggleSentence(id); return }
+        if (sent == null || words < 2) {
+            val id = selSent; val tok = selFrom
+            clearSelection()
+            if (sent != null) { if (sentenceAtBottom) wordMenu = WordRef(id, tok) else toggleSentence(id) }
+            return
+        }
         openPhrase(sent.id, selFrom, selTo)
     }
 
@@ -891,6 +897,41 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         sentences.filter { it.start > pos + 50 }.minByOrNull { it.start }?.let { AudioEngine.seekTo(it.start) }
     }
 
+    /** Player tab: menu of a long-pressed word (translations, loop start / end). */
+    var wordMenu by mutableStateOf<WordRef?>(null)
+
+    /** Player tab: play from the start of sentence [id]. */
+    fun seekToSentence(id: Int) {
+        val st = sentById[id] ?: return
+        if (st.start < 0 || !ensureAudio()) return
+        AppLog.add("audio", "К началу предложения $id")
+        AudioEngine.seekTo(st.start)
+    }
+
+    fun loopStartAt(id: Int) {
+        val st = sentById[id] ?: return
+        if (st.start < 0 || !ensureAudio()) return
+        AudioEngine.setA(st.start - 100)
+        app.say(if (AudioEngine.looping) "Повтор ${fmtTime(AudioEngine.loopA)} – ${fmtTime(AudioEngine.loopB)}"
+            else "Начало повтора ${fmtTime(AudioEngine.loopA)} — теперь выберите конец")
+    }
+
+    fun loopEndAt(id: Int) {
+        val st = sentById[id] ?: return
+        if (st.start < 0 || !ensureAudio()) return
+        val next = sentences.firstOrNull { it.start > st.start }?.start ?: -1L
+        AudioEngine.setB(if (st.end > st.start) st.end + 150 else if (next > 0) next else st.start + 5000)
+        app.say(if (AudioEngine.looping) "Повтор ${fmtTime(AudioEngine.loopA)} – ${fmtTime(AudioEngine.loopB)}"
+            else "Конец повтора задан — выберите начало")
+    }
+
+    fun loopSentenceId(id: Int) {
+        val st = sentById[id] ?: return
+        if (st.start < 0 || !ensureAudio()) return
+        val next = sentences.firstOrNull { it.start > st.start }?.start ?: -1L
+        AudioEngine.setLoop(st.start - 100, if (st.end > st.start) st.end + 150 else if (next > 0) next else st.start + 5000)
+    }
+
     /** Player tab: the audio is at sentence [id] (shown bold). */
     fun trackAudio(id: Int?) { if (id != playingSent) playingSent = id }
 
@@ -1106,7 +1147,8 @@ private fun ReaderHelp(onClose: () -> Unit) {
         "Аудио — во вкладке «Плеер»" to listOf(
             "Плеер — вкладка внизу главного экрана (рядом с «Библиотекой»). Урок с аудио: ⋮ → «Слушать в плеере».",
             "В плеере окно с текстом: звучащее предложение жирным. Нажатие на окно — весь текст, он прокручивается вслед за звуком.",
-            "В тексте плеера: нажатие на слово — перевод над ним, долгое нажатие — перевод предложения внизу.",
+            "В тексте плеера: нажатие на слово — звук с начала этого предложения; долгое нажатие — меню: перевод слова, " +
+                "перевод предложения, повторять предложение, начало / конец повтора. Протянуть по словам — перевод словосочетания.",
             "⏮ ⏭ — к предыдущему / следующему предложению, ↺ ↻ — на 5 секунд, скорость — слева.",
             "🔁 — повтор участка: это предложение, последние или следующие 1 / 2 / 3 / 5 минут, свой участок A–B, пауза между повторами.",
             "Играет и в фоне: управление в шторке, на экране блокировки и кнопками наушников.",

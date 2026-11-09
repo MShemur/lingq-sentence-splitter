@@ -130,6 +130,7 @@ fun PlayerScreen(state: AppState) {
         }
         if (s.audioUrl != null) AudioBar(s)
     }
+    s.wordMenu?.let { ref -> WordMenu(s, ref) }
     s.popup?.let { ref -> WordSheet(s, ref) }
     s.phrase?.let { p -> PhraseSheet(s, p) }
     if (picker) PickerSheet(state) { picker = false }
@@ -216,6 +217,47 @@ private fun BottomTranslation(s: ReaderSession, id: Int) {
             IconButton(onClick = { s.bottomSent = null }) { Icon(Icons.Filled.Close, contentDescription = "Скрыть перевод") }
         }
     }
+}
+
+/** Long press on a word in the player text: translations and the loop. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WordMenu(s: ReaderSession, ref: WordRef) {
+    val close = { s.wordMenu = null }
+    val sent = s.sentences.firstOrNull { it.id == ref.sent }
+    ModalBottomSheet(onDismissRequest = close) {
+        Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            Text(
+                s.word(ref), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
+            sent?.let {
+                Text(
+                    it.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                )
+            }
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            MenuRow(AppIcons.Translate, "Перевод слова") { close(); s.openPopup(ref) }
+            MenuRow(AppIcons.Chat, "Перевод предложения") { close(); s.bottomSent = null; s.toggleSentence(ref.sent) }
+            if ((sent?.start ?: -1L) >= 0) {
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                MenuRow(AppIcons.Repeat, "Повторять это предложение") { close(); s.loopSentenceId(ref.sent) }
+                MenuRow(AppIcons.SkipPrevious, "Начало повтора", "с начала этого предложения") { close(); s.loopStartAt(ref.sent) }
+                MenuRow(AppIcons.SkipNext, "Конец повтора", "до конца этого предложения") { close(); s.loopEndAt(ref.sent) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, hint: String? = null, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { if (hint != null) Text(hint) },
+        leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+        modifier = Modifier.clickable(onClick = onClick),
+    )
 }
 
 /** Lessons with audio among the recently opened ones. */

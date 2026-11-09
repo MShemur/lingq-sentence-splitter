@@ -25,6 +25,11 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   Android `Audio.kt` (`AudioEngine`, `AudioBar`, `LoopSheet`), `Reader.kt` (audio part of `ReaderSession`).
   Web: <audio> element + Media Session API (lock screen on iPad); loop by checking currentTime in timeupdate/rAF.
 
+- Android: player text gestures changed: tap a word = seek to the start of its sentence (playing state kept); long press
+  (without dragging) = bottom-sheet menu: Перевод слова (word window) / Перевод предложения (strip at the bottom) /
+  Повторять это предложение / Начало повтора (A = sentence start) / Конец повтора (B = sentence end); a snackbar says
+  what is still missing. Drag over words = phrase translation as before. `ReaderSession.tapWord/selectEnd/wordMenu`, `Player.kt WordMenu`.
+
 ## To do on Android
 
 ## Done
