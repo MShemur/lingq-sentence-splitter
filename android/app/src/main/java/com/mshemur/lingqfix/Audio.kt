@@ -86,6 +86,25 @@ object AudioEngine {
         private set
     var title by mutableStateOf("")
         private set
+    /** Cover of the lesson playing ("" = none). */
+    var image by mutableStateOf("")
+        private set
+
+    /** Sentence starts (ms) of the lesson playing, for "replay the sentence" (widget). */
+    private var starts: List<Long> = emptyList()
+    private var startsKey: String? = null
+
+    fun setStarts(k: String, list: List<Long>) { startsKey = k; starts = list.filter { it >= 0 }.sorted() }
+
+    /** Back to the start of the sentence sounding now (the previous one in its first half second). */
+    fun replaySentence() {
+        if (startsKey != key || starts.isEmpty()) { seekBy(-5000); return }
+        val pos = player?.currentPosition ?: position
+        val cur = starts.lastOrNull { it <= pos } ?: 0L
+        val target = if (pos - cur < 500) starts.lastOrNull { it < cur } ?: 0L else cur
+        seekTo(target)
+        if (!playing) play()
+    }
     var playing by mutableStateOf(false)
         private set
     var buffering by mutableStateOf(false)
@@ -136,6 +155,7 @@ object AudioEngine {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
                 if (isPlaying) tick() else save()
+                appCtx?.let { PlayerWidget.refresh(it) }
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -151,6 +171,8 @@ object AudioEngine {
                 key?.let { old -> appCtx?.let { prefs(it).edit().putLong("pos.$old", 0L).apply() } }   // finished: next time from the start
                 key = k
                 title = item.mediaMetadata.title?.toString().orEmpty()
+                image = item.mediaMetadata.artworkUri?.toString().orEmpty()
+                appCtx?.let { PlayerWidget.refresh(it) }
                 clearLoop(); stopAt = -1
                 duration = 0
                 AppLog.add("audio", "Дальше в очереди: $k")
@@ -177,7 +199,7 @@ object AudioEngine {
     }
 
     /** Loads the audio of a lesson (if it is not the one loaded), at [startMs]. */
-    fun load(ctx: Context, k: String, url: String, lessonTitle: String, startMs: Long) {
+    fun load(ctx: Context, k: String, url: String, lessonTitle: String, startMs: Long, cover: String = "") {
         if (key == k) return
         val p = get(ctx)
         save()
@@ -188,16 +210,18 @@ object AudioEngine {
         stopAt = -1
         duration = 0
         position = startMs
-        p.setMediaItem(item(Track(k, url, lessonTitle, "")), startMs)
+        image = cover
+        p.setMediaItem(item(Track(k, url, lessonTitle, cover)), startMs)
         queueSize = 1; queueIndex = 0
         p.prepare()
         connect(ctx)
+        PlayerWidget.refresh(ctx)
         AppLog.add("audio", "Загружено аудио урока $k с ${fmtTime(startMs)}")
     }
 
     private fun item(t: Track): MediaItem = MediaItem.Builder().setUri(t.url).setMediaId(t.key)
         .setMediaMetadata(
-            MediaMetadata.Builder().setTitle(t.title).setArtist("LingQ Fix")
+            MediaMetadata.Builder().setTitle(t.title).setArtist("SatzLoop")
                 .apply { if (t.image.isNotBlank()) setArtworkUri(android.net.Uri.parse(t.image)) }.build(),
         )
         .build()
@@ -209,6 +233,7 @@ object AudioEngine {
         save()
         key = tracks[0].key
         title = tracks[0].title
+        image = tracks[0].image
         error = null
         clearLoop(); stopAt = -1
         duration = 0
@@ -300,6 +325,7 @@ object AudioEngine {
         player?.release(); player = null
         controller?.let { MediaController.releaseFuture(it) }; controller = null
         key = null; playing = false; waitingGap = false
+        appCtx?.let { PlayerWidget.refresh(it) }
     }
 
     /** Stop and unload (the notification goes away). */
@@ -309,6 +335,7 @@ object AudioEngine {
         player?.stop(); player?.clearMediaItems()
         controller?.let { MediaController.releaseFuture(it) }; controller = null
         key = null; clearLoop()
+        appCtx?.let { PlayerWidget.refresh(it) }
         AppLog.add("audio", "Аудио остановлено")
     }
 }
@@ -359,6 +386,7 @@ fun AudioBar(s: ReaderSession) {
     val pos = if (mine) AudioEngine.position else AudioEngine.savedPos(ctx, s.audioKey)
     var drag by remember { mutableStateOf<Float?>(null) }
     var speedMenu by remember { mutableStateOf(false) }
+    if (speedMenu) SpeedSheet { speedMenu = false }
     var loopSheet by remember { mutableStateOf(false) }
     val digits = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum")
     Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 2.dp) {
@@ -394,14 +422,7 @@ fun AudioBar(s: ReaderSession) {
                 Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.CenterHorizontally))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Box {
-                    TextButton(onClick = { speedMenu = true }) { Text("${fmtSpeed(AudioEngine.speed)}×") }
-                    DropdownMenu(speedMenu, { speedMenu = false }) {
-                        SPEEDS.forEach { v ->
-                            DropdownMenuItem(text = { Text("${fmtSpeed(v)}×") }, onClick = { AudioEngine.setSpeed(ctx, v); speedMenu = false })
-                        }
-                    }
-                }
+                TextButton(onClick = { speedMenu = true }) { Text("${fmtSpeed(AudioEngine.speed)}×") }
                 IconButton(onClick = { s.prevSentence() }, enabled = mine) { Icon(AppIcons.SkipPrevious, contentDescription = "Предыдущее предложение") }
                 IconButton(onClick = { AudioEngine.seekBy(-5000) }, enabled = mine) { Icon(AppIcons.Replay, contentDescription = "Назад на 5 секунд") }
                 FilledIconButton(onClick = { s.togglePlay() }, modifier = Modifier.size(52.dp)) {
@@ -422,7 +443,7 @@ fun AudioBar(s: ReaderSession) {
     if (loopSheet) LoopSheet(s) { loopSheet = false }
 }
 
-private fun fmtSpeed(v: Float) = if (v == v.toInt().toFloat()) "${v.toInt()}.0" else v.toString().trimEnd('0')
+private fun fmtSpeed(v: Float) = if (v == v.toInt().toFloat()) "${v.toInt()}.0" else "%.2f".format(v).replace(",", ".").trimEnd('0')
 
 /** Loop choices: this sentence, the last / next N minutes, own A–B, pause between repeats. */
 @OptIn(ExperimentalMaterial3Api::class)

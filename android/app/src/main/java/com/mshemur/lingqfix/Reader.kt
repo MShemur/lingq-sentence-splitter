@@ -501,6 +501,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     Triple(l.title, parse(o.optJSONArray("paragraphs") ?: JSONArray()), audio)
                 }
                 audioUrl = au
+                // player: sentence starts for "replay the sentence" (widget)
+                if (sentenceAtBottom && au != null) AudioEngine.setStarts(audioKey, paras.flatten().map { it.start })
                 if (autoPlay && au != null) { autoPlay = false; togglePlay() }
                 val (p, w, ph) = withContext(Dispatchers.IO) { notes.load() }
                 pins.putAll(p); chosen.putAll(w); phrasePins.putAll(ph)
@@ -843,7 +845,9 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         val url = audioUrl ?: return false
         val at = startAt
         startAt = -1
-        if (AudioEngine.key != audioKey) AudioEngine.load(app.ctx, audioKey, url, title, if (at >= 0) at else AudioEngine.savedPos(app.ctx, audioKey))
+        if (AudioEngine.key != audioKey) AudioEngine.load(
+            app.ctx, audioKey, url, title, if (at >= 0) at else AudioEngine.savedPos(app.ctx, audioKey), lesson.imageUrl,
+        )
         else if (at >= 0) AudioEngine.seekTo(at)
         return true
     }

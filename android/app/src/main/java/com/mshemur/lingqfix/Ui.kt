@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.animation.togetherWith
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -131,7 +132,8 @@ fun App(state: AppState) {
                 }
             },
         ) {
-        if (screen is Screen.Reader) { KeepScreenOn(state); ReadingTimer(state) }
+        if (screen is Screen.Reader) KeepScreenOn(state)
+        ReadingTimer(state)                 // reading in the reader or listening anywhere
         Scaffold(
             topBar = {
                 // reader: close cross, progress in the middle, no lesson title
@@ -172,8 +174,10 @@ fun App(state: AppState) {
             bottomBar = {
                 when (screen) {
                     is Screen.Reader -> ReaderBottomBar(screen.session)
-                    Screen.ReaderCourses, Screen.Player -> MainTabs(state, screen)
-                    else -> {}
+                    Screen.Player -> MainTabs(state, screen)
+                    Screen.ReaderCourses -> Column { MiniPlayer(state); MainTabs(state, screen) }
+                    is Screen.Chat, Screen.Home, is Screen.Import -> {}
+                    else -> MiniPlayer(state)
                 }
             },
             floatingActionButton = {
@@ -187,6 +191,25 @@ fun App(state: AppState) {
         ) { pad ->
             // edge-to-edge: the content must shrink above the keyboard itself, otherwise it covers text fields
             Box(Modifier.padding(pad).imePadding().fillMaxSize()) {
+                // deeper: slides in from the right; back: from the left; tabs: cross-fade
+                val depth = state.stack.size
+                var lastDepth by remember { androidx.compose.runtime.mutableIntStateOf(depth) }
+                androidx.compose.animation.AnimatedContent(
+                    targetState = screen,
+                    transitionSpec = {
+                        val t = androidx.compose.animation.core.tween<androidx.compose.ui.unit.IntOffset>(300)
+                        when {
+                            depth > lastDepth -> (androidx.compose.animation.slideInHorizontally(t) { it / 5 } + androidx.compose.animation.fadeIn()) togetherWith
+                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150))
+                            depth < lastDepth -> (androidx.compose.animation.slideInHorizontally(t) { -it / 5 } + androidx.compose.animation.fadeIn()) togetherWith
+                                (androidx.compose.animation.slideOutHorizontally(t) { it / 5 } + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150)))
+                            else -> androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) togetherWith
+                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120))
+                        }
+                    },
+                    label = "screen",
+                ) { screen ->
+                androidx.compose.runtime.SideEffect { lastDepth = depth }
                 when (screen) {
                     Screen.Home -> HomeScreen(state)
                     Screen.ReaderCourses -> LibraryScreen(state)
@@ -208,6 +231,7 @@ fun App(state: AppState) {
                     is Screen.Lessons -> LessonsScreen(state, screen)
                     is Screen.Check -> CheckScreen(screen.session)
                     is Screen.Import -> ImportScreen(state, screen.session)
+                }
                 }
             }
         }
@@ -237,7 +261,7 @@ fun App(state: AppState) {
                     }) { Text("Копировать") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { state.crashReport = null; shareText(ctx, "LingQ Fix: отчёт о сбое", report) }) { Text("Поделиться") }
+                    TextButton(onClick = { state.crashReport = null; shareText(ctx, "SatzLoop: отчёт о сбое", report) }) { Text("Поделиться") }
                 },
             )
         }
@@ -511,7 +535,7 @@ private fun CheckScreen(s: CheckSession) {
                     modifier = Modifier.padding(top = 16.dp),
                 )
                 if (!s.running && s.results.isNotEmpty()) TextButton(onClick = {
-                    shareText(ctx, "LingQ Fix: ${s.label}", reportText("Проверка: ${s.label} (${s.lang})", s.results.toList()))
+                    shareText(ctx, "SatzLoop: ${s.label}", reportText("Проверка: ${s.label} (${s.lang})", s.results.toList()))
                 }) { Text("📤 Поделиться отчётом") }
             }
             s.results.forEach { r ->
@@ -776,7 +800,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (s.fixes.isNotEmpty()) OutlinedButton(onClick = {
-                    shareText(ctx, "LingQ Fix: ${s.course?.title.orEmpty()}",
+                    shareText(ctx, "SatzLoop: ${s.course?.title.orEmpty()}",
                         reportText("Загрузка в курс: ${s.course?.title.orEmpty()}", s.fixes.toList()))
                 }) { Text("📤 Отчёт") }
                 s.course?.let { c ->

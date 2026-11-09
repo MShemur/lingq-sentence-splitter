@@ -42,7 +42,7 @@ Restore a lesson: `python lingq_fix_splits.py --restore runs/<stamp>/backup/<les
 
 ## Android app (`android/`)
 
-Kotlin + Jetpack Compose app "LingQ Fix": uploads .txt/.md/.epub or pasted text to a LingQ course,
+Kotlin + Jetpack Compose app "SatzLoop" (was "LingQ Fix"; package `com.mshemur.lingqfix` stays, updates need it): uploads .txt/.md/.epub or pasted text to a LingQ course,
 fixes sentence splits of new or existing lessons, keeps backups on the phone, updates itself from
 GitHub releases. `Fixer.kt` is a port of the merge rules in `lingq_fix_splits.py`:
 **when you change ABBREVIATIONS / SENTENCE_STARTERS / AMBIGUOUS / should_merge, change both.**

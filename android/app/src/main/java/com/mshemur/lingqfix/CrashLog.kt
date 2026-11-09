@@ -20,7 +20,7 @@ object CrashLog {
             runCatching { AppLog.error("CRASH", "поток ${t.name}", e); AppLog.add("CRASH", e.stackTraceToString().lines().take(8).joinToString(" | ")) }
             runCatching {
                 file(ctx).writeText(
-                    "LingQ Fix ${BuildConfig.VERSION_NAME}, Android ${Build.VERSION.RELEASE}, ${Build.MANUFACTURER} ${Build.MODEL}\n" +
+                    "SatzLoop ${BuildConfig.VERSION_NAME}, Android ${Build.VERSION.RELEASE}, ${Build.MANUFACTURER} ${Build.MODEL}\n" +
                         "${Date()}, thread ${t.name}\n\n" + e.stackTraceToString().take(30_000),
                 )
             }

@@ -39,6 +39,8 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -130,8 +132,14 @@ fun PlayerScreen(state: AppState) {
                     "У этого урока нет аудио на LingQ.", Modifier.align(Alignment.Center).padding(24.dp),
                     textAlign = TextAlign.Center,
                 )
-                expanded -> FullText(s, paras)
-                else -> TextWindow(s, Modifier.fillMaxSize().padding(16.dp)) { expanded = true }
+                else -> androidx.compose.animation.AnimatedContent(
+                    targetState = expanded,
+                    transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(200)) },
+                    label = "text",
+                ) { full ->
+                    if (full) FullText(s, paras)
+                    else TextWindow(s, Modifier.fillMaxSize().padding(16.dp)) { expanded = true }
+                }
             }
         }
         AnimatedVisibility(
@@ -158,8 +166,22 @@ private fun TextWindow(s: ReaderSession, modifier: Modifier, onOpen: () -> Unit)
     val list = s.sentences
     val cur = s.playingSent ?: s.sentenceAt(AudioEngine.savedPos(s.appCtx, s.audioKey)) ?: list.firstOrNull()?.id
     val i = list.indexOfFirst { it.id == cur }.coerceAtLeast(0)
+    // tap: the whole text; double tap on the left / right half: 5 s back / forward
+    var flash by remember { mutableStateOf<Boolean?>(null) }
+    var flashTick by remember { mutableStateOf(0) }
+    LaunchedEffect(flashTick) { if (flashTick > 0) { kotlinx.coroutines.delay(650); flash = null } }
+    Box(modifier) {
     Card(
-        onClick = onOpen, modifier = modifier,
+        modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+            detectTapGestures(
+                onTap = { onOpen() },
+                onDoubleTap = { o ->
+                    val fwd = o.x > size.width / 2
+                    AudioEngine.seekBy(if (fwd) 5000 else -5000)
+                    flash = fwd; flashTick++
+                },
+            )
+        },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
         // the lines move up softly to the next sentence (down when going back) instead of jumping
@@ -191,11 +213,24 @@ private fun TextWindow(s: ReaderSession, modifier: Modifier, onOpen: () -> Unit)
                 Text(it.text, fontSize = (size * 0.9f).sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             Text(
-                "Нажмите, чтобы открыть весь текст", style = MaterialTheme.typography.labelSmall,
+                "Нажмите — весь текст · двойное нажатие слева / справа — 5 с назад / вперёд",
+                style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.outline, modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
         }
+    }
+    flash?.let { fwd ->
+        Surface(
+            shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.8f),
+            modifier = Modifier.align(if (fwd) Alignment.CenterEnd else Alignment.CenterStart).padding(24.dp),
+        ) {
+            Text(
+                if (fwd) "5 с »" else "« 5 с", Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                color = MaterialTheme.colorScheme.inverseOnSurface, style = MaterialTheme.typography.titleMedium,
+            )
+        }
+    }
     }
 }
 
@@ -347,7 +382,7 @@ private fun AudioLessons(state: AppState, modifier: Modifier, onPick: (String, L
         }
         when {
             courseError != null -> Text("Ошибка: $courseError", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
-            list == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            list == null -> Column(Modifier.padding(horizontal = 16.dp)) { repeat(4) { CardSkeleton() } }
             list.isEmpty() -> Text(
                 if (course == null) "Среди последних уроков нет уроков с аудио. Выберите курс выше или откройте урок с аудио → ⋮ → «Слушать в плеере»."
                 else "В этом курсе нет уроков с аудио.",

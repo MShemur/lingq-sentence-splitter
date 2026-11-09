@@ -95,7 +95,7 @@ object AppLog {
     /** The whole journal with a header (version, phone) — what is copied. */
     @Synchronized
     fun text(): String =
-        "LingQ Fix ${BuildConfig.VERSION_NAME}, Android ${Build.VERSION.RELEASE}, ${Build.MANUFACTURER} ${Build.MODEL}\n" +
+        "SatzLoop ${BuildConfig.VERSION_NAME}, Android ${Build.VERSION.RELEASE}, ${Build.MANUFACTURER} ${Build.MODEL}\n" +
             "Журнал за последние $KEEP_HOURS ч (${lines.size} строк)\n\n" + lines.joinToString("\n") { it.text }
 
     @Synchronized
@@ -134,7 +134,7 @@ fun LogScreen(state: AppState) {
             }) { Text("Копировать") }
             OutlinedButton(onClick = {
                 val i = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
-                    .putExtra(android.content.Intent.EXTRA_SUBJECT, "LingQ Fix: журнал")
+                    .putExtra(android.content.Intent.EXTRA_SUBJECT, "SatzLoop: журнал")
                     .putExtra(android.content.Intent.EXTRA_TEXT, AppLog.text())
                 ctx.startActivity(android.content.Intent.createChooser(i, "Отправить журнал"))
             }) { Text("Поделиться") }

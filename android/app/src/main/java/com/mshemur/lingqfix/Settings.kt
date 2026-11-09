@@ -348,7 +348,7 @@ fun SettingsUpdates(state: AppState) {
     Page {
         ListItem(
             leadingContent = { Icon(Icons.Filled.Info, contentDescription = null) },
-            headlineContent = { Text("LingQ Fix ${BuildConfig.VERSION_NAME}") },
+            headlineContent = { Text("SatzLoop ${BuildConfig.VERSION_NAME}") },
             supportingContent = { Text(if (state.update != null) "Доступна версия ${state.update?.versionName}" else "Проверяется при каждом запуске") },
         )
         Button(onClick = { state.checkUpdate(quiet = false) }, modifier = Modifier.fillMaxWidth()) { Text("Проверить обновления") }

@@ -95,7 +95,7 @@ object ContinueWidget {
     }
 
     /** Cover as a small bitmap with rounded corners (widgets cannot clip views on older Android). */
-    private suspend fun cover(ctx: Context, url: String): Bitmap? = runCatching {
+    internal suspend fun cover(ctx: Context, url: String): Bitmap? = runCatching {
         val r = Covers.loader(ctx).execute(
             ImageRequest.Builder(ctx).data(url).size(256).allowHardware(false).build(),
         ) as? SuccessResult ?: return null

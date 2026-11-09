@@ -263,7 +263,8 @@ class AppState(val ctx: Context) {
     /** The queue went on to the next lesson: the player shows its text. */
     private fun onTrack(k: String) {
         val (lang, l) = queueLessons[k] ?: return
-        if (player?.audioKey != k) player = ReaderSession(this, lang, l).apply { sentenceAtBottom = true }
+        // the text is loaded at once: the next lesson may start with the screen off
+        if (player?.audioKey != k) player = ReaderSession(this, lang, l).apply { sentenceAtBottom = true; load() }
     }
 
     /** Audio bookmark: the player tab, from that place. */
@@ -449,7 +450,7 @@ class AppState(val ctx: Context) {
                 updateProgress = 0f
                 val f = withContext(Dispatchers.IO) { Updater.download(ctx, ghToken, r) { p -> updateProgress = p } }
                 updateProgress = null
-                if (!Updater.install(ctx, f)) say("Разрешите установку для LingQ Fix и нажмите «Обновить» ещё раз")
+                if (!Updater.install(ctx, f)) say("Разрешите установку для SatzLoop и нажмите «Обновить» ещё раз")
             } catch (e: Throwable) {
                 updateProgress = null
                 say(e.message ?: "Ошибка загрузки обновления")

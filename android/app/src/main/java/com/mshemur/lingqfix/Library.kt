@@ -186,6 +186,7 @@ fun LibraryScreen(state: AppState) {
                 }
             }
         }
+        if (q.isBlank()) fullWidth("today") { TodayCard(state) }
         fullWidth("search") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -195,6 +196,14 @@ fun LibraryScreen(state: AppState) {
                 )
                 IconButton(onClick = { state.loadCourses(force = true); state.loadRecent() }) {
                     Icon(Icons.Filled.Refresh, contentDescription = "Обновить")
+                }
+            }
+        }
+        if (q.isBlank() && state.recent == null) {
+            fullWidth("recentTitle") { SectionTitle("Продолжить") }
+            fullWidth("recentSkeleton") {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    repeat(3) { TileSkeleton(Modifier.width(168.dp)) }
                 }
             }
         }
@@ -218,9 +227,7 @@ fun LibraryScreen(state: AppState) {
                     OutlinedButton(onClick = { state.loadCourses(force = true) }) { Text("Повторить") }
                 }
             }
-            list == null -> fullWidth("loading") {
-                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            }
+            list == null -> items(6, key = { "sk$it" }) { TileSkeleton() }
             else -> items(list.filter { q.isBlank() || it.title.contains(q, ignoreCase = true) }, key = { it.id }) { c ->
                 CourseTile(state, c) { state.go(Screen.Lessons(state.lang, c, reader = true)) }
             }

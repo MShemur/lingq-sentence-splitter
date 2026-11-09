@@ -156,7 +156,8 @@ fun ReadingTimer(state: AppState) {
         while (true) {
             delay(15_000)
             // reading (touched lately) or listening to the lesson
-            if ((state.resumed && SystemClock.uptimeMillis() - state.lastTouch < 180_000) || AudioEngine.playing) state.stats.addTime(15)
+            val reading = state.screen is Screen.Reader && state.resumed && SystemClock.uptimeMillis() - state.lastTouch < 180_000
+            if (reading || AudioEngine.playing) state.stats.addTime(15)
         }
     }
 }

@@ -44,6 +44,15 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   shows the next lesson's text; finished lesson's saved position reset to 0); player bar shows "‹ Урок  2 из 5  Урок ›".
   `Player.kt AudioLessons/AudioLessonCard`, `AppState.playAll`, `AudioEngine.loadQueue`.
 
+- Android "modern look" batch: app is now called SatzLoop (new adaptive icon: violet→teal, text lines in a loop arrow);
+  screen transitions (deeper = slide from right, back = from left, tabs = cross-fade); library top card: greeting by time
+  of day, ring "minutes today / 20 min goal", words today, 🔥 streak (tap = stats); listening anywhere counts as time;
+  skeleton placeholders (breathing grey shapes) instead of spinners for courses, "Продолжить" and the player list;
+  mini player above the bottom tabs / on other screens (cover, title, time, −5 s, play/pause; tap = player tab);
+  player: speed = slider sheet 0.5–2.0 step 0.05 + presets; double tap left/right half of the sentence window = ∓5 s
+  with a "« 5 с" bubble; window ↔ full text cross-fade. Home screen widget of the player (Android only).
+  `Extras.kt` (`skeleton`, `TodayCard`, `MiniPlayer`, `SpeedSheet`), `Ui.kt`, `Player.kt`.
+
 ## To do on Android
 
 ## Done
