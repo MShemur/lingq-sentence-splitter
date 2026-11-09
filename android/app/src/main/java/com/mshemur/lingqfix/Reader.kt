@@ -93,6 +93,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -880,7 +881,7 @@ fun SentenceEditDialog(s: ReaderSession) {
     var tr by remember(id) { mutableStateOf(s.shownTranslation(id)) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = { if (!s.editSaving) s.editing = null },
-        icon = { Icon(androidx.compose.material.icons.Icons.Filled.Edit, contentDescription = null) },
+        icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
         title = { Text("Редактировать предложение") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1453,7 +1454,7 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, ce
         )
         BookmarkButton(s, id)
         IconButton(onClick = { s.startEdit(id) }, modifier = Modifier.size(36.dp)) {
-            Icon(androidx.compose.material.icons.Icons.Filled.Edit, contentDescription = "Редактировать предложение",
+            Icon(Icons.Filled.Edit, contentDescription = "Редактировать предложение",
                 modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
         }
         RetranslateButton(s, id)
