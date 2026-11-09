@@ -268,15 +268,16 @@ class AppState(val ctx: Context) {
     }
 
     /** Audio bookmark: the player tab, from that place. */
-    fun openAudioBookmark(b: Bookmark) {
+    fun openAudioBookmark(b: Bookmark) = listenAt(b.lang, Lesson(b.lessonId, b.lessonTitle), b.ms)
+
+    /** The player tab, lesson [l] from [ms]. */
+    fun listenAt(lang: String, l: Lesson, ms: Long) {
         val cur = player
-        if (cur != null && cur.lesson.id == b.lessonId && cur.lang == b.lang && cur.audioUrl != null) {
-            cur.startAt = b.ms
-            if (AudioEngine.key == cur.audioKey) { AudioEngine.seekTo(b.ms); cur.startAt = -1; AudioEngine.play() } else cur.togglePlay()
+        if (cur != null && cur.lesson.id == l.id && cur.lang == lang && cur.audioUrl != null) {
+            cur.startAt = ms
+            if (AudioEngine.key == cur.audioKey) { AudioEngine.seekTo(ms); cur.startAt = -1; AudioEngine.play() } else cur.togglePlay()
         } else {
-            player = ReaderSession(this, b.lang, Lesson(b.lessonId, b.lessonTitle)).apply {
-                sentenceAtBottom = true; autoPlay = true; startAt = b.ms
-            }
+            player = ReaderSession(this, lang, l).apply { sentenceAtBottom = true; autoPlay = true; startAt = ms }
         }
         switchTab(Screen.Player)
     }
@@ -788,7 +789,7 @@ class ImportSession(private val app: AppState) {
 
     /** The AI estimates the level of a fresh lesson and saves it on LingQ; returns e.g. "уровень B1". */
     private fun aiLevel(lang: String, id: Int, text: String): String {
-        val (lvl, _) = app.geminiFast().level(lang, text)
+        val (lvl, _) = app.geminiFast().level(app.prefs.promptLevel, lang, text)
         app.api.waitProcessed(lang, id)
         app.api.setLevel(lang, id, lvl)
         AppLog.add("import", "Урок $id: уровень ${levelName(lvl)}")

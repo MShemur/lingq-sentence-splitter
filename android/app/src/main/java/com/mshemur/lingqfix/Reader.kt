@@ -94,6 +94,9 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -335,7 +338,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         if (sent == null || words < 2) {
             val id = selSent; val tok = selFrom
             clearSelection()
-            if (sent != null) { if (sentenceAtBottom) wordMenu = WordRef(id, tok) else toggleSentence(id) }
+            if (sent != null) wordMenu = WordRef(id, tok)          // a small menu right at the word
             return
         }
         openPhrase(sent.id, selFrom, selTo)
@@ -922,8 +925,18 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         sentences.filter { it.start > pos + 50 }.minByOrNull { it.start }?.let { AudioEngine.seekTo(it.start) }
     }
 
-    /** Player tab: menu of a long-pressed word (translations, loop start / end). */
+    /** Menu of a long-pressed word, and the view it was pressed in ("text", "sent", "player"). */
     var wordMenu by mutableStateOf<WordRef?>(null)
+    var menuArea = "text"
+
+    /** Reader: listen from this sentence in the player tab. */
+    fun listenFrom(id: Int) {
+        val st = sentById[id] ?: return
+        if (st.start < 0) return
+        app.listenAt(lang, Lesson(lesson.id, title, lesson.imageUrl, courseTitle = lesson.courseTitle), st.start)
+    }
+
+    fun hasTime(id: Int) = audioUrl != null && (sentById[id]?.start ?: -1L) >= 0
 
     /** Player tab: play from the start of sentence [id]. */
     fun seekToSentence(id: Int) {
@@ -989,7 +1002,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         app.scope.launch {
             try {
                 val r = withContext(Dispatchers.IO) {
-                    val r = app.geminiFast().level(lang, text)
+                    val r = app.geminiFast().level(app.prefs.promptLevel, lang, text)
                     app.api.setLevel(lang, lesson.id, r.first)
                     r
                 }
@@ -1137,11 +1150,7 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
     if (help) ReaderHelp { help = false }
     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-        DropdownMenuItem(
-            text = { Text("Чат о тексте") },
-            leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
-            onClick = { menu = false; s.chatText() },
-        )
+        MenuGroup("Урок")
         if (s.audioUrl != null) DropdownMenuItem(
             text = { Text("Слушать в плеере") },
             leadingIcon = { Icon(AppIcons.Headphones, contentDescription = null) },
@@ -1153,36 +1162,34 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             enabled = !s.levelBusy,
             onClick = { menu = false; s.detectLevel() },
         )
+        HorizontalDivider()
+        MenuGroup("Вид")
+        DropdownMenuItem(text = { Text("Шрифт крупнее  A+") }, onClick = { s.changeFont(+2) })
+        DropdownMenuItem(text = { Text("Шрифт мельче  A−") }, onClick = { s.changeFont(-2) })
         DropdownMenuItem(
-            text = { Text("Статистика") },
-            leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
-            onClick = { menu = false; state.go(Screen.Stats) },
+            text = { Text("Оформление и экран") },
+            onClick = { menu = false; state.go(Screen.SettingsReading) },
         )
-        DropdownMenuItem(
-            text = { Text("Журнал действий") },
-            onClick = { menu = false; state.go(Screen.Log) },
+        if (s.pins.isNotEmpty() || s.phrasePins.isNotEmpty()) DropdownMenuItem(
+            text = { Text("Снять переводы над словами (${s.pins.size + s.phrasePins.size})") },
+            onClick = { s.clearPins(); menu = false },
         )
+        HorizontalDivider()
+        MenuGroup("Помощь")
         DropdownMenuItem(
             text = { Text("Как пользоваться") },
             leadingIcon = { Icon(Icons.Filled.Info, contentDescription = null) },
             onClick = { menu = false; help = true },
         )
-        DropdownMenuItem(
-            text = { Text("Оформление и экран") },
-            onClick = { menu = false; state.go(Screen.SettingsReading) },
-        )
-        HorizontalDivider()
-        DropdownMenuItem(text = { Text("Шрифт крупнее  A+") }, onClick = { s.changeFont(+2) })
-        DropdownMenuItem(text = { Text("Шрифт мельче  A−") }, onClick = { s.changeFont(-2) })
-        if (s.pins.isNotEmpty() || s.phrasePins.isNotEmpty()) {
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text("Снять все переводы над словами (${s.pins.size + s.phrasePins.size})") },
-                onClick = { s.clearPins(); menu = false },
-            )
-        }
     }
 }
+
+/** Small grey heading inside a menu. */
+@Composable
+private fun MenuGroup(t: String) = Text(
+    t, Modifier.padding(start = 16.dp, top = 6.dp, bottom = 2.dp),
+    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
+)
 
 /** Reader help: gestures and buttons (menu ⋮ → "Как пользоваться"). */
 @Composable
@@ -1195,9 +1202,9 @@ private fun ReaderHelp(onClose: () -> Unit) {
             "Долгое нажатие и, не отпуская, провести по соседним словам — перевод нескольких слов вместе.",
         ),
         "Предложения" to listOf(
-            "Долгое нажатие на слово — перевод предложения под ним (ещё раз — скрыть).",
-            "У перевода: закладка, карандаш — исправить предложение и его перевод (сохраняется в уроке на LingQ), " +
-                "«перевести заново» (↻) и чат о предложении.",
+            "Долгое нажатие на слово — меню у слова: перевод предложения, в закладки, исправить предложение " +
+                "(сохраняется в уроке на LingQ), слушать отсюда (если у урока есть аудио), чат о предложении.",
+            "У перевода предложения — ↻ «перевести заново»; касание перевода скрывает его.",
             "Внизу «Переводы» — показать переводы всех предложений сразу.",
         ),
         "Страницы и режимы" to listOf(
@@ -1317,6 +1324,7 @@ fun ReaderScreen(s: ReaderSession) {
             }
         }
     }
+    if (!s.sentenceMode) WordMenuLayer(s, "text") { ref, close -> ReaderMenuItems(s, ref, close) }
     if (!s.panelActive) {
         s.popup?.let { ref -> WordSheet(s, ref) }
         s.phrase?.let { p -> PhraseSheet(s, p) }
@@ -1701,16 +1709,60 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, ce
             textAlign = if (center) TextAlign.Center else TextAlign.Start,
             modifier = Modifier.weight(1f),
         )
-        BookmarkButton(s, id)
-        IconButton(onClick = { s.startEdit(id) }, modifier = Modifier.size(36.dp)) {
-            Icon(Icons.Filled.Edit, contentDescription = "Редактировать предложение",
-                modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-        }
         RetranslateButton(s, id)
-        IconButton(onClick = { s.chatSentence(id) }, modifier = Modifier.size(36.dp)) {
-            Icon(AppIcons.Chat, contentDescription = "Чат о предложении", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/**
+ * Layer over a view ([area]) that shows the long-press menu right under the pressed word.
+ * [items] gets the word and "close".
+ */
+@Composable
+internal fun WordMenuLayer(s: ReaderSession, area: String, items: @Composable (WordRef, () -> Unit) -> Unit) {
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
+        val ref = s.wordMenu
+        if (ref != null && s.menuArea == area) {
+            val r = s.wordCoords[area to ref]?.takeIf { it.isAttached }?.boundsInRoot()
+            val at = if (r != null) IntOffset((r.left - origin.x).toInt(), (r.bottom - origin.y).toInt()) else IntOffset.Zero
+            Box(Modifier.offset { at }) {
+                DropdownMenu(expanded = true, onDismissRequest = { s.wordMenu = null }) {
+                    items(ref) { s.wordMenu = null }
+                }
+            }
         }
     }
+}
+
+/** Reader: what to do with the sentence of a long-pressed word. */
+@Composable
+private fun ReaderMenuItems(s: ReaderSession, ref: WordRef, close: () -> Unit) {
+    val id = ref.sent
+    DropdownMenuItem(
+        text = { Text(if (s.shownSentences[id] == true) "Скрыть перевод предложения" else "Перевод предложения") },
+        leadingIcon = { Icon(AppIcons.Translate, contentDescription = null) },
+        onClick = { close(); s.toggleSentence(id) },
+    )
+    DropdownMenuItem(
+        text = { Text(if (s.isBookmarked(id)) "Убрать закладку" else "В закладки") },
+        leadingIcon = { Icon(if (s.isBookmarked(id)) AppIcons.Bookmark else AppIcons.BookmarkBorder, contentDescription = null) },
+        onClick = { close(); s.toggleBookmark(id) },
+    )
+    DropdownMenuItem(
+        text = { Text("Исправить предложение") },
+        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+        onClick = { close(); s.startEdit(id) },
+    )
+    if (s.hasTime(id)) DropdownMenuItem(
+        text = { Text("Слушать отсюда") },
+        leadingIcon = { Icon(AppIcons.Headphones, contentDescription = null) },
+        onClick = { close(); s.listenFrom(id) },
+    )
+    DropdownMenuItem(
+        text = { Text("Чат о предложении") },
+        leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
+        onClick = { close(); s.chatSentence(id) },
+    )
 }
 
 @Composable
@@ -1747,6 +1799,7 @@ fun SentenceOverlay(s: ReaderSession) {
         BackHandler { s.closeSentenceMode() }
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             SentencePager(s)
+            WordMenuLayer(s, "sent") { ref, close -> ReaderMenuItems(s, ref, close) }
         }
     }
 }
@@ -1951,6 +2004,7 @@ private suspend fun PointerInputScope.wordGestures(s: ReaderSession, area: Strin
         }
         // long press: select from this word, follow the finger
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        s.menuArea = area
         s.selectStart(ref)
         while (true) {
             val ev = awaitPointerEvent()

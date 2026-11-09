@@ -171,8 +171,17 @@ fun BookmarksScreen(state: AppState) {
         )
         return
     }
-    val groups = all.groupBy { it.lessonId }.values.sortedByDescending { g -> g.maxOf { it.time } }
+    var kind by remember { mutableStateOf(0) }            // 0 all, 1 text, 2 audio
+    val shown = all.filter { kind == 0 || (kind == 1) == !it.audio }
+    val groups = shown.groupBy { it.lessonId }.values.sortedByDescending { g -> g.maxOf { it.time } }
     LazyColumn(Modifier.fillMaxSize()) {
+        if (all.any { it.audio }) item(key = "filter") {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                listOf("Все", "Текст", "Аудио").forEachIndexed { i, t ->
+                    androidx.compose.material3.FilterChip(kind == i, onClick = { kind = i }, label = { Text(t) })
+                }
+            }
+        }
         item {
             Text(
                 "Нажатие — перевод предложения, долгое нажатие — перейти к источнику или удалить.",

@@ -156,9 +156,6 @@ fun App(state: AppState) {
                         when (screen) {
                             Screen.Bookmarks -> { if (state.bookmarks.items.isNotEmpty()) BookmarksExpandButton(state) }
                             Screen.ReaderCourses -> {
-                                IconButton(onClick = { state.go(Screen.Stats) }) {
-                                    Icon(AppIcons.BarChart, contentDescription = "Статистика")
-                                }
                                 IconButton(onClick = { state.go(Screen.Bookmarks) }) {
                                     Icon(AppIcons.Bookmark, contentDescription = "Закладки")
                                 }

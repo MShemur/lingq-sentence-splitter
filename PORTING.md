@@ -60,6 +60,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   Reader ⋮ "Определить уровень (ИИ)": whole lesson text -> sets the level -> dialog "Уровень: B1 · Intermediate 1" + reason.
   `Llm.level`, `LingqApi.setLevel`, `ImportSession.aiLevel`, `ReaderSession.detectLevel`.
 
+- Android UX tidy-up: reader long press (no drag) = small menu right under the word (no direct sentence translation any
+  more): Перевод предложения / В закладки / Исправить предложение / Слушать отсюда (only with audio; opens the player
+  there) / Чат о предложении; same in sentence mode. Sentence-translation row keeps only ↻. Reader ⋮ grouped with small
+  headings: Урок (Слушать в плеере, Определить уровень) / Вид (A+, A−, Оформление, Снять переводы) / Помощь (Как
+  пользоваться); removed Чат о тексте (bottom bar has it), Статистика (today card), Журнал (Settings). Library top bar:
+  no stats icon. Player: lesson title with ⌄ opens the lesson list (removed from ⋮). Bookmarks: chips Все / Текст / Аудио.
+  Prompts settings: "Уровень текста" prompt. `Reader.kt WordMenuLayer/ReaderMenuItems`, `Player.kt`, `Bookmarks.kt`.
+
 ## To do on Android
 
 ## Done

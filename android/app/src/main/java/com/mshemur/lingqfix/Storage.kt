@@ -117,6 +117,9 @@ class Prefs(ctx: Context) {
     var keepAwake: String
         get() = read("keepAwake", "10")
         set(v) = write("keepAwake", v)
+    var promptLevel: String
+        get() = read("promptLevel", Prompts.LEVEL).ifBlank { Prompts.LEVEL }
+        set(v) = p.edit().putString("promptLevel", v).apply()
     var promptClean: String
         get() = read("promptClean", Prompts.CLEAN).ifBlank { Prompts.CLEAN }
         set(v) = p.edit().putString("promptClean", v).apply()

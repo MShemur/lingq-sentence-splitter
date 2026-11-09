@@ -44,8 +44,8 @@ abstract class Llm {
         generate(null, listOf(Gemini.Msg(true, Prompts.fill(prompt, "lang" to lang, "text" to text)))).trim()
 
     /** CEFR level of a text: LingQ level 1..6 (A1..C2) and a short reason. */
-    fun level(lang: String, text: String): Pair<Int, String> {
-        val raw = generate(null, listOf(Gemini.Msg(true, Prompts.fill(Prompts.LEVEL, "lang" to lang, "text" to text.take(6000)))), json = true)
+    fun level(prompt: String, lang: String, text: String): Pair<Int, String> {
+        val raw = generate(null, listOf(Gemini.Msg(true, Prompts.fill(prompt, "lang" to lang, "text" to text.take(6000)))), json = true)
         val o = runCatching { JSONObject("{" + raw.substringAfter("{", "").substringBeforeLast("}") + "}") }.getOrNull()
         val cefr = (o?.optString("cefr") ?: raw).uppercase()
         val i = Regex("[ABC][12]").find(cefr)?.value?.let { CEFR.indexOf(it) } ?: -1

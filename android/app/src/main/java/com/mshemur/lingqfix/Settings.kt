@@ -319,6 +319,7 @@ fun SettingsPrompts(state: AppState) {
     var pChatT by remember { mutableStateOf(p.promptChatText) }
     var pChatW by remember { mutableStateOf(p.promptChatWord) }
     var pClean by remember { mutableStateOf(p.promptClean) }
+    var pLevel by remember { mutableStateOf(p.promptLevel) }
     Page {
         Hint(
             "Подстановки: {lang} язык текста, {target} язык перевода, {word} слово, {sentence} предложение, " +
@@ -331,11 +332,13 @@ fun SettingsPrompts(state: AppState) {
         OutlinedTextField(pClean, { pClean = it; p.promptClean = it }, Modifier.fillMaxWidth(), label = { Text("Очистка текста при импорте") }, minLines = 3)
         OutlinedTextField(pChatW, { pChatW = it; p.promptChatWord = it }, Modifier.fillMaxWidth(), label = { Text("Чат о слове") }, minLines = 3)
         OutlinedTextField(pChatT, { pChatT = it; p.promptChatText = it }, Modifier.fillMaxWidth(), label = { Text("Чат о всём тексте") }, minLines = 3)
+        OutlinedTextField(pLevel, { pLevel = it; p.promptLevel = it }, Modifier.fillMaxWidth(), label = { Text("Уровень текста (JSON: cefr, why)") }, minLines = 3)
         OutlinedButton(onClick = {
             pWord = Prompts.WORD; pSent = Prompts.SENTENCE; pChatS = Prompts.CHAT_SENTENCE; pChatT = Prompts.CHAT_TEXT
             pRetr = Prompts.RETRANSLATE; p.promptRetranslate = pRetr
             pChatW = Prompts.CHAT_WORD; p.promptChatWord = pChatW
             pClean = Prompts.CLEAN; p.promptClean = pClean
+            pLevel = Prompts.LEVEL; p.promptLevel = pLevel
             p.promptWord = pWord; p.promptSentence = pSent; p.promptChatSentence = pChatS; p.promptChatText = pChatT
             state.say("Стандартные промпты восстановлены")
         }) { Text("Вернуть стандартные") }

@@ -39,6 +39,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -111,14 +112,18 @@ fun PlayerScreen(state: AppState) {
                     Icon(AppIcons.Headphones, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
             }
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(s.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // the title opens the list of lessons (like the playlist title in music apps)
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable { picker = true }.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Другой урок", modifier = Modifier.size(20.dp))
+                }
                 if (s.lesson.courseTitle.isNotBlank()) Text(
                     s.lesson.courseTitle, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            PlayerActions(s, onMarks = { marks = true }, onPick = { picker = true })
+            PlayerActions(s, onMarks = { marks = true }, onPick = null)
         }
         val paras = s.paragraphs
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -151,7 +156,7 @@ fun PlayerScreen(state: AppState) {
         }
         if (s.audioUrl != null) AudioBar(s)
     }
-    s.wordMenu?.let { ref -> WordMenu(s, ref, origin) }
+    WordMenuLayer(s, "player") { ref, close -> PlayerMenuItems(s, ref, close) }
     }
     if (marks) MarksSheet(s) { marks = false }
     s.popup?.let { ref -> WordSheet(s, ref) }
@@ -284,22 +289,14 @@ private fun BottomTranslation(s: ReaderSession, id: Int) {
     }
 }
 
-/** Long press on a word in the player text: a small menu right at the word. */
+/** Long press on a word in the player text: 4 items right at the word. */
 @Composable
-private fun WordMenu(s: ReaderSession, ref: WordRef, origin: Offset) {
-    val close = { s.wordMenu = null }
-    val r = s.wordCoords["player" to ref]?.takeIf { it.isAttached }?.boundsInRoot()
-    val at = if (r != null) IntOffset((r.left - origin.x).toInt(), (r.bottom - origin.y).toInt()) else IntOffset.Zero
-    val timed = (s.sentences.firstOrNull { it.id == ref.sent }?.start ?: -1L) >= 0
-    Box(Modifier.offset { at }) {
-        DropdownMenu(expanded = true, onDismissRequest = close) {
-            DropdownMenuItem(text = { Text("Перевод слова") }, onClick = { close(); s.openPopup(ref) })
-            DropdownMenuItem(text = { Text("Перевод предложения") }, onClick = { close(); s.bottomSent = null; s.toggleSentence(ref.sent) })
-            if (timed) {
-                DropdownMenuItem(text = { Text("Начало повтора") }, onClick = { close(); s.loopStartAt(ref.sent) })
-                DropdownMenuItem(text = { Text("Конец повтора") }, onClick = { close(); s.loopEndAt(ref.sent) })
-            }
-        }
+private fun PlayerMenuItems(s: ReaderSession, ref: WordRef, close: () -> Unit) {
+    DropdownMenuItem(text = { Text("Перевод слова") }, onClick = { close(); s.openPopup(ref) })
+    DropdownMenuItem(text = { Text("Перевод предложения") }, onClick = { close(); s.bottomSent = null; s.toggleSentence(ref.sent) })
+    if ((s.sentences.firstOrNull { it.id == ref.sent }?.start ?: -1L) >= 0) {
+        DropdownMenuItem(text = { Text("Начало повтора") }, onClick = { close(); s.loopStartAt(ref.sent) })
+        DropdownMenuItem(text = { Text("Конец повтора") }, onClick = { close(); s.loopEndAt(ref.sent) })
     }
 }
 
