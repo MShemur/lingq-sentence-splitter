@@ -2,7 +2,7 @@
 import { ApiError } from './lingq'
 import { DEFAULT_MODEL, otherAi, prefs } from './settings'
 import * as openai from './openai'
-import { fill } from './prompts'
+import { fill, Prompts } from './prompts'
 import { log, logError } from './applog'
 
 const hostOf = (u: string) => { try { return new URL(u).host } catch { return 'ИИ' } }
@@ -149,6 +149,16 @@ export const retranslate = (prompt: string, lang: string, target: string, senten
 /** Cleans a piece of copied text (light model, see Prompts.CLEAN). */
 export const cleanPiece = async (prompt: string, lang: string, text: string) =>
   (await generate(null, [{ user: true, text: fill(prompt, { lang, text }) }], false, true)).trim()
+
+/** CEFR level of a text: LingQ level 1..6 (A1..C2) and a short reason (light model). */
+export async function level(lang: string, text: string): Promise<[number, string]> {
+  const raw = await generate(null, [{ user: true, text: fill(Prompts.LEVEL, { lang, text: text.slice(0, 6000) }) }], true, true)
+  let o: any = null
+  try { o = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) } catch { /* plain text */ }
+  const m = String(o?.cefr ?? raw).toUpperCase().match(/[ABC][12]/)
+  if (!m) throw new ApiError(`ИИ не назвал уровень: ${raw.slice(0, 120)}`)
+  return [['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].indexOf(m[0]) + 1, String(o?.why ?? '')]
+}
 
 export const sentence = (prompt: string, lang: string, target: string, s: string) =>
   generate(null, [{ user: true, text: fill(prompt, { lang, target, sentence: s }) }], false, true)

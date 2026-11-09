@@ -295,6 +295,7 @@ function importLocal(m: Obj) {
   const list: Bookmark[] = Object.values(m.bookmarks ?? {}).map((b: any) => ({
     lang: String(b.lang), lessonId: Number(b.lessonId), lessonTitle: String(b.lessonTitle ?? ''), sent: Number(b.sent),
     text: String(b.text ?? ''), time: Number(b.time) || 0, tr: String(b.tr ?? ''),
+    ...(b.ms != null && Number(b.ms) >= 0 ? { ms: Number(b.ms) } : {}),
   }))
   replaceAllBookmarks(list.sort((a, b) => a.time - b.time), m.deleted ?? {})
   // notes: newer lessons overwrite (an open reader picks them up when the lesson is opened again)

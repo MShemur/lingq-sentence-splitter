@@ -9,57 +9,6 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- Android (replaces the player-in-reader line below): the player is NOT in the reader any more. Main screen has bottom tabs
-  "Библиотека" / "Плеер" (like LingQ). Player tab: lesson header + "Другой урок" (recent lessons that have `audioUrl`);
-  collapsed: a card with previous / current (bold) / next sentence, tap -> whole text (follows the audio, pauses following
-  6 s after the user scrolls), sounding sentence bold (whole sentence, not words); tap a word = pin translation, long press =
-  sentence translation in a strip above the player; word/phrase sheets as in the reader. Controls + loop sheet as below.
-  Reader: menu ⋮ "Слушать в плеере" (only if the lesson has audio). Notification tap opens the player tab. Android `Player.kt`.
-- Android: lesson audio player. LingQ editor JSON has `audio` (MP3 URL or null) and every sentence `timestamp: [startSec, endSec]`.
-  Bottom bar "Аудио" (only when the lesson has audio) shows a player bar under the text and in sentence mode: time line,
-  speed menu (0.5–1.5, remembered), ⏮/⏭ previous/next sentence (⏮ restarts the sentence if >1.5 s into it), ±5 s, play/pause,
-  🔁 loop sheet: this sentence (start−0.1 s … end+0.15 s), last 1/2/3/5 min, next 1/2/3/5 min from the current sentence start,
-  own A–B snapped to the current sentence start/end, pause between repeats (0/1/2/3/5 s), off, stop audio. Sounding sentence
-  coloured; text page / sentence-mode page follow the audio while playing; ▶ in the sentence-translation row = play from it.
-  Position per lesson remembered; listening counts as reading time in stats. Background playback via Media3 session service.
-  Android `Audio.kt` (`AudioEngine`, `AudioBar`, `LoopSheet`), `Reader.kt` (audio part of `ReaderSession`).
-  Web: <audio> element + Media Session API (lock screen on iPad); loop by checking currentTime in timeupdate/rAF.
-
-- Android: player text gestures changed: tap a word = seek to the start of its sentence (playing state kept); long press
-  (without dragging) = bottom-sheet menu: Перевод слова (word window) / Перевод предложения (strip at the bottom) /
-  Повторять это предложение / Начало повтора (A = sentence start) / Конец повтора (B = sentence end); a snackbar says
-  what is still missing. Drag over words = phrase translation as before. `ReaderSession.tapWord/selectEnd/wordMenu`, `Player.kt WordMenu`.
-
-- Android: player word menu is a small dropdown right under the long-pressed word with 4 items: Перевод слова / Перевод
-  предложения / Начало повтора / Конец повтора. Audio bookmarks: bookmark JSON gets optional `ms` (audio position; sync key
-  "<lessonId>_a<ms>", text bookmarks keep "<lessonId>_<sent>"); player header: bookmark icon = mark the sounding sentence
-  start (one per sentence, a second mark moves it), ⋮ → "Аудиозакладки (N)" sheet (tap = play from there, delete) and
-  "Другой урок". Bookmarks screen shows them with a headphones icon and "1:23 · " before the text; long press →
-  "Слушать с этого места" opens the player there. `Bookmarks.kt` (`addAudio`, `audioFor`), `Player.kt`, `AppState.openAudioBookmark`.
-
-- Android: player lesson list = big elevated cards (96 dp cover from `imageUrl`, title, course, length from `duration`,
-  "сейчас в плеере" badge); chips row "Недавние" + my courses (course lessons from collections/{id}/lessons with
-  `duration > 0`; that list has no audioUrl -> fetched from lessons/{id}/ `audioUrl`); header "N уроков · 1 ч 20 мин" +
-  "Слушать все": a queue of all lessons in the list, played one after another (Media3 playlist; on transition the player
-  shows the next lesson's text; finished lesson's saved position reset to 0); player bar shows "‹ Урок  2 из 5  Урок ›".
-  `Player.kt AudioLessons/AudioLessonCard`, `AppState.playAll`, `AudioEngine.loadQueue`.
-
-- Android "modern look" batch: app is now called SatzLoop (new adaptive icon: violet→teal, text lines in a loop arrow);
-  screen transitions (deeper = slide from right, back = from left, tabs = cross-fade); library top card: greeting by time
-  of day, ring "minutes today / 20 min goal", words today, 🔥 streak (tap = stats); listening anywhere counts as time;
-  skeleton placeholders (breathing grey shapes) instead of spinners for courses, "Продолжить" and the player list;
-  mini player above the bottom tabs / on other screens (cover, title, time, −5 s, play/pause; tap = player tab);
-  player: speed = slider sheet 0.5–2.0 step 0.05 + presets; double tap left/right half of the sentence window = ∓5 s
-  with a "« 5 с" bubble; window ↔ full text cross-fade. Home screen widget of the player (Android only).
-  `Extras.kt` (`skeleton`, `TodayCard`, `MiniPlayer`, `SpeedSheet`), `Ui.kt`, `Player.kt`.
-
-- Android: AI sets the lesson level. `PATCH /api/v3/{lang}/lessons/{id}/ {"level": N}` (verified: N = 1..6 =
-  Beginner 1, Beginner 2, Intermediate 1, Intermediate 2, Advanced 1, Advanced 2 ~ A1..C2). Prompt `Prompts.LEVEL`
-  (first 6000 chars, JSON {"cefr","why"}), light model. Import: checkbox "ИИ определит уровень сложности (A1–C2)",
-  on by default, remembered; runs after LingQ processed the lesson (waitProcessed), log line "… уровень B1".
-  Reader ⋮ "Определить уровень (ИИ)": whole lesson text -> sets the level -> dialog "Уровень: B1 · Intermediate 1" + reason.
-  `Llm.level`, `LingqApi.setLevel`, `ImportSession.aiLevel`, `ReaderSession.detectLevel`.
-
 - Android UX tidy-up: reader long press (no drag) = small menu right under the word (no direct sentence translation any
   more): Перевод предложения / В закладки / Исправить предложение / Слушать отсюда (only with audio; opens the player
   there) / Чат о предложении; same in sentence mode. Sentence-translation row keeps only ↻. Reader ⋮ grouped with small
@@ -71,6 +20,64 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 ## To do on Android
 
 ## Done
+
+- android -> web v1.23: (replaces the player-in-reader line below): the player is NOT in the reader any more. Main screen has bottom tabs
+  "Библиотека" / "Плеер" (like LingQ). Player tab: lesson header + "Другой урок" (recent lessons that have `audioUrl`);
+  collapsed: a card with previous / current (bold) / next sentence, tap -> whole text (follows the audio, pauses following
+  6 s after the user scrolls), sounding sentence bold (whole sentence, not words); tap a word = pin translation, long press =
+  sentence translation in a strip above the player; word/phrase sheets as in the reader. Controls + loop sheet as below.
+  Reader: menu ⋮ "Слушать в плеере" (only if the lesson has audio). Notification tap opens the player tab. Android `Player.kt`.
+- android -> web v1.23:: lesson audio player. LingQ editor JSON has `audio` (MP3 URL or null) and every sentence `timestamp: [startSec, endSec]`.
+  Bottom bar "Аудио" (only when the lesson has audio) shows a player bar under the text and in sentence mode: time line,
+  speed menu (0.5–1.5, remembered), ⏮/⏭ previous/next sentence (⏮ restarts the sentence if >1.5 s into it), ±5 s, play/pause,
+  🔁 loop sheet: this sentence (start−0.1 s … end+0.15 s), last 1/2/3/5 min, next 1/2/3/5 min from the current sentence start,
+  own A–B snapped to the current sentence start/end, pause between repeats (0/1/2/3/5 s), off, stop audio. Sounding sentence
+  coloured; text page / sentence-mode page follow the audio while playing; ▶ in the sentence-translation row = play from it.
+  Position per lesson remembered; listening counts as reading time in stats. Background playback via Media3 session service.
+  Android `Audio.kt` (`AudioEngine`, `AudioBar`, `LoopSheet`), `Reader.kt` (audio part of `ReaderSession`).
+  Web: <audio> element + Media Session API (lock screen on iPad); loop by checking currentTime in timeupdate/rAF.
+
+- android -> web v1.23:: player text gestures changed: tap a word = seek to the start of its sentence (playing state kept); long press
+  (without dragging) = bottom-sheet menu: Перевод слова (word window) / Перевод предложения (strip at the bottom) /
+  Повторять это предложение / Начало повтора (A = sentence start) / Конец повтора (B = sentence end); a snackbar says
+  what is still missing. Drag over words = phrase translation as before. `ReaderSession.tapWord/selectEnd/wordMenu`, `Player.kt WordMenu`.
+
+- android -> web v1.23:: player word menu is a small dropdown right under the long-pressed word with 4 items: Перевод слова / Перевод
+  предложения / Начало повтора / Конец повтора. Audio bookmarks: bookmark JSON gets optional `ms` (audio position; sync key
+  "<lessonId>_a<ms>", text bookmarks keep "<lessonId>_<sent>"); player header: bookmark icon = mark the sounding sentence
+  start (one per sentence, a second mark moves it), ⋮ → "Аудиозакладки (N)" sheet (tap = play from there, delete) and
+  "Другой урок". Bookmarks screen shows them with a headphones icon and "1:23 · " before the text; long press →
+  "Слушать с этого места" opens the player there. `Bookmarks.kt` (`addAudio`, `audioFor`), `Player.kt`, `AppState.openAudioBookmark`.
+
+- android -> web v1.23:: player lesson list = big elevated cards (96 dp cover from `imageUrl`, title, course, length from `duration`,
+  "сейчас в плеере" badge); chips row "Недавние" + my courses (course lessons from collections/{id}/lessons with
+  `duration > 0`; that list has no audioUrl -> fetched from lessons/{id}/ `audioUrl`); header "N уроков · 1 ч 20 мин" +
+  "Слушать все": a queue of all lessons in the list, played one after another (Media3 playlist; on transition the player
+  shows the next lesson's text; finished lesson's saved position reset to 0); player bar shows "‹ Урок  2 из 5  Урок ›".
+  `Player.kt AudioLessons/AudioLessonCard`, `AppState.playAll`, `AudioEngine.loadQueue`.
+
+- android -> web v1.23: "modern look" batch: app is now called SatzLoop (new adaptive icon: violet→teal, text lines in a loop arrow);
+  screen transitions (deeper = slide from right, back = from left, tabs = cross-fade); library top card: greeting by time
+  of day, ring "minutes today / 20 min goal", words today, 🔥 streak (tap = stats); listening anywhere counts as time;
+  skeleton placeholders (breathing grey shapes) instead of spinners for courses, "Продолжить" and the player list;
+  mini player above the bottom tabs / on other screens (cover, title, time, −5 s, play/pause; tap = player tab);
+  player: speed = slider sheet 0.5–2.0 step 0.05 + presets; double tap left/right half of the sentence window = ∓5 s
+  with a "« 5 с" bubble; window ↔ full text cross-fade. Home screen widget of the player (Android only).
+  `Extras.kt` (`skeleton`, `TodayCard`, `MiniPlayer`, `SpeedSheet`), `Ui.kt`, `Player.kt`.
+
+- android -> web v1.23:: AI sets the lesson level. `PATCH /api/v3/{lang}/lessons/{id}/ {"level": N}` (verified: N = 1..6 =
+  Beginner 1, Beginner 2, Intermediate 1, Intermediate 2, Advanced 1, Advanced 2 ~ A1..C2). Prompt `Prompts.LEVEL`
+  (first 6000 chars, JSON {"cefr","why"}), light model. Import: checkbox "ИИ определит уровень сложности (A1–C2)",
+  on by default, remembered; runs after LingQ processed the lesson (waitProcessed), log line "… уровень B1".
+  Reader ⋮ "Определить уровень (ИИ)": whole lesson text -> sets the level -> dialog "Уровень: B1 · Intermediate 1" + reason.
+  `Llm.level`, `LingqApi.setLevel`, `ImportSession.aiLevel`, `ReaderSession.detectLevel`.
+  Web v1.23: all of the above in one go. `audio.ts` (one <audio>, Media Session: lock screen ▶/⏸, ±5 s, ⏮ = sentence
+  start, ⏭ = next lesson in the queue / next sentence; loop by a 50 ms ticker; positions in localStorage `audio.pos`;
+  unlock() inside the tap so iOS lets it start after the lesson loaded), `player.ts` (player session, playLesson,
+  playAll, openAudioBookmark, switchTab), `screens/Player.tsx` (tab, window, full text, bar, speed / loop / marks
+  sheets, lesson list, MainTabs, MiniPlayer). Today card, skeletons, layer transitions push/pop/fade, SatzLoop name +
+  icon (PNG rendered from icon.svg). Level: `gemini.level`, `api.setLevel`, reader ⋮, import checkbox.
+  No home-screen widget on the web.
 
 - android 33c623b -> web v1.22: action journal for bug reports: screens, taps on words/phrases/sentences, LingQ requests (method,
   path without query, status, ms), AI requests (model, ms, ok/error, fallback), sync, snackbars, crashes; kept 48 h /

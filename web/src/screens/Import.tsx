@@ -152,6 +152,15 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                 <input type="checkbox" checked={s.autoFix.value} onChange={(e) => { s.autoFix.value = (e.target as HTMLInputElement).checked }} />
                 <span>Сразу исправить разбивку на предложения</span>
               </label>
+              {useGemini() && (
+                <label class="check-row">
+                  <input type="checkbox" checked={s.aiLevel.value} onChange={(e) => {
+                    s.aiLevel.value = (e.target as HTMLInputElement).checked
+                    try { localStorage.setItem('import.aiLevel', s.aiLevel.value ? '1' : '0') } catch { /* ignore */ }
+                  }} />
+                  <span>ИИ определит уровень сложности (A1–C2)</span>
+                </label>
+              )}
               <div class="row split-row">
                 <span class="grow">Делить длинные тексты по</span>
                 <input class="num" inputMode="numeric" value={s.splitWords.value}

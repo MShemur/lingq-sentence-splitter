@@ -9,6 +9,8 @@ import { autoSync } from './sync'
 import { BackupsScreen, ImportScreen } from './screens/Import'
 import { StatsScreen } from './screens/Stats'
 import { ModelSwitchDialog } from './screens/ModelSwitch'
+import { PlayerScreen } from './screens/Player'
+import { useRef } from 'preact/hooks'
 import './styles.css'
 import { log, logError } from './applog'
 
@@ -26,6 +28,7 @@ function view(screen: Screen) {
     case 'settingsReading': return <SettingsReading />
     case 'settingsSync': return <SettingsSync />
     case 'log': return <SettingsLog />
+    case 'player': return <PlayerScreen />
     case 'import': return <ImportScreen s={screen} />
     case 'backups': return <BackupsScreen />
     case 'stats': return <StatsScreen />
@@ -39,16 +42,26 @@ const idOf = (s: Screen) => { let i = ids.get(s); if (!i) ids.set(s, (i = nextId
 function App() {
   const list = stack.value
   const t = toast.value
+  // transitions: deeper = slide from the right, back = from the left, another tab = cross-fade
+  const prev = useRef<{ n: number; top: Screen | null; anim: string }>({ n: list.length, top: list[0], anim: '' })
+  const top = list[list.length - 1]
+  if (prev.current.top !== top) {
+    prev.current = {
+      n: list.length, top,
+      anim: list.length > prev.current.n ? ' push' : list.length < prev.current.n ? ' pop' : ' fade',
+    }
+  }
+  const anim = prev.current.anim
   // Screens below the top stay mounted (hidden), so the reader keeps its scroll position under a chat.
   return (
     <>
       {list.map((s, i) => (
-        <div key={idOf(s)} class={'layer' + (i === list.length - 1 ? '' : ' below')} aria-hidden={i !== list.length - 1}>
+        <div key={idOf(s)} class={'layer' + (i === list.length - 1 ? anim : ' below')} aria-hidden={i !== list.length - 1}>
           {view(s)}
         </div>
       ))}
       <ModelSwitchDialog />
-      {t && <div class="snackbar" key={t.id}>{t.text}</div>}
+      {t && <div class={'snackbar' + (top.k === 'player' ? ' high' : '')} key={t.id}>{t.text}</div>}
     </>
   )
 }

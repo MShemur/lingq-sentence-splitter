@@ -12,6 +12,8 @@ import { Chip, Dialog, ErrorBox, IconButton, LinearProgress, Loading, Menu, Menu
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ReaderHelp } from './Help'
 import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef } from './session'
+import { playLesson } from '../player'
+import { levelName } from '../lingq'
 
 /** A long-press selection is being dragged: the page must not scroll under the finger (iOS). */
 let selecting = false
@@ -198,6 +200,14 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
       {!docked() && s.phrase.value && <PhraseSheet s={s} />}
       {s.bookmarksOpen.value && <LessonBookmarksDialog s={s} onClose={() => { s.bookmarksOpen.value = false }} />}
       {s.editing.value != null && <SentenceEditDialog s={s} id={s.editing.value} />}
+      {s.levelResult.value && (
+        <Dialog title="Уровень урока" onClose={() => { s.levelResult.value = null }}
+          actions={<button class="btn text" onClick={() => { s.levelResult.value = null }}>OK</button>}>
+          <p><b>{levelName(s.levelResult.value[0])}</b></p>
+          {!!s.levelResult.value[1] && <p>{s.levelResult.value[1]}</p>}
+          <p class="hint">Уровень сохранён в уроке на LingQ.</p>
+        </Dialog>
+      )}
     </div>
   )
 }
@@ -216,6 +226,15 @@ function ReaderActions({ s }: { s: ReaderSession }) {
         {menu && (
           <Menu onClose={close}>
             <MenuItem icon="chat" onClick={() => { close(); s.chatText() }}>Чат о тексте</MenuItem>
+            {s.audioUrl.value && (
+              <MenuItem icon="headphones" onClick={() => {
+                close()
+                playLesson(s.lang, { ...s.lesson, title: s.title.value, audio: s.audioUrl.value ?? '' })
+              }}>Слушать в плеере</MenuItem>
+            )}
+            <MenuItem icon="chart" onClick={() => { close(); void s.detectLevel() }}>
+              {s.levelBusy.value ? 'Определяю уровень…' : 'Определить уровень (ИИ)'}
+            </MenuItem>
             <MenuItem icon="chart" onClick={() => { close(); go({ k: 'stats' }) }}>Статистика</MenuItem>
             <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
             <MenuItem icon="info" onClick={() => { close(); setHelp(true) }}>Как пользоваться</MenuItem>
@@ -489,14 +508,15 @@ function Paragraph({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain
 
 type PhrasePin = { from: number; to: number; text: string }
 
-function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain?: boolean }) {
+export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain?: boolean }) {
   const pins = plain ? {} : s.pins.value
   const prov = s.provisional.value
   const popup = plain ? null : s.popup.value
+  const sounding = s.player && !plain ? s.playingSent.value : null
 
   /** One chunk (a word with its punctuation); [ph]: the pinned phrase it belongs to. */
   const chunkView = (sent: Sent, chunk: Token[], ph: PhrasePin | null, key: number) => (
-    <span class="chunk" data-se={sent.id} key={key}>
+    <span class={'chunk' + (sounding === sent.id ? ' sounding' : '')} data-se={sent.id} key={key}>
       {chunk.map((t) => {
         const inPhrase = !!ph && t.index >= ph.from && t.index <= ph.to
         const picked = !plain && s.inSelection(sent.id, t.index)
@@ -855,12 +875,12 @@ const DockButton = () => narrow.value ? null : (
   <IconButton icon="pin" label="Закрепить панель справа" onClick={() => { prefs.dockPanel.value = '1' }} />
 )
 
-function WordSheet({ s, r }: { s: ReaderSession; r: WordRef }) {
+export function WordSheet({ s, r }: { s: ReaderSession; r: WordRef }) {
   return <Sheet onClose={() => s.closePopup()}><WordContent s={s} r={r} head={<DockButton />} /></Sheet>
 }
 
 /** Window for several words translated together. */
-function PhraseSheet({ s }: { s: ReaderSession }) {
+export function PhraseSheet({ s }: { s: ReaderSession }) {
   return <Sheet onClose={() => s.closePhrase()}><PhraseContent s={s} head={<DockButton />} /></Sheet>
 }
 

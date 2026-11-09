@@ -39,6 +39,8 @@ export class ImportSession {
   newCourse = signal(false)
   newCourseTitle = signal('')
   autoFix = signal(true)
+  /** The AI sets the level (A1–C2) of every new lesson; remembered. */
+  aiLevel = signal(localStorage.getItem('import.aiLevel') !== '0')
   splitWords = signal('3000')
   running = signal(false)
   finished = signal(false)
@@ -204,14 +206,16 @@ export class ImportSession {
         } catch (e) {
           this.line(base + i, `❌ ${(e as Error).message} · ${title}`); failed++; step(); continue
         }
-        if (!this.autoFix.value) { this.line(base + i, `✅ ${title}`); step(); continue }
+        const wantLevel = this.aiLevel.value && useGemini()
+        if (!this.autoFix.value && !wantLevel) { this.line(base + i, `✅ ${title}`); step(); continue }
         this.line(base + i, `⏳ LingQ обрабатывает · ${title}`)
         fixing.push((async () => {
           await acquire()
           try {
-            const r = await this.fixImported(l, id, title)
+            const r = this.autoFix.value ? await this.fixImported(l, id, title) : (await api.waitProcessed(l, id), null)
             found[i] = r
-            this.line(base + i, `${r ? `✅ исправлено ${r.changes.length}` : '✅ в порядке'} · ${title}`)
+            const lv = wantLevel ? await this.setLevel(l, id, text) : ''
+            this.line(base + i, `${r ? `✅ исправлено ${r.changes.length}` : '✅ в порядке'}${lv} · ${title}`)
           } catch (e) {
             failed++; this.line(base + i, `❌ ${(e as Error).message} · ${title}`)
           } finally { release(); step() }
@@ -226,6 +230,18 @@ export class ImportSession {
       this.error.value = (e as Error).message
     }
     this.running.value = false
+  }
+
+  /** The AI's level for a new lesson (after LingQ processed it); " · уровень B1" for the log, '' when it failed. */
+  private async setLevel(l: string, id: number, text: string): Promise<string> {
+    try {
+      const [n] = await gemini.level(l, text)
+      await api.setLevel(l, id, n)
+      return ` · уровень ${api.CEFR[n - 1]}`
+    } catch (e) {
+      geminiFailed(e, () => {}, true)
+      return ' · уровень не определён'
+    }
   }
 
   /** Waits until LingQ finished processing a fresh lesson, fixes its split and checks the fix stayed. */

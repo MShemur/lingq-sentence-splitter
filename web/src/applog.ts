@@ -59,7 +59,7 @@ export const shortUrl = (url: string) => ('/' + url.split('?')[0].replace(/^[a-z
 
 /** The whole journal with a header (version, browser) — what is copied. */
 export function logText(): string {
-  return `LingQ Fix web ${__VERSION__}, ${navigator.userAgent}\nЖурнал за последние 48 ч (${lines.length} строк)\n\n` +
+  return `SatzLoop web ${__VERSION__}, ${navigator.userAgent}\nЖурнал за последние 48 ч (${lines.length} строк)\n\n` +
     lines.map((l) => l[1]).join('\n')
 }
 

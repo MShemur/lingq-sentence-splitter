@@ -41,6 +41,7 @@ export type Screen =
   | { k: 'bookmarks' }
   | { k: 'stats' }
   | { k: 'log' }
+  | { k: 'player' }
   | { k: 'settingsReading' }
   | { k: 'settingsSync' }
   | ImportSession
@@ -132,6 +133,7 @@ export function lessonOpened(l: string, lesson: Lesson) {
     id: lesson.id, title: lesson.title || old?.title || '', imageUrl: lesson.imageUrl || old?.imageUrl || '',
     level: lesson.level || old?.level || '', words: lesson.words || old?.words || 0,
     courseTitle: lesson.courseTitle || old?.courseTitle || '', opened: Date.now(),
+    audio: lesson.audio || old?.audio || '', duration: lesson.duration || old?.duration || 0,
   }
   recentLocal.value = { ...recentLocal.value, [l]: [now, ...list.filter((x) => x.id !== lesson.id)].slice(0, 20) }
   try { localStorage.setItem('recent', JSON.stringify(recentLocal.value)) } catch { /* ignore */ }
@@ -150,6 +152,7 @@ export const recent = computed<Lesson[] | null>(() => {
     const t = Math.max(a?.opened ?? 0, x.opened ?? 0, pos[`${l}_${x.id}`]?.t ?? 0)
     byId.set(x.id, a ? {
       ...a, title: a.title || x.title, imageUrl: a.imageUrl || x.imageUrl, courseTitle: a.courseTitle || x.courseTitle, opened: t,
+      audio: a.audio || x.audio, duration: a.duration || x.duration,
     } : { ...x, opened: t })
   }
   return [...byId.values()].sort((a, b) => (b.opened ?? 0) - (a.opened ?? 0)).slice(0, 10)

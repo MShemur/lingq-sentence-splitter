@@ -3,6 +3,7 @@ import { useState } from 'preact/hooks'
 import { back } from '../app'
 import { IconButton, TopBar } from '../ui'
 import { dayOf, formatTime, plural, since, stats, streak, wordsText } from '../stats'
+import { MiniPlayer } from './Player'
 
 const daysText = (n: number) => `${n} ${plural(n, 'день', 'дня', 'дней')}`
 
@@ -77,6 +78,7 @@ function DaysChart({ now }: { now: Date }) {
       <div class="bar-labels">
         {dates.map((x, i) => <span key={i}>{i % 2 === 1 || i === dates.length - 1 ? x.getDate() : ''}</span>)}
       </div>
+      <MiniPlayer />
     </div>
   )
 }

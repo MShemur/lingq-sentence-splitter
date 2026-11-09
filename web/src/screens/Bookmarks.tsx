@@ -11,6 +11,10 @@ import * as gemini from '../gemini'
 import { prompt, trLang, useGemini } from '../settings'
 import { Dialog, IconButton, LinearProgress, Menu, MenuItem, TopBar } from '../ui'
 import { openBookmark, type ReaderSession } from '../reader/session'
+import { isAudio } from '../bookmarks'
+import { fmtTime } from '../audio'
+import { openAudioBookmark } from '../player'
+import { MiniPlayer } from './Player'
 
 const translateBookmark = (b: Bookmark) =>
   useGemini() ? gemini.sentence(prompt.sentence(), b.lang, trLang(), b.text) : api.translate(b.lang, trLang(), b.text)
@@ -57,15 +61,15 @@ function BookmarkRow({ b, onOpen }: { b: Bookmark; onOpen: () => void }) {
         onPointerUp={() => press.up()} onPointerCancel={() => press.cancel()}
         onContextMenu={(e) => { e.preventDefault(); setMenu(true) }}
       >
-        <div class="li-leading primary"><Icon name="bookmark" /></div>
+        <div class="li-leading primary"><Icon name={isAudio(b) ? 'headphones' : 'bookmark'} /></div>
         <div class="li-body">
-          <div class={'li-headline' + (full ? '' : ' clamp2')}>{b.text}</div>
+          <div class={'li-headline' + (full ? '' : ' clamp2')}>{isAudio(b) ? `${fmtTime(b.ms!)} · ` : ''}{b.text}</div>
           {showTr && (loading ? <LinearProgress /> : <div class="bm-tr">{b.tr}</div>)}
         </div>
       </div>
       {menu && (
         <Menu onClose={() => setMenu(false)} class="bm-menu">
-          <MenuItem icon="forward" onClick={() => { setMenu(false); onOpen() }}>Перейти к источнику</MenuItem>
+          <MenuItem icon="forward" onClick={() => { setMenu(false); onOpen() }}>{isAudio(b) ? 'Слушать с этого места' : 'Перейти к источнику'}</MenuItem>
           <MenuItem icon="delete" onClick={() => { setMenu(false); removeBookmark(b) }}>Удалить закладку</MenuItem>
         </Menu>
       )}
@@ -95,8 +99,9 @@ export function BookmarksScreen() {
               {groups.map((g) => (
                 <section key={g[0].lessonId}>
                   <h3 class="group-title">{g[0].lessonTitle || `Урок ${g[0].lessonId}`}</h3>
-                  {[...g].sort((a, b) => a.sent - b.sent).map((b) => (
-                    <BookmarkRow key={`${b.lessonId}:${b.sent}`} b={b} onOpen={() => openBookmark(b)} />
+                  {[...g].sort((a, b) => Number(isAudio(a)) - Number(isAudio(b)) || (isAudio(a) ? a.ms! - b.ms! : a.sent - b.sent)).map((b) => (
+                    <BookmarkRow key={isAudio(b) ? `${b.lessonId}:a${b.ms}` : `${b.lessonId}:${b.sent}`} b={b}
+                      onOpen={() => (isAudio(b) ? openAudioBookmark(b) : openBookmark(b))} />
                   ))}
                   <hr />
                 </section>
@@ -105,6 +110,7 @@ export function BookmarksScreen() {
           )}
         </div>
       </div>
+      <MiniPlayer />
     </div>
   )
 }

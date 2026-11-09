@@ -100,6 +100,18 @@ export function streak(): number {
   return n
 }
 
+let lastCounted = 0
+/** 15 s of study (reading or listening); reading while the audio plays counts once. */
+export function tickTime() {
+  const t = Date.now()
+  if (t - lastCounted < 14_000) return
+  lastCounted = t
+  addToday(15, 0)
+}
+
+/** Daily goal of the library's "today" card, minutes. */
+export const DAILY_GOAL_MIN = 20
+
 // --- activity: the last touch / key press (reading time and keeping the screen on) ---
 
 export let lastTouch = Date.now()
@@ -116,7 +128,7 @@ export function useReadingTimer(active: boolean) {
   useEffect(() => {
     if (!active) return
     const t = setInterval(() => {
-      if (document.visibilityState === 'visible' && Date.now() - lastTouch < 180_000) addToday(15, 0)
+      if (document.visibilityState === 'visible' && Date.now() - lastTouch < 180_000) tickTime()
     }, 15_000)
     return () => clearInterval(t)
   }, [active])

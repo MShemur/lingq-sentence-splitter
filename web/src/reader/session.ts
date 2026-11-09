@@ -1,5 +1,5 @@
 // Reader state for one lesson. Port of ReaderSession in Reader.kt.
-import { signal, type Signal } from '@preact/signals'
+import { computed, signal, type Signal } from '@preact/signals'
 import * as api from '../lingq'
 import type { Lesson } from '../lingq'
 import * as gemini from '../gemini'
@@ -13,6 +13,8 @@ import { positionOf, savePosition } from '../progress'
 import { countRead } from '../stats'
 import { saveBackup } from '../importer/backups'
 import { log, logError } from '../applog'
+import * as audio from '../audio'
+import { addAudioBookmark, audioBookmarks, removeBookmark, type Bookmark as Bm } from '../bookmarks'
 
 // --- model ---
 
@@ -60,7 +62,11 @@ function chunks(tokens: Token[]): Token[][] {
 export class Sent {
   readonly tokens: Token[]
   readonly chunks: Token[][]
-  constructor(readonly id: number, readonly text: string, readonly translations: Record<string, string>, readonly lingqIndex: number) {
+  constructor(
+    readonly id: number, readonly text: string, readonly translations: Record<string, string>, readonly lingqIndex: number,
+    /** Where it sounds in the lesson audio, ms (-1 = unknown). */
+    readonly start = -1, readonly end = -1,
+  ) {
     this.tokens = tokenize(text)
     this.chunks = chunks(this.tokens)
   }
@@ -170,11 +176,18 @@ export class ReaderSession {
   async load() {
     this.error.value = null
     try {
-      const [l, raw] = await Promise.all([
+      const [l, o] = await Promise.all([
         this.lesson.title ? Promise.resolve(this.lesson) : api.lesson(this.lang, this.lesson.id),
-        api.editor(this.lang, this.lesson.id),
+        api.editorObj(this.lang, this.lesson.id),
       ])
-      const paras = this.parse(raw)
+      const paras = this.parse(o?.paragraphs ?? [])
+      const au = typeof o?.audio === 'string' && o.audio.startsWith('http') ? o.audio : null
+      this.audioUrl.value = au
+      if (au && !this.lesson.audio) {
+        this.lesson.audio = au
+        if (o?.duration) this.lesson.duration = Number(o.duration) || 0
+      }
+      if (this.player && au) audio.setStarts(this.audioKey, paras.flat().map((x) => x.start))
       this.loadNotes()
       this.title.value = l.title
       this.opened(l)
@@ -183,6 +196,7 @@ export class ReaderSession {
       const start = this.jump.value ?? positionOf(this.lang, this.lesson.id)?.s ?? null
       if (start != null && this.sentById.has(start)) { this.page.value = this.indexOf(start); this.textAnchor = start }
       this.paragraphs.value = paras
+      if (this.autoPlay && au) { this.autoPlay = false; this.togglePlay() }
     } catch (e) {
       logError('reader', `Урок ${this.lesson.id} не открылся`, e)
       this.error.value = errorText(e)
@@ -225,7 +239,9 @@ export class ReaderSession {
           const v = String(t.text ?? '').trim()
           if (v && !(t.language in tr)) tr[t.language] = v
         }
-        const sent = new Sent(id, text, tr, typeof s.index === 'number' ? s.index : id + 1)
+        const ts = Array.isArray(s.timestamp) ? s.timestamp : null
+        const sec = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.round(v * 1000) : -1)
+        const sent = new Sent(id, text, tr, typeof s.index === 'number' ? s.index : id + 1, sec(ts?.[0]), sec(ts?.[1]))
         id++
         this.sentById.set(sent.id, sent)
         para.push(sent)
@@ -352,6 +368,11 @@ export class ReaderSession {
 
   /** Long press: sentence translation inserted right after the sentence (again: removed). */
   toggleSentence(id: number) {
+    if (this.player) {
+      this.bottomSent.value = this.bottomSent.value === id ? null : id
+      if (this.bottomSent.value != null) { this.focusSent = id; this.ensureSentence(id) }
+      return
+    }
     this.focusSent = id
     if (this.shown.value[id]) drop(this.shown, id)
     else { log('reader', `Перевод предложения ${id}`); put(this.shown, id, true); this.ensureSentence(id) }
@@ -362,6 +383,151 @@ export class ReaderSession {
   // --- words ---
 
   word(r: WordRef) { return this.sentById.get(refSent(r))?.tokens[refToken(r)]?.text ?? '' }
+
+  // --- lesson audio (the player tab) ---
+
+  /** MP3 of the lesson on LingQ (null = the lesson has no audio). */
+  audioUrl = signal<string | null>(null)
+  get audioKey() { return `${this.lang}_${this.lesson.id}` }
+  /** This session is the player tab's: a tap seeks, a long press opens the word menu, sentence translation at the bottom. */
+  player = false
+  /** Start playing as soon as the lesson (and its audio) is loaded. */
+  autoPlay = false
+  /** Play from here (audio bookmark) instead of where listening stopped; -1 = no. */
+  startAt = -1
+  bottomSent = signal<number | null>(null)
+  /** Long-pressed word in the player text: its small menu. */
+  wordMenu = signal<WordRef | null>(null)
+  /** Sentence sounding now (bold). */
+  playingSent = computed(() => (audio.audioKey.value === this.audioKey ? this.sentenceAt(audio.position.value) : null))
+  get hasTimes() { return this.sentences.value.some((x) => x.start >= 0) }
+
+  private ensureAudio(): boolean {
+    const url = this.audioUrl.value ?? this.lesson.audio ?? ''
+    if (!url) return false
+    const at = this.startAt
+    this.startAt = -1
+    if (audio.audioKey.value !== this.audioKey) {
+      audio.load({ key: this.audioKey, url, title: this.title.value || this.lesson.title, image: this.lesson.imageUrl ?? '' },
+        at >= 0 ? at : audio.savedPos(this.audioKey))
+    } else if (at >= 0) audio.seekTo(at)
+    return true
+  }
+
+  togglePlay() {
+    if (audio.audioKey.value !== this.audioKey) { if (this.ensureAudio()) audio.play() } else audio.toggle()
+  }
+
+  /** Sentence sounding at [ms]: the last one that starts before it. */
+  sentenceAt(ms: number): number | null {
+    let best: Sent | null = null
+    for (const x of this.sentences.value) if (x.start >= 0 && x.start <= ms && (!best || x.start >= best.start)) best = x
+    return best?.id ?? null
+  }
+
+  sentenceStartAt(ms: number) { const id = this.sentenceAt(ms); return id != null ? this.sentById.get(id)!.start : ms }
+
+  private endOf(st: Sent) {
+    const next = this.sentences.value.find((x) => x.start > st.start)?.start ?? -1
+    return st.end > st.start ? st.end + 150 : next > 0 ? next : st.start + 5000
+  }
+
+  /** Audio bookmark at the place sounding now (its sentence start). */
+  markAudio() {
+    if (!this.ensureAudio()) return
+    const pos = audio.position.value
+    const id = this.sentenceAt(pos)
+    const st = id != null ? this.sentById.get(id) : undefined
+    const ms = st && st.start >= 0 ? st.start : pos
+    addAudioBookmark(this.lang, this.lesson.id, this.title.value, id ?? -1, st?.text ?? '', ms)
+    log('audio', `Аудиозакладка ${audio.fmtTime(ms)}`)
+    say(`Закладка ${audio.fmtTime(ms)}`)
+  }
+
+  audioMarks() { return audioBookmarks(this.lesson.id) }
+  removeMark(b: Bm) { removeBookmark(b) }
+
+  /** Player tab: play from the start of sentence [id]. */
+  seekToSentence(id: number) {
+    const st = this.sentById.get(id)
+    if (!st || st.start < 0 || !this.ensureAudio()) return
+    log('audio', `К началу предложения ${id}`)
+    audio.seekTo(st.start)
+  }
+
+  loopSentence() {
+    const st = this.sentById.get(this.sentenceAt(audio.position.value) ?? -1)
+      ?? (this.focusSent != null ? this.sentById.get(this.focusSent) : undefined)
+    if (!st || st.start < 0 || !this.ensureAudio()) return
+    audio.setLoop(st.start - 100, this.endOf(st))
+  }
+
+  setLoopA() { audio.setA(this.sentenceStartAt(audio.position.value) - 100) }
+
+  setLoopB() {
+    const st = this.sentById.get(this.sentenceAt(audio.position.value) ?? -1)
+    audio.setB(st && st.end > st.start ? st.end + 150 : audio.position.value)
+  }
+
+  private loopNote(start: boolean) {
+    say(audio.looping.value ? `Повтор ${audio.fmtTime(audio.loopA.value)} – ${audio.fmtTime(audio.loopB.value)}`
+      : start ? `Начало повтора ${audio.fmtTime(audio.loopA.value)} — теперь выберите конец` : 'Конец повтора задан — выберите начало')
+  }
+
+  loopStartAt(id: number) {
+    const st = this.sentById.get(id)
+    if (!st || st.start < 0 || !this.ensureAudio()) return
+    audio.setA(st.start - 100)
+    this.loopNote(true)
+  }
+
+  loopEndAt(id: number) {
+    const st = this.sentById.get(id)
+    if (!st || st.start < 0 || !this.ensureAudio()) return
+    audio.setB(this.endOf(st))
+    this.loopNote(false)
+  }
+
+  prevSentence() {
+    const pos = audio.position.value
+    const cur = this.sentById.get(this.sentenceAt(pos) ?? -1)
+    // more than 1.5 s into the sentence: back to its start, else to the one before
+    const target = cur && pos - cur.start > 1500 ? cur.start
+      : Math.max(0, ...this.sentences.value.filter((x) => x.start >= 0 && x.start < (cur?.start ?? pos)).map((x) => x.start))
+    audio.seekTo(target)
+  }
+
+  nextSentence() {
+    const pos = audio.position.value
+    const n = this.sentences.value.filter((x) => x.start > pos + 50).map((x) => x.start)
+    if (n.length) audio.seekTo(Math.min(...n))
+  }
+
+  // --- level of the lesson by the AI ---
+
+  levelBusy = signal(false)
+  /** Result for the dialog: level 1..6 and the reason. */
+  levelResult = signal<[number, string] | null>(null)
+
+  async detectLevel() {
+    if (this.levelBusy.value) return
+    if (!useGemini()) { say('Нужен Gemini или другой ИИ: Настройки → Перевод'); return }
+    const text = this.sentences.value.map((x) => x.text).join(' ')
+    if (!text.trim()) return
+    this.levelBusy.value = true
+    say('ИИ оценивает уровень…')
+    try {
+      const r = await gemini.level(this.lang, text)
+      await api.setLevel(this.lang, this.lesson.id, r[0])
+      log('reader', `Уровень урока ${this.lesson.id}: ${api.levelName(r[0])}`)
+      this.levelResult.value = r
+    } catch (e) {
+      logError('reader', `Уровень урока ${this.lesson.id}`, e)
+      say(errorText(e) || 'Не удалось определить уровень')
+      geminiFailed(e, () => void this.detectLevel(), true)
+    }
+    this.levelBusy.value = false
+  }
 
   // --- editing a sentence (saved to the lesson on LingQ) ---
 
@@ -418,7 +584,7 @@ export class ReaderSession {
   private replaceSentence(old: Sent, text: string, tr: string) {
     const trs = { ...old.translations }
     if (tr) trs[this.target] = tr
-    const n = new Sent(old.id, text, trs, old.lingqIndex)
+    const n = new Sent(old.id, text, trs, old.lingqIndex, old.start, old.end)
     this.sentById.set(n.id, n)
     this.paragraphs.value = this.paragraphs.value?.map((p) => p.map((x) => (x.id === n.id ? n : x))) ?? null
     this.sentences.value = this.sentences.value.map((x) => (x.id === n.id ? n : x))
@@ -662,7 +828,11 @@ export class ReaderSession {
     const x = this.sel.value
     const sent = x ? this.sentById.get(x.sent) : undefined
     const words = sent ? sent.tokens.slice(x!.from, x!.to + 1).filter((t) => t.isWord).length : 0
-    if (!x || !sent || words < 2) { this.sel.value = null; if (sent) this.toggleSentence(sent.id); return }
+    if (!x || !sent || words < 2) {
+      this.sel.value = null
+      if (sent) { if (this.player) this.wordMenu.value = ref(sent.id, x!.from); else this.toggleSentence(sent.id) }
+      return
+    }
     void this.openPhrase(sent.id, x.from, x.to)
   }
 

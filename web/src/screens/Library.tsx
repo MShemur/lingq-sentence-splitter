@@ -12,8 +12,10 @@ import { ReaderSession } from '../reader/session'
 import { ImportSession } from '../importer/session'
 import { Icon } from '../icons'
 import { percent, positionOf } from '../progress'
+import { MainTabs, MiniPlayer } from './Player'
+import { DAILY_GOAL_MIN, dayOf, stats, streak } from '../stats'
 
-function plural(n: number, one: string, few: string, many: string) {
+export function plural(n: number, one: string, few: string, many: string) {
   const m10 = n % 10, m100 = n % 100
   return m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many
 }
@@ -22,7 +24,7 @@ function plural(n: number, one: string, few: string, many: string) {
 const wordsText = (n: number) => `${n.toLocaleString('ru-RU')} ${plural(n, 'слово', 'слова', 'слов')}`
 
 /** Cover picture; while it loads (or without one) a colour gradient with the first letter. */
-function Cover({ url, title, ratio = '1', class: cls = '', children }: {
+export function Cover({ url, title, ratio = '1', class: cls = '', children }: {
   url?: string; title: string; ratio?: string; class?: string; children?: JSX.Element | false | (JSX.Element | false)[]
 }) {
   let h = 0
@@ -70,6 +72,44 @@ function LessonTile({ l, langCode, sub }: { l: Lesson; langCode: string; sub: st
   )
 }
 
+function greeting() {
+  const h = new Date().getHours()
+  return h < 5 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
+}
+
+/** Top card: greeting, ring "minutes today / goal", words today, days in a row (tap = statistics). */
+function TodayCard() {
+  void stats.value // re-render when the minutes change
+  const [sec, words] = dayOf(new Date())
+  const min = Math.floor(sec / 60)
+  const days = streak()
+  const r = 32, c = 2 * Math.PI * r
+  const part = Math.min(1, min / DAILY_GOAL_MIN)
+  return (
+    <button class="today-card" onClick={() => go({ k: 'stats' })}>
+      <span class="ring">
+        <svg viewBox="0 0 76 76" width="76" height="76">
+          <circle cx="38" cy="38" r={r} class="ring-track" />
+          <circle cx="38" cy="38" r={r} class="ring-fill" stroke-dasharray={`${c * part} ${c}`} transform="rotate(-90 38 38)" />
+        </svg>
+        <span class="ring-num"><b>{min}</b><small>мин</small></span>
+      </span>
+      <span class="today-text">
+        <span class="today-hello">{greeting()}</span>
+        <span>{min >= DAILY_GOAL_MIN ? 'Цель на сегодня выполнена' : `Сегодня ${min} из ${DAILY_GOAL_MIN} мин`}{words > 0 ? ` · ${words} слов` : ''}</span>
+        {days > 0 && <span class="streak">🔥 {days} {plural(days, 'день', 'дня', 'дней')} подряд</span>}
+      </span>
+    </button>
+  )
+}
+
+/** Breathing grey shapes while the covers load. */
+const SkeletonTiles = ({ n, ratio = '1' }: { n: number; ratio?: string }) => (
+  <>{Array.from({ length: n }, (_, i) => (
+    <div class="tile" key={i}><div class="skeleton" style={{ aspectRatio: ratio, borderRadius: '12px' }} /><div class="skeleton line" /></div>
+  ))}</>
+)
+
 export function CoursesScreen() {
   const [q, setQ] = useState('')
   const l = lang()
@@ -90,8 +130,10 @@ export function CoursesScreen() {
           </>
         }
       />
+      <div class="body-wrap">
       <div class="screen-body scroll">
         <div class="content library">
+          {!noKey && <TodayCard />}
           {noKey ? (
             <div class="card error-container">
               <span class="grow">Укажите API-ключ LingQ</span>
@@ -103,6 +145,12 @@ export function CoursesScreen() {
                 <input class="search" type="search" placeholder="Поиск курса" value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} />
                 <IconButton icon="refresh" label="Обновить" onClick={() => { void loadCourses(true); void loadRecent() }} />
               </div>
+              {!q.trim() && !recent.value && (
+                <>
+                  <h2 class="section-title">Продолжить</h2>
+                  <div class="tile-row"><SkeletonTiles n={4} ratio="4 / 3" /></div>
+                </>
+              )}
               {!q.trim() && rec.length > 0 && (
                 <>
                   <h2 class="section-title">Продолжить</h2>
@@ -113,7 +161,7 @@ export function CoursesScreen() {
               )}
               <h2 class="section-title">Мои курсы</h2>
               {err ? <ErrorBox text={err} retry={() => void loadCourses(true)} />
-                : !list ? <Loading />
+                : !list ? <div class="tile-grid"><SkeletonTiles n={8} /></div>
                 : (
                   <div class="tile-grid">
                     {list.filter((c) => !q.trim() || c.title.toLowerCase().includes(q.trim().toLowerCase()))
@@ -130,6 +178,9 @@ export function CoursesScreen() {
           <Icon name="upload" /><span>Загрузить</span>
         </button>
       )}
+      </div>
+      <MiniPlayer />
+      <MainTabs at="courses" />
     </div>
   )
 }
@@ -151,7 +202,7 @@ export function LessonsView({ s }: { s: LessonsScreen }) {
             </div>
           </div>
           {err ? <ErrorBox text={err} retry={() => void s.load()} />
-            : !list ? <Loading />
+            : !list ? <div class="tile-grid"><SkeletonTiles n={8} ratio="4 / 3" /></div>
             : (
               <div class="tile-grid">
                 {list.map((x) => <LessonTile key={x.id} l={x} langCode={s.lang} sub={x.words ? wordsText(x.words) : ''} />)}
@@ -160,6 +211,7 @@ export function LessonsView({ s }: { s: LessonsScreen }) {
           {list && !list.length && <p class="empty">В курсе нет уроков.</p>}
         </div>
       </div>
+      <MiniPlayer />
     </div>
   )
 }

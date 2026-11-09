@@ -10,6 +10,10 @@ export interface Lesson {
   id: number; title: string; imageUrl?: string; level?: string; words?: number; courseTitle?: string
   /** When the lesson was last opened (ms; 0 / missing = unknown). */
   opened?: number
+  /** MP3 of the lesson ('' / missing = none or unknown: course lists do not include it). */
+  audio?: string
+  /** Length of the audio, s (0 = no audio). */
+  duration?: number
 }
 export interface Language { code: string; title: string }
 
@@ -78,6 +82,7 @@ const image = (u: unknown) => (typeof u === 'string' && u && !u.includes('/defau
 const lessonOf = (o: any): Lesson => ({
   id: o.id, title: o.title ?? '', imageUrl: image(o.imageUrl), level: o.level ?? '',
   words: Number(o.wordCount) || 0, courseTitle: o.collectionTitle ?? '',
+  audio: typeof o.audioUrl === 'string' ? o.audioUrl : '', duration: Number(o.duration) || 0,
 })
 
 /** Lessons opened lately (LingQ's "my lessons" shelf, most recent first). */
@@ -101,13 +106,30 @@ export async function lessons(lang: string, course: number): Promise<{ title: st
 
 export async function lesson(lang: string, id: number): Promise<Lesson> {
   const d = await call('GET', `/api/v3/${lang}/lessons/${id}/`)
-  return { id, title: d?.title ?? '', imageUrl: image(d?.imageUrl), courseTitle: d?.collectionTitle ?? '' }
+  return {
+    id, title: d?.title ?? '', imageUrl: image(d?.imageUrl), courseTitle: d?.collectionTitle ?? '',
+    audio: typeof d?.audioUrl === 'string' ? d.audioUrl : '', duration: Number(d?.duration) || 0,
+  }
+}
+
+/** The whole editor object: paragraphs, audio (MP3 URL or null), every sentence's timestamp [start, end] s. */
+export async function editorObj(lang: string, id: number): Promise<any> {
+  return (await call('GET', `/api/v3/${lang}/lessons/${id}/editor/`)) ?? {}
 }
 
 /** Lesson as the web editor sees it: paragraphs -> sentences (text, translations, index ...). */
 export async function editor(lang: string, id: number): Promise<any[]> {
-  return (await call('GET', `/api/v3/${lang}/lessons/${id}/editor/`))?.paragraphs ?? []
+  return (await editorObj(lang, id))?.paragraphs ?? []
 }
+
+/** Lesson level 1..6 (Beginner 1 .. Advanced 2 ~ A1..C2). */
+export async function setLevel(lang: string, id: number, level: number) {
+  await call('PATCH', `/api/v3/${lang}/lessons/${id}/`, { level })
+}
+
+export const CEFR = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+export const LINGQ_LEVELS = ['Beginner 1', 'Beginner 2', 'Intermediate 1', 'Intermediate 2', 'Advanced 1', 'Advanced 2']
+export const levelName = (n: number) => `${CEFR[n - 1] ?? '?'} · ${LINGQ_LEVELS[n - 1] ?? ''}`
 
 /** Saves the sentence structure exactly as sent (LingQ does not re-split it). */
 export async function saveParagraphs(lang: string, id: number, paragraphs: unknown[]) {
