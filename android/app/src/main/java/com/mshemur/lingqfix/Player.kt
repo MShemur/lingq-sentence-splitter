@@ -3,6 +3,9 @@ package com.mshemur.lingqfix
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -147,6 +150,20 @@ private fun TextWindow(s: ReaderSession, modifier: Modifier, onOpen: () -> Unit)
         onClick = onOpen, modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
+        // the lines move up softly to the next sentence (down when going back) instead of jumping
+        androidx.compose.animation.AnimatedContent(
+            targetState = i,
+            transitionSpec = {
+                val up = targetState > initialState
+                val d = 550
+                (androidx.compose.animation.slideInVertically(tween(d, easing = FastOutSlowInEasing)) { h -> if (up) h / 3 else -h / 3 } +
+                    fadeIn(tween(d))) togetherWith
+                    (androidx.compose.animation.slideOutVertically(tween(d, easing = FastOutSlowInEasing)) { h -> if (up) -h / 3 else h / 3 } +
+                        fadeOut(tween(d / 2)))
+            },
+            label = "sentence",
+            modifier = Modifier.fillMaxSize(),
+        ) { i ->
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
@@ -165,6 +182,7 @@ private fun TextWindow(s: ReaderSession, modifier: Modifier, onOpen: () -> Unit)
                 "Нажмите, чтобы открыть весь текст", style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline, modifier = Modifier.align(Alignment.CenterHorizontally),
             )
+        }
         }
     }
 }
