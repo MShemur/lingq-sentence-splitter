@@ -9,12 +9,16 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- Android: edit a sentence: pencil in the sentence-translation row -> window with the sentence and its translation;
+## To do on Android
+
+## Done
+
+- android 816b32a -> web v1.21: edit a sentence: pencil in the sentence-translation row -> window with the sentence and its translation;
   "Сохранить" re-reads the lesson editor JSON, keeps a backup, changes only that sentence (`text`, `cleanText`,
   own-language entry in `translations`) and PATCHes the paragraphs; the sentence is replaced on screen, its word
   and phrase pins are dropped if the text changed. `Reader.kt` (`saveEdit`, `SentenceEditDialog`).
   Reader menu ⋮ also has "Статистика".
-- Android: keys sync (encrypted): sync data gets `secrets: {v:1, iter, salt, iv, ct, t}` = JSON
+- android 1c87273 -> web v1.21: keys sync (encrypted): sync data gets `secrets: {v:1, iter, salt, iv, ct, t}` = JSON
   {"lingq","gemini","aiBase","aiKey","aiModel","aiFastModel"} encrypted with a sync password set on each device
   (Settings → Синхронизация → "Пароль синхронизации ключей"; stored only on the device). PBKDF2-HMAC-SHA256,
   `iter` rounds (210000), 16-byte salt -> AES-256-GCM, 12-byte iv, tag appended to ct (WebCrypto does the same),
@@ -22,10 +26,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   plain JSON). First sync after setting the password: take the remote keys first (blank values never erase
   local ones), then send the union if this device had more. Never overwrite remote secrets that the password
   cannot decrypt (show "Пароль не подходит"). GitHub token is not synced. Android `Sync.kt` (`syncKeys`, `KeyVault`).
-
-## To do on Android
-
-## Done
+  Web v1.21: `reader/session.ts` (`saveEdit`, `findSentence`), `Reader.tsx` (`SentenceEditDialog`, pencil in both
+  translation rows), menu "Статистика"; `sync.ts` (`syncKeys`, WebCrypto vault), Settings → Синхронизация → Ключи.
+  Checked: web opens keys sealed the Android way (Node PBKDF2 + AES-GCM) and Node opens web's; wrong password
+  keeps the remote secrets. Also fixed: web sync before v1.21 dropped `secrets` from the file on write.
 
 - web v1.20 -> android: phrase translation no longer breaks in two at a dash inside the selection
   (`phraseOf` counts a non-word chunk strictly inside the range; the dash is highlighted too).

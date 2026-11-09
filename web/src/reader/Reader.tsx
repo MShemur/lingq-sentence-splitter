@@ -8,7 +8,7 @@ import { back, go, stack } from '../app'
 import { readerStyle, useKeepAwake } from '../readerLook'
 import { useReadingTimer } from '../stats'
 import { prefs } from '../settings'
-import { Chip, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
+import { Chip, Dialog, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ReaderHelp } from './Help'
 import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef } from './session'
@@ -197,6 +197,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
       {!docked() && s.popup.value && <WordSheet s={s} r={s.popup.value} />}
       {!docked() && s.phrase.value && <PhraseSheet s={s} />}
       {s.bookmarksOpen.value && <LessonBookmarksDialog s={s} onClose={() => { s.bookmarksOpen.value = false }} />}
+      {s.editing.value != null && <SentenceEditDialog s={s} id={s.editing.value} />}
     </div>
   )
 }
@@ -204,7 +205,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
 function ReaderActions({ s }: { s: ReaderSession }) {
   const menu = s.menuOpen.value
   const close = () => { s.menuOpen.value = false }
-  const pinCount = Object.keys(s.pins.value).length
+  const pinCount = Object.keys(s.pins.value).length + Object.keys(s.phrasePins.value).length
   const [help, setHelp] = useState(false)
   return (
     <>
@@ -215,6 +216,7 @@ function ReaderActions({ s }: { s: ReaderSession }) {
         {menu && (
           <Menu onClose={close}>
             <MenuItem icon="chat" onClick={() => { close(); s.chatText() }}>Чат о тексте</MenuItem>
+            <MenuItem icon="chart" onClick={() => { close(); go({ k: 'stats' }) }}>Статистика</MenuItem>
             <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
             <MenuItem icon="info" onClick={() => { close(); setHelp(true) }}>Как пользоваться</MenuItem>
             <hr />
@@ -557,9 +559,48 @@ function SentenceTranslation({ s, id }: { s: ReaderSession; id: number }) {
     <div class="sent-tr" data-se={id}>
       <div class="sent-tr-text" onClick={() => { if (!s.allSentences.value) s.toggleSentence(id) }}>{tr || '…'}</div>
       <BookmarkButton s={s} id={id} />
+      <EditButton s={s} id={id} />
       <RetranslateButton s={s} id={id} />
       <IconButton icon="chat" label="Чат о предложении" size={20} class="small primary" onClick={() => s.chatSentence(id)} />
     </div>
+  )
+}
+
+const EditButton = ({ s, id }: { s: ReaderSession; id: number }) => (
+  <IconButton icon="edit" label="Редактировать предложение" size={20} class="small primary" onClick={() => s.startEdit(id)} />
+)
+
+/** Window to correct a sentence and its translation; saving writes them into the lesson on LingQ. */
+function SentenceEditDialog({ s, id }: { s: ReaderSession; id: number }) {
+  const sent = s.sentences.value.find((x) => x.id === id)
+  const [text, setText] = useState(sent?.text ?? '')
+  const [tr, setTr] = useState(() => s.shownTranslation(id))
+  if (!sent) return null
+  const saving = s.editSaving.value
+  const close = () => { if (!saving) s.editing.value = null }
+  return (
+    <Dialog title="Редактировать предложение" onClose={close} actions={<>
+      <button class="btn text" disabled={saving} onClick={close}>Отмена</button>
+      <button class="btn text" disabled={saving || !text.trim()} onClick={() => void s.saveEdit(id, text, tr)}>
+        {saving ? <Spinner size={18} /> : 'Сохранить'}
+      </button>
+    </>}>
+      <div class="edit-sent">
+        <label class="field">
+          <span>Предложение</span>
+          <textarea rows={3} value={text} disabled={saving} onInput={(e) => setText((e.target as HTMLTextAreaElement).value)} />
+        </label>
+        <label class="field">
+          <span>Перевод</span>
+          <textarea rows={3} value={tr} disabled={saving} onInput={(e) => setTr((e.target as HTMLTextAreaElement).value)} />
+        </label>
+        <p class="hint">
+          Изменения сохранятся в уроке на LingQ (копия урока до правки — в «Резервных копиях»).
+          Переводы слов этого предложения сбросятся, если изменить текст.
+        </p>
+        {s.editError.value && <p class="error-text">{s.editError.value}</p>}
+      </div>
+    </Dialog>
   )
 }
 
@@ -701,6 +742,7 @@ function SentenceTranslationPage({ s, id }: { s: ReaderSession; id: number }) {
           <div class="sent-tr big">
             <div class="sent-tr-text">{tr || '…'}</div>
             <BookmarkButton s={s} id={id} />
+            <EditButton s={s} id={id} />
             <RetranslateButton s={s} id={id} />
             <IconButton icon="chat" label="Чат о предложении" size={20} class="small primary" onClick={() => s.chatSentence(id)} />
           </div>

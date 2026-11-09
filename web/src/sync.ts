@@ -5,7 +5,9 @@
 // - notes: {"<lang>_<lessonId>": {t, pins, words}} — the whole lesson, the later `t` wins;
 // - progress: {"<lang>_<lessonId>": {pos, t, read}} — pos by later `t`, read = max;
 // - stats: {"<device>": {"<date>": [seconds, words]}} — every device writes only its own part;
-// - seen: {"<lang>_<lessonId>": index} — max.
+// - seen: {"<lang>_<lessonId>": index} — max;
+// - secrets: {v, iter, salt, iv, ct, t} — the keys (LingQ, Gemini, other AI) encrypted with the sync password
+//   (PBKDF2-SHA256 -> AES-256-GCM, tag appended to ct, base64); the later `t` wins. GitHub token is not synced.
 import { signal } from '@preact/signals'
 import { prefs } from './settings'
 import { bookmarkKey, bookmarks, bookmarksDeleted, replaceAllBookmarks, type Bookmark } from './bookmarks'
@@ -31,6 +33,8 @@ const device = (() => {
 export const syncRunning = signal(false)
 export const lastSync = signal(Number(stored('sync.last', '0')))
 export const syncError = signal<string | null>(null)
+/** Keys sync: last result for the settings screen. */
+export const keysNote = signal<string | null>(null)
 let lastTry = 0
 
 /** On start / when the app is left: at most once a minute. */
@@ -143,9 +147,116 @@ async function syncOnce() {
   const [remote, sha] = await download()
   const merged = merge(local, remote)
   importLocal(merged)
+  const keys = await syncKeys(remote, merged)
   // written only when something changed (every write is a commit)
   if (canon(merged) !== canon({ ...remote, v: 1 })) await upload(merged, sha)
+  if (keys) await applyKeys(keys)
 }
+
+// --- keys (encrypted) ---
+
+const KEY_NAMES = ['lingq', 'gemini', 'aiBase', 'aiKey', 'aiModel', 'aiFastModel'] as const
+type Keys = Record<(typeof KEY_NAMES)[number], string>
+
+const localKeys = (): Keys => ({
+  lingq: prefs.apiKey.value, gemini: prefs.geminiKey.value, aiBase: prefs.aiBase.value,
+  aiKey: prefs.aiKey.value, aiModel: prefs.aiModel.value, aiFastModel: prefs.aiFastModel.value,
+})
+
+async function sha256(s: string): Promise<string> {
+  const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))
+  return [...d].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** A new password: the keys are encrypted again (and taken from GitHub first). */
+export function setSyncPass(p: string) {
+  prefs.syncPass.value = p
+  try { localStorage.removeItem('sync.keysT'); localStorage.removeItem('sync.keysHash') } catch { /* ignore */ }
+}
+
+const WRONG_PASS = 'Пароль не подходит к ключам на GitHub (на другом устройстве другой пароль?)'
+
+/** Picks the newer keys: ours are encrypted into [merged], or the other device's are returned to apply. */
+async function syncKeys(remote: Obj, merged: Obj): Promise<Obj | null> {
+  const r: Obj | undefined = remote.secrets && typeof remote.secrets === 'object' ? remote.secrets : undefined
+  if (r) merged.secrets = r
+  const pass = prefs.syncPass.value
+  if (!pass.trim()) { keysNote.value = r ? 'На GitHub есть ключи — задайте пароль, чтобы получить их' : null; return null }
+  const mine = JSON.stringify(localKeys())
+  const h = await sha256(mine)
+  let myT = Number(stored('sync.keysT', '0')) || 0
+  const savedHash = stored('sync.keysHash', '')
+  if (!savedHash && r) myT = 0 // first sync with this password: take the stored keys first
+  else if (savedHash !== h) { // keys changed here since the last sync
+    myT = Date.now()
+    store('sync.keysT', String(myT)); store('sync.keysHash', h)
+  }
+  const rT = r ? Number(r.t) || 0 : -1
+  if (r && rT > myT) {
+    const plain = await vaultOpen(pass, r)
+    if (plain == null) { keysNote.value = WRONG_PASS; return null }
+    store('sync.keysT', String(rT)) // the hash is stored after the keys are applied
+    keysNote.value = 'Ключи получены с другого устройства'
+    try { return JSON.parse(plain) } catch { return null }
+  }
+  if (!r || myT > rT) {
+    // don't overwrite keys we cannot read with a different password
+    if (r && (await vaultOpen(pass, r)) == null) { keysNote.value = WRONG_PASS; return null }
+    merged.secrets = await vaultSeal(pass, mine, myT)
+    keysNote.value = 'Ключи отправлены (зашифрованы)'
+    return null
+  }
+  keysNote.value = 'Ключи совпадают'
+  return null
+}
+
+/** Fills in the keys from the other device (blank values do not erase ours). */
+async function applyKeys(k: Obj) {
+  const v = (n: string) => String(k[n] ?? '').trim()
+  if (v('lingq')) prefs.apiKey.value = v('lingq')
+  if (v('gemini')) prefs.geminiKey.value = v('gemini')
+  if (v('aiBase')) prefs.aiBase.value = v('aiBase')
+  if (v('aiKey')) prefs.aiKey.value = v('aiKey')
+  if (v('aiModel')) prefs.aiModel.value = v('aiModel')
+  if ('aiFastModel' in k) prefs.aiFastModel.value = v('aiFastModel')
+  const now = localKeys()
+  store('sync.keysHash', await sha256(JSON.stringify(now)))
+  // this device had keys the other one lacked: send the union next time
+  if (KEY_NAMES.some((n) => now[n] !== String(k[n] ?? ''))) store('sync.keysT', String(Date.now()))
+}
+
+// PBKDF2-HMAC-SHA256 (210000 rounds, 16-byte salt) -> AES-256-GCM (12-byte iv, tag appended), standard base64:
+// the same as Android KeyVault.
+
+const ITER = 210_000
+const b64 = (b: Uint8Array) => { let s = ''; for (const x of b) s += String.fromCharCode(x); return btoa(s) }
+const unb64 = (s: string): Uint8Array<ArrayBuffer> => Uint8Array.from(atob(s.replace(/\s/g, '')), (c) => c.charCodeAt(0))
+
+async function vaultKey(pass: string, salt: Uint8Array<ArrayBuffer>, iter: number) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey'])
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'],
+  )
+}
+
+async function vaultSeal(pass: string, plain: string, t: number): Promise<Obj> {
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await vaultKey(pass, salt, ITER), new TextEncoder().encode(plain)))
+  return { v: 1, iter: ITER, salt: b64(salt), iv: b64(iv), ct: b64(ct), t }
+}
+
+/** The plain text, or null if the password does not fit. */
+async function vaultOpen(pass: string, o: Obj): Promise<string | null> {
+  try {
+    const key = await vaultKey(pass, unb64(o.salt), Number(o.iter) || ITER)
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(o.iv) }, key, unb64(o.ct))
+    return new TextDecoder().decode(pt)
+  } catch { return null }
+}
+
+/** For tests only. */
+export const _vault = { seal: vaultSeal, open: vaultOpen }
 
 /** JSON with sorted keys, to compare data regardless of key order. */
 function canon(x: unknown): string {

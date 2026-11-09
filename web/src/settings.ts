@@ -36,6 +36,8 @@ export const prefs = {
   /** Sync with the phone through the private GitHub repo: fine-grained token (Contents: read and write), on/off. */
   ghToken: pref('ghToken', ''),
   syncOn: pref('syncOn', '0'),
+  /** Password the keys are encrypted with for sync (only in this browser; blank = keys are not synced). */
+  syncPass: pref('syncPass', ''),
   geminiFastModel: pref('geminiFastModel', '', (v) => (v.startsWith('gemini-2.5') ? '' : v)),
   promptWord: pref('promptWord', Prompts.WORD),
   promptSentence: pref('promptSentence', Prompts.SENTENCE),

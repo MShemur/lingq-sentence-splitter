@@ -4,7 +4,7 @@ import { Icon, type IconName } from '../icons'
 import { back, errorText, go, say } from '../app'
 import { prefs, trLang, useGemini } from '../settings'
 import { AI_PRESETS } from '../openai'
-import { lastSync, syncError, syncNow, syncRunning } from '../sync'
+import { keysNote, lastSync, setSyncPass, syncError, syncNow, syncRunning } from '../sync'
 
 import { Prompts } from '../prompts'
 import * as api from '../lingq'
@@ -274,7 +274,7 @@ export function SettingsSync() {
     <Page title="Синхронизация">
       <p>
         Закладки, выбранные переводы слов, место чтения, «Прочитано N %» и статистика — общие для телефона и iPad.
-        Хранятся в вашем приватном репозитории GitHub (ветка sync). Ключи ИИ и LingQ не передаются.
+        Хранятся в вашем приватном репозитории GitHub (ветка sync). Ключи — только зашифрованными, если задан пароль ниже.
       </p>
       <label class="switch-row">
         <span class="grow radio-title">Синхронизировать</span>
@@ -292,6 +292,8 @@ export function SettingsSync() {
       </button>
       <Hint>Сама запускается при открытии приложения и когда вы из него выходите.</Hint>
       <hr />
+      <KeysPassword />
+      <hr />
       <h3 class="section-title">Токен GitHub</h3>
       <SecretField label="Токен (fine-grained)" value={prefs.ghToken.value} onInput={(v) => { prefs.ghToken.value = v.trim() }} />
       <Hint>
@@ -301,6 +303,31 @@ export function SettingsSync() {
       </Hint>
       <a class="btn text link" href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">Открыть токены GitHub</a>
     </Page>
+  )
+}
+
+/** Sync password: the keys go to the other device encrypted with it. */
+function KeysPassword() {
+  const [pass, setPass] = useState(prefs.syncPass.value)
+  const changed = pass !== prefs.syncPass.value
+  return (
+    <>
+      <h3 class="section-title">Ключи</h3>
+      <Hint>
+        Ключи LingQ, Gemini и другого ИИ (DeepSeek и т. п.) переходят на другое устройство зашифрованными этим паролем.
+        Задайте одинаковый пароль на телефоне и на iPad. Пароль хранится только на устройстве; без него ключи на GitHub
+        не прочитать. Забыли пароль — задайте новый, ключи зашифруются заново. GitHub-токен не передаётся: его нужно
+        ввести на каждом устройстве.
+      </Hint>
+      <SecretField label="Пароль синхронизации ключей" value={pass} onInput={setPass} />
+      {changed && (
+        <button class="btn filled" onClick={() => {
+          const p = pass.trim(); setPass(p); setSyncPass(p)
+          if (prefs.syncOn.value === '1') void syncNow()
+        }}>{pass.trim() ? 'Сохранить пароль' : 'Не синхронизировать ключи'}</button>
+      )}
+      {keysNote.value && <Hint>{keysNote.value}</Hint>}
+    </>
   )
 }
 

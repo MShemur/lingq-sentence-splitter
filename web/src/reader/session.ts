@@ -11,6 +11,7 @@ import { ChatSession } from '../chat'
 import { hasBookmark, toggleBookmark as toggleBm, type Bookmark } from '../bookmarks'
 import { positionOf, savePosition } from '../progress'
 import { countRead } from '../stats'
+import { saveBackup } from '../importer/backups'
 
 // --- model ---
 
@@ -77,6 +78,18 @@ const SEPARABLE = '\n\nУчитывай грамматику всего пред
   '(или часть составного глагола), а приставка стоит отдельно дальше в предложении (нем. «Er fing gestern an» → anfangen, ' +
   '«Sie kommt morgen zurück» → zurückkommen), переводи глагол вместе с этой приставкой, а в note укажи инфинитив с приставкой. ' +
   'Если «{word}» — сама отделённая приставка, переводи весь глагол так же.'
+
+/** The sentence in LingQ's paragraphs: by its index, else by the same order as `parse` (non-empty sentences). */
+function findSentence(paras: any[], s: Sent): any | null {
+  const all: any[] = paras.flatMap((p) => (Array.isArray(p?.sentences) ? p.sentences : []))
+  const same = (x: any) => String(x?.text ?? '').trim() === s.text
+  const byIndex = all.find((x) => x?.index === s.lingqIndex && same(x))
+  if (byIndex) return byIndex
+  const nonEmpty = all.filter((x) => String(x?.text ?? '').trim())
+  const byOrder = nonEmpty[s.id]
+  if (byOrder && same(byOrder)) return byOrder
+  return all.find((x) => x?.index === s.lingqIndex) ?? null
+}
 
 /** Pinned phrase key "sent:from:to" -> [sent, from, to]. */
 const phraseParts = (k: string) => k.split(':').map(Number)
@@ -346,6 +359,74 @@ export class ReaderSession {
   // --- words ---
 
   word(r: WordRef) { return this.sentById.get(refSent(r))?.tokens[refToken(r)]?.text ?? '' }
+
+  // --- editing a sentence (saved to the lesson on LingQ) ---
+
+  /** Sentence whose edit window is open. */
+  editing = signal<number | null>(null)
+  editSaving = signal(false)
+  editError = signal<string | null>(null)
+
+  startEdit(id: number) { this.editError.value = null; this.editSaving.value = false; this.editing.value = id }
+
+  /** Current translation shown for the sentence (for the edit window). */
+  shownTranslation(id: number): string {
+    const t = this.sentTr.value[id]
+    return t && !t.startsWith('⚠') ? t : this.sentById.get(id)?.translations[this.target] ?? ''
+  }
+
+  /**
+   * Writes the new text (and translation) of sentence [id] into the lesson on LingQ: the lesson is read again,
+   * a backup is kept, only this sentence is changed, the structure is saved as is.
+   */
+  async saveEdit(id: number, text: string, translation: string) {
+    const s = this.sentById.get(id)
+    if (!s) return
+    const newText = text.trim().replace(/\s+/g, ' ')
+    const newTr = translation.trim()
+    if (!newText) { this.editError.value = 'Предложение не может быть пустым'; return }
+    if (newText === s.text && newTr === this.shownTranslation(id)) { this.editing.value = null; return }
+    this.editSaving.value = true; this.editError.value = null
+    try {
+      const paras = await api.editor(this.lang, this.lesson.id)
+      const js = findSentence(paras, s)
+      if (!js) throw new Error('Предложение не найдено в уроке на LingQ — обновите урок')
+      await saveBackup(this.lang, this.lesson.id, this.title.value, paras)
+      if (newText !== s.text) { js.text = newText; js.cleanText = newText }
+      if (newTr && newTr !== s.translations[this.target]) {
+        if (!Array.isArray(js.translations)) js.translations = []
+        const own = js.translations.find((t: any) => t?.language === this.target)
+        if (own) own.text = newTr
+        else js.translations.push({ language: this.target, text: newTr })
+      }
+      await api.saveParagraphs(this.lang, this.lesson.id, paras)
+      this.replaceSentence(s, newText, newTr)
+      this.editing.value = null
+      say('Предложение сохранено')
+    } catch (e) {
+      this.editError.value = errorText(e)
+    }
+    this.editSaving.value = false
+  }
+
+  /** The edited sentence replaces the old one on screen; its word pins are dropped (the words moved). */
+  private replaceSentence(old: Sent, text: string, tr: string) {
+    const trs = { ...old.translations }
+    if (tr) trs[this.target] = tr
+    const n = new Sent(old.id, text, trs, old.lingqIndex)
+    this.sentById.set(n.id, n)
+    this.paragraphs.value = this.paragraphs.value?.map((p) => p.map((x) => (x.id === n.id ? n : x))) ?? null
+    this.sentences.value = this.sentences.value.map((x) => (x.id === n.id ? n : x))
+    if (tr) put(this.sentTr, n.id, tr); else drop(this.sentTr, n.id)
+    if (text !== old.text) {
+      const mine = (k: string) => k.startsWith(`${n.id}:`)
+      this.pins.value = Object.fromEntries(Object.entries(this.pins.value).filter(([k]) => !mine(k)))
+      this.provisional.value = Object.fromEntries(Object.entries(this.provisional.value).filter(([k]) => !mine(k)))
+      this.phrasePins.value = Object.fromEntries(Object.entries(this.phrasePins.value).filter(([k]) => !mine(k)))
+      for (const k of [...this.aiCache.keys()]) if (mine(k)) this.aiCache.delete(k)
+      this.persist()
+    }
+  }
   sentence(id: number) { return this.sentById.get(id) }
 
   private async hints(word: string): Promise<string[]> {
