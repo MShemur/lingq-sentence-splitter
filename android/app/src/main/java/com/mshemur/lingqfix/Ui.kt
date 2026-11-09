@@ -166,7 +166,12 @@ fun App(state: AppState) {
                     },
                 )
             },
-            bottomBar = { if (screen is Screen.Reader) ReaderBottomBar(screen.session) },
+            bottomBar = {
+                if (screen is Screen.Reader) Column {
+                    if (screen.session.audioUrl != null && screen.session.showAudio) AudioBar(screen.session)
+                    ReaderBottomBar(screen.session)
+                }
+            },
             floatingActionButton = {
                 if (screen == Screen.ReaderCourses) ExtendedFloatingActionButton(
                     onClick = { state.go(Screen.Home) },

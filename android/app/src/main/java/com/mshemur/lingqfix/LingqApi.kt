@@ -165,6 +165,9 @@ class LingqApi(private val key: String) {
     }
 
     /** Lesson as the web editor sees it: paragraphs -> sentences (text, translations, ...). */
+    /** The whole editor object: paragraphs, audio (URL or null), duration… */
+    fun editorObj(lang: String, id: Int): JSONObject = obj("$BASE/v3/$lang/lessons/$id/editor/")
+
     fun editor(lang: String, id: Int): JSONArray =
         obj("$BASE/v3/$lang/lessons/$id/editor/").optJSONArray("paragraphs") ?: JSONArray()
 

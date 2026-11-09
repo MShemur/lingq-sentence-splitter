@@ -155,7 +155,8 @@ fun ReadingTimer(state: AppState) {
     LaunchedEffect(Unit) {
         while (true) {
             delay(15_000)
-            if (state.resumed && SystemClock.uptimeMillis() - state.lastTouch < 180_000) state.stats.addTime(15)
+            // reading (touched lately) or listening to the lesson
+            if ((state.resumed && SystemClock.uptimeMillis() - state.lastTouch < 180_000) || AudioEngine.playing) state.stats.addTime(15)
         }
     }
 }

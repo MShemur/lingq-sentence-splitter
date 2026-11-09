@@ -71,4 +71,7 @@ dependencies {
     // import: text recognition on the phone (photos, scanned PDFs) and PDF text layer
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    // lesson audio: player + background playback (media notification, lock screen)
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-session:1.4.1")
 }

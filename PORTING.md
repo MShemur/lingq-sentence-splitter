@@ -9,6 +9,16 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- Android: lesson audio player. LingQ editor JSON has `audio` (MP3 URL or null) and every sentence `timestamp: [startSec, endSec]`.
+  Bottom bar "Аудио" (only when the lesson has audio) shows a player bar under the text and in sentence mode: time line,
+  speed menu (0.5–1.5, remembered), ⏮/⏭ previous/next sentence (⏮ restarts the sentence if >1.5 s into it), ±5 s, play/pause,
+  🔁 loop sheet: this sentence (start−0.1 s … end+0.15 s), last 1/2/3/5 min, next 1/2/3/5 min from the current sentence start,
+  own A–B snapped to the current sentence start/end, pause between repeats (0/1/2/3/5 s), off, stop audio. Sounding sentence
+  coloured; text page / sentence-mode page follow the audio while playing; ▶ in the sentence-translation row = play from it.
+  Position per lesson remembered; listening counts as reading time in stats. Background playback via Media3 session service.
+  Android `Audio.kt` (`AudioEngine`, `AudioBar`, `LoopSheet`), `Reader.kt` (audio part of `ReaderSession`).
+  Web: <audio> element + Media Session API (lock screen on iPad); loop by checking currentTime in timeupdate/rAF.
+
 ## To do on Android
 
 ## Done

@@ -94,6 +94,7 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -139,7 +140,11 @@ import java.io.File
 class Token(val text: String, val isWord: Boolean, val index: Int)
 
 /** One sentence of the lesson; [id] is unique in the lesson. */
-class Sent(val id: Int, val text: String, val translations: Map<String, String>, val lingqIndex: Int = id + 1) {
+class Sent(
+    val id: Int, val text: String, val translations: Map<String, String>, val lingqIndex: Int = id + 1,
+    /** Where it sounds in the lesson audio, ms (-1 = unknown). */
+    val start: Long = -1, val end: Long = -1,
+) {
     val tokens: List<Token> = tokenize(text)
     val chunks: List<List<Token>> = chunks(tokens)
 
@@ -483,10 +488,13 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         error = null
         app.scope.launch {
             try {
-                val (t, paras) = withContext(Dispatchers.IO) {
+                val (t, paras, au) = withContext(Dispatchers.IO) {
                     val l = if (lesson.title.isBlank()) app.api.lesson(lang, lesson.id) else lesson
-                    l.title to parse(app.api.editor(lang, lesson.id))
+                    val o = app.api.editorObj(lang, lesson.id)
+                    val audio = o.optString("audio").takeIf { !o.isNull("audio") && it.startsWith("http") }
+                    Triple(l.title, parse(o.optJSONArray("paragraphs") ?: JSONArray()), audio)
                 }
+                audioUrl = au
                 val (p, w, ph) = withContext(Dispatchers.IO) { notes.load() }
                 pins.putAll(p); chosen.putAll(w); phrasePins.putAll(ph)
                 title = t
@@ -519,7 +527,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                         if (v.isNotEmpty()) tr.putIfAbsent(o.optString("language"), v)
                     }
                 }
-                val sent = Sent(id, text, tr, s.optInt("index", id + 1))
+                val ts = s.optJSONArray("timestamp")
+                val start = if (ts != null && ts.length() >= 2 && !ts.isNull(0)) (ts.optDouble(0, -1.0) * 1000).toLong() else -1L
+                val end = if (ts != null && ts.length() >= 2 && !ts.isNull(1)) (ts.optDouble(1, -1.0) * 1000).toLong() else -1L
+                val sent = Sent(id, text, tr, s.optInt("index", id + 1), start, end)
                 id++
                 sentById[sent.id] = sent
                 para += sent
@@ -795,6 +806,94 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     fun word(ref: WordRef) = sentById[ref.sent]?.tokens?.getOrNull(ref.token)?.text.orEmpty()
 
+    // --- lesson audio ---
+
+    /** MP3 of the lesson on LingQ (null = the lesson has no audio). */
+    var audioUrl by mutableStateOf<String?>(null)
+    val audioKey get() = "${lang}_${lesson.id}"
+    /** Player bar shown (button "Аудио" in the bottom bar); remembered. */
+    var showAudio by mutableStateOf(app.ctx.getSharedPreferences("audio", Context.MODE_PRIVATE).getBoolean("bar", false))
+    /** Sentence sounding now (highlighted), and the one sentence mode should turn to. */
+    var playingSent by mutableStateOf<Int?>(null)
+    var followSent by mutableStateOf<Int?>(null)
+    /** Sentences have times in the audio. */
+    val hasTimes get() = sentences.any { it.start >= 0 }
+
+    fun toggleAudioBar() {
+        showAudio = !showAudio
+        app.ctx.getSharedPreferences("audio", Context.MODE_PRIVATE).edit().putBoolean("bar", showAudio).apply()
+    }
+
+    private fun ensureAudio(): Boolean {
+        val url = audioUrl ?: return false
+        if (AudioEngine.key != audioKey) AudioEngine.load(app.ctx, audioKey, url, title, AudioEngine.savedPos(app.ctx, audioKey))
+        return true
+    }
+
+    fun togglePlay() {
+        if (AudioEngine.key != audioKey) { if (ensureAudio()) AudioEngine.play() } else AudioEngine.toggle()
+    }
+
+    /** "▶" at a sentence: listen from its beginning on. */
+    fun playFrom(id: Int) {
+        val st = sentById[id] ?: return
+        if (st.start < 0 || !ensureAudio()) return
+        AppLog.add("audio", "Слушать с предложения $id")
+        AudioEngine.clearLoop()
+        AudioEngine.seekTo(st.start); AudioEngine.play()
+    }
+
+    /** Sentence sounding at [ms]: the last one that starts before it. */
+    fun sentenceAt(ms: Long): Int? {
+        var best: Sent? = null
+        for (x in sentences) if (x.start in 0..ms && (best == null || x.start >= best.start)) best = x
+        return best?.id
+    }
+
+    fun sentenceStartAt(ms: Long): Long = sentenceAt(ms)?.let { sentById[it]?.start } ?: ms
+
+    private fun currentForLoop(): Sent? =
+        (if (sentenceMode) sentences.getOrNull(page) else null)
+            ?: sentById[sentenceAt(AudioEngine.position) ?: -1] ?: focusSent?.let { sentById[it] }
+
+    fun loopSentence() {
+        val st = currentForLoop() ?: return
+        if (st.start < 0 || !ensureAudio()) return
+        val next = sentences.firstOrNull { it.start > st.start }?.start ?: -1L
+        val end = if (st.end > st.start) st.end + 150 else if (next > 0) next else st.start + 5000
+        AudioEngine.setLoop(st.start - 100, end)
+    }
+
+    fun setLoopA() { AudioEngine.setA(sentenceStartAt(AudioEngine.position) - 100) }
+
+    fun setLoopB() {
+        val st = sentById[sentenceAt(AudioEngine.position) ?: -1]
+        AudioEngine.setB(if (st != null && st.end > st.start) st.end + 150 else AudioEngine.position)
+    }
+
+    fun prevSentence() {
+        val pos = AudioEngine.position
+        val cur = sentById[sentenceAt(pos) ?: -1]
+        // more than 1.5 s into the sentence: back to its start, else to the one before
+        val target = if (cur != null && pos - cur.start > 1500) cur.start
+        else sentences.filter { it.start in 0 until (cur?.start ?: pos) }.maxByOrNull { it.start }?.start ?: 0L
+        AudioEngine.seekTo(target)
+    }
+
+    fun nextSentence() {
+        val pos = AudioEngine.position
+        sentences.filter { it.start > pos + 50 }.minByOrNull { it.start }?.let { AudioEngine.seekTo(it.start) }
+    }
+
+    /** The audio moved to sentence [id]: the text follows (page / sentence mode). */
+    fun followAudio(id: Int?) {
+        if (id == playingSent) return
+        playingSent = id
+        if (id == null || !AudioEngine.playing) return
+        if (sentenceMode) followSent = id
+        else if (id !in visibleSents) syncTo = id
+    }
+
     // --- editing a sentence (saved to the lesson on LingQ) ---
 
     /** Sentence whose edit window is open. */
@@ -866,7 +965,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** The edited sentence replaces the old one on screen; its word pins are dropped (the words moved). */
     private fun replaceSentence(old: Sent, text: String, tr: String) {
         val trs = HashMap(old.translations).apply { if (tr.isNotEmpty()) put(target, tr) }
-        val n = Sent(old.id, text, trs, old.lingqIndex)
+        val n = Sent(old.id, text, trs, old.lingqIndex, old.start, old.end)
         sentById[n.id] = n
         paragraphs = paragraphs?.map { p -> p.map { if (it.id == n.id) n else it } }
         sentences = sentences.map { if (it.id == n.id) n else it }
@@ -991,6 +1090,13 @@ private fun ReaderHelp(onClose: () -> Unit) {
             "«Скрыть / Показать перевод» под предложением — сворачивает перевод для всех предложений.",
             "Урок открывается там, где вы остановились; прочитанный процент виден в списке уроков.",
         ),
+        "Аудио" to listOf(
+            "Если у урока есть аудио, внизу появляется кнопка «Аудио» — она открывает плеер.",
+            "Звучащее предложение выделено цветом, страница (и режим по предложениям) перелистывается вслед за звуком.",
+            "▶ у перевода предложения — слушать с этого предложения. ⏮ ⏭ — к предыдущему / следующему предложению, ↺ ↻ — на 5 секунд.",
+            "🔁 — повтор участка: это предложение, последние или следующие 1 / 2 / 3 / 5 минут, свой участок A–B, пауза между повторами.",
+            "Играет и в фоне: управление в шторке, на экране блокировки и кнопками наушников. Скорость — слева в плеере.",
+        ),
         "Меню и кнопки" to listOf(
             "Закладка вверху — закладки этого урока; все закладки — в библиотеке.",
             "«Чат» внизу — разговор с ИИ о всём тексте.",
@@ -1031,6 +1137,10 @@ fun ReaderBottomBar(s: ReaderSession) {
             icon = { Icon(AppIcons.Translate, contentDescription = null) },
             label = { Text("Переводы") },
         )
+        if (s.audioUrl != null) NavigationBarItem(
+            selected = s.showAudio, onClick = { s.toggleAudioBar() },
+            icon = { Icon(AppIcons.Headphones, contentDescription = null) }, label = { Text("Аудио") },
+        )
         NavigationBarItem(
             selected = false, onClick = { s.chatText() },
             icon = { Icon(AppIcons.Chat, contentDescription = null) }, label = { Text("Чат") },
@@ -1063,6 +1173,10 @@ fun ReaderProgress(s: ReaderSession) {
 fun ReaderScreen(s: ReaderSession) {
     LaunchedEffect(s) { if (s.paragraphs == null) s.load() }
     SentenceEditDialog(s)
+    LaunchedEffect(s) {
+        snapshotFlow { if (AudioEngine.key == s.audioKey) AudioEngine.position else -1L }
+            .collect { ms -> s.followAudio(if (ms < 0) null else s.sentenceAt(ms)) }
+    }
     val wide = LocalConfiguration.current.screenWidthDp > 600
     SideEffect { s.wide = wide }
     val paras = s.paragraphs
@@ -1352,6 +1466,7 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f,
     val size = s.font * scale
     val haptic = LocalHapticFeedback.current
     val selBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+    val playColor = MaterialTheme.colorScheme.primary
     val textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = size.sp, lineHeight = (size * 1.35).sp)
     val trStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (size * 0.6).sp, lineHeight = (size * 0.68).sp)
     FlowRow(
@@ -1364,6 +1479,8 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f,
                 modifier = Modifier.align(Alignment.Bottom).padding(end = 2.dp, bottom = 4.dp).size((size * 0.9).dp),
             )
             val phr = s.phrasesIn(sent.id)
+            val sounding = s.playingSent == sent.id && AudioEngine.key == s.audioKey
+            val ts = if (sounding) textStyle.copy(color = playColor) else textStyle
             // a chunk belongs to a phrase by its words, or by a dash standing strictly inside it ("Nürnberg – Wiege")
             fun phraseOf(c: List<Token>) = phr.firstOrNull { (r, _) ->
                 c.any { if (it.isWord) it.index in r else it.index > r.first && it.index < r.last }
@@ -1373,7 +1490,7 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f,
             while (i < chunks.size) {
                 val ph = phraseOf(chunks[i])
                 if (ph == null) {
-                    ChunkRow(s, sent, chunks[i], area, textStyle, trStyle, selBg, haptic, null,
+                    ChunkRow(s, sent, chunks[i], area, ts, trStyle, selBg, haptic, null,
                         Modifier.align(Alignment.Bottom).padding(end = (size * 0.3).dp))
                     i++
                     continue
@@ -1392,7 +1509,7 @@ private fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f,
                     )
                     FlowRow(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         group.forEachIndexed { n, c ->
-                            ChunkRow(s, sent, c, area, textStyle, trStyle, selBg, haptic, ph.first,
+                            ChunkRow(s, sent, c, area, ts, trStyle, selBg, haptic, ph.first,
                                 if (n < group.size - 1) Modifier.padding(end = (size * 0.3).dp) else Modifier)
                         }
                     }
@@ -1465,6 +1582,11 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, ce
             modifier = Modifier.weight(1f),
         )
         BookmarkButton(s, id)
+        if (s.audioUrl != null && (s.sentences.firstOrNull { it.id == id }?.start ?: -1L) >= 0) {
+            IconButton(onClick = { s.playFrom(id) }, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = "Слушать отсюда", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+        }
         IconButton(onClick = { s.startEdit(id) }, modifier = Modifier.size(36.dp)) {
             Icon(Icons.Filled.Edit, contentDescription = "Редактировать предложение",
                 modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
@@ -1529,6 +1651,13 @@ private fun SentencePager(s: ReaderSession) {
         if (i >= 0) pager.scrollToPage(i)
         s.jump = null
     }
+    // the audio went on to the next sentence
+    LaunchedEffect(s.followSent) {
+        val id = s.followSent ?: return@LaunchedEffect
+        val i = list.indexOfFirst { it.id == id }
+        if (i >= 0 && i != pager.currentPage) pager.animateScrollToPage(i)
+        s.followSent = null
+    }
     Column(Modifier.fillMaxSize().systemBarsPadding()) {
         Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp)) {
             IconButton(onClick = { s.closeSentenceMode() }, modifier = Modifier.align(Alignment.CenterStart)) {
@@ -1545,7 +1674,7 @@ private fun SentencePager(s: ReaderSession) {
                 Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) { BookmarkButton(s, it.id) }
             }
         }
-        Row(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().weight(1f)) {
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
                     val sent = list[i]
@@ -1579,6 +1708,7 @@ private fun SentencePager(s: ReaderSession) {
                 DockedPanel(s, Modifier.width(PANEL_WIDTH).fillMaxHeight())
             }
         }
+        if (s.audioUrl != null && s.showAudio) AudioBar(s)
     }
 }
 
