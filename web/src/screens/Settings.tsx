@@ -11,6 +11,7 @@ import * as api from '../lingq'
 import * as gemini from '../gemini'
 import { Chip, Dialog, IconButton, ListItem, Loading, SecretField, Spinner, TextField, TopBar } from '../ui'
 import { HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, highlightColors, highlightOf, themeOf } from '../readerLook'
+import { clearLog, lastLines, log, logText, logVersion } from '../applog'
 
 declare const __BUILD__: string
 declare const __VERSION__: string
@@ -55,6 +56,8 @@ export function SettingsRoot() {
           onClick={() => go({ k: 'settingsSync' })} />
         <Section icon="history" title="Резервные копии" summary="Уроки до исправления разбивки (3 дня)"
           onClick={() => go({ k: 'backups' })} />
+        <Section icon="history" title="Журнал действий" summary="Что происходило за 2 дня — для сообщения об ошибке"
+          onClick={() => go({ k: 'log' })} />
         <Section icon="star" title="Промпты ИИ" summary="Как Gemini или другой ИИ переводит и отвечает в чате"
           onClick={() => go({ k: 'settingsPrompts' })} />
         <hr />
@@ -328,6 +331,34 @@ function KeysPassword() {
       )}
       {keysNote.value && <Hint>{keysNote.value}</Hint>}
     </>
+  )
+}
+
+/** Settings → Журнал действий: copy or share it for a bug report. */
+export function SettingsLog() {
+  logVersion.value // refresh on every new line
+  const shown = lastLines(400).reverse()
+  const copy = async () => {
+    log('log', 'Журнал скопирован')
+    try { await navigator.clipboard.writeText(logText()); say('Журнал скопирован') } catch { say('Не удалось скопировать') }
+  }
+  const share = async () => {
+    try { await navigator.share({ title: 'LingQ Fix: журнал', text: logText() }) } catch { /* cancelled */ }
+  }
+  return (
+    <Page title="Журнал действий">
+      <p>
+        Что происходило в приложении за последние 2 дня: экраны, нажатия, запросы, ошибки. Ключей и токенов здесь нет.
+        Когда что-то пошло не так — скопируйте и пришлите в чат с Claude.
+      </p>
+      <div class="row-buttons">
+        <button class="btn filled" onClick={() => void copy()}>Копировать</button>
+        {'share' in navigator && <button class="btn tonal" onClick={() => void share()}>Поделиться</button>}
+        <button class="btn text" onClick={clearLog}>Очистить</button>
+      </div>
+      <Hint>Новые сверху:</Hint>
+      <pre class="applog">{shown.join('\n')}</pre>
+    </Page>
   )
 }
 

@@ -12,6 +12,7 @@ import { hasBookmark, toggleBookmark as toggleBm, type Bookmark } from '../bookm
 import { positionOf, savePosition } from '../progress'
 import { countRead } from '../stats'
 import { saveBackup } from '../importer/backups'
+import { log, logError } from '../applog'
 
 // --- model ---
 
@@ -183,6 +184,7 @@ export class ReaderSession {
       if (start != null && this.sentById.has(start)) { this.page.value = this.indexOf(start); this.textAnchor = start }
       this.paragraphs.value = paras
     } catch (e) {
+      logError('reader', `Урок ${this.lesson.id} не открылся`, e)
       this.error.value = errorText(e)
     }
   }
@@ -286,6 +288,7 @@ export class ReaderSession {
       ? this.focusSent
       : this.visibleSents.size ? Math.min(...this.visibleSents) : null
     this.page.value = id == null ? 0 : this.indexOf(id)
+    log('reader', 'Режим по предложениям')
     this.sentenceMode.value = true
   }
 
@@ -351,7 +354,7 @@ export class ReaderSession {
   toggleSentence(id: number) {
     this.focusSent = id
     if (this.shown.value[id]) drop(this.shown, id)
-    else { put(this.shown, id, true); this.ensureSentence(id) }
+    else { log('reader', `Перевод предложения ${id}`); put(this.shown, id, true); this.ensureSentence(id) }
   }
 
   sentenceShown(id: number) { return this.allSentences.value || !!this.shown.value[id] }
@@ -387,6 +390,7 @@ export class ReaderSession {
     if (!newText) { this.editError.value = 'Предложение не может быть пустым'; return }
     if (newText === s.text && newTr === this.shownTranslation(id)) { this.editing.value = null; return }
     this.editSaving.value = true; this.editError.value = null
+    log('reader', `Правка предложения ${id}`)
     try {
       const paras = await api.editor(this.lang, this.lesson.id)
       const js = findSentence(paras, s)
@@ -404,6 +408,7 @@ export class ReaderSession {
       this.editing.value = null
       say('Предложение сохранено')
     } catch (e) {
+      logError('reader', `Правка предложения ${id}`, e)
       this.editError.value = errorText(e)
     }
     this.editSaving.value = false
@@ -488,6 +493,7 @@ export class ReaderSession {
 
   /** One tap: translation pinned above the word (tap again removes it). */
   tap(r: WordRef) {
+    log('reader', `Нажатие «${this.word(r)}» (предл. ${refSent(r)})`)
     this.focusSent = refSent(r)
     const pk = this.phraseKeyAt(r)
     if (pk) { drop(this.phrasePins, pk); this.persist(); return }
@@ -522,6 +528,7 @@ export class ReaderSession {
 
   /** Double tap: window with all meanings to choose from. */
   async openPopup(r: WordRef) {
+    log('reader', `Окно слова «${this.word(r)}» (предл. ${refSent(r)})`)
     this.focusSent = refSent(r)
     this.popup.value = r
     this.popupHints.value = null
@@ -665,6 +672,7 @@ export class ReaderSession {
     if (!st) return
     const text = st.tokens.slice(from, to + 1).map((t) => t.text).join('').trim()
     const p = { sent: sentId, from, to, text }
+    log('reader', `Словосочетание «${text.slice(0, 80)}» (предл. ${sentId})`)
     this.focusSent = sentId
     this.sel.value = { sent: sentId, from, to }
     this.phrase.value = p

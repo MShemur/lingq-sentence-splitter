@@ -3,6 +3,9 @@ import { ApiError } from './lingq'
 import { DEFAULT_MODEL, otherAi, prefs } from './settings'
 import * as openai from './openai'
 import { fill } from './prompts'
+import { log, logError } from './applog'
+
+const hostOf = (u: string) => { try { return new URL(u).host } catch { return 'ИИ' } }
 
 const API = 'https://generativelanguage.googleapis.com/v1beta'
 
@@ -52,8 +55,17 @@ export const llmModels = () => (otherAi() ? openai.models() : models(prefs.gemin
 
 /** Answer of the AI in use; the other AI may add its reasoning. */
 export async function generateFull(system: string | null, messages: Msg[], json = false, fast = false): Promise<{ text: string; reasoning?: string }> {
-  if (otherAi()) return openai.generate(system, messages, json, fast)
-  return { text: await geminiGenerate(system, messages, json, fast) }
+  const other = otherAi()
+  const what = other ? `${hostOf(prefs.aiBase.value)} ${openai.modelFor(fast)}` : `Gemini ${modelFor(fast)}`
+  const t0 = Date.now()
+  try {
+    const r = other ? await openai.generate(system, messages, json, fast) : { text: await geminiGenerate(system, messages, json, fast) }
+    log('ai', `${what} ✓ ${Date.now() - t0} мс, ${r.text.length} симв.`)
+    return r
+  } catch (e) {
+    logError('ai', `${what} ✗ ${Date.now() - t0} мс`, e)
+    throw e
+  }
 }
 
 export const generate = async (system: string | null, messages: Msg[], json = false, fast = false) =>
@@ -80,6 +92,7 @@ async function geminiGenerate(system: string | null, messages: Msg[], json = fal
     if (!overloaded(String((e as Error).message))) throw e
     const other = await fallbackModel(key, m)
     if (!other) throw e
+    log('ai', `Gemini ${m} перегружена → ${other}`)
     return run(other)
   }
 }

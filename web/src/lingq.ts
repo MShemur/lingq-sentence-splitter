@@ -1,5 +1,6 @@
 // LingQ REST API through the same-origin proxy (/api -> https://www.lingq.com/api). Port of LingqApi.kt.
 import { prefs } from './settings'
+import { log, shortUrl } from './applog'
 
 export class ApiError extends Error {}
 
@@ -21,6 +22,7 @@ export async function call(method: string, url: string, body?: unknown, key = pr
   if (!key) throw new ApiError('Не задан API-ключ LingQ (⚙ Настройки)')
   for (let attempt = 0; ; attempt++) {
     let r: Response
+    const t0 = Date.now()
     try {
       r = await fetch(local(url), {
         method,
@@ -32,8 +34,10 @@ export async function call(method: string, url: string, body?: unknown, key = pr
         body: body !== undefined ? JSON.stringify(body) : undefined,
       })
     } catch {
+      log('lingq', `${method} ${shortUrl(url)} ✗ нет связи`)
       throw new ApiError('Нет связи с сервером')
     }
+    log('lingq', `${method} ${shortUrl(url)} ${r.status} ${Date.now() - t0} мс`)
     if ((r.status === 429 || r.status >= 500) && attempt < 4) {
       const ra = Number(r.headers.get('Retry-After'))
       await sleep(1000 * (ra > 0 ? ra : 5 * (attempt + 1)))

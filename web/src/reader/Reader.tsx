@@ -219,6 +219,7 @@ function ReaderActions({ s }: { s: ReaderSession }) {
             <MenuItem icon="chart" onClick={() => { close(); go({ k: 'stats' }) }}>Статистика</MenuItem>
             <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
             <MenuItem icon="info" onClick={() => { close(); setHelp(true) }}>Как пользоваться</MenuItem>
+            <MenuItem icon="history" onClick={() => { close(); go({ k: 'log' }) }}>Журнал действий</MenuItem>
             <hr />
             <MenuItem onClick={() => s.changeFont(+2)}>Шрифт крупнее&nbsp; A+</MenuItem>
             <MenuItem onClick={() => s.changeFont(-2)}>Шрифт мельче&nbsp; A−</MenuItem>

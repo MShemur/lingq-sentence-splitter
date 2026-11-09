@@ -4,12 +4,13 @@ import { CoursesScreen, LessonsView } from './screens/Library'
 import { ReaderScreen } from './reader/Reader'
 import { ChatScreen } from './screens/Chat'
 import { BookmarksScreen } from './screens/Bookmarks'
-import { SettingsLingq, SettingsPrompts, SettingsReading, SettingsRoot, SettingsSync, SettingsTranslation } from './screens/Settings'
+import { SettingsLingq, SettingsLog, SettingsPrompts, SettingsReading, SettingsRoot, SettingsSync, SettingsTranslation } from './screens/Settings'
 import { autoSync } from './sync'
 import { BackupsScreen, ImportScreen } from './screens/Import'
 import { StatsScreen } from './screens/Stats'
 import { ModelSwitchDialog } from './screens/ModelSwitch'
 import './styles.css'
+import { log, logError } from './applog'
 
 function view(screen: Screen) {
   switch (screen.k) {
@@ -24,6 +25,7 @@ function view(screen: Screen) {
     case 'settingsPrompts': return <SettingsPrompts />
     case 'settingsReading': return <SettingsReading />
     case 'settingsSync': return <SettingsSync />
+    case 'log': return <SettingsLog />
     case 'import': return <ImportScreen s={screen} />
     case 'backups': return <BackupsScreen />
     case 'stats': return <StatsScreen />
@@ -54,6 +56,10 @@ function App() {
 render(<App />, document.getElementById('app')!)
 
 // sync with the phone: on start and when the app is left (at most once a minute)
+declare const __VERSION__: string
+log('app', `Запуск web ${__VERSION__}`)
+window.addEventListener('error', (e) => logError('crash', `${e.filename?.split('/').pop() ?? ''}:${e.lineno}`, e.error ?? e.message))
+window.addEventListener('unhandledrejection', (e) => logError('crash', 'Promise', e.reason))
 autoSync()
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') autoSync() })
 

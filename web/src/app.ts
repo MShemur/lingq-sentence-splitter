@@ -7,6 +7,7 @@ import type { ReaderSession } from './reader/session'
 import type { ChatSession } from './chat'
 import type { ImportSession } from './importer/session'
 import { positions } from './progress'
+import { log, logError } from './applog'
 
 export class LessonsScreen {
   readonly k = 'lessons'
@@ -39,6 +40,7 @@ export type Screen =
   | { k: 'chat'; c: ChatSession }
   | { k: 'bookmarks' }
   | { k: 'stats' }
+  | { k: 'log' }
   | { k: 'settingsReading' }
   | { k: 'settingsSync' }
   | ImportSession
@@ -57,13 +59,20 @@ window.addEventListener('popstate', (e) => {
   if (depth < stack.value.length - 1) stack.value = stack.value.slice(0, depth + 1)
 })
 
+function screenName(s: Screen): string {
+  if (s.k === 'reader') { const r = (s as any).s; return `Урок ${r.lang}/${r.lesson.id} «${String(r.lesson.title ?? '').slice(0, 60)}»` }
+  return s.k
+}
+
 export function go(s: Screen) {
+  log('nav', `→ ${screenName(s)}`)
   stack.value = [...stack.value, s]
   try { history.pushState({ depth: stack.value.length - 1 }, '') } catch { /* ignore */ }
 }
 
 export function back() {
   if (stack.value.length <= 1) return
+  log('nav', `← ${screenName(stack.value[stack.value.length - 2])}`)
   if (history.state?.depth === stack.value.length - 1) history.back()
   else stack.value = stack.value.slice(0, -1)
 }
@@ -78,6 +87,7 @@ export function replaceTop(s: Screen) {
 export const toast = signal<{ text: string; id: number } | null>(null)
 let toastTimer = 0
 export function say(text: string) {
+  log('msg', text)
   const id = Date.now()
   toast.value = { text, id }
   clearTimeout(toastTimer)
@@ -209,6 +219,7 @@ export const isGeminiLimit = (e: unknown) =>
 /** Called where a Gemini request failed: on a limit error the user may switch the model and [retry]. */
 /** [fast]: the request used the light model (words, phrases, sentences); the choice then replaces that one. */
 export function geminiFailed(e: unknown, retry: () => void, fast = false) {
+  logError('ai', `Ошибка ИИ (${fast ? 'лёгкая' : 'основная'} модель)`, e)
   if (!useGemini() || !isGeminiLimit(e) || modelSwitch.value) return
   const other = otherAi()
   const main = other ? prefs.aiModel : prefs.geminiModel

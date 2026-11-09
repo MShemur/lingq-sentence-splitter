@@ -9,14 +9,20 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- Android 33c623b: action journal for bug reports: screens, taps on words/phrases/sentences, LingQ requests (method,
-  path without query, status, ms), AI requests (model, ms, ok/error, fallback), sync, snackbars, crashes; kept 48 h /
-  3000 lines; Settings and reader ⋮ → "Журнал действий" with Копировать / Поделиться / Очистить, newest first; header
-  with version and device. No keys/tokens. Android `AppLog.kt`. Web: localStorage ring buffer is enough.
-
 ## To do on Android
 
 ## Done
+
+- android 33c623b -> web v1.22: action journal for bug reports: screens, taps on words/phrases/sentences, LingQ requests (method,
+  path without query, status, ms), AI requests (model, ms, ok/error, fallback), sync, snackbars, crashes; kept 48 h /
+  3000 lines; Settings and reader ⋮ → "Журнал действий" with Копировать / Поделиться / Очистить, newest first; header
+  with version and device. No keys/tokens. Android `AppLog.kt`. Web: localStorage ring buffer is enough.
+  Web v1.22: `applog.ts` (localStorage `applog`, 48 h / 3000 lines, saved 1 s after a line and on pagehide);
+  hooks in `app.ts` (go/back/say/geminiFailed), `lingq.ts` `call` (method, path, status, ms), `gemini.ts`
+  `generateFull` (Gemini model or the other AI's host + model, ms, chars / error, fallback), `sync.ts`, reader
+  session (tap, word window, phrase, sentence translation, sentence mode, load error, edit); window error /
+  unhandledrejection as [crash]. Settings and reader ⋮ → "Журнал действий" (Копировать, Поделиться via
+  navigator.share, Очистить).
 
 - android 816b32a -> web v1.21: edit a sentence: pencil in the sentence-translation row -> window with the sentence and its translation;
   "Сохранить" re-reads the lesson editor JSON, keeps a backup, changes only that sentence (`text`, `cleanText`,

@@ -9,6 +9,7 @@
 // - secrets: {v, iter, salt, iv, ct, t} — the keys (LingQ, Gemini, other AI) encrypted with the sync password
 //   (PBKDF2-SHA256 -> AES-256-GCM, tag appended to ct, base64); the later `t` wins. GitHub token is not synced.
 import { signal } from '@preact/signals'
+import { log } from './applog'
 import { prefs } from './settings'
 import { bookmarkKey, bookmarks, bookmarksDeleted, replaceAllBookmarks, type Bookmark } from './bookmarks'
 import { exportPositions, importPositions } from './progress'
@@ -55,8 +56,10 @@ export async function syncNow() {
     lastSync.value = Date.now()
     store('sync.last', String(lastSync.value))
     syncError.value = null
+    log('sync', `Синхронизация ✓${keysNote.value ? ' · ' + keysNote.value : ''}`)
   } catch (e) {
     syncError.value = e instanceof Error ? e.message : String(e)
+    log('sync', `Синхронизация ✗ ${syncError.value}`)
   }
   syncRunning.value = false
 }
