@@ -30,6 +30,13 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   Повторять это предложение / Начало повтора (A = sentence start) / Конец повтора (B = sentence end); a snackbar says
   what is still missing. Drag over words = phrase translation as before. `ReaderSession.tapWord/selectEnd/wordMenu`, `Player.kt WordMenu`.
 
+- Android: player word menu is a small dropdown right under the long-pressed word with 4 items: Перевод слова / Перевод
+  предложения / Начало повтора / Конец повтора. Audio bookmarks: bookmark JSON gets optional `ms` (audio position; sync key
+  "<lessonId>_a<ms>", text bookmarks keep "<lessonId>_<sent>"); player header: bookmark icon = mark the sounding sentence
+  start (one per sentence, a second mark moves it), ⋮ → "Аудиозакладки (N)" sheet (tap = play from there, delete) and
+  "Другой урок". Bookmarks screen shows them with a headphones icon and "1:23 · " before the text; long press →
+  "Слушать с этого места" opens the player there. `Bookmarks.kt` (`addAudio`, `audioFor`), `Player.kt`, `AppState.openAudioBookmark`.
+
 ## To do on Android
 
 ## Done

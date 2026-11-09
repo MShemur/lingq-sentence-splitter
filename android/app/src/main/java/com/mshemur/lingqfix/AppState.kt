@@ -213,6 +213,20 @@ class AppState(val ctx: Context) {
         AppLog.add("nav", "Вкладка ${s.javaClass.simpleName}")
     }
 
+    /** Audio bookmark: the player tab, from that place. */
+    fun openAudioBookmark(b: Bookmark) {
+        val cur = player
+        if (cur != null && cur.lesson.id == b.lessonId && cur.lang == b.lang && cur.audioUrl != null) {
+            cur.startAt = b.ms
+            if (AudioEngine.key == cur.audioKey) { AudioEngine.seekTo(b.ms); cur.startAt = -1; AudioEngine.play() } else cur.togglePlay()
+        } else {
+            player = ReaderSession(this, b.lang, Lesson(b.lessonId, b.lessonTitle)).apply {
+                sentenceAtBottom = true; autoPlay = true; startAt = b.ms
+            }
+        }
+        switchTab(Screen.Player)
+    }
+
     /** Listen to a lesson in the player tab (starts playing when its audio is known). */
     fun playLesson(lang: String, l: Lesson) {
         val cur = player

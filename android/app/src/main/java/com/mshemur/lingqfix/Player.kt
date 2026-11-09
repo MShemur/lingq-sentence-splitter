@@ -27,6 +27,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -88,11 +97,15 @@ fun PlayerScreen(state: AppState) {
     }
     var expanded by rememberSaveable { mutableStateOf(false) }
     var picker by remember { mutableStateOf(false) }
+    var marks by remember { mutableStateOf(false) }
+    var origin by remember { mutableStateOf(Offset.Zero) }
     BackHandler(expanded) { expanded = false }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInRoot() }) {
     Column(Modifier.fillMaxSize()) {
         if (expanded) Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { expanded = false }) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Свернуть текст") }
             Text(s.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            PlayerActions(s, onMarks = { marks = true }, onPick = null)
         } else Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(56.dp)) {
                 Box(contentAlignment = Alignment.Center) {
@@ -106,7 +119,7 @@ fun PlayerScreen(state: AppState) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            TextButton(onClick = { picker = true }) { Text("Другой урок") }
+            PlayerActions(s, onMarks = { marks = true }, onPick = { picker = true })
         }
         val paras = s.paragraphs
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -133,7 +146,9 @@ fun PlayerScreen(state: AppState) {
         }
         if (s.audioUrl != null) AudioBar(s)
     }
-    s.wordMenu?.let { ref -> WordMenu(s, ref) }
+    s.wordMenu?.let { ref -> WordMenu(s, ref, origin) }
+    }
+    if (marks) MarksSheet(s) { marks = false }
     s.popup?.let { ref -> WordSheet(s, ref) }
     s.phrase?.let { p -> PhraseSheet(s, p) }
     if (picker) PickerSheet(state) { picker = false }
@@ -237,45 +252,73 @@ private fun BottomTranslation(s: ReaderSession, id: Int) {
     }
 }
 
-/** Long press on a word in the player text: translations and the loop. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** Long press on a word in the player text: a small menu right at the word. */
 @Composable
-private fun WordMenu(s: ReaderSession, ref: WordRef) {
+private fun WordMenu(s: ReaderSession, ref: WordRef, origin: Offset) {
     val close = { s.wordMenu = null }
-    val sent = s.sentences.firstOrNull { it.id == ref.sent }
-    ModalBottomSheet(onDismissRequest = close) {
-        Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Text(
-                s.word(ref), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(horizontal = 24.dp),
-            )
-            sent?.let {
-                Text(
-                    it.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
-                )
-            }
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            MenuRow(AppIcons.Translate, "Перевод слова") { close(); s.openPopup(ref) }
-            MenuRow(AppIcons.Chat, "Перевод предложения") { close(); s.bottomSent = null; s.toggleSentence(ref.sent) }
-            if ((sent?.start ?: -1L) >= 0) {
-                HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                MenuRow(AppIcons.Repeat, "Повторять это предложение") { close(); s.loopSentenceId(ref.sent) }
-                MenuRow(AppIcons.SkipPrevious, "Начало повтора", "с начала этого предложения") { close(); s.loopStartAt(ref.sent) }
-                MenuRow(AppIcons.SkipNext, "Конец повтора", "до конца этого предложения") { close(); s.loopEndAt(ref.sent) }
+    val r = s.wordCoords["player" to ref]?.takeIf { it.isAttached }?.boundsInRoot()
+    val at = if (r != null) IntOffset((r.left - origin.x).toInt(), (r.bottom - origin.y).toInt()) else IntOffset.Zero
+    val timed = (s.sentences.firstOrNull { it.id == ref.sent }?.start ?: -1L) >= 0
+    Box(Modifier.offset { at }) {
+        DropdownMenu(expanded = true, onDismissRequest = close) {
+            DropdownMenuItem(text = { Text("Перевод слова") }, onClick = { close(); s.openPopup(ref) })
+            DropdownMenuItem(text = { Text("Перевод предложения") }, onClick = { close(); s.bottomSent = null; s.toggleSentence(ref.sent) })
+            if (timed) {
+                DropdownMenuItem(text = { Text("Начало повтора") }, onClick = { close(); s.loopStartAt(ref.sent) })
+                DropdownMenuItem(text = { Text("Конец повтора") }, onClick = { close(); s.loopEndAt(ref.sent) })
             }
         }
     }
 }
 
+/** Header buttons: bookmark this place; menu with the lesson's audio bookmarks and another lesson. */
 @Composable
-private fun MenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, hint: String? = null, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { if (hint != null) Text(hint) },
-        leadingContent = { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        modifier = Modifier.clickable(onClick = onClick),
-    )
+private fun PlayerActions(s: ReaderSession, onMarks: () -> Unit, onPick: (() -> Unit)?) {
+    IconButton(onClick = { s.markAudio() }, enabled = s.audioUrl != null) {
+        Icon(AppIcons.BookmarkBorder, contentDescription = "Закладка на это место")
+    }
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text("Аудиозакладки (${s.audioMarks().size})") },
+                leadingIcon = { Icon(AppIcons.Bookmark, contentDescription = null) },
+                onClick = { menu = false; onMarks() },
+            )
+            if (onPick != null) DropdownMenuItem(
+                text = { Text("Другой урок") },
+                leadingIcon = { Icon(AppIcons.Headphones, contentDescription = null) },
+                onClick = { menu = false; onPick() },
+            )
+        }
+    }
+}
+
+/** Audio bookmarks of the lesson: tap = listen from there. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MarksSheet(s: ReaderSession, onClose: () -> Unit) {
+    val marks = s.audioMarks()
+    ModalBottomSheet(onDismissRequest = onClose) {
+        Text("Аудиозакладки", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp))
+        if (marks.isEmpty()) Text(
+            "Пока нет. Значок закладки вверху плеера отмечает место, которое звучит сейчас.",
+            Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        else LazyColumn(Modifier.padding(bottom = 24.dp)) {
+            itemsIndexed(marks, key = { _, b -> BookmarkStore.key(b) }) { _, b ->
+                ListItem(
+                    headlineContent = { Text(b.text.ifBlank { "—" }, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                    leadingContent = { Text(fmtTime(b.ms), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) },
+                    trailingContent = {
+                        IconButton(onClick = { s.removeMark(b) }) { Icon(Icons.Filled.Delete, contentDescription = "Удалить закладку") }
+                    },
+                    modifier = Modifier.clickable { onClose(); AudioEngine.seekTo(b.ms); AudioEngine.play() },
+                )
+            }
+        }
+    }
 }
 
 /** Lessons with audio among the recently opened ones. */

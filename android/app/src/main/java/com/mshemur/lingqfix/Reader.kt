@@ -836,11 +836,32 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         app.ctx.getSharedPreferences("audio", Context.MODE_PRIVATE).edit().putBoolean("bar", showAudio).apply()
     }
 
+    /** Play from here (audio bookmark) instead of where listening stopped; -1 = no. */
+    var startAt = -1L
+
     private fun ensureAudio(): Boolean {
         val url = audioUrl ?: return false
-        if (AudioEngine.key != audioKey) AudioEngine.load(app.ctx, audioKey, url, title, AudioEngine.savedPos(app.ctx, audioKey))
+        val at = startAt
+        startAt = -1
+        if (AudioEngine.key != audioKey) AudioEngine.load(app.ctx, audioKey, url, title, if (at >= 0) at else AudioEngine.savedPos(app.ctx, audioKey))
+        else if (at >= 0) AudioEngine.seekTo(at)
         return true
     }
+
+    /** Audio bookmark at the place sounding now (its sentence start). */
+    fun markAudio() {
+        if (!ensureAudio()) return
+        val pos = AudioEngine.position
+        val id = sentenceAt(pos)
+        val st = id?.let { sentById[it] }
+        app.bookmarks.addAudio(lang, Lesson(lesson.id, title), id ?: -1, st?.text.orEmpty(), st?.start?.takeIf { it >= 0 } ?: pos)
+        AppLog.add("audio", "Аудиозакладка ${fmtTime(pos)}")
+        app.say("Закладка ${fmtTime(st?.start?.takeIf { it >= 0 } ?: pos)}")
+    }
+
+    fun audioMarks() = app.bookmarks.audioFor(lesson.id)
+
+    fun removeMark(b: Bookmark) = app.bookmarks.remove(b)
 
     fun togglePlay() {
         if (AudioEngine.key != audioKey) { if (ensureAudio()) AudioEngine.play() } else AudioEngine.toggle()
@@ -1147,8 +1168,9 @@ private fun ReaderHelp(onClose: () -> Unit) {
         "Аудио — во вкладке «Плеер»" to listOf(
             "Плеер — вкладка внизу главного экрана (рядом с «Библиотекой»). Урок с аудио: ⋮ → «Слушать в плеере».",
             "В плеере окно с текстом: звучащее предложение жирным. Нажатие на окно — весь текст, он прокручивается вслед за звуком.",
-            "В тексте плеера: нажатие на слово — звук с начала этого предложения; долгое нажатие — меню: перевод слова, " +
-                "перевод предложения, повторять предложение, начало / конец повтора. Протянуть по словам — перевод словосочетания.",
+            "В тексте плеера: нажатие на слово — звук с начала этого предложения; долгое нажатие — меню у слова: перевод слова, " +
+                "перевод предложения, начало / конец повтора. Протянуть по словам — перевод словосочетания.",
+            "Значок закладки вверху плеера — аудиозакладка на звучащее место; список — ⋮ → «Аудиозакладки» и общий экран закладок.",
             "⏮ ⏭ — к предыдущему / следующему предложению, ↺ ↻ — на 5 секунд, скорость — слева.",
             "🔁 — повтор участка: это предложение, последние или следующие 1 / 2 / 3 / 5 минут, свой участок A–B, пауза между повторами.",
             "Играет и в фоне: управление в шторке, на экране блокировки и кнопками наушников.",

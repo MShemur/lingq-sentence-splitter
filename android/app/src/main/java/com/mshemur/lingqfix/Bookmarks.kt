@@ -50,20 +50,25 @@ import java.io.File
 data class Bookmark(
     val lang: String, val lessonId: Int, val lessonTitle: String,
     val sent: Int, val text: String, val time: Long, val tr: String = "",
-)
+    /** Audio bookmark: position in the lesson audio, ms (-1 = a text bookmark). */
+    val ms: Long = -1,
+) {
+    val audio get() = ms >= 0
+}
 
 /** All bookmarks, kept on the phone (filesDir/bookmarks.json). */
 class BookmarkStore(ctx: Context) {
     companion object {
-        fun key(b: Bookmark) = "${b.lessonId}_${b.sent}"
+        fun key(b: Bookmark) = if (b.ms >= 0) "${b.lessonId}_a${b.ms}" else "${b.lessonId}_${b.sent}"
 
         fun toJson(b: Bookmark): JSONObject =
             JSONObject().put("lang", b.lang).put("lessonId", b.lessonId).put("lessonTitle", b.lessonTitle)
                 .put("sent", b.sent).put("text", b.text).put("time", b.time).put("tr", b.tr)
+                .also { if (b.ms >= 0) it.put("ms", b.ms) }
 
         fun fromJson(o: JSONObject) = Bookmark(
             o.getString("lang"), o.getInt("lessonId"), o.optString("lessonTitle"),
-            o.getInt("sent"), o.optString("text"), o.optLong("time"), o.optString("tr"),
+            o.getInt("sent"), o.optString("text"), o.optLong("time"), o.optString("tr"), o.optLong("ms", -1L),
         )
     }
 
@@ -96,11 +101,27 @@ class BookmarkStore(ctx: Context) {
         runCatching { file.writeText(jsonArrayOf(items.map { toJson(it) }).toString()) }
     }
 
-    private fun indexOf(lessonId: Int, sent: Int) = items.indexOfFirst { it.lessonId == lessonId && it.sent == sent }
+    /** Text bookmark of a sentence. */
+    private fun indexOf(lessonId: Int, sent: Int) = items.indexOfFirst { !it.audio && it.lessonId == lessonId && it.sent == sent }
+
+    private fun indexOf(b: Bookmark) = items.indexOfFirst { key(it) == key(b) }
 
     fun has(lessonId: Int, sent: Int) = indexOf(lessonId, sent) >= 0
 
-    fun forLesson(lessonId: Int) = items.filter { it.lessonId == lessonId }.sortedBy { it.sent }
+    fun forLesson(lessonId: Int) = items.filter { !it.audio && it.lessonId == lessonId }.sortedBy { it.sent }
+
+    /** Audio bookmarks of a lesson, in audio order. */
+    fun audioFor(lessonId: Int) = items.filter { it.audio && it.lessonId == lessonId }.sortedBy { it.ms }
+
+    /** A place in the lesson audio (with the sentence sounding there). */
+    fun addAudio(lang: String, lesson: Lesson, sent: Int, text: String, ms: Long) {
+        // one mark per sentence is enough: a second tap there moves it
+        val now = System.currentTimeMillis()
+        items.filter { it.audio && it.lessonId == lesson.id && it.sent == sent && sent >= 0 }.forEach { deleted[key(it)] = now; items.remove(it) }
+        items.add(Bookmark(lang, lesson.id, lesson.title, sent, text, now, ms = ms))
+        deleted.remove("${lesson.id}_a$ms")
+        write(); writeDeleted()
+    }
 
     /** Adds or removes; returns true when the sentence is bookmarked now. */
     fun toggle(lang: String, lesson: Lesson, sent: Int, text: String, tr: String = ""): Boolean {
@@ -112,12 +133,12 @@ class BookmarkStore(ctx: Context) {
     }
 
     fun setTranslation(b: Bookmark, tr: String) {
-        val i = indexOf(b.lessonId, b.sent)
+        val i = indexOf(b)
         if (i >= 0) { items[i] = items[i].copy(tr = tr); write() }
     }
 
     fun remove(b: Bookmark) {
-        val i = indexOf(b.lessonId, b.sent)
+        val i = indexOf(b)
         if (i >= 0) { deleted[key(items[i])] = System.currentTimeMillis(); items.removeAt(i); write(); writeDeleted() }
     }
 }
@@ -168,8 +189,8 @@ fun BookmarksScreen(state: AppState) {
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
                 )
             }
-            items(g.sortedBy { it.sent }, key = { "${it.lessonId}:${it.sent}" }) { b ->
-                BookmarkRow(state, b, onOpen = { state.openBookmark(b) })
+            items(g.sortedWith(compareBy<Bookmark>({ it.audio }, { if (it.audio) it.ms else it.sent.toLong() })), key = { BookmarkStore.key(it) }) { b ->
+                BookmarkRow(state, b, onOpen = { if (b.audio) state.openAudioBookmark(b) else state.openBookmark(b) })
             }
             item(key = "d${first.lessonId}") { HorizontalDivider(Modifier.padding(top = 8.dp)) }
         }
@@ -179,15 +200,18 @@ fun BookmarksScreen(state: AppState) {
 /** Tap: show/hide the translation; long press: menu with "go to source" and "delete". */
 @Composable
 private fun BookmarkRow(state: AppState, b: Bookmark, onOpen: () -> Unit) {
-    var showTr by remember(b.lessonId, b.sent) { mutableStateOf(false) }
-    var loading by remember(b.lessonId, b.sent) { mutableStateOf(false) }
+    var showTr by remember(BookmarkStore.key(b)) { mutableStateOf(false) }
+    var loading by remember(BookmarkStore.key(b)) { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val full = state.bookmarks.expanded || showTr
     Box {
         ListItem(
             headlineContent = {
-                Text(b.text, maxLines = if (full) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    (if (b.audio) "${fmtTime(b.ms)} · " else "") + b.text,
+                    maxLines = if (full) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis,
+                )
             },
             supportingContent = if (!showTr) null else {
                 {
@@ -198,7 +222,9 @@ private fun BookmarkRow(state: AppState, b: Bookmark, onOpen: () -> Unit) {
                     )
                 }
             },
-            leadingContent = { Icon(AppIcons.Bookmark, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            leadingContent = {
+                Icon(if (b.audio) AppIcons.Headphones else AppIcons.Bookmark, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            },
             modifier = Modifier.combinedClickable(
                 onClickLabel = "Перевод предложения",
                 onLongClickLabel = "Меню закладки",
@@ -222,7 +248,7 @@ private fun BookmarkRow(state: AppState, b: Bookmark, onOpen: () -> Unit) {
         )
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
             DropdownMenuItem(
-                text = { Text("Перейти к источнику") },
+                text = { Text(if (b.audio) "Слушать с этого места" else "Перейти к источнику") },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null) },
                 onClick = { menu = false; onOpen() },
             )
