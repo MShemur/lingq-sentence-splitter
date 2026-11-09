@@ -13,6 +13,16 @@ abstract class Llm {
 
     abstract fun generate(system: String?, messages: List<Gemini.Msg>, json: Boolean = false): String
 
+    /** Runs one request and writes it to the journal (model, time, size of the answer or the error). */
+    protected fun <T> logged(what: String, block: () -> T): T {
+        val t0 = System.currentTimeMillis()
+        return try {
+            block().also { r -> AppLog.add("ai", "$what ✓ ${System.currentTimeMillis() - t0} мс, ${r.toString().length} симв.") }
+        } catch (e: Throwable) {
+            AppLog.error("ai", "$what ✗ ${System.currentTimeMillis() - t0} мс", e); throw e
+        }
+    }
+
     /** The model's reasoning for the last answer, if it sends one (DeepSeek reasoner etc.). */
     @Volatile var lastReasoning: String? = null
         protected set
@@ -69,11 +79,13 @@ class OpenAiCompat(base: String, private val key: String, private val model: Str
     override fun generate(system: String?, messages: List<Gemini.Msg>, json: Boolean): String {
         check()
         if (model.isBlank()) throw ApiException("Не выбрана модель ИИ (⚙ Настройки → Перевод)")
-        return try {
-            request(system, messages, json)
-        } catch (e: ApiException) {
-            // not every service knows JSON mode: ask again without it (the prompt asks for JSON anyway)
-            if (json && e.message.orEmpty().contains("HTTP 400")) request(system, messages, false) else throw e
+        return logged("${AppLog.short(base)} $model") {
+            try {
+                request(system, messages, json)
+            } catch (e: ApiException) {
+                // not every service knows JSON mode: ask again without it (the prompt asks for JSON anyway)
+                if (json && e.message.orEmpty().contains("HTTP 400")) request(system, messages, false) else throw e
+            }
         }
     }
 

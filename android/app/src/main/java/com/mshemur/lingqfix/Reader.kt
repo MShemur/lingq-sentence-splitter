@@ -359,6 +359,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         val st = sentById[sent] ?: return
         val text = st.tokens.subList(from, to + 1).joinToString("") { it.text }.trim()
         val p = Phrase(sent, from, to, text)
+        AppLog.add("reader", "Словосочетание «${text.take(80)}» (предл. $sent)")
         focusSent = sent
         selSent = sent; selFrom = from; selTo = to
         popup = null
@@ -430,6 +431,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** Sentence mode slides up over the text, at the selected word's sentence or the first one on screen. */
     fun openSentenceMode() {
+        AppLog.add("reader", "Режим по предложениям")
         if (sentences.isEmpty()) return
         val id = focusSent?.takeIf { it in visibleSents } ?: visibleSents.minOrNull()
         page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0)
@@ -493,6 +495,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 jump?.let { id -> page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0) }
                 paragraphs = paras
             } catch (e: Throwable) {
+                AppLog.error("reader", "Урок ${lesson.id} не открылся", e)
                 error = e.message ?: e.toString()
             }
         }
@@ -596,6 +599,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     }
 
     fun toggleSentence(id: Int) {
+        AppLog.add("reader", "Перевод предложения $id")
         focusSent = id
         if (shownSentences[id] == true) shownSentences.remove(id)
         else { shownSentences[id] = true; ensureSentence(id) }
@@ -665,6 +669,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** One tap: translation pinned above the word (tap again removes it). */
     fun tap(ref: WordRef) {
+        AppLog.add("reader", "Нажатие «${word(ref)}» (предл. ${ref.sent})")
         focusSent = ref.sent
         phraseKeyAt(ref)?.let { phrasePins.remove(it); persist(); return }
         if (pins.containsKey(ref)) { pins.remove(ref); provisional.remove(ref); persist(); return }
@@ -704,6 +709,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** Double tap: window with all meanings to choose from. */
     fun openPopup(ref: WordRef) {
+        AppLog.add("reader", "Окно слова «${word(ref)}» (предл. ${ref.sent})")
         run {
             if (phrase != null) closePhrase()
             focusSent = ref.sent
@@ -813,6 +819,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         if (newText.isEmpty()) { editError = "Предложение не может быть пустым"; return }
         if (newText == s.text && newTr == shownTranslation(id)) { editing = null; return }
         editSaving = true; editError = null
+        AppLog.add("reader", "Правка предложения $id")
         app.scope.launch {
             try {
                 withContext(Dispatchers.IO) {
@@ -836,6 +843,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 editing = null
                 app.say("Предложение сохранено")
             } catch (e: Throwable) {
+                AppLog.error("reader", "Правка предложения $id", e)
                 editError = e.message ?: e.toString()
             }
             editSaving = false
@@ -934,6 +942,10 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             text = { Text("Статистика") },
             leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
             onClick = { menu = false; state.go(Screen.Stats) },
+        )
+        DropdownMenuItem(
+            text = { Text("Журнал действий") },
+            onClick = { menu = false; state.go(Screen.Log) },
         )
         DropdownMenuItem(
             text = { Text("Как пользоваться") },

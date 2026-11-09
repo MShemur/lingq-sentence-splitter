@@ -98,13 +98,16 @@ class Gemini(private val key: String, private val model: String) : Llm() {
                 request(model, system, messages, json, lowThinking = false)
             else throw e
         }
-        return try {
-            run(m)
-        } catch (e: ApiException) {
-            // the chosen model is overloaded ("high demand"): answer with another one rather than fail
-            if (!Regex("HTTP (503|429)").containsMatchIn(e.message.orEmpty())) throw e
-            val other = fallbackModel(m) ?: throw e
-            run(other)
+        return logged("Gemini $m") {
+            try {
+                run(m)
+            } catch (e: ApiException) {
+                // the chosen model is overloaded ("high demand"): answer with another one rather than fail
+                if (!Regex("HTTP (503|429)").containsMatchIn(e.message.orEmpty())) throw e
+                val other = fallbackModel(m) ?: throw e
+                AppLog.add("ai", "Gemini $m перегружена → $other")
+                run(other)
+            }
         }
     }
 

@@ -123,8 +123,10 @@ class SyncService(private val app: AppState) {
                 lastSync = System.currentTimeMillis()
                 prefs.edit().putLong("last", lastSync).apply()
                 lastError = null
+                AppLog.add("sync", "Синхронизация ✓" + (keysNote?.let { " · $it" } ?: ""))
                 app.stats.reloadOthers()
             } catch (e: Throwable) {
+                AppLog.error("sync", "Синхронизация ✗", e)
                 lastError = e.message ?: e.toString()
             }
             running = false

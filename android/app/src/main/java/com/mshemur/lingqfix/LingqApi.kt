@@ -26,6 +26,7 @@ class LingqApi(private val key: String) {
     fun call(method: String, url: String, body: String? = null): String {
         if (key.isBlank()) throw ApiException("Не задан API-ключ LingQ (⚙ Настройки)")
         var attempt = 0
+        val t0 = System.currentTimeMillis()
         while (true) {
             val req = Request.Builder().url(url)
                 .header("Authorization", "Token $key")
@@ -34,9 +35,12 @@ class LingqApi(private val key: String) {
                 .header("User-Agent", "lingq-lesson-fixer/1.0")
                 .method(method, body?.toRequestBody(JSON_TYPE))
                 .build()
-            val (code, text, retryAfter) = http.newCall(req).execute().use { r ->
-                Triple(r.code, r.body?.string().orEmpty(), r.header("Retry-After"))
+            val (code, text, retryAfter) = try {
+                http.newCall(req).execute().use { r -> Triple(r.code, r.body?.string().orEmpty(), r.header("Retry-After")) }
+            } catch (e: java.io.IOException) {
+                AppLog.error("lingq", "$method ${AppLog.short(url)}", e); throw e
             }
+            AppLog.add("lingq", "$method ${AppLog.short(url)} → $code (${System.currentTimeMillis() - t0} мс)")
             if ((code == 429 || code >= 500) && attempt < 4) {
                 attempt++
                 Thread.sleep(1000L * (retryAfter?.toLongOrNull() ?: (5L * attempt)))

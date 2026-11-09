@@ -105,6 +105,9 @@ fun SettingsRoot(state: AppState) {
         SectionItem(Icons.Filled.Build, "Обновления", "Версия ${BuildConfig.VERSION_NAME}") {
             state.go(Screen.SettingsUpdates)
         }
+        SectionItem(Icons.Filled.Info, "Журнал действий", "Скопировать для сообщения об ошибке · хранится 2 дня") {
+            state.go(Screen.Log)
+        }
     }
 }
 

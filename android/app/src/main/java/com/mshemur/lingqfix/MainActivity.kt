@@ -13,6 +13,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         CrashLog.install(applicationContext)
+        AppLog.init(applicationContext)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         state = AppState(applicationContext)
@@ -26,12 +27,14 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         state.resumed = true
+        AppLog.add("app", "На экране")
         state.sync.auto()
         state.checkUpdate(quiet = true)
     }
 
     override fun onPause() {
         state.resumed = false
+        AppLog.add("app", "Свёрнуто")
         ContinueWidget.refresh(applicationContext)     // reading progress on the home screen widget
         state.sync.auto()
         super.onPause()

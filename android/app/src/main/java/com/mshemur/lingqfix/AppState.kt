@@ -29,6 +29,7 @@ sealed interface Screen {
     data object SettingsReading : Screen
     data object Stats : Screen
     data object SettingsSync : Screen
+    data object Log : Screen
     data object Courses : Screen
     data object Backups : Screen
     class Import(val session: ImportSession) : Screen
@@ -112,6 +113,7 @@ class AppState(val ctx: Context) {
 
     /** Called where a Gemini request failed: on a limit error the user may switch the model and [retry]. */
     fun geminiFailed(e: Throwable, fast: Boolean = false, retry: () -> Unit) {
+        AppLog.error("ai", "Ошибка ИИ (${if (fast) "лёгкая" else "основная"} модель)", e)
         if (!useGemini || !isGeminiLimit(e) || modelSwitch != null) return
         modelSwitch = when {
             otherAi && fast -> ModelSwitch(prefs.aiFastModel.ifBlank { prefs.aiModel }, e.message.orEmpty(), { m -> applyPrefs { aiFastModel = m } }, retry)
@@ -122,7 +124,12 @@ class AppState(val ctx: Context) {
     }
     private var dialogShownFor = 0
 
-    fun go(s: Screen) { stack.add(s) }
+    fun go(s: Screen) { stack.add(s); AppLog.add("nav", "→ ${screenName(s)}") }
+
+    private fun screenName(s: Screen): String = when (s) {
+        is Screen.Reader -> "Урок ${s.session.lang}/${s.session.lesson.id} «${s.session.lesson.title.take(60)}»"
+        else -> s.javaClass.simpleName
+    }
 
     /** Opens the lesson of a bookmark at that sentence (reuses the reader if this lesson is already open). */
     fun openBookmark(b: Bookmark) {
@@ -133,8 +140,10 @@ class AppState(val ctx: Context) {
         } else go(Screen.Reader(ReaderSession(this, b.lang, Lesson(b.lessonId, b.lessonTitle), startSent = b.sent)))
     }
     fun toRoot() { while (stack.size > 1) stack.removeAt(stack.lastIndex) }
-    fun back(): Boolean = if (stack.size > 1) { stack.removeAt(stack.lastIndex); true } else false
-    fun say(msg: String) { scope.launch { snackbar.showSnackbar(msg) } }
+    fun back(): Boolean = if (stack.size > 1) {
+        stack.removeAt(stack.lastIndex); AppLog.add("nav", "← ${screenName(stack.last())}"); true
+    } else false
+    fun say(msg: String) { AppLog.add("msg", msg); scope.launch { snackbar.showSnackbar(msg) } }
 
     var readerTheme by mutableStateOf(prefs.readerTheme)
     var highlight by mutableStateOf(prefs.highlight)
