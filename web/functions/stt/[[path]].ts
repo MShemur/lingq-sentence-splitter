@@ -31,7 +31,8 @@ export const onRequest = async (context: { request: Request }): Promise<Response
   })
 
   const out = new Headers()
-  for (const h of ['content-type', 'retry-after']) {
+  // x-ratelimit-*: Groq's requests left today, shown in the app's speech settings
+  for (const h of ['content-type', 'retry-after', 'x-ratelimit-remaining-requests', 'x-ratelimit-limit-requests']) {
     const v = r.headers.get(h)
     if (v) out.set(h, v)
   }

@@ -2,7 +2,7 @@
 import { useState } from 'preact/hooks'
 import type { AudioPick, ImportSession } from '../importer/session'
 import { clock, parseClock } from '../importer/audio'
-import { sttCost, sttModel, sttProvider } from '../importer/stt'
+import { groqLeftSec, groqSummary, sttCost, sttModel, sttProvider } from '../importer/stt'
 import { prefs } from '../settings'
 import { Chip, Sheet } from '../ui'
 
@@ -54,6 +54,12 @@ export function AudioPicker({ s, pk }: { s: ImportSession; pk: AudioPick }) {
           </p>
         )}
         {!bad && <div class="audio-cost">{cost}</div>}
+        {!bad && !useTr && prov.id === 'groq' && (() => {
+          const need = (partMs ?? 0) / 1000, left = groqLeftSec()
+          return <p class={need > left ? 'error-text small' : 'hint'}>
+            {groqSummary()}{need > left ? `. Этот кусок может не пройти: свободно около ${Math.floor(left / 60)} мин.` : ''}
+          </p>
+        })()}
         <button class="btn filled wide" disabled={bad} onClick={() => void s.transcribePart(from ?? 0, len == null ? null : to, useTr, useText)}>{useTr ? 'Взять кусок' : 'Распознать'}</button>
         <button class="btn text wide" onClick={() => void s.transcribePart(0, null, useTr, useText)}>Весь файл{dur > 0 ? ` (${clock(dur)}${wholeCost ? `, ${wholeCost}` : ''})` : ''}</button>
       </div>

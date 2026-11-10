@@ -137,6 +137,58 @@ function send(p: SttProvider, key: string, model: string, lang: string, body: Bl
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /** Runs a request through the proxy (again after 2, 4, 8 s when the service is busy); the answer as JSON. */
+// --- Groq usage: Groq has no usage request, so the app counts the audio it sent (rolling hour / 24 h) and keeps the
+// request counter from the answer headers. Only this device's own use is counted. ---
+
+/** Free plan limits of Whisper on Groq (console.groq.com/docs/rate-limits). */
+export const GROQ_HOUR_SEC = 7_200, GROQ_DAY_SEC = 28_800
+const HOUR = 3_600_000, DAY = 86_400_000
+
+function groqLog(): [number, number][] {
+  try { return JSON.parse(localStorage.getItem('stt.groqUsage') ?? '[]') } catch { return [] }
+}
+
+function groqAdd(sec: number) {
+  if (!(sec > 0)) return
+  const now = Date.now()
+  try { localStorage.setItem('stt.groqUsage', JSON.stringify([...groqLog().filter((e) => now - e[0] < DAY), [now, sec]])) } catch { /* ignore */ }
+}
+
+function groqHeaders(h: Headers) {
+  const left = Number(h.get('x-ratelimit-remaining-requests'))
+  if (h.get('x-ratelimit-remaining-requests') == null || !Number.isFinite(left)) return
+  const limit = Number(h.get('x-ratelimit-limit-requests')) || 0
+  try { localStorage.setItem('stt.groqReq', JSON.stringify({ left, limit, at: Date.now() })) } catch { /* ignore */ }
+}
+
+const hm = (sec: number) => sec < 60 ? (sec <= 0 ? '0 мин' : 'меньше минуты')
+  : sec < 3600 ? `${Math.floor(sec / 60)} мин`
+  : `${Math.floor(sec / 3600)} ч` + (sec % 3600 >= 60 ? ` ${Math.floor((sec % 3600) / 60)} мин` : '')
+
+function groqUsed(): [number, number] {
+  const now = Date.now(), l = groqLog()
+  const sum = (ms: number) => Math.floor(l.filter((e) => now - e[0] < ms).reduce((a, e) => a + e[1], 0))
+  return [sum(HOUR), sum(DAY)]
+}
+
+/** Seconds of audio still free now: the smaller of the hour and the day rest. */
+export function groqLeftSec(): number {
+  const [hour, day] = groqUsed()
+  return Math.max(0, Math.min(GROQ_HOUR_SEC - hour, GROQ_DAY_SEC - day))
+}
+
+/** "Groq, бесплатный тариф, распознано с этого устройства: за последний час 25 мин из 2 ч, … · запросов … 1987 из 2000". */
+export function groqSummary(): string {
+  const [hour, day] = groqUsed()
+  let req = ''
+  try {
+    const r = JSON.parse(localStorage.getItem('stt.groqReq') ?? 'null')
+    if (r && Date.now() - r.at < DAY && r.limit > 0) req = ` · запросов на сегодня осталось ${r.left} из ${r.limit}`
+  } catch { /* ignore */ }
+  return `Groq, бесплатный тариф, распознано с этого устройства: за последний час ${hm(hour)} из ${hm(GROQ_HOUR_SEC)}, ` +
+    `за сутки ${hm(day)} из ${hm(GROQ_DAY_SEC)}${req}`
+}
+
 async function call(service: string, path: string, init: RequestInit, what: string): Promise<any> {
   const t0 = Date.now()
   for (let attempt = 0; ; attempt++) {
@@ -149,6 +201,7 @@ async function call(service: string, path: string, init: RequestInit, what: stri
       throw new Error(`${what}: нет связи или сервис оборвал загрузку (проверьте ключ)`)
     }
     log('stt', `${what} → ${r.status} (${Date.now() - t0} мс)`)
+    if (service === 'groq') groqHeaders(r.headers)
     if ((r.status === 429 || r.status >= 500) && attempt < 3) { await sleep(2000 << attempt); continue }
     if (r.status === 401 || r.status === 403) throw new Error(`${what} не принял ключ (HTTP ${r.status})`)
     const text = await r.text()
@@ -176,6 +229,7 @@ async function whisper(service: string, key: string, model: string, lang: string
   f.append('temperature', '0')
   const o = await call(service, 'audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: f },
     service === 'openai' ? 'OpenAI' : 'Groq')
+  if (service === 'groq') groqAdd(num(o.duration))
   const words: TWord[] = (o.words ?? []).map((w: any) => ({ text: String(w.word ?? '').trim(), start: num(w.start), end: num(w.end) }))
   let segs: TSeg[] = (o.segments ?? []).map((s: any) => ({ text: String(s.text ?? '').trim(), start: num(s.start), end: num(s.end) }))
   if (!segs.length) segs = [{ text: String(o.text ?? '').trim(), start: 0, end: words[words.length - 1]?.end ?? 0 }]
