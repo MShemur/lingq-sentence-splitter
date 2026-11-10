@@ -24,6 +24,11 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
     `audio.ts` replaySentence / nextSentence / setStarts / starts (+ the setStarts call in session.ts:190),
     `Reader.tsx` EditButton, `app.ts` replaceTop, doubled comments (Reader.tsx:702, session.ts:628); `norm()`
     defined twice in session.ts (791, 946).
+- android v1.64 (review item, optional for the web, lower priority there): reader words no longer recompose on a
+  selection drag / word window: the highlight is drawn (`drawBehind` reading the state), word positions via
+  `onPlaced`; pages are laid out in the background in one pass per page start (`TextMetrics.bottoms`, heights of
+  every prefix of a paragraph) instead of re-measuring each prefix. Web: `Reader.tsx` SentenceFlow re-renders all
+  words of 3 pages on any pins / provisional / popup / sel change - same idea (classes toggled in an effect).
 
 
 - android v1.61: statistics split reading / audio. Day data is now `[seconds, words, listenSeconds]` (seconds = total,

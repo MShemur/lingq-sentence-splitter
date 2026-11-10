@@ -28,6 +28,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -36,6 +37,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.runtime.rememberUpdatedState
@@ -1383,125 +1389,109 @@ fun ReaderScreen(s: ReaderSession) {
 private class Block(val sents: List<Sent>)
 
 /**
- * Heights of text pieces as [Paragraph] / [SentenceFlow] / [SentenceTranslation] will draw them, computed from
- * text sizes only (composing the whole lesson just to measure it runs out of memory on long lessons).
- * Keep in step with those composables.
+ * Heights of text pieces as [Paragraph] / [SentenceFlow] will draw them, computed from text sizes only
+ * (composing the whole lesson just to measure it runs out of memory on long lessons).
+ * Keep in step with those composables. Not thread-safe: used under one lock.
  */
 private class TextMetrics(
-    private val m: TextMeasurer, private val d: Density, private val s: ReaderSession, private val width: Int,
-    textStyle: TextStyle, trStyle: TextStyle, sentTrStyle: TextStyle,
+    private val m: TextMeasurer, private val d: Density, font: Int, private val width: Int, textStyle: TextStyle,
     /** Text widths, kept between rebuilds while the font is the same. */
     private val widths: HashMap<String, Int>,
 ) {
-    private val size = s.font.toFloat()
+    private val size = font.toFloat()
     private val text = textStyle.copy(fontSize = size.sp, lineHeight = (size * 1.35).sp)
-    private val tr = trStyle.copy(fontSize = (size * 0.6).sp, lineHeight = (size * 0.68).sp)
-    private val sentTr = sentTrStyle.copy(fontSize = (s.font * 0.8f).sp, fontStyle = FontStyle.Italic)
     private fun px(dp: Float) = with(d) { dp.dp.roundToPx() }
     private val lineH = m.measure("Ag", text, maxLines = 1).size.height
     private val chunkGap = px(size * 0.3f)
-    private val icon = px(size * 0.9f)
+    private val lineGap = px(2f)
 
     private fun w(t: String) = widths.getOrPut(t) { m.measure(t, text, maxLines = 1, softWrap = false).size.width }
 
-    /** Width and height of one chunk (words that stay together), translations above words included. */
-    private fun chunk(sent: Sent, chunk: List<Token>): Pair<Int, Int> {
-        var cw = 0
-        var ch = lineH
-        cw = w(chunk.joinToString("") { it.text })
-        return (cw + chunkGap) to ch
-    }
-
-    /** FlowRow of sentences: items wrap to the next line, lines 2 dp apart. */
-    private fun flow(sents: List<Sent>): Int {
+    /**
+     * FlowRow of sentences (chunks wrap to the next line, lines 2 dp apart) in one pass:
+     * result[i] = height of sents[0..i].
+     */
+    fun bottoms(sents: List<Sent>): IntArray {
+        val out = IntArray(sents.size)
         var total = 0
         var lineW = 0
         var lineMax = 0
         var lines = 0
-        fun put(iw: Int, ih: Int) {
-            if (lineW > 0 && lineW + iw > width) { total += lineMax; lines++; lineW = 0; lineMax = 0 }
-            lineW += iw; lineMax = maxOf(lineMax, ih)
+        sents.forEachIndexed { i, sent ->
+            for (c in sent.chunks) {
+                val cw = w(c.joinToString("") { it.text }) + chunkGap
+                if (lineW > 0 && lineW + cw > width) { total += lineMax; lines++; lineW = 0; lineMax = 0 }
+                lineW += cw; lineMax = maxOf(lineMax, lineH)
+            }
+            val open = if (lineW > 0) 1 else 0
+            out[i] = total + (if (open == 1) lineMax else 0) + lineGap * maxOf(0, lines + open - 1)
         }
-        for (sent in sents) {
-            for (c in sent.chunks) { val (cw, ch) = chunk(sent, c); put(cw, ch) }
-        }
-        if (lineW > 0) { total += lineMax; lines++ }
-        return total + px(2f) * maxOf(0, lines - 1)
-    }
-
-    private fun translationRow(id: Int): Int {
-        val t = s.sentTr[id].let { if (it.isNullOrEmpty()) "…" else it }
-        val tw = (width - px(12f + 2f + 3 * 36f)).coerceAtLeast(1)
-        val th = m.measure(t, sentTr, constraints = Constraints(maxWidth = tw)).size.height
-        return maxOf(th, px(36f)) + px(8f)
-    }
-
-    /** Height of [Paragraph] for these sentences. */
-    fun paragraph(sents: List<Sent>): Int {
-        val parts = mutableListOf<Int>()
-        var run = mutableListOf<Sent>()
-        for (sent in sents) {
-            run += sent
-            // laid out from the bare text: a shown translation makes the page scroll instead of moving text
-        }
-        if (run.isNotEmpty()) parts += flow(run)
-        return parts.sum() + px(6f) * maxOf(0, parts.size - 1)
+        return out
     }
 }
 
+/** Pages from the bare text: a paragraph that does not fit is split at a sentence boundary. */
+private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: Int, gap: Int): List<List<Block>> {
+    val pages = mutableListOf<List<Block>>()
+    var cur = mutableListOf<Block>()
+    var used = 0
+    fun need(x: Int) = (if (cur.isEmpty()) 0 else gap) + x
+    fun flush() {
+        if (cur.isNotEmpty()) pages += cur
+        cur = mutableListOf(); used = 0
+    }
+    for (para in paras) {
+        kotlinx.coroutines.yield()          // a newer layout (font, width) cancels this one
+        var from = 0
+        while (from < para.size) {
+            // heights of para[from..k] for every k, in one pass
+            val hs = metrics.bottoms(para.subList(from, para.size))
+            val hRest = hs.last()
+            if (used + need(hRest) <= h) { used += need(hRest); cur += Block(para.subList(from, para.size)); break }
+            // the longest run of sentences that still fits on this page
+            var k = from
+            var hk = 0
+            while (k + 1 < para.size) {
+                val hh = hs[k - from]
+                if (used + need(hh) > h) break
+                k++; hk = hh
+            }
+            when {
+                k > from -> { used += need(hk); cur += Block(para.subList(from, k)); from = k; flush() }
+                cur.isNotEmpty() -> flush()
+                else -> { cur += Block(listOf(para[from])); from++; flush() }   // taller than a page
+            }
+        }
+    }
+    flush()
+    return pages
+}
+
 /**
- * The text split into pages that fit the screen, turned with a swipe like a book. A paragraph that does
- * not fit is split at a sentence boundary. Pages are rebuilt when pins, translations or the font change.
+ * The text split into pages that fit the screen, turned with a swipe like a book. Pages are laid out in the
+ * background from the text, font and width only (pins, translations, marks make a page scroll instead).
  */
 @Composable
 private fun PagedText(s: ReaderSession, paras: List<List<Sent>>) {
     val measurer = rememberTextMeasurer(cacheSize = 0)
     val density = LocalDensity.current
     val textStyle = MaterialTheme.typography.bodyLarge
-    val trStyle = MaterialTheme.typography.labelSmall
-    val sentTrStyle = MaterialTheme.typography.bodyMedium
     val widths = remember(s.font, density) { HashMap<String, Int>() }
-    // pages depend on the text, font and width only (the measuring below must not read pins etc.)
+    val lock = remember { Mutex() }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val padH = with(density) { sidePad(s).roundToPx() }
         val padV = with(density) { 12.dp.roundToPx() }
         val gap = with(density) { 14.dp.roundToPx() }
         val w = (constraints.maxWidth - 2 * padH).coerceAtLeast(1)
-        // pages come from the bare text; pins / translations / bookmark marks make that page scroll instead
         val h = if (constraints.hasBoundedHeight) ((constraints.maxHeight - 2 * padV) * 0.99f).toInt() else Int.MAX_VALUE
-        val metrics = TextMetrics(measurer, density, s, w, textStyle, trStyle, sentTrStyle, widths)
-
-        val pages = mutableListOf<List<Block>>()
-        var cur = mutableListOf<Block>()
-        var used = 0
-        fun need(x: Int) = (if (cur.isEmpty()) 0 else gap) + x
-        fun flush() {
-            if (cur.isNotEmpty()) pages += cur
-            cur = mutableListOf(); used = 0
-        }
-        paras.forEach { para ->
-            var from = 0
-            while (from < para.size) {
-                val rest = para.subList(from, para.size)
-                val hRest = metrics.paragraph(rest)
-                if (used + need(hRest) <= h) { used += need(hRest); cur += Block(rest); break }
-                // the longest run of sentences that still fits on this page
-                var k = from
-                var hk = 0
-                while (k + 1 < para.size) {
-                    val hh = metrics.paragraph(para.subList(from, k + 1))
-                    if (used + need(hh) > h) break
-                    k++; hk = hh
-                }
-                when {
-                    k > from -> { used += need(hk); cur += Block(para.subList(from, k)); from = k; flush() }
-                    cur.isNotEmpty() -> flush()
-                    else -> { cur += Block(listOf(para[from])); from++; flush() }   // taller than a page
-                }
+        val font = s.font
+        // the old pages stay on screen until the new ones are ready
+        val pages by produceState<List<List<Block>>?>(null, paras, font, w, h, gap, density) {
+            value = withContext(Dispatchers.Default) {
+                lock.withLock { paginate(paras, TextMetrics(measurer, density, font, w, textStyle, widths), h, gap) }
             }
         }
-        flush()
-        TextPager(s, pages)
+        pages?.let { TextPager(s, it) }
     }
 }
 
@@ -1714,24 +1704,25 @@ private fun ChunkRow(
                     color = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else LocalHighlight.current.text,
                     modifier = Modifier.padding(horizontal = 1.dp),
                 )
-                val selected = tr != null || s.popup == ref || inPhrase
-                val bg = when {
-                    s.inSelection(ref) -> selBg
-                    selected -> LocalHighlight.current.bg
-                    else -> Color.Transparent
-                }
+                val pinned = tr != null || inPhrase
+                val hl = LocalHighlight.current.bg
                 if (t.isWord) DisposableEffect(area, ref) { onDispose { s.wordCoords.remove(area to ref) } }
+                // the highlight is drawn: dragging a selection or opening the word window only redraws
+                val mark = Modifier.drawBehind {
+                    val c = when {
+                        s.inSelection(ref) -> selBg
+                        t.isWord && (pinned || s.popup == ref) -> hl
+                        !t.isWord && phrase != null && t.index > phrase.first && t.index < phrase.last -> hl
+                        else -> null
+                    }
+                    if (c != null) {
+                        if (t.isWord) drawRoundRect(c, cornerRadius = CornerRadius(4.dp.toPx())) else drawRect(c)
+                    }
+                }
                 Text(
                     t.text, style = textStyle,
-                    modifier = if (!t.isWord) Modifier.background(
-                        when {
-                            s.inSelection(ref) -> selBg
-                            phrase != null && t.index > phrase.first && t.index < phrase.last -> LocalHighlight.current.bg
-                            else -> Color.Transparent
-                        },
-                    ) else Modifier
-                        .background(bg, RoundedCornerShape(4.dp))
-                        .onGloballyPositioned { s.wordCoords[area to ref] = it }
+                    modifier = if (!t.isWord) mark else mark
+                        .onPlaced { s.wordCoords[area to ref] = it }
                         .pointerInput(ref, area) { wordGestures(s, area, ref, haptic) },
                 )
             }
@@ -1745,7 +1736,7 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, ce
     val tr = s.sentTr[id]
     Row(
         Modifier.fillMaxWidth()
-            .onGloballyPositioned { s.trCoords[area to id] = it }
+            .onPlaced { s.trCoords[area to id] = it }
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
             .clickable { if (!s.allSentences) s.toggleSentence(id) }
             .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 2.dp),
