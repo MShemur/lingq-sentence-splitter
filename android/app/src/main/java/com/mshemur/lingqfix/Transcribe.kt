@@ -81,6 +81,69 @@ class SttProvider(
     fun price(model: String): Double? = prices.firstOrNull { it.first == model }?.second
 }
 
+/**
+ * Groq has no "usage" request: the app counts the audio it sent (rolling hour / 24 h) and keeps the request counter
+ * Groq returns in the answer headers. Only this device's own use is counted.
+ */
+object GroqUsage {
+    /** Free plan limits of Whisper on Groq (console.groq.com/docs/rate-limits). */
+    const val HOUR_SEC = 7_200
+    const val DAY_SEC = 28_800
+
+    @Volatile var ctx: Context? = null
+    private fun prefs(c: Context) = c.getSharedPreferences("stt_usage", Context.MODE_PRIVATE)
+
+    /** (time ms, audio seconds) of the last 24 h. */
+    private fun log(c: Context): List<Pair<Long, Double>> = runCatching {
+        val a = JSONArray(prefs(c).getString("groq", "[]"))
+        (0 until a.length()).map { a.getJSONArray(it).let { e -> e.getLong(0) to e.getDouble(1) } }
+    }.getOrDefault(emptyList())
+
+    @Synchronized fun add(sec: Double) {
+        val c = ctx ?: return
+        if (sec <= 0) return
+        val now = System.currentTimeMillis()
+        val a = JSONArray()
+        (log(c).filter { now - it.first < 86_400_000L } + (now to sec)).forEach { a.put(JSONArray().put(it.first).put(it.second)) }
+        prefs(c).edit().putString("groq", a.toString()).apply()
+    }
+
+    fun headers(h: okhttp3.Headers) {
+        val c = ctx ?: return
+        val left = h["x-ratelimit-remaining-requests"]?.toIntOrNull() ?: return
+        prefs(c).edit().putInt("reqLeft", left).putInt("reqLimit", h["x-ratelimit-limit-requests"]?.toIntOrNull() ?: 0)
+            .putLong("reqAt", System.currentTimeMillis()).apply()
+    }
+
+    private fun hm(sec: Int): String = when {
+        sec < 60 -> if (sec <= 0) "0 мин" else "меньше минуты"
+        sec < 3600 -> "${sec / 60} мин"
+        else -> "${sec / 3600} ч" + if (sec % 3600 >= 60) " ${sec % 3600 / 60} мин" else ""
+    }
+
+    /** Seconds of audio still free now: the smaller of the hour and the day rest. */
+    fun leftSec(c: Context): Int {
+        val now = System.currentTimeMillis()
+        val l = log(c)
+        val hour = l.filter { now - it.first < 3_600_000L }.sumOf { it.second }.toInt()
+        val day = l.filter { now - it.first < 86_400_000L }.sumOf { it.second }.toInt()
+        return minOf(HOUR_SEC - hour, DAY_SEC - day).coerceAtLeast(0)
+    }
+
+    /** "Groq, этот телефон: за час 25 мин из 2 ч, за сутки 1 ч 12 мин из 8 ч · запросов на сегодня осталось 1987 из 2000". */
+    fun summary(c: Context): String {
+        val now = System.currentTimeMillis()
+        val l = log(c)
+        val hour = l.filter { now - it.first < 3_600_000L }.sumOf { it.second }.toInt()
+        val day = l.filter { now - it.first < 86_400_000L }.sumOf { it.second }.toInt()
+        val p = prefs(c)
+        val req = if (now - p.getLong("reqAt", 0) < 86_400_000L && p.getInt("reqLimit", 0) > 0)
+            " · запросов на сегодня осталось ${p.getInt("reqLeft", 0)} из ${p.getInt("reqLimit", 0)}" else ""
+        return "Groq, бесплатный тариф, распознано с этого устройства: за последний час ${hm(hour)} из ${hm(HOUR_SEC)}, " +
+            "за сутки ${hm(day)} из ${hm(DAY_SEC)}$req"
+    }
+}
+
 /** When the prices below were checked on the services' sites. */
 const val STT_PRICES_CHECKED = "10.11.2026"
 
@@ -158,6 +221,7 @@ object Stt {
         status: (String) -> Unit,
     ): Transcript {
         if (key.isBlank()) throw ApiException("не задан ключ ${p.name} (⚙ Настройки → Распознавание речи)")
+        GroqUsage.ctx = ctx.applicationContext
         val m = model.ifBlank { p.models.first() }
         val size = withContext(Dispatchers.IO) {
             runCatching { ctx.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } }.getOrNull() ?: -1L
@@ -212,12 +276,12 @@ object Stt {
         }
 
     /** Runs a request (again after 2, 4, 8 s when the service is busy); the answer as JSON. */
-    private fun call(req: Request, what: String): JSONObject {
+    private fun call(req: Request, what: String, headers: ((okhttp3.Headers) -> Unit)? = null): JSONObject {
         var attempt = 0
         val t0 = System.currentTimeMillis()
         while (true) {
             val (code, text) = try {
-                http.newCall(req).execute().use { r -> r.code to r.body?.string().orEmpty() }
+                http.newCall(req).execute().use { r -> headers?.invoke(r.headers); r.code to r.body?.string().orEmpty() }
             } catch (e: java.io.IOException) {
                 AppLog.error("stt", "$what ✗", e); throw e
             }
@@ -251,7 +315,9 @@ object Stt {
             .addFormDataPart("temperature", "0")
             .build()
         val req = Request.Builder().url("$base/audio/transcriptions").header("Authorization", "Bearer $key").post(form).build()
-        val o = call(req, AppLog.short(base))
+        val groq = base.contains("groq.com")
+        val o = call(req, AppLog.short(base), if (groq) GroqUsage::headers else null)
+        if (groq) GroqUsage.add(o.optDouble("duration", 0.0))
         val words = arr(o.optJSONArray("words")).map { TWord(it.optString("word").trim(), it.optDouble("start"), it.optDouble("end")) }
         var segs = arr(o.optJSONArray("segments")).map { TSeg(it.optString("text").trim(), it.optDouble("start"), it.optDouble("end")) }
         if (segs.isEmpty()) segs = listOf(TSeg(o.optString("text").trim(), 0.0, words.lastOrNull()?.end ?: 0.0))
@@ -772,6 +838,11 @@ fun SettingsSpeech(state: AppState) {
         )
         sp.price(model)?.let { Hint("$model: ${sttHourPrice(it)}, 10 минут ${sttCost(sp, model, 10.0)}. Цены проверены $STT_PRICES_CHECKED.") }
         TextButton(onClick = { uri.openUri(sp.priceUrl) }) { Text("Цены ${sp.name} на сайте") }
+        if (sp.id == "groq") {
+            val c = androidx.compose.ui.platform.LocalContext.current
+            Hint(GroqUsage.summary(c))
+            TextButton(onClick = { uri.openUri("https://console.groq.com/settings/limits") }) { Text("Лимиты Groq на сайте") }
+        }
         Hint("Ключи синхронизируются между устройствами зашифрованными, если задан пароль синхронизации.")
     }
 }
@@ -824,6 +895,16 @@ fun AudioPartPicker(s: ImportSession, pk: AudioPick) {
                 cost(to?.let { it - (from ?: 0) } ?: (dur - (from ?: 0)).takeIf { dur > 0 }),
                 style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
             )
+            if (!useTr && prov.id == "groq" && !bad) {
+                val c = androidx.compose.ui.platform.LocalContext.current
+                val need = ((to ?: dur) - (from ?: 0)) / 1000
+                val left = GroqUsage.leftSec(c)
+                Text(
+                    GroqUsage.summary(c) + if (need > left) ". Этот кусок может не пройти: свободно около ${left / 60} мин." else "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (need > left) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (pk.transcript != null) Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Готовая расшифровка подкаста")
