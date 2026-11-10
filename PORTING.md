@@ -9,6 +9,18 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.69–v1.70: podcast search has NO suggestion chips (the user listens to native shows: Lanz und Precht, Wissen
+  Weekly, Surplus). Speech recognition prices: each model has a price in US$ per hour (checked 10.11.2026: Groq
+  whisper-large-v3-turbo 0.04, whisper-large-v3 0.111; OpenAI whisper-1 0.36; Deepgram nova-3 0.258; AssemblyAI
+  universal-2 0.15, universal-3-5-pro 0.21 (best / nano are deprecated); ElevenLabs scribe_v2 0.22 (new default),
+  scribe_v1 0.40). Settings: each provider row "от 0,04 $ за час · note"; under the model "<model>: 0,04 $ за час,
+  10 минут ≈ 0,7 цента. Цены проверены 10.11.2026." and a button "Цены <name> на сайте" (groq console docs
+  speech-to-text, platform.openai.com/docs/pricing, deepgram.com/pricing, assemblyai.com/pricing,
+  elevenlabs.io/pricing/api). Part sheet: a primary line with the cost of the chosen part ("Groq: ≈ 0,4 цента"; with
+  the podcast transcript "бесплатно, готовая расшифровка"), "Весь файл (1:02:10, ≈ 2 цента)". Format: < 0,1 цента /
+  "≈ 0,7 цента" / "≈ 12 центов" / "≈ 1,20 $". Android `Transcribe.kt` (`SttProvider.prices / priceUrl`, `sttCost`,
+  `sttHourPrice`, `STT_PRICES_CHECKED`).
+
 ## To do on Android
 
 
