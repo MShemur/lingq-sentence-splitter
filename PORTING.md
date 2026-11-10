@@ -9,14 +9,16 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- android v1.75: a lesson without a level (LingQ sends `"level": null`, e.g. a fresh import before the AI level is set)
-  showed "null" on the tile badge, and the remembered recent list kept that "null" for good. Now null = no level (no
-  badge); a stored "null" is read as empty. Check the web for the same (`${level}` of null).
-
 ## To do on Android
 
 
 ## Done
+
+- android v1.75 -> web (no change, still v1.34): a lesson without a level (LingQ sends `"level": null`, e.g. a fresh import before the AI level is set)
+  showed "null" on the tile badge, and the remembered recent list kept that "null" for good. Now null = no level (no
+  badge); a stored "null" is read as empty. Check the web for the same (`${level}` of null).
+  Web: nothing to fix: `lingq.ts` reads `level: o.level ?? ''`, the single-lesson read has no level, and the tile
+  badge shows only a non-empty level, so no "null" was ever shown or stored.
 
 - android v1.74 -> web v1.34: player "Недавние" no longer uses LingQ's recently-opened shelf (it showed junk and missed what was just
   heard). It is the app's own list: every lesson whose audio got loaded (single or queue track) is remembered (title,
