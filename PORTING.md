@@ -11,6 +11,18 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- web v1.25 (user feedback from the iPad), check whether Android has the same and port:
+  - One AI request per word place: a tap pins the word and the docked word window opens at once; two separate
+    requests answered differently, so the pin showed one meaning and the window "the right one is …". Share the
+    in-flight request (the same for LingQ hints).
+  - Sentence translation while it loads: shimmering placeholder lines (1–2, by sentence length) instead of an empty
+    row / "…"; the text fades in; "translate again" shimmers the text.
+  - Player repeat sheet redone: a running loop shows a status card + a big filled "Остановить повтор" on top;
+    "Повторять это предложение" is a big tile; segment = segmented [Только что прозвучало | Отсюда вперёд] + one row
+    of 30 с / 1 / 2 / 5 мин; own A–B folded; pause = segmented. "Остановить аудио" removed from it. In the bar a
+    running loop is a pill "Повтор 0:13 – 0:16 · 3-й раз" with × to stop at once.
+  - Player text window: no hint line under the text, bigger text (current ×1.55, neighbours ×1.15 of reader font).
+  - Mini player tap opens the player on the lesson that is sounding.
 ## Done
 
 - android 90660e4 -> web v1.24: UX tidy-up: reader long press (no drag) = small menu right under the word (no direct sentence translation any

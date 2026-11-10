@@ -346,6 +346,8 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   const pagesRef = useRef<Block[][]>([])
   pagesRef.current = pages
   const cache = useRef<MeasureCache>(new Map())
+  /** The pager width the current pages were laid out for. */
+  const laidOut = useRef(0)
 
   // what changes the layout of the bare text (translations do not: the page scrolls instead)
   const deps = [paras, prefs.readerFont.value, size.w, size.h]
@@ -376,6 +378,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     const anchor = pagesRef.current[s.textPage.value]?.[0]?.sents[0]?.id ?? s.textAnchor
     s.textAnchor = anchor
     const i = anchor == null ? 0 : Math.max(0, pageOf(next, anchor))
+    laidOut.current = size.w
     setPages(next)
     s.textPage.value = i
   }, deps)
@@ -461,6 +464,10 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   const onScroll = () => {
     const el = pager.current
     if (!el || !el.clientWidth) return
+    // the window changed width (Split View, switching apps, rotation): the browser keeps the old scroll offset,
+    // which points at another page now. That is not the reader turning pages: the pages are rebuilt around
+    // the same sentence and put in place, and the position must not move (it used to jump ahead).
+    if (Math.abs(el.clientWidth - laidOut.current) > 1) return
     scrolling.current = true
     clearTimeout(scrollEnd.current)
     scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null; settle() }, 150)
@@ -578,12 +585,29 @@ export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sen
   )
 }
 
+/**
+ * A sentence translation, or a shimmering placeholder while it is being made (one or two lines, like the
+ * sentence); the text fades in when it arrives, and shimmers again while "translate again" works.
+ */
+export function TrText({ s, id }: { s: ReaderSession; id: number }) {
+  const tr = s.sentTr.value[id]
+  if (!tr) {
+    const long = (s.sentence(id)?.text.length ?? 0) > 70
+    return (
+      <span class="tr-wait" role="status" aria-label="Перевод…">
+        <span class="tr-wait-line" />
+        {long && <span class="tr-wait-line short" />}
+      </span>
+    )
+  }
+  return <span class={'tr-arrived' + (s.retranslating.value[id] ? ' tr-redo' : '')} key={tr}>{tr}</span>
+}
+
 function SentenceTranslation({ s, id }: { s: ReaderSession; id: number }) {
   useEffect(() => { s.ensureSentence(id) }, [id])
-  const tr = s.sentTr.value[id]
   return (
     <div class="sent-tr" data-se={id}>
-      <div class="sent-tr-text" onClick={() => { if (!s.allSentences.value) s.toggleSentence(id) }}>{tr || '…'}</div>
+      <div class="sent-tr-text" onClick={() => { if (!s.allSentences.value) s.toggleSentence(id) }}><TrText s={s} id={id} /></div>
       <RetranslateButton s={s} id={id} />
     </div>
   )
@@ -705,9 +729,11 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
     if (pager.current) glide(pager.current, i * pager.current.clientWidth)
   }
 
+  const width = useRef(0)
   const snap = (smooth = false) => {
     const el = pager.current
     if (!el || !el.clientWidth) return
+    width.current = el.clientWidth
     if (Math.abs(el.scrollLeft - s.page.value * el.clientWidth) <= 1) return
     if (smooth) glide(el, s.page.value * el.clientWidth)
     else { stopGlide(el); el.scrollLeft = s.page.value * el.clientWidth }
@@ -739,6 +765,8 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
   const onScroll = () => {
     const el = pager.current
     if (!el || !el.clientWidth) return
+    // a new window width keeps the old scroll offset (another page): stay on the sentence, do not follow it
+    if (el.clientWidth !== width.current) { width.current = el.clientWidth; snap(); return }
     const i = Math.round(el.scrollLeft / el.clientWidth)
     if (i !== s.page.value && i >= 0 && i < list.length) s.page.value = i
   }
@@ -797,7 +825,7 @@ function SentenceTranslationPage({ s, id }: { s: ReaderSession; id: number }) {
       <div class={'fold' + (open ? ' open' : '')}>
         <div class="fold-inner">
           <div class="sent-tr big">
-            <div class="sent-tr-text">{tr || '…'}</div>
+            <div class="sent-tr-text"><TrText s={s} id={id} /></div>
             <RetranslateButton s={s} id={id} />
           </div>
         </div>

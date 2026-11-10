@@ -103,3 +103,19 @@ export function listenAt(lang: string, l: Lesson, ms: number) {
   }
   switchTab('player')
 }
+
+/**
+ * The mini player was tapped: the player tab with the lesson that is sounding (the tab could still hold another
+ * lesson, e.g. one listened to from the reader or picked in the list).
+ */
+export function openPlaying() {
+  const k = audio.audioKey.value
+  const cur = player.value
+  if (k && cur?.audioKey !== k) {
+    const q = queueLessons.get(k)
+    const m = /^([a-z]+)_(\d+)$/.exec(k)
+    if (q) player.value = session(q[0], q[1])
+    else if (m) player.value = session(m[1], { id: Number(m[2]), title: audio.audioTitle.value, imageUrl: audio.audioImage.value || undefined })
+  }
+  switchTab('player')
+}

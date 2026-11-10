@@ -160,8 +160,8 @@ export class ReaderSession {
   visibleSents = new Set<number>()
 
   private sentById = new Map<number, Sent>()
-  private hintsCache = new Map<string, string[]>()
-  private aiCache = new Map<WordRef, WordMeaning>()
+  private hintsCache = new Map<string, Promise<string[]>>()
+  private aiCache = new Map<WordRef, Promise<WordMeaning>>()
   private loadingSentences = new Set<number>()
   private notesKey: string
 
@@ -611,23 +611,33 @@ export class ReaderSession {
   }
   sentence(id: number) { return this.sentById.get(id) }
 
-  private async hints(word: string): Promise<string[]> {
+  /** LingQ's meanings (one request per word: a tap and the docked window share it). */
+  private hints(word: string): Promise<string[]> {
     const c = this.hintsCache.get(word)
     if (c) return c
-    let h = await api.hints(this.lang, word, this.target)
-    if (!h.length && word !== word.toLowerCase()) h = await api.hints(this.lang, word.toLowerCase(), this.target)
-    this.hintsCache.set(word, h)
-    return h
+    const p = (async () => {
+      let h = await api.hints(this.lang, word, this.target)
+      if (!h.length && word !== word.toLowerCase()) h = await api.hints(this.lang, word.toLowerCase(), this.target)
+      return h
+    })()
+    this.hintsCache.set(word, p)
+    p.catch(() => { if (this.hintsCache.get(word) === p) this.hintsCache.delete(word) })
+    return p
   }
 
   /** Gemini: meaning of the word in this very sentence (cached). */
-  private async ai(r: WordRef): Promise<WordMeaning> {
+  /**
+   * One request per word place, shared while in flight: a tap pins the word and the docked window opens at once,
+   * and two separate requests could answer differently (the pin and the window disagreed).
+   */
+  private ai(r: WordRef): Promise<WordMeaning> {
     const c = this.aiCache.get(r)
     if (c) return c
     const s = this.sentById.get(refSent(r))!
-    const m = await gemini.word(prompt.word() + SEPARABLE, this.lang, this.target, this.word(r), s.text)
-    this.aiCache.set(r, m)
-    return m
+    const p = gemini.word(prompt.word() + SEPARABLE, this.lang, this.target, this.word(r), s.text)
+    this.aiCache.set(r, p)
+    p.catch(() => { if (this.aiCache.get(r) === p) this.aiCache.delete(r) })
+    return p
   }
 
   /** First popular meaning whose stem occurs in the sentence translation. */

@@ -2,16 +2,17 @@
 // neighbours; a tap opens the whole text, which follows the audio. Without a lesson: what to listen to.
 // Port of Android Player.kt and the audio parts of Audio.kt / Extras.kt.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import type { JSX } from 'preact'
 import * as audio from '../audio'
 import { fmtLength, fmtSpeed, fmtTime } from '../audio'
 import { courses, loadCourses, loadRecent, recent, stack } from '../app'
-import { lang } from '../settings'
+import { lang, prefs } from '../settings'
 import * as api from '../lingq'
 import type { Course, Lesson } from '../lingq'
-import { openAudioBookmark, player, playAll, playLesson, queueLoading, switchTab } from '../player'
+import { openAudioBookmark, openPlaying, player, playAll, playLesson, queueLoading, switchTab } from '../player'
 import type { ReaderSession, WordRef } from '../reader/session'
 import { refSent } from '../reader/session'
-import { PhraseSheet, SentenceFlow, WordMenuAt, WordSheet } from '../reader/Reader'
+import { PhraseSheet, SentenceFlow, TrText, WordMenuAt, WordSheet } from '../reader/Reader'
 import { readerStyle } from '../readerLook'
 import { Chip, ErrorBox, IconButton, Menu, MenuItem, Sheet, TopBar } from '../ui'
 import { Icon } from '../icons'
@@ -40,7 +41,7 @@ export function MiniPlayer() {
   const d = audio.duration.value
   const p = audio.position.value
   return (
-    <div class="mini-player" onClick={() => switchTab('player')}>
+    <div class="mini-player" onClick={() => openPlaying()}>
       <div class="mini-progress"><div style={{ width: (d > 0 ? Math.min(100, (p / d) * 100) : 0) + '%' }} /></div>
       <div class="mini-row">
         <Cover url={audio.audioImage.value} title={audio.audioTitle.value} class="mini-cover" />
@@ -97,7 +98,7 @@ function PlayerLesson({ s }: { s: ReaderSession }) {
         <div class="player-head">
           <Cover url={lesson.imageUrl} title={s.title.value || '♪'} class="player-cover" />
           <button class="player-head-text" onClick={() => setPicker(true)} aria-label="Другой урок">
-            <span class="player-title">{s.title.value || `Урок ${lesson.id}`}<Icon name="down" size={20} class="title-chevron" /></span>
+            <span class="player-title-row"><span class="player-title">{s.title.value || `Урок ${lesson.id}`}</span><Icon name="down" size={20} class="title-chevron" /></span>
             {!!lesson.courseTitle && <span class="player-course">{lesson.courseTitle}</span>}
           </button>
           <PlayerActions s={s} onMarks={() => setMarks(true)} />
@@ -176,12 +177,11 @@ function TextWindow({ s, onOpen }: { s: ReaderSession; onOpen: () => void }) {
     timer.current = window.setTimeout(() => { last.current = null; onOpen() }, 300)
   }
   return (
-    <div class="text-window" onPointerUp={onUp}>
+    <div class="text-window" onPointerUp={onUp} style={{ '--fs': prefs.readerFont.value + 'px' } as JSX.CSSProperties}>
       <div class={'tw-lines ' + dir} key={i}>
         {list[i - 1] && <div class="tw-side">{list[i - 1].text}</div>}
         {list[i] && <div class="tw-cur">{list[i].text}</div>}
         {list[i + 1] && <div class="tw-side">{list[i + 1].text}</div>}
-        <div class="tw-hint">Нажмите — весь текст · двойное нажатие слева / справа — 5 с назад / вперёд</div>
       </div>
       {flash && <div class={'tw-flash ' + (flash.fwd ? 'right' : 'left')} key={flash.n}>{flash.fwd ? '5 с »' : '« 5 с'}</div>}
     </div>
@@ -234,10 +234,9 @@ function FullText({ s }: { s: ReaderSession }) {
 
 /** Long press -> "Перевод предложения": the translation at the bottom above the player. */
 function BottomTranslation({ s, id }: { s: ReaderSession; id: number }) {
-  const tr = s.sentTr.value[id]
   return (
     <div class="bottom-tr">
-      <span class="grow">{tr || '…'}</span>
+      <span class="grow"><TrText s={s} id={id} /></span>
       <IconButton icon="close" label="Скрыть перевод" onClick={() => { s.bottomSent.value = null }} />
     </div>
   )
@@ -275,7 +274,12 @@ function AudioBar({ s }: { s: ReaderSession }) {
         <span class="ab-time right">{dur > 0 ? fmtTime(dur) : '–:––'}</span>
       </div>
       {mine && audio.looping.value && (
-        <div class="ab-note">Повтор {fmtTime(audio.loopA.value)} – {fmtTime(audio.loopB.value)}{audio.repeats.value > 0 ? ` · ${audio.repeats.value + 1}-й раз` : ''}</div>
+        <div class="loop-pill">
+          <button class="loop-pill-main" onClick={() => setLoopSheet(true)}>
+            <Icon name="repeat" size={18} />Повтор {fmtTime(audio.loopA.value)} – {fmtTime(audio.loopB.value)}{audio.repeats.value > 0 ? ` · ${audio.repeats.value + 1}-й раз` : ''}
+          </button>
+          <button class="loop-pill-stop" aria-label="Остановить повтор" onClick={() => audio.clearLoop()}><Icon name="close" size={18} /></button>
+        </div>
       )}
       {mine && audio.queueSize.value > 1 && (
         <div class="ab-queue">
@@ -321,43 +325,69 @@ function SpeedSheet({ onClose }: { onClose: () => void }) {
 
 /** Loop choices: this sentence, the last / next N minutes, own A–B, pause between repeats. */
 function LoopSheet({ s, onClose }: { s: ReaderSession; onClose: () => void }) {
-  const mins = [1, 2, 3, 5]
+  const [back, setBack] = useState(true) // the segment: what just sounded / from here on
+  const [own, setOwn] = useState(audio.loopA.value >= 0 && !audio.looping.value)
+  const on = audio.looping.value
+  const segment = (sec: number) => {
+    const ms = sec * 1000
+    if (back) { const p = audio.position.value; audio.setLoop(Math.max(0, p - ms), p) } else {
+      const p = s.sentenceStartAt(audio.position.value)
+      const d = audio.duration.value
+      audio.setLoop(p, d > 0 ? Math.min(d, p + ms) : p + ms)
+    }
+    onClose()
+  }
   return (
     <Sheet onClose={onClose}>
-      <div class="sheet-title">Повтор участка</div>
+      <div class="sheet-title">Повтор</div>
       <div class="loop-sheet">
-        {audio.looping.value && <div class="ab-note">Сейчас: {fmtTime(audio.loopA.value)} – {fmtTime(audio.loopB.value)}</div>}
-        <button class="btn outlined wide" disabled={!s.hasTimes} onClick={() => { s.loopSentence(); onClose() }}>Это предложение</button>
-        <div class="loop-label">Последние (то, что только что прозвучало)</div>
-        <div class="chips">
-          {mins.map((m) => <Chip key={m} label={`${m} мин`} onClick={() => {
-            const p = audio.position.value; audio.setLoop(p - m * 60_000, p); onClose()
-          }} />)}
+        {/* what is going on and the main action first: a running loop is stopped with one big button */}
+        {on && (
+          <div class="loop-now">
+            <Icon name="repeat" size={26} />
+            <div class="grow">
+              <div class="loop-now-title">Повторяется {fmtTime(audio.loopA.value)} – {fmtTime(audio.loopB.value)}</div>
+              <div class="loop-now-sub">{audio.repeats.value > 0 ? `${audio.repeats.value + 1}-й раз` : 'первый раз'}</div>
+            </div>
+          </div>
+        )}
+        {on && <button class="btn filled big wide" onClick={() => { audio.clearLoop(); onClose() }}><Icon name="close" size={22} />Остановить повтор</button>}
+
+        <button class={'loop-tile' + (on ? '' : ' main')} disabled={!s.hasTimes} onClick={() => { s.loopSentence(); onClose() }}>
+          <Icon name="repeat" size={24} />
+          <span class="grow"><span class="loop-tile-title">{on ? 'Повторять текущее предложение' : 'Повторять это предложение'}</span>
+            {!s.hasTimes && <span class="loop-tile-sub">в уроке нет разметки времени</span>}</span>
+        </button>
+
+        <div class="loop-label">Отрезок</div>
+        <div class="segmented" role="tablist">
+          <button role="tab" aria-selected={back} class={back ? 'on' : ''} onClick={() => setBack(true)}>Только что прозвучало</button>
+          <button role="tab" aria-selected={!back} class={!back ? 'on' : ''} onClick={() => setBack(false)}>Отсюда вперёд</button>
         </div>
-        <div class="loop-label">Отсюда вперёд</div>
-        <div class="chips">
-          {mins.map((m) => <Chip key={m} label={`${m} мин`} onClick={() => {
-            const p = s.sentenceStartAt(audio.position.value)
-            const d = audio.duration.value
-            audio.setLoop(p, d > 0 ? Math.min(d, p + m * 60_000) : p + m * 60_000); onClose()
-          }} />)}
-        </div>
-        <div class="loop-label">Свой участок (по началу / концу текущего предложения)</div>
-        <div class="row-buttons">
-          <button class="btn outlined grow" onClick={() => s.setLoopA()}>A: {audio.loopA.value >= 0 ? fmtTime(audio.loopA.value) : 'начало'}</button>
-          <button class="btn outlined grow" onClick={() => { s.setLoopB(); if (audio.looping.value) onClose() }}>B: {audio.loopB.value >= 0 ? fmtTime(audio.loopB.value) : 'конец'}</button>
-        </div>
-        <div class="loop-label">Пауза между повторами</div>
-        <div class="chips">
-          {[0, 1000, 2000, 3000, 5000].map((g) => (
-            <Chip key={g} label={g === 0 ? 'нет' : `${g / 1000} с`} selected={audio.gap.value === g} onClick={() => audio.setGap(g)} />
+        <div class="loop-durations">
+          {[30, 60, 120, 300].map((sec) => (
+            <button key={sec} class="loop-dur" onClick={() => segment(sec)}>{sec < 60 ? `${sec} с` : `${sec / 60} мин`}</button>
           ))}
         </div>
-        <hr />
-        <div class="row-buttons">
-          <button class="btn text" disabled={!audio.looping.value && audio.loopA.value < 0} onClick={() => { audio.clearLoop(); onClose() }}>Выключить повтор</button>
-          <span class="grow" />
-          <button class="btn text" onClick={() => { audio.stop(); onClose() }}>Остановить аудио</button>
+
+        <button class="loop-more" aria-expanded={own} onClick={() => setOwn(!own)}>
+          <span class="grow">Свой участок A – B</span><Icon name="down" size={20} class={'tr-chevron' + (own ? ' open' : '')} />
+        </button>
+        {own && (
+          <>
+            <div class="loop-hint">Нажмите A в начале нужного места и B в конце (по границам предложений).</div>
+            <div class="row-buttons">
+              <button class={'btn grow ' + (audio.loopA.value >= 0 ? 'tonal' : 'outlined')} onClick={() => s.setLoopA()}>A · {audio.loopA.value >= 0 ? fmtTime(audio.loopA.value) : 'начало'}</button>
+              <button class={'btn grow ' + (audio.loopB.value >= 0 ? 'tonal' : 'outlined')} disabled={audio.loopA.value < 0} onClick={() => { s.setLoopB(); if (audio.looping.value) onClose() }}>B · {audio.loopB.value >= 0 ? fmtTime(audio.loopB.value) : 'конец'}</button>
+            </div>
+          </>
+        )}
+
+        <div class="loop-label">Пауза между повторами</div>
+        <div class="segmented small">
+          {[0, 1000, 2000, 3000, 5000].map((g) => (
+            <button key={g} class={audio.gap.value === g ? 'on' : ''} aria-pressed={audio.gap.value === g} onClick={() => audio.setGap(g)}>{g === 0 ? 'нет' : `${g / 1000} с`}</button>
+          ))}
         </div>
       </div>
     </Sheet>

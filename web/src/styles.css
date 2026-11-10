@@ -718,3 +718,65 @@ div.list-item { cursor: default; }
 button.player-head-text { border: 0; background: none; color: inherit; text-align: left; padding: 4px 8px; margin-left: -8px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; }
 button.player-head-text:active { background: color-mix(in srgb, var(--on-surface) 8%, transparent); }
 .title-chevron { vertical-align: middle; margin-left: 2px; }
+
+/* sentence translation on its way: shimmering lines instead of an empty row; the text fades in */
+.tr-wait { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; min-width: 0; }
+.tr-wait-line {
+  display: block; height: 0.8em; border-radius: 999px; width: 100%;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--on-surface-variant) 12%, transparent) 0%,
+    color-mix(in srgb, var(--primary) 34%, transparent) 45%,
+    color-mix(in srgb, var(--on-surface-variant) 12%, transparent) 90%);
+  background-size: 250% 100%;
+  animation: tr-shimmer 1.3s ease-in-out infinite, tr-in 0.25s ease-out;
+}
+.tr-wait-line.short { width: 58%; animation-delay: 0.15s, 0s; }
+@keyframes tr-shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+@keyframes tr-in { from { opacity: 0; transform: translateY(-3px); } }
+.tr-arrived { display: inline; animation: tr-in 0.3s ease-out; }
+.tr-redo {
+  background: linear-gradient(90deg, var(--on-surface-variant) 30%, var(--primary) 50%, var(--on-surface-variant) 70%) 0 0 / 250% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: tr-shimmer 1.3s ease-in-out infinite;
+}
+.sent-tr { animation: tr-in 0.2s ease-out; }
+@media (prefers-reduced-motion: reduce) { .tr-wait-line, .tr-redo { animation: none; } }
+
+/* repeat sheet: state + "stop" first, the common choice as a big tile, the rest grouped and calm */
+.loop-sheet { gap: 12px; }
+.loop-now { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 16px;
+  background: var(--primary-container, var(--secondary-container)); color: var(--on-primary-container, var(--on-secondary-container)); }
+.loop-now-title { font-weight: 600; font-size: 16px; }
+.loop-now-sub { font-size: 13px; opacity: 0.8; }
+.btn.big { min-height: 52px; font-size: 16px; border-radius: 26px; justify-content: center; display: inline-flex; align-items: center; }
+.loop-tile { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 56px; padding: 10px 16px; border-radius: 16px;
+  border: 1px solid var(--outline-variant, var(--outline)); background: none; color: var(--on-surface); text-align: left; font: inherit; cursor: pointer; }
+.loop-tile .icon { color: var(--primary); }
+.loop-tile.main { background: var(--secondary-container); color: var(--on-secondary-container); border-color: transparent; }
+.loop-tile.main .icon { color: inherit; }
+.loop-tile:disabled { opacity: 0.5; cursor: default; }
+.loop-tile-title { display: block; font-size: 16px; font-weight: 500; }
+.loop-tile-sub { display: block; font-size: 12px; opacity: 0.75; }
+.loop-label { margin-top: 6px; }
+.segmented { display: flex; border: 1px solid var(--outline); border-radius: 999px; overflow: hidden; }
+.segmented button { flex: 1; min-height: 44px; border: 0; background: none; color: var(--on-surface); font: inherit; font-size: 14px; cursor: pointer; padding: 0 8px; }
+.segmented button + button { border-left: 1px solid var(--outline); }
+.segmented button.on { background: var(--secondary-container); color: var(--on-secondary-container); font-weight: 600; }
+.segmented.small button { min-height: 38px; font-size: 13px; }
+.loop-durations { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.loop-dur { min-height: 48px; border-radius: 12px; border: 1px solid var(--outline); background: none; color: var(--primary); font: inherit; font-weight: 600; cursor: pointer; }
+.loop-dur:active, .loop-tile:active, .loop-more:active { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.loop-more { display: flex; align-items: center; min-height: 44px; padding: 0 4px; border: 0; border-top: 1px solid var(--outline-variant, var(--outline)); background: none; color: var(--on-surface); font: inherit; font-size: 14px; cursor: pointer; margin-top: 4px; }
+.loop-hint { font-size: 12px; color: var(--on-surface-variant); }
+.tr-chevron.open { transform: rotate(180deg); }
+/* the bar: a running loop shows as a pill, × stops it at once */
+.loop-pill { display: flex; align-self: center; align-items: center; margin: 0 auto; border-radius: 999px; background: var(--secondary-container); color: var(--on-secondary-container); }
+.loop-pill-main { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; font-weight: 500; padding: 6px 4px 6px 12px; cursor: pointer; }
+.loop-pill-stop { display: inline-flex; border: 0; background: color-mix(in srgb, currentColor 14%, transparent); color: inherit; border-radius: 999px; padding: 6px; margin: 2px; cursor: pointer; }
+/* the text window in the player: bigger text (the window has room) */
+.tw-cur { font-size: calc(var(--fs) * 1.55); line-height: 1.4; }
+.tw-side { font-size: calc(var(--fs) * 1.15); }
+.ab-line + .loop-pill, .loop-pill { width: fit-content; margin: 2px auto 4px; }
+.loop-more { text-align: left; }
+.player-title-row { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.player-title-row .title-chevron { flex: none; }

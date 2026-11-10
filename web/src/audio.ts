@@ -309,8 +309,9 @@ function mediaSession() {
   set('pause', () => pause())
   set('seekbackward', () => seekBy(-5000))
   set('seekforward', () => seekBy(5000))
-  set('previoustrack', () => replaySentence())
-  set('nexttrack', () => (queue.length > 1 && queueIndex.value < queue.length - 1 ? nextTrack() : nextSentence()))
+  // headphone / lock-screen ⏮ ⏭: 5 s back / forward (as on Android; the previous sentence rewound to the start)
+  set('previoustrack', () => seekBy(-5000))
+  set('nexttrack', () => seekBy(5000))
   set('seekto', (d) => { if (d.seekTime != null) seekTo(d.seekTime * 1000) })
 }
 
