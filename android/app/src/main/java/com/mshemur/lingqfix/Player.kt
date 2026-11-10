@@ -426,7 +426,7 @@ private fun AudioLessons(state: AppState, modifier: Modifier, onPick: (String, L
 }
 
 /** "Lektion 2" before "Lektion 10": runs of digits compare as numbers, the rest ignoring case. */
-private fun naturalCompare(a: String, b: String): Int {
+internal fun naturalCompare(a: String, b: String): Int {
     val re = Regex("\\d+|\\D+")
     val x = re.findAll(a.lowercase()).map { it.value }.toList()
     val y = re.findAll(b.lowercase()).map { it.value }.toList()

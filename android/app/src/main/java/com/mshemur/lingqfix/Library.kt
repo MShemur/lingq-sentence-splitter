@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -256,7 +257,19 @@ fun LibraryScreen(state: AppState) {
 
 /** Lessons of a course as covers, the course cover and name on top. */
 @Composable
-fun LessonsGrid(state: AppState, s: Screen.Lessons, list: List<Lesson>) {
+fun LessonsGrid(state: AppState, s: Screen.Lessons, all: List<Lesson>) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val ui = remember { ctx.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE) }
+    // 0 course order, 1 newest first, 2 oldest first, 3 by name (remembered)
+    var sort by remember { androidx.compose.runtime.mutableIntStateOf(ui.getInt("lessonSort", 0)) }
+    val list = remember(all, sort) {
+        when (sort) {
+            1 -> all.sortedByDescending { it.id }        // lesson ids grow with every import
+            2 -> all.sortedBy { it.id }
+            3 -> all.sortedWith { a, b -> naturalCompare(a.title, b.title) }
+            else -> all
+        }
+    }
     LazyVerticalGrid(
         GridCells.Adaptive(GRID_MIN), Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -270,6 +283,18 @@ fun LessonsGrid(state: AppState, s: Screen.Lessons, list: List<Lesson>) {
                     Text(
                         "${list.size} ${plural(list.size, "урок", "урока", "уроков")}",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        fullWidth("sort") {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf("Как в курсе", "Новые сверху", "Старые сверху", "По имени").forEachIndexed { i, t ->
+                    androidx.compose.material3.FilterChip(
+                        sort == i, onClick = { sort = i; ui.edit().putInt("lessonSort", i).apply() }, label = { Text(t) },
                     )
                 }
             }
