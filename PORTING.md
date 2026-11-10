@@ -11,6 +11,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- web v1.26: player repeat sheet has "Повторять весь урок" (loop 0..end, keeps playing from where it is; starts over
+  at the end; the pill / status say "весь урок"). Sentence translation row: chat button next to ↻ again.
+  Reader long press: the sentence translation shows as soon as the long press fires (finger still down); the menu
+  at the word still opens on lift, placed under the translation row; if the press turns into a phrase drag the
+  auto-shown translation is hidden again. (Web also had to follow the finger on window: the re-rendered word lost
+  the lift.)
 
 ## Done
 

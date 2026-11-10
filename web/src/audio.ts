@@ -80,6 +80,8 @@ function get(): HTMLAudioElement {
   a.addEventListener('ended', () => {
     if (a.src === SILENCE) return
     position.value = duration.value
+    // a loop that reaches the very end (the whole lesson): the end came before the ticker saw it
+    if (looping.value) { repeats.value++; seekTo(loopA.value); play(); return }
     log('audio', 'Конец аудио')
     if (queueIndex.value < queue.length - 1) switchTrack(queueIndex.value + 1, true)
   })
@@ -189,10 +191,12 @@ export function setSpeed(v: number) {
 
 export function setGap(ms: number) { gap.value = ms; store('audio.gap', String(ms)) }
 
-export function setLoop(a: number, b: number) {
+/** Repeats [a]..[b]; [stay]: keep playing from where it is (the whole lesson), else start at [a]. */
+export function setLoop(a: number, b: number, stay = false) {
   loopA.value = Math.max(0, a); loopB.value = b; repeats.value = 0
   log('audio', `Повтор ${fmtTime(loopA.value)}–${fmtTime(loopB.value)}`)
-  seekTo(loopA.value); play()
+  if (!stay) seekTo(loopA.value)
+  play()
 }
 
 export function setA(a: number) { loopA.value = Math.max(0, a); if (loopB.value <= loopA.value) loopB.value = -1; repeats.value = 0 }

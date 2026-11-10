@@ -830,9 +830,19 @@ export class ReaderSession {
     return !!x && x.sent === sent && token >= x.from && token <= x.to
   }
 
-  selectStart(r: WordRef) {
+  /** The sentence translation the long press opened by itself (closed again if the press becomes a phrase). */
+  private longShown: number | null = null
+
+  /**
+   * Long press started on word [r]. [showTr]: the reader shows the sentence translation at once, while the finger
+   * is still down (not after it is lifted and "Перевод предложения" picked in the menu).
+   */
+  selectStart(r: WordRef, showTr = false) {
     this.selAnchor = refToken(r)
     this.sel.value = { sent: refSent(r), from: this.selAnchor, to: this.selAnchor }
+    this.longShown = null
+    const id = refSent(r)
+    if (showTr && !this.player && !this.sentenceMode.value && !this.sentenceShown(id)) { this.toggleSentence(id); this.longShown = id }
   }
 
   /** The finger is over word [r]: only words of the same sentence extend the selection. */
@@ -850,10 +860,14 @@ export class ReaderSession {
     const sent = x ? this.sentById.get(x.sent) : undefined
     const words = sent ? sent.tokens.slice(x!.from, x!.to + 1).filter((t) => t.isWord).length : 0
     if (!x || !sent || words < 2) {
+      this.longShown = null
       this.sel.value = null
       if (sent) this.wordMenu.value = ref(sent.id, x!.from) // a small menu right at the word
       return
     }
+    // several words: their translation is wanted, not the sentence's
+    if (this.longShown === sent.id && this.shown.value[sent.id]) drop(this.shown, sent.id)
+    this.longShown = null
     void this.openPhrase(sent.id, x.from, x.to)
   }
 

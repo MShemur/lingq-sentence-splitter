@@ -148,7 +148,7 @@ function useWordPress(s: ReaderSession) {
     // docked word panel: a tap also shows the word there
     tap: (r) => { s.tap(r); if (docked()) { s.closePhrase(); void s.openPopup(r) } },
     double: (r) => { void s.openPopup(r) },
-    long: (r) => { selecting = true; s.selectStart(r) },
+    long: (r) => { selecting = true; s.selectStart(r, true) },
     longMove: (e) => {
       const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('[data-w]') as HTMLElement | null
       if (el) s.selectTo(el.dataset.w!)
@@ -609,6 +609,7 @@ function SentenceTranslation({ s, id }: { s: ReaderSession; id: number }) {
     <div class="sent-tr" data-se={id}>
       <div class="sent-tr-text" onClick={() => { if (!s.allSentences.value) s.toggleSentence(id) }}><TrText s={s} id={id} /></div>
       <RetranslateButton s={s} id={id} />
+      <ChatButton s={s} id={id} />
     </div>
   )
 }
@@ -619,8 +620,11 @@ export function WordMenuAt({ r, box, onClose, children }: {
 }) {
   const el = [...document.querySelectorAll(`${box} [data-w="${r}"]`)].find((e) => (e as HTMLElement).offsetParent) as HTMLElement | undefined
   const rect = el?.getBoundingClientRect()
+  // the sentence translation the long press showed stays readable: the menu goes under it
+  const tr = [...document.querySelectorAll(`${box} .sent-tr[data-se="${refSent(r)}"]`)].find((e) => (e as HTMLElement).offsetParent)
+  const below = Math.max(rect?.bottom ?? 0, tr?.getBoundingClientRect().bottom ?? 0)
   const left = rect ? Math.max(8, Math.min(rect.left, window.innerWidth - 260)) : 16
-  const topPx = rect ? Math.min(rect.bottom + 4, window.innerHeight - 300) : 80
+  const topPx = rect ? Math.min(below + 4, window.innerHeight - 300) : 80
   return (
     <Menu onClose={onClose} class="word-menu">
       <style>{`.word-menu { position: fixed; left: ${left}px; top: ${topPx}px; right: auto; }`}</style>
@@ -696,6 +700,11 @@ function BookmarkButton({ s, id }: { s: ReaderSession; id: number }) {
 }
 
 /** Translate the sentence again (Gemini, or LingQ's ChatGPT). */
+/** Chat about this sentence, next to its translation. */
+function ChatButton({ s, id }: { s: ReaderSession; id: number }) {
+  return <IconButton icon="chat" label="Чат о предложении" size={20} class="small primary" onClick={() => s.chatSentence(id)} />
+}
+
 function RetranslateButton({ s, id }: { s: ReaderSession; id: number }) {
   if (s.retranslating.value[id]) return <span class="icon-btn small"><Spinner size={18} /></span>
   return <IconButton icon="refresh" label="Перевести заново" size={20} class="small primary" onClick={() => void s.retranslate(id)} />
@@ -827,6 +836,7 @@ function SentenceTranslationPage({ s, id }: { s: ReaderSession; id: number }) {
           <div class="sent-tr big">
             <div class="sent-tr-text"><TrText s={s} id={id} /></div>
             <RetranslateButton s={s} id={id} />
+            <ChatButton s={s} id={id} />
           </div>
         </div>
       </div>

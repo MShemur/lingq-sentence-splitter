@@ -276,7 +276,7 @@ function AudioBar({ s }: { s: ReaderSession }) {
       {mine && audio.looping.value && (
         <div class="loop-pill">
           <button class="loop-pill-main" onClick={() => setLoopSheet(true)}>
-            <Icon name="repeat" size={18} />Повтор {fmtTime(audio.loopA.value)} – {fmtTime(audio.loopB.value)}{audio.repeats.value > 0 ? ` · ${audio.repeats.value + 1}-й раз` : ''}
+            <Icon name="repeat" size={18} />Повтор: {loopRange()}{audio.repeats.value > 0 ? ` · ${audio.repeats.value + 1}-й раз` : ''}
           </button>
           <button class="loop-pill-stop" aria-label="Остановить повтор" onClick={() => audio.clearLoop()}><Icon name="close" size={18} /></button>
         </div>
@@ -304,6 +304,12 @@ function AudioBar({ s }: { s: ReaderSession }) {
       {loopSheet && <LoopSheet s={s} onClose={() => setLoopSheet(false)} />}
     </div>
   )
+}
+
+/** "весь урок" or "0:13 – 0:16". */
+function loopRange() {
+  const d = audio.duration.value
+  return audio.loopA.value <= 0 && d > 0 && audio.loopB.value >= d ? 'весь урок' : `${fmtTime(audio.loopA.value)} – ${fmtTime(audio.loopB.value)}`
 }
 
 /** Speed: slider 0.5–2.0 in steps of 0.05 and presets. */
@@ -346,7 +352,7 @@ function LoopSheet({ s, onClose }: { s: ReaderSession; onClose: () => void }) {
           <div class="loop-now">
             <Icon name="repeat" size={26} />
             <div class="grow">
-              <div class="loop-now-title">Повторяется {fmtTime(audio.loopA.value)} – {fmtTime(audio.loopB.value)}</div>
+              <div class="loop-now-title">Повторяется {loopRange()}</div>
               <div class="loop-now-sub">{audio.repeats.value > 0 ? `${audio.repeats.value + 1}-й раз` : 'первый раз'}</div>
             </div>
           </div>
@@ -357,6 +363,11 @@ function LoopSheet({ s, onClose }: { s: ReaderSession; onClose: () => void }) {
           <Icon name="repeat" size={24} />
           <span class="grow"><span class="loop-tile-title">{on ? 'Повторять текущее предложение' : 'Повторять это предложение'}</span>
             {!s.hasTimes && <span class="loop-tile-sub">в уроке нет разметки времени</span>}</span>
+        </button>
+        <button class="loop-tile" disabled={!(audio.duration.value > 0)} onClick={() => { audio.setLoop(0, audio.duration.value + 1000, true); onClose() }}>
+          <Icon name="repeat" size={24} />
+          <span class="grow"><span class="loop-tile-title">Повторять весь урок</span>
+            {audio.duration.value > 0 && <span class="loop-tile-sub">{fmtTime(audio.duration.value)}, по кругу</span>}</span>
         </button>
 
         <div class="loop-label">Отрезок</div>

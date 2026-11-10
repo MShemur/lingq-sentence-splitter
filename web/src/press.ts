@@ -28,6 +28,28 @@ export class Press<K> {
 
   constructor(private h: PressHandlers<K>) {}
 
+  /**
+   * The finger is followed on the window too: the pressed word can be re-rendered under it (a sentence translation
+   * shown by the long press), and the lift / move would then go to a node no longer in the page and be lost
+   * (no menu, a selection that never ends). Element handlers still call in; the same event is handled once.
+   */
+  private handled: Event | null = null
+  private onWinMove = (e: PointerEvent) => this.move(e)
+  private onWinUp = (e: Event) => this.up(e)
+  private onWinCancel = (e: Event) => this.cancel(e)
+  private watch(on: boolean) {
+    const f = on ? window.addEventListener : window.removeEventListener
+    f('pointermove', this.onWinMove as EventListener, true)
+    f('pointerup', this.onWinUp, true)
+    f('pointercancel', this.onWinCancel, true)
+  }
+  private once(e?: Event) {
+    if (!e) return true
+    if (e === this.handled) return false
+    this.handled = e
+    return true
+  }
+
   private same(a: K, b: K) { return this.h.same ? this.h.same(a, b) : a === b }
 
   down(e: PointerEvent, key: K) {
@@ -37,6 +59,8 @@ export class Press<K> {
     this.y = e.clientY
     this.longFired = false
     clearTimeout(this.longTimer)
+    this.watch(false)
+    this.watch(true)
     if (this.h.long) {
       this.longTimer = window.setTimeout(() => {
         if (this.key === null) return
@@ -49,12 +73,14 @@ export class Press<K> {
   }
 
   move(e: PointerEvent) {
-    if (this.key === null) return
+    if (this.key === null || !this.once(e)) return
     if (this.longFired) { this.h.longMove?.(e); return }
     if (Math.abs(e.clientX - this.x) > SLOP || Math.abs(e.clientY - this.y) > SLOP) this.cancel()
   }
 
-  cancel() {
+  cancel(e?: Event) {
+    if (!this.once(e)) return
+    this.watch(false)
     clearTimeout(this.longTimer)
     const wasLong = this.key !== null && this.longFired
     this.key = null
@@ -64,7 +90,9 @@ export class Press<K> {
   /** A long press is being held (selection drag in progress). */
   get holding() { return this.key !== null && this.longFired }
 
-  up() {
+  up(e?: Event) {
+    if (!this.once(e)) return
+    this.watch(false)
     clearTimeout(this.longTimer)
     const key = this.key
     this.key = null
