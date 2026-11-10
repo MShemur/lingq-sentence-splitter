@@ -85,6 +85,11 @@ object AudioEngine {
     /** One lesson of a "play all" queue. */
     class Track(val key: String, val url: String, val title: String, val image: String)
 
+    /** Audio of a lesson was loaded (key, title, cover, url): the player's "recent" list. */
+    var onListen: ((String, String, String, String) -> Unit)? = null
+    /** Length of the audio of this key became known, ms. */
+    var onDuration: ((String, Long) -> Unit)? = null
+
     /** Called when the queue moves on to the lesson with this key. */
     var onTrack: ((String) -> Unit)? = null
     /** Lessons in the queue and the one playing (1 = a single lesson). */
@@ -178,7 +183,10 @@ object AudioEngine {
 
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == Player.STATE_BUFFERING
-                if (p.duration > 0) duration = p.duration
+                if (p.duration > 0) {
+                    if (duration != p.duration) key?.let { k -> onDuration?.invoke(k, p.duration) }
+                    duration = p.duration
+                }
                 if (state == Player.STATE_ENDED) {
                     position = p.currentPosition; AppLog.add("audio", "Конец аудио")
                     if (looping) { repeats++; p.seekTo(loopA); p.play() }     // the loop reached the very end
@@ -197,6 +205,7 @@ object AudioEngine {
                 clearLoop(); stopAt = -1
                 duration = 0
                 AppLog.add("audio", "Дальше в очереди: $k")
+                onListen?.invoke(k, title, image, item.localConfiguration?.uri?.toString().orEmpty())
                 onTrack?.invoke(k)
             }
 
@@ -238,6 +247,7 @@ object AudioEngine {
         connect(ctx)
         PlayerWidget.refresh(ctx)
         AppLog.add("audio", "Загружено аудио урока $k с ${fmtTime(startMs)}")
+        onListen?.invoke(k, lessonTitle, cover, url)
     }
 
     private fun item(t: Track): MediaItem = MediaItem.Builder().setUri(t.url).setMediaId(t.key)
@@ -264,6 +274,7 @@ object AudioEngine {
         p.prepare()
         connect(ctx)
         AppLog.add("audio", "Очередь: ${tracks.size} уроков")
+        tracks[0].let { onListen?.invoke(it.key, it.title, it.image, it.url) }
     }
 
     fun nextTrack() { player?.let { if (it.hasNextMediaItem()) it.seekToNextMediaItem() } }

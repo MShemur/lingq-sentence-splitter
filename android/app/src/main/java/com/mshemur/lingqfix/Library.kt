@@ -119,6 +119,22 @@ fun LessonTile(state: AppState, lang: String, l: Lesson, subtitle: String, modif
                     style = MaterialTheme.typography.labelSmall, color = Color.White,
                 )
             }
+            if (l.audio.isNotBlank() || l.duration > 0) Surface(
+                shape = RoundedCornerShape(8.dp), color = Color.Black.copy(alpha = 0.55f),
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+            ) {
+                androidx.compose.foundation.layout.Row(
+                    Modifier.padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.material3.Icon(
+                        AppIcons.Headphones, contentDescription = "Есть аудио", tint = Color.White,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    if (l.duration > 0) Text(
+                        " ${(l.duration + 30) / 60} мин", style = MaterialTheme.typography.labelSmall, color = Color.White,
+                    )
+                }
+            }
             if (read > 0f) LinearProgressIndicator(
                 progress = { read }, drawStopIndicator = {}, gapSize = 0.dp,
                 trackColor = Color.Black.copy(alpha = 0.35f),

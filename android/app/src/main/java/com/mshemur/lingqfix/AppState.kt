@@ -334,7 +334,7 @@ class AppState(val ctx: Context) {
         (0 until a.length()).map { i ->
             val o = a.getJSONObject(i)
             Lesson(o.getInt("id"), o.optString("title"), o.optString("imageUrl"), o.optString("level"),
-                o.optInt("words"), 0, o.optString("course"), o.optLong("t"))
+                o.optInt("words"), 0, o.optString("course"), o.optLong("t"), o.optString("audio"), o.optInt("dur"))
         }
     }.getOrDefault(emptyList())
 
@@ -344,15 +344,16 @@ class AppState(val ctx: Context) {
             lesson.id, lesson.title.ifBlank { old?.title.orEmpty() }, lesson.imageUrl.ifBlank { old?.imageUrl.orEmpty() },
             lesson.level.ifBlank { old?.level.orEmpty() }, if (lesson.words > 0) lesson.words else old?.words ?: 0, 0,
             lesson.courseTitle.ifBlank { old?.courseTitle.orEmpty() }, System.currentTimeMillis(),
+            lesson.audio.ifBlank { old?.audio.orEmpty() }, if (lesson.duration > 0) lesson.duration else old?.duration ?: 0,
         )
         val list = (listOf(now) + localRecent(l).filter { it.id != lesson.id }).take(20)
         val a = org.json.JSONArray()
         list.forEach { x ->
             a.put(org.json.JSONObject().put("id", x.id).put("title", x.title).put("imageUrl", x.imageUrl).put("level", x.level)
-                .put("words", x.words).put("course", x.courseTitle).put("t", x.opened))
+                .put("words", x.words).put("course", x.courseTitle).put("t", x.opened).put("audio", x.audio).put("dur", x.duration))
         }
         recentPrefs.edit().putString(l, a.toString()).apply()
-        if (lang == l) recent = mergeRecent(l)
+        if (lang == l) { recent = mergeRecent(l); listened = mergeListened(l) }
     }
 
     /** LingQ's list + lessons opened here; the one opened last comes first. */
@@ -369,6 +370,66 @@ class AppState(val ctx: Context) {
                 courseTitle = base.courseTitle.ifBlank { b?.courseTitle.orEmpty() }, opened = t,
             )
         }.sortedByDescending { it.opened }.take(10)
+    }
+
+    /** Player "Недавние": lessons listened to or opened with audio in this app, the latest first. */
+    var listened by mutableStateOf<List<Lesson>?>(null)
+
+    private fun listenedLocal(l: String): List<Lesson> = runCatching {
+        val a = org.json.JSONArray(recentPrefs.getString("listen.$l", "[]"))
+        (0 until a.length()).map { i ->
+            val o = a.getJSONObject(i)
+            Lesson(o.getInt("id"), o.optString("title"), o.optString("imageUrl"), courseTitle = o.optString("course"),
+                opened = o.optLong("t"), audio = o.optString("audio"), duration = o.optInt("dur"))
+        }
+    }.getOrDefault(emptyList())
+
+    private fun saveListened(l: String, list: List<Lesson>) {
+        val a = org.json.JSONArray()
+        list.take(60).forEach { x ->
+            a.put(org.json.JSONObject().put("id", x.id).put("title", x.title).put("imageUrl", x.imageUrl)
+                .put("course", x.courseTitle).put("t", x.opened).put("audio", x.audio).put("dur", x.duration))
+        }
+        recentPrefs.edit().putString("listen.$l", a.toString()).apply()
+        if (lang == l) listened = mergeListened(l)
+    }
+
+    private fun mergeListened(l: String): List<Lesson> {
+        val heard = listenedLocal(l)
+        val ids = heard.map { it.id }.toSet()
+        val opened = localRecent(l).filter { it.id !in ids && (it.audio.isNotBlank() || it.duration > 0) }
+        return (heard + opened).sortedByDescending { it.opened }
+    }
+
+    fun loadListened() { listened = mergeListened(lang) }
+
+    /** "<lang>_<id>" from the audio engine. */
+    private fun keyParts(k: String): Pair<String, Int>? = k.substringAfterLast('_').toIntOrNull()?.let { k.substringBeforeLast('_') to it }
+
+    private fun onListen(k: String, title: String, image: String, url: String) {
+        val (l, id) = keyParts(k) ?: return
+        val all = listenedLocal(l)
+        val old = all.firstOrNull { it.id == id }
+        val seen = localRecent(l).firstOrNull { it.id == id }
+        val now = Lesson(
+            id, title.ifBlank { old?.title ?: seen?.title.orEmpty() }, image.ifBlank { old?.imageUrl ?: seen?.imageUrl.orEmpty() },
+            courseTitle = old?.courseTitle?.ifBlank { null } ?: seen?.courseTitle.orEmpty(),
+            opened = System.currentTimeMillis(), audio = url.ifBlank { old?.audio.orEmpty() },
+            duration = old?.duration?.takeIf { it > 0 } ?: seen?.duration ?: 0,
+        )
+        saveListened(l, listOf(now) + all.filter { it.id != id })
+    }
+
+    private fun onDuration(k: String, ms: Long) {
+        val (l, id) = keyParts(k) ?: return
+        val all = listenedLocal(l)
+        if (all.none { it.id == id && it.duration <= 0 }) return
+        saveListened(l, all.map { if (it.id == id) it.copy(duration = (ms / 1000).toInt()) else it })
+    }
+
+    init {
+        AudioEngine.onListen = { k, t, i, u -> onListen(k, t, i, u) }
+        AudioEngine.onDuration = { k, ms -> onDuration(k, ms) }
     }
 
     fun loadRecent() {

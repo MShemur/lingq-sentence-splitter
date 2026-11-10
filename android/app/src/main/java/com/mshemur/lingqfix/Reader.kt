@@ -564,7 +564,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 trSaved.putAll(saved)
                 paras.forEach { para -> para.forEach { st -> saved[st.text]?.let { sentTr[st.id] = it } } }
                 title = t
-                app.lessonOpened(lang, lesson.copy(title = t))
+                app.lessonOpened(lang, lesson.copy(title = t, audio = au.orEmpty()))
                 sentences = paras.flatten()
                 jump?.let { id -> page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0) }
                 paragraphs = paras

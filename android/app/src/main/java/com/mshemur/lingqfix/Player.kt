@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -347,7 +348,8 @@ private fun MarksSheet(s: ReaderSession, onClose: () -> Unit) {
 /** What to listen to: recent lessons with audio or a course; big cards with covers; "play all". */
 @Composable
 private fun AudioLessons(state: AppState, modifier: Modifier, onPick: (String, Lesson) -> Unit) {
-    LaunchedEffect(state.lang) { if (state.recent == null) state.loadRecent(); state.loadCourses() }
+    LaunchedEffect(state.lang) { state.loadListened(); state.loadCourses() }
+    var sort by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }   // 0 own order, 1 new first, 2 by name
     var course by remember { mutableStateOf<Course?>(null) }
     var courseLessons by remember { mutableStateOf<List<Lesson>?>(null) }
     var courseError by remember { mutableStateOf<String?>(null) }
@@ -358,7 +360,14 @@ private fun AudioLessons(state: AppState, modifier: Modifier, onPick: (String, L
             .onSuccess { courseLessons = it.filter { l -> l.duration > 0 || l.audio.isNotBlank() } }
             .onFailure { courseError = it.message }
     }
-    val list: List<Lesson>? = if (course == null) state.recent?.filter { it.audio.isNotBlank() || it.duration > 0 } else courseLessons
+    val raw: List<Lesson>? = if (course == null) state.listened else courseLessons
+    val list: List<Lesson>? = raw?.let { r ->
+        when (sort) {
+            1 -> r.sortedByDescending { it.id }          // lesson ids grow: the newest import first
+            2 -> r.sortedWith { a, b -> naturalCompare(a.title, b.title) }
+            else -> r
+        }
+    }
     Column(modifier) {
         androidx.compose.foundation.lazy.LazyRow(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -375,7 +384,7 @@ private fun AudioLessons(state: AppState, modifier: Modifier, onPick: (String, L
             courseError != null -> Text("Ошибка: $courseError", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
             list == null -> Column(Modifier.padding(horizontal = 16.dp)) { repeat(4) { CardSkeleton() } }
             list.isEmpty() -> Text(
-                if (course == null) "Среди последних уроков нет уроков с аудио. Выберите курс выше или откройте урок с аудио → ⋮ → «Слушать в плеере»."
+                if (course == null) "Здесь будут уроки, которые вы слушали или открывали с аудио. Выберите курс выше."
                 else "В этом курсе нет уроков с аудио.",
                 Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -395,6 +404,14 @@ private fun AudioLessons(state: AppState, modifier: Modifier, onPick: (String, L
                         Text("Слушать все", Modifier.padding(start = 6.dp))
                     }
                 }
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf(if (course == null) "Недавно слушал" else "Как в курсе", "Новые сверху", "По имени").forEachIndexed { i, t ->
+                        FilterChip(sort == i, onClick = { sort = i }, label = { Text(t) })
+                    }
+                }
                 LazyColumn(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -406,6 +423,21 @@ private fun AudioLessons(state: AppState, modifier: Modifier, onPick: (String, L
             }
         }
     }
+}
+
+/** "Lektion 2" before "Lektion 10": runs of digits compare as numbers, the rest ignoring case. */
+private fun naturalCompare(a: String, b: String): Int {
+    val re = Regex("\\d+|\\D+")
+    val x = re.findAll(a.lowercase()).map { it.value }.toList()
+    val y = re.findAll(b.lowercase()).map { it.value }.toList()
+    for (i in 0 until minOf(x.size, y.size)) {
+        val p = x[i]; val q = y[i]
+        val c = if (p[0].isDigit() && q[0].isDigit()) {
+            (p.trimStart('0').length - q.trimStart('0').length).takeIf { it != 0 } ?: p.trimStart('0').compareTo(q.trimStart('0'))
+        } else p.compareTo(q)
+        if (c != 0) return c
+    }
+    return x.size - y.size
 }
 
 private fun fmtLength(sec: Int): String {
