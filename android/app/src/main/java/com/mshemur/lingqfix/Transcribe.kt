@@ -109,6 +109,9 @@ object GroqUsage {
     }
 
     fun headers(h: okhttp3.Headers) {
+        // all limit headers to the log: shows what Groq really reports for audio
+        h.names().filter { it.startsWith("x-ratelimit") || it == "retry-after" }.sorted()
+            .joinToString(", ") { "$it=${h[it]}" }.takeIf { it.isNotEmpty() }?.let { AppLog.add("stt", "Groq лимиты: $it") }
         val c = ctx ?: return
         val left = h["x-ratelimit-remaining-requests"]?.toIntOrNull() ?: return
         prefs(c).edit().putInt("reqLeft", left).putInt("reqLimit", h["x-ratelimit-limit-requests"]?.toIntOrNull() ?: 0)
