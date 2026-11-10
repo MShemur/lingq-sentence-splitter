@@ -178,7 +178,10 @@ object AudioEngine {
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == Player.STATE_BUFFERING
                 if (p.duration > 0) duration = p.duration
-                if (state == Player.STATE_ENDED) { position = p.currentPosition; AppLog.add("audio", "Конец аудио") }
+                if (state == Player.STATE_ENDED) {
+                    position = p.currentPosition; AppLog.add("audio", "Конец аудио")
+                    if (looping) { repeats++; p.seekTo(loopA); p.play() }     // the loop reached the very end
+                }
             }
 
             override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
@@ -292,6 +295,21 @@ object AudioEngine {
         AppLog.add("audio", "Повтор ${fmtTime(loopA)}–${fmtTime(loopB)}")
         seekTo(loopA); play()
     }
+
+    /** Loop the whole lesson: playing goes on from where it is and starts over at the end. */
+    fun loopWhole() {
+        val d = duration
+        if (d <= 0) return
+        loopA = 0; loopB = maxOf(1, d - 200); repeats = 0; stopAt = -1
+        AppLog.add("audio", "Повтор всего урока")
+        play()
+    }
+
+    /** The loop covers the whole lesson. */
+    val loopIsWhole get() = looping && loopA <= 0 && duration > 0 && loopB >= duration - 300
+
+    /** "весь урок" or "0:13 – 0:16". */
+    fun loopLabel() = if (loopIsWhole) "весь урок" else "${fmtTime(loopA)} – ${fmtTime(loopB)}"
 
     fun setA(a: Long) { loopA = maxOf(0, a); if (loopB <= loopA) loopB = -1; repeats = 0 }
 
@@ -431,7 +449,7 @@ fun AudioBar(s: ReaderSession) {
                     ) {
                         Icon(AppIcons.Repeat, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text(
-                            " Повтор ${fmtTime(AudioEngine.loopA)} – ${fmtTime(AudioEngine.loopB)}" +
+                            " Повтор ${AudioEngine.loopLabel()}" +
                                 (if (AudioEngine.repeats > 0) " · ${AudioEngine.repeats + 1}-й раз" else ""),
                             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
@@ -511,7 +529,7 @@ private fun LoopSheet(s: ReaderSession, onClose: () -> Unit) {
                         Icon(AppIcons.Repeat, contentDescription = null, Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                         Column(Modifier.padding(start = 14.dp)) {
                             Text(
-                                "Повторяется ${fmtTime(AudioEngine.loopA)} – ${fmtTime(AudioEngine.loopB)}",
+                                "Повторяется ${AudioEngine.loopLabel()}",
                                 style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
                             Text(
@@ -532,8 +550,8 @@ private fun LoopSheet(s: ReaderSession, onClose: () -> Unit) {
                 if (!s.hasTimes) "в уроке нет разметки времени" else null, main = !on, enabled = s.hasTimes,
             ) { s.loopSentence(); onClose() }
             val d = AudioEngine.duration
-            LoopTile("Повторять весь урок", if (d > 0) "${fmtTime(d)}, по кругу" else null, main = false, enabled = d > 0) {
-                AudioEngine.setLoop(0, d); onClose()
+            LoopTile("Повторять весь урок", if (d > 0) "${fmtTime(d)}, по кругу" else null, main = false, enabled = d > 0 && !AudioEngine.loopIsWhole) {
+                AudioEngine.loopWhole(); onClose()
             }
             Label("Отрезок")
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {

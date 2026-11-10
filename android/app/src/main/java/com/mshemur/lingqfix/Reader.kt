@@ -307,11 +307,24 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     fun inSelection(ref: WordRef) = ref.sent == selSent && ref.token in selFrom..selTo
 
-    fun selectStart(ref: WordRef) { selSent = ref.sent; selAnchor = ref.token; selFrom = ref.token; selTo = ref.token }
+    /** Where each shown sentence translation row is (per view), to put the long-press menu under it. */
+    val trCoords = HashMap<Pair<String, Int>, LayoutCoordinates>()
+    /** Sentence whose translation the current long press showed by itself (hidden again if it turns into a drag). */
+    private var autoShown: Int? = null
+
+    fun selectStart(ref: WordRef) {
+        selSent = ref.sent; selAnchor = ref.token; selFrom = ref.token; selTo = ref.token
+        // reader text: the sentence translation appears while the finger is still down
+        autoShown = null
+        if (menuArea == "text" && !sentenceAtBottom && !allSentences && shownSentences[ref.sent] != true) {
+            shownSentences[ref.sent] = true; ensureSentence(ref.sent); autoShown = ref.sent
+        }
+    }
 
     fun selectTo(ref: WordRef) {
         if (ref.sent != selSent) return
         selFrom = minOf(selAnchor, ref.token); selTo = maxOf(selAnchor, ref.token)
+        if (selTo > selFrom) autoShown?.let { shownSentences.remove(it); autoShown = null }
     }
 
     fun clearSelection() { selSent = -1; selFrom = -1; selTo = -1 }
@@ -1717,11 +1730,12 @@ private fun ChunkRow(
 }
 
 @Composable
-private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, center: Boolean = false) {
+private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, center: Boolean = false, area: String = "text") {
     LaunchedEffect(id) { s.ensureSentence(id) }
     val tr = s.sentTr[id]
     Row(
         Modifier.fillMaxWidth()
+            .onGloballyPositioned { s.trCoords[area to id] = it }
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
             .clickable { if (!s.allSentences) s.toggleSentence(id) }
             .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 2.dp),
@@ -1733,6 +1747,9 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, ce
             MaterialTheme.colorScheme.onSurfaceVariant, Modifier.weight(1f),
             busy = s.retranslating[id] == true, align = if (center) TextAlign.Center else TextAlign.Start,
         )
+        IconButton(onClick = { s.chatSentence(id) }, modifier = Modifier.size(36.dp)) {
+            Icon(AppIcons.Chat, contentDescription = "Чат о предложении", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+        }
         RetranslateButton(s, id)
     }
 }
@@ -1748,7 +1765,10 @@ internal fun WordMenuLayer(s: ReaderSession, area: String, items: @Composable (W
         val ref = s.wordMenu
         if (ref != null && s.menuArea == area) {
             val r = s.wordCoords[area to ref]?.takeIf { it.isAttached }?.boundsInRoot()
-            val at = if (r != null) IntOffset((r.left - origin.x).toInt(), (r.bottom - origin.y).toInt()) else IntOffset.Zero
+            // the sentence translation shown by the long press: the menu goes under it
+            val t = s.trCoords[area to ref.sent]?.takeIf { it.isAttached }?.boundsInRoot()
+            val bottom = if (r != null && t != null && t.top >= r.top && t.top - r.bottom < r.height * 12) t.bottom else r?.bottom
+            val at = if (r != null && bottom != null) IntOffset((r.left - origin.x).toInt(), (bottom - origin.y).toInt()) else IntOffset.Zero
             Box(Modifier.offset { at }) {
                 DropdownMenu(expanded = true, onDismissRequest = { s.wordMenu = null }) {
                     items(ref) { s.wordMenu = null }
@@ -1887,7 +1907,7 @@ private fun SentencePager(s: ReaderSession) {
                                     enter = expandVertically(tween(300)) + fadeIn(tween(300)),
                                     exit = shrinkVertically(tween(300)) + fadeOut(tween(300)),
                                 ) {
-                                    SentenceTranslation(s, sent.id, scale = 1.1f, center = true)
+                                    SentenceTranslation(s, sent.id, scale = 1.1f, center = true, area = "sent")
                                 }
                             }
                         }

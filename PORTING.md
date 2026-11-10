@@ -19,14 +19,15 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- web v1.26: player repeat sheet has "Повторять весь урок" (loop 0..end, keeps playing from where it is; starts over
+
+## Done
+
+- web v1.26 -> android v1.62 (`AudioEngine.loopWhole/loopLabel`, ENDED while looping starts over; `ReaderSession.selectStart/selectTo` autoShown, `trCoords` + `WordMenuLayer` puts the menu under the translation row; chat icon in `SentenceTranslation`): player repeat sheet has "Повторять весь урок" (loop 0..end, keeps playing from where it is; starts over
   at the end; the pill / status say "весь урок"). Sentence translation row: chat button next to ↻ again.
   Reader long press: the sentence translation shows as soon as the long press fires (finger still down); the menu
   at the word still opens on lift, placed under the translation row; if the press turns into a phrase drag the
   auto-shown translation is hidden again. (Web also had to follow the finger on window: the re-rendered word lost
   the lift.)
-
-## Done
 
 - web v1.25 -> android v1.60 (same bug was there: tap with the docked panel asked the AI twice; mini player opened an empty player after the screen was recreated). Android: `ReaderSession.ai/hints` share in-flight requests (CompletableDeferred), `Extras.kt TranslationText`, `Audio.kt LoopSheet/LoopTile` + loop pill, `Player.kt TextWindow`, `AppState.openSounding`. Also "Повторять весь урок" tile as on the web. Headphone prev/next = ±5 s not ported (not asked).
   - One AI request per word place: a tap pins the word and the docked word window opens at once; two separate
