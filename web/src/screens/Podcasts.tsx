@@ -2,10 +2,8 @@
 import { useEffect } from 'preact/hooks'
 import { back } from '../app'
 import { isSub, subs, type Podcast, type PodcastSession } from '../importer/podcasts'
-import { Chip, IconButton, TopBar } from '../ui'
+import { IconButton, TopBar } from '../ui'
 import { Cover } from './Library'
-
-const SUGGEST_DE = ['Langsam gesprochene Nachrichten', 'Top-Thema mit Vokabeln', 'Easy German', 'Slow German', 'Deutschlandfunk', 'Coffee Break German']
 
 const fmtDate = (t: number) => (t > 0 ? new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
 const fmtDur = (s: number) => (s <= 0 ? '' : s >= 3600 ? `${Math.floor(s / 3600)} ч ${Math.floor(s / 60) % 60} мин` : `${Math.floor((s + 30) / 60)} мин`)
@@ -41,16 +39,6 @@ export function PodcastsScreen({ s }: { s: PodcastSession }) {
           </form>
           {s.busy.value && <div class="row-status"><span class="spinner-sm" />Ищу…</div>}
           {s.error.value && <p class="error-text">{s.error.value}</p>}
-          {!res && s.lang === 'de' && (
-            <>
-              <p class="hint">Например:</p>
-              <div class="chips">
-                {SUGGEST_DE.map((q) => (
-                  <Chip key={q} label={q} onClick={() => { s.query.value = q; void s.search() }} />
-                ))}
-              </div>
-            </>
-          )}
           {res ? (
             <>
               <div class="row">

@@ -9,7 +9,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- android v1.69–v1.70: podcast search has NO suggestion chips (the user listens to native shows: Lanz und Precht, Wissen
+## To do on Android
+
+
+## Done
+
+- android v1.69–v1.70 -> web v1.31: podcast search has NO suggestion chips (the user listens to native shows: Lanz und Precht, Wissen
   Weekly, Surplus). Speech recognition prices: each model has a price in US$ per hour (checked 10.11.2026: Groq
   whisper-large-v3-turbo 0.04, whisper-large-v3 0.111; OpenAI whisper-1 0.36; Deepgram nova-3 0.258; AssemblyAI
   universal-2 0.15, universal-3-5-pro 0.21 (best / nano are deprecated); ElevenLabs scribe_v2 0.22 (new default),
@@ -20,11 +25,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   the podcast transcript "бесплатно, готовая расшифровка"), "Весь файл (1:02:10, ≈ 2 цента)". Format: < 0,1 цента /
   "≈ 0,7 цента" / "≈ 12 центов" / "≈ 1,20 $". Android `Transcribe.kt` (`SttProvider.prices / priceUrl`, `sttCost`,
   `sttHourPrice`, `STT_PRICES_CHECKED`).
-
-## To do on Android
-
-
-## Done
+  Web v1.31: `stt.ts` (prices per model, `sttCost`, `sttHourPrice`, `STT_PRICES_CHECKED`; a saved best / nano falls
+  back to the default model), Settings → Распознавание речи, `AudioPicker.tsx`; suggestion chips removed in `Podcasts.tsx`.
 
 - android v1.68 -> web v1.30: podcasts + covers. Import: tiles "Подкаст" and "Аудиофайл → текст". Podcasts screen: search field
   ("Название подкаста или ссылка на RSS"; an http link opens the feed) via Apple Podcasts search

@@ -11,7 +11,7 @@ import * as api from '../lingq'
 import * as gemini from '../gemini'
 import { Chip, Dialog, IconButton, ListItem, Loading, SecretField, Spinner, TextField, TopBar } from '../ui'
 import { HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, highlightColors, highlightOf, themeOf } from '../readerLook'
-import { STT_PROVIDERS, setSttKey, setSttModel, sttKey, sttModel, sttProvider } from '../importer/stt'
+import { STT_PRICES_CHECKED, STT_PROVIDERS, setSttKey, setSttModel, sttCost, sttHourPrice, sttKey, sttModel, sttPrice, sttProvider } from '../importer/stt'
 import { clearLog, lastLines, log, logText, logVersion } from '../applog'
 
 declare const __BUILD__: string
@@ -232,7 +232,7 @@ export function SettingsSpeech() {
       {STT_PROVIDERS.map((p) => (
         <label key={p.id} class="radio-row">
           <input type="radio" name="sttProvider" checked={sp.id === p.id} onChange={() => { prefs.sttProvider.value = p.id }} />
-          <span><span class="radio-title">{p.name}{sttKey(p.id) ? ' · ключ задан' : ''}</span><Hint>{p.note}</Hint></span>
+          <span><span class="radio-title">{p.name}{sttKey(p.id) ? ' · ключ задан' : ''}</span><Hint>от {sttHourPrice(Math.min(...p.prices.map((x) => x[1])))} · {p.note}</Hint></span>
         </label>
       ))}
       <hr />
@@ -246,6 +246,10 @@ export function SettingsSpeech() {
         {sp.models.map((m) => <Chip key={m} label={m} selected={model === m} onClick={() => setSttModel(sp.id, m)} />)}
       </div>
       <TextField label="Модель" value={model} onInput={(v) => setSttModel(sp.id, v)} />
+      {sttPrice(sp, model) != null && (
+        <Hint>{model}: {sttHourPrice(sttPrice(sp, model)!)}, 10 минут {sttCost(sp, model, 10)}. Цены проверены {STT_PRICES_CHECKED}.</Hint>
+      )}
+      <a class="btn text link" href={sp.priceUrl} target="_blank" rel="noopener">Цены {sp.name} на сайте</a>
       <Hint>
         Аудио уходит в выбранный сервис через прокси этого сайта (он ничего не хранит). Ключи синхронизируются с
         телефоном зашифрованными, если задан пароль синхронизации.

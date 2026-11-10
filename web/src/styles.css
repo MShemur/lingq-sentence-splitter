@@ -839,3 +839,4 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .pod-dl { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 12px; background: var(--secondary-container, #e8def8); }
 .cover-row { align-items: center; }
 .cover-thumb { width: 40px; height: 56px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.audio-cost { font-weight: 500; color: var(--primary); }

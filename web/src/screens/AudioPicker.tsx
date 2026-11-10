@@ -2,6 +2,8 @@
 import { useState } from 'preact/hooks'
 import type { AudioPick, ImportSession } from '../importer/session'
 import { clock, parseClock } from '../importer/audio'
+import { sttCost, sttModel, sttProvider } from '../importer/stt'
+import { prefs } from '../settings'
 import { Chip, Sheet } from '../ui'
 
 export function AudioPicker({ s, pk }: { s: ImportSession; pk: AudioPick }) {
@@ -12,6 +14,11 @@ export function AudioPicker({ s, pk }: { s: ImportSession; pk: AudioPick }) {
   const dur = pk.durationMs
   const to = len != null ? (dur > 0 ? Math.min((from ?? 0) + len * 60_000, dur) : (from ?? 0) + len * 60_000) : dur > 0 ? dur : null
   const bad = from == null || (dur > 0 && from >= dur)
+  const prov = sttProvider(prefs.sttProvider.value)
+  const price = (ms: number | null) => (ms && ms > 0 ? sttCost(prov, sttModel(prov.id), ms / 60_000) : null)
+  const partMs = to != null ? to - (from ?? 0) : dur > 0 ? dur - (from ?? 0) : null
+  const cost = useTr ? 'бесплатно, готовая расшифровка' : price(partMs) ? `${prov.name}: ${price(partMs)}` : prov.name
+  const wholeCost = useTr ? 'бесплатно' : price(dur)
   return (
     <Sheet onClose={() => { s.audioPick.value = null }}>
       <div class="sheet-title">Какую часть распознать?</div>
@@ -39,8 +46,9 @@ export function AudioPicker({ s, pk }: { s: ImportSession; pk: AudioPick }) {
             {to != null ? ` (${Math.max(1, Math.floor((to - (from ?? 0)) / 60_000))} мин)` : ''}. Он же загрузится в урок как аудио.
           </p>
         )}
+        {!bad && <div class="audio-cost">{cost}</div>}
         <button class="btn filled wide" disabled={bad} onClick={() => void s.transcribePart(from ?? 0, len == null ? null : to, useTr)}>{useTr ? 'Взять кусок' : 'Распознать'}</button>
-        <button class="btn text wide" onClick={() => void s.transcribePart(0, null, useTr)}>Весь файл{dur > 0 ? ` (${clock(dur)})` : ''}</button>
+        <button class="btn text wide" onClick={() => void s.transcribePart(0, null, useTr)}>Весь файл{dur > 0 ? ` (${clock(dur)}${wholeCost ? `, ${wholeCost}` : ''})` : ''}</button>
       </div>
     </Sheet>
   )

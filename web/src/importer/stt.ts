@@ -10,23 +10,54 @@ export interface TWord { text: string; start: number; end: number }
 export interface TSeg { text: string; start: number; end: number; newPara?: boolean }
 export interface Transcript { text: string; words: TWord[] }
 
-export interface SttProvider { id: string; name: string; note: string; keyUrl: string; models: string[]; maxBytes: number }
+export interface SttProvider {
+  id: string; name: string; note: string; keyUrl: string; priceUrl: string
+  /** Models (the first is the default) and their price, US$ per hour of audio. */
+  prices: [string, number][]
+  models: string[]; maxBytes: number
+}
+
+/** When the prices below were checked on the services' sites. */
+export const STT_PRICES_CHECKED = '10.11.2026'
+
+const provider = (id: string, name: string, note: string, keyUrl: string, priceUrl: string, prices: [string, number][], maxBytes: number): SttProvider =>
+  ({ id, name, note, keyUrl, priceUrl, prices, models: prices.map((p) => p[0]), maxBytes })
 
 /** The proxy (Cloudflare) takes requests up to 100 MB. */
 const PROXY_MAX = 95_000_000
 
 export const STT_PROVIDERS: SttProvider[] = [
-  { id: 'groq', name: 'Groq', note: 'Whisper large-v3: самый дешёвый и быстрый, около 0,04 $ за час аудио. Есть бесплатный лимит.',
-    keyUrl: 'https://console.groq.com/keys', models: ['whisper-large-v3-turbo', 'whisper-large-v3'], maxBytes: 24_000_000 },
-  { id: 'openai', name: 'OpenAI', note: 'Whisper: около 0,36 $ за час. Время слов есть только у whisper-1.',
-    keyUrl: 'https://platform.openai.com/api-keys', models: ['whisper-1'], maxBytes: 24_000_000 },
-  { id: 'deepgram', name: 'Deepgram', note: 'Nova-3: точный, быстрый, с абзацами. Около 0,26 $ за час, при регистрации бонус.',
-    keyUrl: 'https://console.deepgram.com/', models: ['nova-3', 'nova-2'], maxBytes: PROXY_MAX },
-  { id: 'assemblyai', name: 'AssemblyAI', note: 'Точный, с абзацами. Около 0,15–0,37 $ за час, при регистрации бонус.',
-    keyUrl: 'https://www.assemblyai.com/dashboard', models: ['best', 'nano'], maxBytes: PROXY_MAX },
-  { id: 'elevenlabs', name: 'ElevenLabs', note: 'Scribe: очень точный, около 0,40 $ за час.',
-    keyUrl: 'https://elevenlabs.io/app/settings/api-keys', models: ['scribe_v1'], maxBytes: PROXY_MAX },
+  provider('groq', 'Groq', 'Whisper large-v3: самый дешёвый и быстрый. Есть бесплатный лимит.', 'https://console.groq.com/keys',
+    'https://console.groq.com/docs/speech-to-text', [['whisper-large-v3-turbo', 0.04], ['whisper-large-v3', 0.111]], 24_000_000),
+  provider('openai', 'OpenAI', 'Whisper. Время слов есть только у whisper-1.', 'https://platform.openai.com/api-keys',
+    'https://platform.openai.com/docs/pricing', [['whisper-1', 0.36]], 24_000_000),
+  provider('deepgram', 'Deepgram', 'Nova-3: точный, быстрый, с абзацами. При регистрации 200 $ бесплатно.', 'https://console.deepgram.com/',
+    'https://deepgram.com/pricing', [['nova-3', 0.258]], PROXY_MAX),
+  provider('assemblyai', 'AssemblyAI', 'Точный, с абзацами. При регистрации 50 $ бесплатно.', 'https://www.assemblyai.com/dashboard',
+    'https://www.assemblyai.com/pricing', [['universal-2', 0.15], ['universal-3-5-pro', 0.21]], PROXY_MAX),
+  provider('elevenlabs', 'ElevenLabs', 'Scribe: очень точный. В бесплатном тарифе 4,5 часа.', 'https://elevenlabs.io/app/settings/api-keys',
+    'https://elevenlabs.io/pricing/api', [['scribe_v2', 0.22], ['scribe_v1', 0.4]], PROXY_MAX),
 ]
+
+const priceOf = (p: SttProvider, model: string) => p.prices.find((x) => x[0] === (model || p.models[0]))?.[1]
+
+/** "≈ 0,7 цента", "≈ 12 центов", "≈ 1,20 $" for [minutes] of audio; null when the price is unknown. */
+export function sttCost(p: SttProvider, model: string, minutes: number): string | null {
+  const price = priceOf(p, model)
+  if (price == null) return null
+  const usd = (price * minutes) / 60, cents = usd * 100
+  if (cents < 0.1) return 'меньше 0,1 цента'
+  if (cents < 10) return `≈ ${cents.toFixed(1).replace('.', ',')} цента`
+  if (cents < 100) {
+    const n = Math.floor(cents), m10 = n % 10, m100 = n % 100
+    return `≈ ${n} ${m10 === 1 && m100 !== 11 ? 'цент' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'цента' : 'центов'}`
+  }
+  return `≈ ${usd.toFixed(2).replace('.', ',')} $`
+}
+
+/** "0,04 $ за час". */
+export const sttHourPrice = (v: number) => `${String(Number(v.toFixed(3))).replace('.', ',')} $ за час`
+export const sttPrice = priceOf
 
 export const sttProvider = (id: string) => STT_PROVIDERS.find((p) => p.id === id) ?? STT_PROVIDERS[0]
 
@@ -41,7 +72,9 @@ export function setSttKey(id: string, key: string) {
   if (key.trim()) m[id] = key.trim(); else delete m[id]
   prefs.sttKeys.value = JSON.stringify(m)
 }
-export const sttModel = (id: string) => String(readMap(prefs.sttModels.value)[id] ?? '').trim()
+/** AssemblyAI retired "best" / "nano": a saved one falls back to the default model. */
+const RETIRED = new Set(['best', 'nano'])
+export const sttModel = (id: string) => { const m = String(readMap(prefs.sttModels.value)[id] ?? '').trim(); return RETIRED.has(m) ? '' : m }
 export function setSttModel(id: string, model: string) {
   const m = readMap(prefs.sttModels.value)
   m[id] = model.trim()
