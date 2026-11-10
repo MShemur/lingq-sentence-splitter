@@ -320,7 +320,7 @@ object Stt {
         val req = Request.Builder().url("$base/audio/transcriptions").header("Authorization", "Bearer $key").post(form).build()
         val groq = base.contains("groq.com")
         val o = call(req, AppLog.short(base), if (groq) GroqUsage::headers else null)
-        if (groq) GroqUsage.add(o.optDouble("duration", 0.0))
+        if (groq) GroqUsage.add(maxOf(10.0, o.optDouble("duration", 0.0)))   // Groq counts at least 10 s per request
         val words = arr(o.optJSONArray("words")).map { TWord(it.optString("word").trim(), it.optDouble("start"), it.optDouble("end")) }
         var segs = arr(o.optJSONArray("segments")).map { TSeg(it.optString("text").trim(), it.optDouble("start"), it.optDouble("end")) }
         if (segs.isEmpty()) segs = listOf(TSeg(o.optString("text").trim(), 0.0, words.lastOrNull()?.end ?: 0.0))
