@@ -6,7 +6,8 @@ import {
   back, courses, coursesError, courseWords, ensureCourseWords, go, loadCourses, loadRecent, LessonsScreen, recent, wordsKey,
 } from '../app'
 import { lang, prefs } from '../settings'
-import { ErrorBox, IconButton, Loading, TopBar } from '../ui'
+import { Chip, ErrorBox, IconButton, Loading, TopBar } from '../ui'
+import { naturalCompare } from '../app'
 import type { Course, Lesson } from '../lingq'
 import { ReaderSession } from '../reader/session'
 import { ImportSession } from '../importer/session'
@@ -189,7 +190,12 @@ export function CoursesScreen() {
 
 export function LessonsView({ s }: { s: LessonsScreen }) {
   useEffect(() => { if (!s.lessons.value) void s.load() }, [s])
-  const list = s.lessons.value
+  const [sort, setSortState] = useState(() => { try { return Number(localStorage.getItem('lessons.sort')) || 0 } catch { return 0 } })
+  const setSort = (i: number) => { setSortState(i); try { localStorage.setItem('lessons.sort', String(i)) } catch { /* ignore */ } }
+  const raw = s.lessons.value
+  // 0 as in the course, 1 newest first (lesson ids grow with each import), 2 oldest first, 3 by name
+  const list = raw && (sort === 1 ? [...raw].sort((a, b) => b.id - a.id) : sort === 2 ? [...raw].sort((a, b) => a.id - b.id)
+    : sort === 3 ? [...raw].sort((a, b) => naturalCompare(a.title, b.title)) : raw)
   const err = s.error.value
   return (
     <div class="screen">
@@ -206,9 +212,16 @@ export function LessonsView({ s }: { s: LessonsScreen }) {
           {err ? <ErrorBox text={err} retry={() => void s.load()} />
             : !list ? <div class="tile-grid"><SkeletonTiles n={8} ratio="4 / 3" /></div>
             : (
+              <>
+              {list.length > 1 && <div class="chip-row pad-x">
+                {['Как в курсе', 'Новые сверху', 'Старые сверху', 'По имени'].map((t, i) => (
+                  <Chip key={t} label={t} selected={sort === i} onClick={() => setSort(i)} />
+                ))}
+              </div>}
               <div class="tile-grid">
                 {list.map((x) => <LessonTile key={x.id} l={x} langCode={s.lang} sub={x.words ? wordsText(x.words) : ''} />)}
               </div>
+              </>
             )}
           {list && !list.length && <p class="empty">В курсе нет уроков.</p>}
         </div>

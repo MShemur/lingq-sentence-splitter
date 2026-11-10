@@ -9,14 +9,15 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- android v1.78: course screen in the library (lesson covers): sort chips under the course header "Как в курсе" /
-  "Новые сверху" (lesson id descending = newest import) / "Старые сверху" / "По имени" (natural); the choice is
-  remembered. Android `Library.kt` (LessonsGrid).
-
 ## To do on Android
 
 
 ## Done
+
+- android v1.78 -> web v1.37: course screen in the library (lesson covers): sort chips under the course header "Как в курсе" /
+  "Новые сверху" (lesson id descending = newest import) / "Старые сверху" / "По имени" (natural); the choice is
+  remembered. Android `Library.kt` (LessonsGrid).
+  Web v1.37: sort chips in `Library.tsx` LessonsView (shown when the course has 2+ lessons), remembered in localStorage `lessons.sort`; `naturalCompare` from `app.ts`.
 
 - android v1.80 -> web v1.36: key sync lost a key when both devices changed keys between syncs (the user set the Groq key on the
   iPad; the phone's own keys counted as newer and overwrote the GitHub copy, so the Groq key never reached the phone).
