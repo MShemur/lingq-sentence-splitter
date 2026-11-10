@@ -454,13 +454,6 @@ fun PodcastsScreen(state: AppState, s: PodcastSession) {
                     Text("Ищу…", Modifier.padding(start = 10.dp))
                 }
                 s.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                if (s.results == null && state.lang == "de") {
-                    Hint("Например:")
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Langsam gesprochene Nachrichten", "Top-Thema mit Vokabeln", "Easy German", "Slow German", "Deutschlandfunk", "Coffee Break German")
-                            .forEach { q -> AssistChip(onClick = { s.query = q; s.search() }, label = { Text(q) }) }
-                    }
-                }
             }
         }
         val res = s.results
