@@ -74,3 +74,5 @@ feature changes.
 Two Claude sessions work in this repo: one on `android/`, one on `web/`. `PORTING.md` is the queue
 between them. **At the start of work, read it and port what is listed for your platform. After changing a
 reader feature, add a line for the other platform.**
+
+The improvement plan (what is done, what comes next, what is NOT wanted) is `ROADMAP.md`; keep it current.
