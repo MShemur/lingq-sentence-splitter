@@ -37,6 +37,12 @@ import java.util.Locale
  * Journal of the last actions (screens, taps, requests, errors) for bug reports: kept on the phone for
  * [KEEP_HOURS] hours / [MAX] lines, then dropped. Never contains keys or tokens (only hosts, paths and status codes).
  */
+/** Small file writes off the main thread, one after another in the order they were asked for. */
+object DiskQueue {
+    private val ex = java.util.concurrent.Executors.newSingleThreadExecutor()
+    fun write(block: () -> Unit) = ex.execute { runCatching(block) }
+}
+
 object AppLog {
     private const val KEEP_HOURS = 48
     private const val MAX = 3000
@@ -73,7 +79,8 @@ object AppLog {
         val text = "${fmt.format(Date(now))} [$tag] ${msg.replace('\n', ' ').replace('\t', ' ').take(500)}"
         lines.addLast(Line(now, text))
         version++
-        runCatching { file?.appendText("$now\t$text\n") }
+        val f = file
+        if (f != null) DiskQueue.write { f.appendText("$now\t$text\n") }
         if (++added % 200 == 0) prune(rewrite = true) else if (lines.size > MAX) lines.removeFirst()
     }
 
@@ -83,13 +90,15 @@ object AppLog {
     private fun prune(rewrite: Boolean) {
         val limit = System.currentTimeMillis() - KEEP_HOURS * 3600_000L
         while (lines.isNotEmpty() && (lines.first().t < limit || lines.size > MAX)) lines.removeFirst()
-        if (rewrite) runCatching { file?.writeText(lines.joinToString("") { "${it.t}\t${it.text}\n" }) }
+        val f = file ?: return
+        if (rewrite) { val all = lines.joinToString("") { "${it.t}\t${it.text}\n" }; DiskQueue.write { f.writeText(all) } }
     }
 
     @Synchronized
     fun clear() {
         lines.clear(); version++
-        runCatching { file?.writeText("") }
+        val f = file
+        if (f != null) DiskQueue.write { f.writeText("") }
     }
 
     /** The whole journal with a header (version, phone) — what is copied. */

@@ -9,6 +9,23 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.63 (code review, speed / simplify; the same issues were found on the web):
+  - Audio ticker: 50 ms only while a loop or a one-sentence stop is on, else 250 ms; the position shown on screen
+    changes ~4 times a second (`audio.ts:229` setInterval 50 ms re-renders the bar and mini player 20x/s; a
+    `computed` signal for the time text is enough).
+  - Course word counts: at most once a day per course (time kept with the counts), not on every start
+    (`app.ts:197`, `Library.tsx:46`).
+  - Sentence translations made by the AI / machine (and "translate again") kept on the device per lesson
+    (sentence text -> translation, not LingQ's stored one, no errors; NOT in the synced notes); applied when the
+    lesson opens. Android `TranslationCache` in `Reader.kt`. Web: IndexedDB or localStorage per lesson.
+  - Web only (from the same review): FullText in the player re-renders the whole lesson on every new sentence -
+    toggle `.sounding` by `[data-se]` in an effect + `content-visibility: auto` on `.para`; applog saved to
+    localStorage ~1 s after every line - save every 10 s and on pagehide, fewer lines or IndexedDB; dead code:
+    `audio.ts` replaySentence / nextSentence / setStarts / starts (+ the setStarts call in session.ts:190),
+    `Reader.tsx` EditButton, `app.ts` replaceTop, doubled comments (Reader.tsx:702, session.ts:628); `norm()`
+    defined twice in session.ts (791, 946).
+
+
 - android v1.61: statistics split reading / audio. Day data is now `[seconds, words, listenSeconds]` (seconds = total,
   listening included; old 2-number entries = no listening). Timer: audio playing -> counts as listening, else reading
   in the reader (as before); total unchanged everywhere (today card in the library stays one number). Sync `stats`

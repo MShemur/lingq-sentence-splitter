@@ -105,7 +105,8 @@ class ReadingStats(ctx: Context) {
         days.forEach { (k, v) -> d.put(k, org.json.JSONArray().put(v[0]).put(v[1]).put(v[2])) }
         val s = JSONObject()
         seen.forEach { (k, v) -> s.put(k, v) }
-        runCatching { file.writeText(JSONObject().put("days", d).put("seen", s).toString()) }
+        val all = JSONObject().put("days", d).put("seen", s).toString()
+        DiskQueue.write { file.writeText(all) }
         version++
     }
 

@@ -333,7 +333,7 @@ object AudioEngine {
         override fun run() {
             val p = player ?: return
             val pos = p.currentPosition
-            position = pos
+            if (kotlin.math.abs(pos - position) >= 240) position = pos       // the screen needs ~4 updates a second
             if (p.duration > 0) duration = p.duration
             if (stopAt >= 0 && pos >= stopAt) { stopAt = -1; p.pause() }
             if (looping && !waitingGap && (pos >= loopB || pos < loopA - 1500)) {
@@ -342,7 +342,8 @@ object AudioEngine {
                 else { p.seekTo(loopA); position = loopA }
             }
             if (System.currentTimeMillis() - lastSave > 5000) save()
-            if (p.isPlaying) main.postDelayed(this, 50)
+            // exact stops need a fine step; otherwise a quarter second is plenty (battery)
+            if (p.isPlaying) main.postDelayed(this, if (looping || stopAt >= 0) 50 else 250)
         }
     }
 

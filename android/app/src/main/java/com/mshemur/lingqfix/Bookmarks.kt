@@ -98,7 +98,8 @@ class BookmarkStore(ctx: Context) {
     }.getOrDefault(emptyList())
 
     private fun write() {
-        runCatching { file.writeText(jsonArrayOf(items.map { toJson(it) }).toString()) }
+        val all = jsonArrayOf(items.map { toJson(it) }).toString()
+        DiskQueue.write { file.writeText(all) }
     }
 
     /** Text bookmark of a sentence. */

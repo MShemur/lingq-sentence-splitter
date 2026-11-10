@@ -177,7 +177,7 @@ class AppState(val ctx: Context) {
         say("Сохранено")
     }
 
-    /** Words in each course (sum over its lessons); kept on the phone, refreshed once per app start. */
+    /** Words in each course (sum over its lessons); kept on the phone, refreshed at most once a day. */
     val courseWords = androidx.compose.runtime.mutableStateMapOf<Int, Int>().apply {
         runCatching {
             val o = org.json.JSONObject(ctx.getSharedPreferences("progress", Context.MODE_PRIVATE).getString("courseWords", "{}")!!)
@@ -186,17 +186,29 @@ class AppState(val ctx: Context) {
     }
     private val wordsFetched = HashSet<Int>()
     private val wordsLimit = kotlinx.coroutines.sync.Semaphore(3)
+    /** When each course's word count was last fetched (ms). */
+    private val wordsAt = HashMap<Int, Long>().apply {
+        runCatching {
+            val o = org.json.JSONObject(ctx.getSharedPreferences("progress", Context.MODE_PRIVATE).getString("courseWordsAt", "{}")!!)
+            o.keys().forEach { k -> put(k.toInt(), o.getLong(k)) }
+        }
+    }
 
     fun setCourseWords(id: Int, words: Int) {
         wordsFetched += id
         courseWords[id] = words
+        wordsAt[id] = System.currentTimeMillis()
         val o = org.json.JSONObject()
         courseWords.forEach { (k, v) -> o.put(k.toString(), v) }
-        ctx.getSharedPreferences("progress", Context.MODE_PRIVATE).edit().putString("courseWords", o.toString()).apply()
+        val at = org.json.JSONObject()
+        wordsAt.forEach { (k, v) -> at.put(k.toString(), v) }
+        ctx.getSharedPreferences("progress", Context.MODE_PRIVATE).edit()
+            .putString("courseWords", o.toString()).putString("courseWordsAt", at.toString()).apply()
     }
 
     fun ensureCourseWords(lang: String, id: Int) {
-        if (!wordsFetched.add(id)) return
+        val fresh = courseWords.containsKey(id) && System.currentTimeMillis() - (wordsAt[id] ?: 0L) < 24 * 3600_000L
+        if (fresh || !wordsFetched.add(id)) return
         scope.launch {
             runCatching {
                 wordsLimit.acquire()

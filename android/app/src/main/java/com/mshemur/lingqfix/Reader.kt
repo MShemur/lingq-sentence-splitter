@@ -233,6 +233,27 @@ private class LessonNotes(ctx: Context, lang: String, id: Int) {
     }
 }
 
+/**
+ * Machine / AI sentence translations of a lesson kept on the phone (not synced: it would bloat the sync file),
+ * sentence text -> translation, so a lesson opened again does not ask for them again.
+ */
+private class TranslationCache(ctx: Context, lang: String, id: Int, target: String) {
+    private val file = File(File(ctx.filesDir, "trcache").apply { mkdirs() }, "${lang}_${id}_$target.json")
+
+    fun load(): Map<String, String> = runCatching {
+        val o = JSONObject(file.readText())
+        o.keys().asSequence().associateWith { o.getString(it) }
+    }.getOrElse { emptyMap() }
+
+    fun save(m: Map<String, String>) {
+        val all = JSONObject().also { o -> m.forEach { (k, v) -> o.put(k, v) } }.toString()
+        DiskQueue.write { file.writeText(all) }
+    }
+}
+
+private val LETTERS = Regex("\\p{L}+")
+private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
+
 // --- session -------------------------------------------------------------------------------------
 
 class ReaderSession(private val app: AppState, val lang: String, val lesson: Lesson, startSent: Int? = null) {
@@ -476,7 +497,6 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     var sentences by mutableStateOf<List<Sent>>(emptyList())
     var error by mutableStateOf<String?>(null)
 
-    var inlineMode by mutableStateOf(app.prefs.readerMode == "inline")
     var sentenceMode by mutableStateOf(false)
     var allSentences by mutableStateOf(false)
     var font by mutableStateOf(app.prefs.readerFont)
@@ -501,6 +521,17 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     private val aiCache = HashMap<WordRef, WordMeaning>()
 
     private val notes = LessonNotes(app.ctx, lang, lesson.id)
+    private val trCache by lazy { TranslationCache(app.ctx, lang, lesson.id, target) }
+    /** Sentence text -> translation made here (not LingQ's stored one). */
+    private val trSaved = HashMap<String, String>()
+
+    /** A sentence translation was made: keep it unless it is LingQ's own one or an error. */
+    private fun keepTr(id: Int, t: String) {
+        val s = sentById[id] ?: return
+        if (t.isBlank() || t.startsWith("⚠") || t == s.translations[target]) return
+        trSaved[s.text] = t
+        trCache.save(HashMap(trSaved))
+    }
     private val hintsCache = HashMap<String, List<String>>()
     private val loadingSentences = HashSet<Int>()
     private val sentById = HashMap<Int, Sent>()
@@ -523,6 +554,9 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 if (autoPlay && au != null) { autoPlay = false; togglePlay() }
                 val (p, w, ph) = withContext(Dispatchers.IO) { notes.load() }
                 pins.putAll(p); chosen.putAll(w); phrasePins.putAll(ph)
+                val saved = withContext(Dispatchers.IO) { trCache.load() }
+                trSaved.putAll(saved)
+                paras.forEach { para -> para.forEach { st -> saved[st.text]?.let { sentTr[st.id] = it } } }
                 title = t
                 app.lessonOpened(lang, lesson.copy(title = t))
                 sentences = paras.flatten()
@@ -571,11 +605,6 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         app.scope.launch(Dispatchers.IO) { runCatching { notes.save(p, w, ph) } }
     }
 
-    fun setMode(inline: Boolean) {
-        inlineMode = inline
-        app.prefs.readerMode = if (inline) "inline" else "popup"
-    }
-
     fun changeFont(d: Int) {
         font = (font + d).coerceIn(13, 34)
         app.prefs.readerFont = font
@@ -594,6 +623,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
             else app.api.translate(lang, target, s.text)
         }
         sentTr[id] = t
+        keepTr(id, t)
         return t
     }
 
@@ -626,7 +656,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     if (app.useGemini) app.gemini().retranslate(app.prefs.promptRetranslate, lang, target, s.text, current)
                     else app.api.retranslate(lang, lesson.id, s.lingqIndex, target).let { r -> r[s.lingqIndex] ?: r.values.firstOrNull() }
                 }
-                if (t.isNullOrBlank()) app.say("Переводчик не вернул перевод") else sentTr[id] = t.trim()
+                if (t.isNullOrBlank()) app.say("Переводчик не вернул перевод") else { sentTr[id] = t.trim(); keepTr(id, t.trim()) }
             } catch (e: Throwable) {
                 app.say(e.message ?: "Ошибка перевода")
                 app.geminiFailed(e) { retranslate(id) }
@@ -674,10 +704,6 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         }
     }
 
-    /**
-     * The meaning that fits this sentence: the one chosen earlier in this lesson, else the first popular
-     * meaning whose stem occurs in the sentence translation, else the most popular one, else machine translation.
-     */
     /** Gemini: meaning of the word in this very sentence (cached). */
     private suspend fun ai(ref: WordRef): WordMeaning {
         aiCache[ref]?.let { return it }
@@ -710,8 +736,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     private fun pickByTranslation(hs: List<String>, tr: String): String? {
         if (tr.isBlank()) return null
-        val trWords = Regex("\\p{L}+").findAll(tr).map { it.value }.toList()
-        fun fits(h: String) = Regex("\\p{L}+").findAll(h.lowercase()).any { m ->
+        val trWords = LETTERS.findAll(tr).map { it.value }.toList()
+        fun fits(h: String) = LETTERS.findAll(h.lowercase()).any { m ->
             val w = m.value
             w.length >= 3 && trWords.any { it.startsWith(w.take(maxOf(3, minOf(w.length - 2, 6)))) }
         }
@@ -723,12 +749,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         chosen[word.lowercase()]?.let { return it }
         if (app.useGemini) runCatching { ai(ref).best }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return it }
         val tr = runCatching { sentenceTranslation(ref.sent) }.getOrDefault("").lowercase()
-        val trWords = Regex("\\p{L}+").findAll(tr).map { it.value }.toList()
-        fun fits(h: String) = Regex("\\p{L}+").findAll(h.lowercase()).any { m ->
-            val w = m.value
-            w.length >= 3 && trWords.any { it.startsWith(w.take(maxOf(3, minOf(w.length - 2, 6)))) }
-        }
-        return hs.take(10).firstOrNull { fits(it) }
+        return pickByTranslation(hs, tr)
             ?: hs.firstOrNull()
             ?: withContext(Dispatchers.IO) { app.api.translate(lang, target, word) }
     }
@@ -842,7 +863,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         return all.map { it.trim().trim('.', ' ') }.filter { it.isNotEmpty() && seen.add(norm(it)) }
     }
 
-    private fun norm(t: String) = t.lowercase().replace('ё', 'е').replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
+    private fun norm(t: String) = t.lowercase().replace('ё', 'е').replace(NON_WORD, " ").trim()
 
     // --- chat with Gemini ---
 
@@ -866,18 +887,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** MP3 of the lesson on LingQ (null = the lesson has no audio). */
     var audioUrl by mutableStateOf<String?>(null)
     val audioKey get() = "${lang}_${lesson.id}"
-    /** Player bar shown (button "Аудио" in the bottom bar); remembered. */
-    var showAudio by mutableStateOf(app.ctx.getSharedPreferences("audio", Context.MODE_PRIVATE).getBoolean("bar", false))
-    /** Sentence sounding now (highlighted), and the one sentence mode should turn to. */
+    /** Sentence sounding now (highlighted). */
     var playingSent by mutableStateOf<Int?>(null)
-    var followSent by mutableStateOf<Int?>(null)
     /** Sentences have times in the audio. */
     val hasTimes get() = sentences.any { it.start >= 0 }
-
-    fun toggleAudioBar() {
-        showAudio = !showAudio
-        app.ctx.getSharedPreferences("audio", Context.MODE_PRIVATE).edit().putBoolean("bar", showAudio).apply()
-    }
 
     /** Play from here (audio bookmark) instead of where listening stopped; -1 = no. */
     var startAt = -1L
@@ -937,9 +950,14 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun loopSentence() {
         val st = currentForLoop() ?: return
         if (st.start < 0 || !ensureAudio()) return
+        AudioEngine.setLoop(st.start - 100, loopEnd(st))
+    }
+
+    /** End of a sentence for a loop: its end time + a little, else the next sentence's start, else 5 s. */
+    private fun loopEnd(st: Sent): Long {
+        if (st.end > st.start) return st.end + 150
         val next = sentences.firstOrNull { it.start > st.start }?.start ?: -1L
-        val end = if (st.end > st.start) st.end + 150 else if (next > 0) next else st.start + 5000
-        AudioEngine.setLoop(st.start - 100, end)
+        return if (next > 0) next else st.start + 5000
     }
 
     fun setLoopA() { AudioEngine.setA(sentenceStartAt(AudioEngine.position) - 100) }
@@ -995,17 +1013,9 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun loopEndAt(id: Int) {
         val st = sentById[id] ?: return
         if (st.start < 0 || !ensureAudio()) return
-        val next = sentences.firstOrNull { it.start > st.start }?.start ?: -1L
-        AudioEngine.setB(if (st.end > st.start) st.end + 150 else if (next > 0) next else st.start + 5000)
+        AudioEngine.setB(loopEnd(st))
         app.say(if (AudioEngine.looping) "Повтор ${fmtTime(AudioEngine.loopA)} – ${fmtTime(AudioEngine.loopB)}"
             else "Конец повтора задан — выберите начало")
-    }
-
-    fun loopSentenceId(id: Int) {
-        val st = sentById[id] ?: return
-        if (st.start < 0 || !ensureAudio()) return
-        val next = sentences.firstOrNull { it.start > st.start }?.start ?: -1L
-        AudioEngine.setLoop(st.start - 100, if (st.end > st.start) st.end + 150 else if (next > 0) next else st.start + 5000)
     }
 
     /** Player tab: the audio is at sentence [id] (shown bold). */
@@ -1862,13 +1872,6 @@ private fun SentencePager(s: ReaderSession) {
         val i = list.indexOfFirst { it.id == id }
         if (i >= 0) pager.scrollToPage(i)
         s.jump = null
-    }
-    // the audio went on to the next sentence
-    LaunchedEffect(s.followSent) {
-        val id = s.followSent ?: return@LaunchedEffect
-        val i = list.indexOfFirst { it.id == id }
-        if (i >= 0 && i != pager.currentPage) pager.animateScrollToPage(i)
-        s.followSent = null
     }
     Column(Modifier.fillMaxSize().systemBarsPadding()) {
         Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp)) {
