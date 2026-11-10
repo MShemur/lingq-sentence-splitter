@@ -74,6 +74,8 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -220,6 +222,8 @@ fun App(state: AppState) {
                     Screen.SettingsUpdates -> SettingsUpdates(state)
                     Screen.SettingsReading -> SettingsReading(state)
                     Screen.SettingsSpeech -> SettingsSpeech(state)
+                    is Screen.Podcasts -> PodcastsScreen(state, screen.session)
+                    is Screen.PodcastFeed -> PodcastFeedScreen(screen.session)
                     Screen.Stats -> StatsScreen(state)
                     Screen.SettingsSync -> SettingsSync(state)
                     Screen.Log -> LogScreen(state)
@@ -307,6 +311,8 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.SettingsUpdates -> "Обновления"
     Screen.SettingsReading -> "Чтение"
     Screen.SettingsSpeech -> "Распознавание речи"
+    is Screen.Podcasts -> "Подкасты"
+    is Screen.PodcastFeed -> s.session.podcast?.title?.ifBlank { null } ?: "Подкаст"
     Screen.Stats -> "Статистика"
     Screen.SettingsSync -> "Синхронизация"
     Screen.Log -> "Журнал действий"
@@ -637,8 +643,13 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             }
             SourceTile(AppIcons.PhotoCamera, "Камера", Modifier.weight(1f), !s.running) { takePhoto() }
         }
-        SourceTile(AppIcons.Mic, "Аудио → текст (подкаст, запись)", Modifier.fillMaxWidth(), !s.running && !s.loading) {
-            audioPicker.launch(arrayOf("audio/*", "video/mp4", "application/ogg"))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SourceTile(AppIcons.Headphones, "Подкаст", Modifier.weight(1f), !s.running && !s.loading) {
+                state.go(Screen.Podcasts(PodcastSession(state, s)))
+            }
+            SourceTile(AppIcons.Mic, "Аудиофайл → текст", Modifier.weight(1f), !s.running && !s.loading) {
+                audioPicker.launch(arrayOf("audio/*", "video/mp4", "application/ogg"))
+            }
         }
         if (!s.pasteMode && s.items.isEmpty() && !s.loading) Text(
             "Текст из буфера, TXT, EPUB, PDF (выбранные страницы, и сканы), фото страниц — распознаются на телефоне, бесплатно. " +
@@ -776,6 +787,23 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                     s.newCourseTitle, { s.newCourseTitle = it }, Modifier.fillMaxWidth(),
                     label = { Text("Название нового курса") }, singleLine = true, enabled = !s.running,
                 )
+            }
+            s.cover?.let { cv ->
+                LaunchedEffect(s.newCourse) { s.coverToCourse = s.newCourse }
+                val bmp = remember(cv) { android.graphics.BitmapFactory.decodeByteArray(cv.first, 0, cv.first.size)?.asImageBitmap() }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = s.coverToCourse, onCheckedChange = { s.coverToCourse = it })
+                    bmp?.let {
+                        androidx.compose.foundation.Image(
+                            it, contentDescription = null, Modifier.size(40.dp, 56.dp).clip(RoundedCornerShape(4.dp)),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        )
+                    }
+                    Text(
+                        if (s.newCourse) "Обложка для нового курса" else "Поставить эту обложку курсу «${s.course?.title.orEmpty()}»",
+                        Modifier.padding(start = 10.dp),
+                    )
+                }
             }
             state.coursesError?.let { Text("Курсы не загрузились: $it", color = MaterialTheme.colorScheme.error) }
             Row(verticalAlignment = Alignment.CenterVertically) {

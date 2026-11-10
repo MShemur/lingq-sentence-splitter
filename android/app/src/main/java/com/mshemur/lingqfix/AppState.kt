@@ -30,6 +30,8 @@ sealed interface Screen {
     data object SettingsUpdates : Screen
     data object SettingsReading : Screen
     data object SettingsSpeech : Screen
+    class Podcasts(val session: PodcastSession) : Screen
+    class PodcastFeed(val session: PodcastSession) : Screen
     data object Stats : Screen
     data object SettingsSync : Screen
     data object Log : Screen
@@ -651,29 +653,46 @@ class ImportSession(private val app: AppState) {
 
     fun dropAudio() { audioUri = null; audioName = ""; audioWords = emptyList() }
 
-    fun pickAudio(uri: Uri) {
+    /** Cover picture (bytes, MIME type) of the book / podcast; put on the course when [coverToCourse]. */
+    var cover by mutableStateOf<Pair<ByteArray, String>?>(null)
+    var coverToCourse by mutableStateOf(true)
+
+    fun setCover(c: Pair<ByteArray, String>?, title: String) {
+        cover = c
+        if (c != null && newCourseTitle.isBlank() && title.isNotBlank()) newCourseTitle = title
+    }
+
+    /** [name] = file name when the uri has none (podcast episode); [transcript] = the podcast's own, if any. */
+    fun pickAudio(uri: Uri, name: String? = null, transcript: List<TSeg>? = null) {
         val prov = sttProvider(app.prefs.sttProvider)
-        if (sttKeyFor(app.prefs, prov).isBlank()) {
+        if (transcript == null && sttKeyFor(app.prefs, prov).isBlank()) {
             app.say("Задайте ключ распознавания (${prov.name})")
             app.go(Screen.SettingsSpeech)
             return
         }
         startLoad("Открываю аудио…")
         app.scope.launch {
-            val name = withContext(Dispatchers.IO) { Sources.name(app.ctx, uri) }
+            val n = name ?: withContext(Dispatchers.IO) { Sources.name(app.ctx, uri) }
             val dur = withContext(Dispatchers.IO) { AudioCut.duration(app.ctx, uri) }
             loading = false; status = ""
-            audioPick = AudioPick(uri, name, dur)
+            audioPick = AudioPick(uri, n, dur, transcript)
         }
     }
 
     /** Recognises [fromMs, toMs) of the picked audio (toMs null = to the end). */
-    fun transcribePart(fromMs: Long, toMs: Long?) {
+    fun transcribePart(fromMs: Long, toMs: Long?, useTranscript: Boolean = false) {
         val pk = audioPick ?: return
-        audioPick = null
         val p = app.prefs
         val prov = sttProvider(p.sttProvider)
         val key = sttKeyFor(p, prov)
+        val ready = if (useTranscript) pk.transcript else null
+        if (ready == null && key.isBlank()) {
+            app.say("Задайте ключ распознавания (${prov.name})")
+            app.go(Screen.SettingsSpeech)
+            return
+        }
+        audioPick = null
+        val keepCover = cover
         startLoad("Вырезаю кусок…")
         pasteMode = false; items.clear()
         app.scope.launch {
@@ -687,7 +706,9 @@ class ImportSession(private val app: AppState) {
                     Uri.fromFile(f) to f.name
                 }
                 val title = if (whole) base else "$base, ${clock(fromMs)}–${end?.let { clock(it) } ?: "конец"}"
-                val t = Stt.transcribe(app.ctx, uri, name, app.lang, prov, key, p.sttModel(prov.id)) { status = it }
+                cover = keepCover
+                val t = if (ready != null) Stt.fromSegments(ready, fromMs, end)
+                else Stt.transcribe(app.ctx, uri, name, app.lang, prov, key, p.sttModel(prov.id)) { status = it }
                 setSingle(title, t.text)
                 audioUri = uri; audioName = if (whole) pk.name else "$title.${name.substringAfterLast('.')}"
                 audioWords = t.words
@@ -723,7 +744,7 @@ class ImportSession(private val app: AppState) {
     }
 
     private fun startLoad(msg: String) {
-        dropAudio()
+        dropAudio(); cover = null
         loading = true; status = msg; error = null
         cleanNote = null; before = null; canUndo = false
     }
@@ -837,7 +858,8 @@ class ImportSession(private val app: AppState) {
                         return@launch
                     }
                 } else {
-                    val (n, texts) = withContext(Dispatchers.IO) { Sources.read(app.ctx, uri) }
+                    val (n, texts, cv) = withContext(Dispatchers.IO) { Sources.read(app.ctx, uri) }
+                    if (cv != null) setCover(cv, n)
                     if (texts.size == 1) setSingle(texts[0].title.ifBlank { n.substringBeforeLast('.') }, texts[0].text)
                     else {
                         isBook = true
@@ -884,13 +906,22 @@ class ImportSession(private val app: AppState) {
             try {
                 val c = if (newCourse) {
                     log.add("➕ Курс «$createTitle»")
-                    val created = withContext(Dispatchers.IO) { app.api.createCourse(lang, createTitle) }
+                    val created = withContext(Dispatchers.IO) { app.api.createCourse(lang, createTitle, cover?.takeIf { coverToCourse }) }
                     log[log.lastIndex] = "✅ Курс «${created.title}» создан"
                     app.courses = listOf(created) + app.courses.orEmpty()
                     course = created
                     newCourse = false
                     created
-                } else c0!!
+                } else c0!!.also { ex ->
+                    val cv = cover
+                    if (cv != null && coverToCourse) try {
+                        withContext(Dispatchers.IO) { app.api.setCourseImage(lang, ex.id, cv) }
+                        log.add("🖼 Обложка курса «${ex.title}» обновлена")
+                    } catch (e: Throwable) {
+                        AppLog.error("import", "Обложка курса", e)
+                        log.add("⚠ Обложку не удалось поставить: ${e.message}")
+                    }
+                }
                 // Uploads go one after another (keeps the lesson order in the course); LingQ then
                 // processes each lesson on its own, so every lesson is waited for and fixed in parallel.
                 val base = log.size

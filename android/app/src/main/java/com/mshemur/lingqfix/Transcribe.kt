@@ -314,6 +314,21 @@ object Stt {
         return segs to words
     }
 
+    /** A ready transcript (podcast VTT / SRT / JSON) cut to [fromMs, toMs): times of words spread over each piece. */
+    fun fromSegments(all: List<TSeg>, fromMs: Long, toMs: Long?): Transcript {
+        val a = fromMs / 1000.0
+        val b = toMs?.let { it / 1000.0 } ?: Double.MAX_VALUE
+        val segs = all.filter { it.end > a && it.start < b }
+            .map { it.copy(start = maxOf(0.0, it.start - a), end = maxOf(0.0, it.end - a)) }
+        val words = segs.flatMap { s ->
+            val ws = s.text.split(Regex("\\s+")).filter { it.isNotEmpty() }
+            val total = ws.sumOf { it.length }.coerceAtLeast(1)
+            var t = s.start
+            ws.map { w -> val d = (s.end - s.start) * w.length / total; TWord(w, t, t + d).also { t += d } }
+        }
+        return Transcript(paragraphs(segs), words)
+    }
+
     /** Whisper sometimes "hears" subtitle credits in silence, or repeats a line: such pieces are dropped. */
     private fun dropHallucinations(segs: List<TSeg>): List<TSeg> {
         val junk = Regex("Untertitel (der|im Auftrag|von)|Amara\\.org|Copyright WDR|Vielen Dank fürs Zuschauen", RegexOption.IGNORE_CASE)
@@ -710,7 +725,7 @@ fun SettingsSpeech(state: AppState) {
 }
 
 /** An audio file waiting for the choice of its part. */
-class AudioPick(val uri: Uri, val name: String, val durationMs: Long)
+class AudioPick(val uri: Uri, val name: String, val durationMs: Long, val transcript: List<TSeg>? = null)
 
 /** Which part of the audio to recognise: start and length (10 min by default) or the whole file. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -718,6 +733,7 @@ class AudioPick(val uri: Uri, val name: String, val durationMs: Long)
 fun AudioPartPicker(s: ImportSession, pk: AudioPick) {
     var start by remember(pk) { mutableStateOf("0:00") }
     var len by remember(pk) { mutableStateOf<Int?>(10) }   // minutes; null = to the end
+    var useTr by remember(pk) { mutableStateOf(pk.transcript != null) }
     val from = parseClock(start)
     val dur = pk.durationMs
     val to = len?.let { (from ?: 0L) + it * 60_000L }?.let { if (dur > 0) minOf(it, dur) else it } ?: dur.takeIf { it > 0 }
@@ -746,11 +762,18 @@ fun AudioPartPicker(s: ImportSession, pk: AudioPick) {
                     (to?.let { " (${((it - (from ?: 0)) / 60_000).coerceAtLeast(1)} мин)" } ?: "") +
                     ". Он же загрузится в урок как аудио.",
             )
+            if (pk.transcript != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Готовая расшифровка подкаста")
+                    Hint(if (useTr) "Бесплатно, без распознавания" else "Выключено: распознает сервис из настроек")
+                }
+                androidx.compose.material3.Switch(checked = useTr, onCheckedChange = { useTr = it })
+            }
             androidx.compose.material3.Button(
-                onClick = { s.transcribePart(from ?: 0, if (len == null) null else to) }, enabled = !bad,
+                onClick = { s.transcribePart(from ?: 0, if (len == null) null else to, useTr) }, enabled = !bad,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Распознать") }
-            TextButton(onClick = { s.transcribePart(0, null) }, Modifier.fillMaxWidth()) {
+            ) { Text(if (useTr) "Взять кусок" else "Распознать") }
+            TextButton(onClick = { s.transcribePart(0, null, useTr) }, Modifier.fillMaxWidth()) {
                 Text("Весь файл" + if (dur > 0) " (${clock(dur)})" else "")
             }
         }

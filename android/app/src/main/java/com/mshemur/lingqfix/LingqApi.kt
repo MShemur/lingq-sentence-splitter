@@ -190,11 +190,31 @@ class LingqApi(private val key: String) {
     }
 
     /** Creates a new (private) course; returns it. */
-    fun createCourse(lang: String, title: String): Course {
+    fun createCourse(lang: String, title: String, cover: Pair<ByteArray, String>? = null): Course {
+        if (cover != null) try {
+            val form = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
+                .addFormDataPart("title", title.take(250)).addFormDataPart("description", "").addFormDataPart("level", "1")
+                .addFormDataPart("image", "cover." + coverExt(cover.second), cover.first.toRequestBody(cover.second.toMediaType()))
+                .build()
+            val d = JSONObject(send("POST", "$BASE/v3/$lang/collections/", form))
+            return Course(d.getInt("id"), d.optString("title", title), d.optString("imageUrl"))
+        } catch (e: ApiException) {
+            AppLog.error("lingq", "Курс с обложкой не создан, пробую без неё", e)
+        }
         val body = JSONObject().put("title", title.take(250)).put("description", "").put("level", 1)
         val d = JSONObject(call("POST", "$BASE/v3/$lang/collections/", body.toString()))
         return Course(d.getInt("id"), d.optString("title", title))
     }
+
+    /** Puts a picture on the user's own course. */
+    fun setCourseImage(lang: String, id: Int, cover: Pair<ByteArray, String>) {
+        val form = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
+            .addFormDataPart("image", "cover." + coverExt(cover.second), cover.first.toRequestBody(cover.second.toMediaType()))
+            .build()
+        send("PATCH", "$BASE/v3/$lang/collections/$id/", form)
+    }
+
+    private fun coverExt(type: String) = when { type.contains("png") -> "png"; type.contains("webp") -> "webp"; type.contains("gif") -> "gif"; else -> "jpg" }
 
     /** Creates a private lesson in [course] with an audio file; returns its id. */
     fun importLessonAudio(lang: String, course: Int, title: String, text: String, audio: okhttp3.RequestBody, fileName: String): Int {

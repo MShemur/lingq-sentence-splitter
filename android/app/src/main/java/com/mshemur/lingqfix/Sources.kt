@@ -9,21 +9,22 @@ import java.util.zip.ZipInputStream
 /** A piece of text that becomes one LingQ lesson (or several, if it is long). */
 class SourceText(val title: String, val text: String)
 
-class Book(val title: String, val chapters: List<SourceText>)
+class Book(val title: String, val chapters: List<SourceText>, val cover: Pair<ByteArray, String>? = null)
 
 object Sources {
     /** Reads a .txt/.md/.epub file. Returns the display name and its texts (one per EPUB chapter). */
-    fun read(ctx: Context, uri: Uri): Pair<String, List<SourceText>> {
+    /** Also the cover picture of an EPUB (bytes, MIME type) when it has one. */
+    fun read(ctx: Context, uri: Uri): Triple<String, List<SourceText>, Pair<ByteArray, String>?> {
         val name = displayName(ctx, uri) ?: (uri.lastPathSegment ?: "file")
         val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw ApiException("файл недоступен")
         val isZip = bytes.size > 3 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte()
         if (name.endsWith(".epub", true) || isZip) {
             val book = Epub.read(bytes)
-            return book.title to book.chapters
+            return Triple(book.title, book.chapters, book.cover)
         }
         val text = String(bytes, Charsets.UTF_8).removePrefix("\uFEFF").replace("\r\n", "\n").replace('\r', '\n')
-        return name to listOf(SourceText(name.substringBeforeLast('.'), text))
+        return Triple(name, listOf(SourceText(name.substringBeforeLast('.'), text)), null)
     }
 
     fun name(ctx: Context, uri: Uri): String = displayName(ctx, uri) ?: (uri.lastPathSegment ?: "file")
@@ -95,7 +96,21 @@ object Epub {
             if (text.isBlank()) null else SourceText(chapterTitle(html), text)
         }
         if (chapters.isEmpty()) throw ApiException("в EPUB не найден текст")
-        return Book(bookTitle, chapters)
+        return Book(bookTitle, chapters, cover(opf, files, base))
+    }
+
+    /** EPUB 3 "cover-image", EPUB 2 <meta name="cover">, or an image called "cover". */
+    private fun cover(opf: String, files: Map<String, ByteArray>, base: String): Pair<ByteArray, String>? {
+        val items = Regex("<item\\b[^>]*>").findAll(opf).map { it.value }.toList()
+        fun isImage(t: String) = attr(t, "media-type")?.startsWith("image") == true
+        val metaId = Regex("<meta\\b[^>]*\\bname\\s*=\\s*[\"']cover[\"'][^>]*>").find(opf)?.value?.let { attr(it, "content") }
+        val item = items.firstOrNull { attr(it, "properties")?.contains("cover-image") == true }
+            ?: metaId?.let { id -> items.firstOrNull { attr(it, "id") == id && isImage(it) } }
+            ?: items.firstOrNull { isImage(it) && ((attr(it, "id").orEmpty()) + attr(it, "href").orEmpty()).contains("cover", true) }
+            ?: return null
+        val href = attr(item, "href") ?: return null
+        val bytes = files[resolve(base, Uri.decode(href))] ?: return null
+        return bytes to (attr(item, "media-type") ?: "image/jpeg")
     }
 
     private fun attr(tag: String, name: String): String? =
