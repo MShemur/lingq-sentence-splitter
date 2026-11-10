@@ -9,11 +9,22 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.80: key sync lost a key when both devices changed keys between syncs (the user set the Groq key on the
+  iPad; the phone's own keys counted as newer and overwrote the GitHub copy, so the Groq key never reached the phone).
+  Now in the "mine are newer" branch the remote keys are decrypted and merged: theirs + our non-blank values on top, stt
+  maps merged per provider; the union is sealed and, if it differs from ours, applied locally too. Android `Sync.kt`
+  (`unionKeys`, syncKeys). Please do the same in web `sync.ts` syncKeys (the `!r || myT > rT` branch).
+
 - android v1.78: course screen in the library (lesson covers): sort chips under the course header "Как в курсе" /
   "Новые сверху" (lesson id descending = newest import) / "Старые сверху" / "По имени" (natural); the choice is
   remembered. Android `Library.kt` (LessonsGrid).
 
-- android v1.77: Groq usage (Groq has no usage request). Count audio seconds sent to Groq from this device (Whisper
+## To do on Android
+
+
+## Done
+
+- android v1.77 -> web v1.35: Groq usage (Groq has no usage request). Count audio seconds sent to Groq from this device (Whisper
   verbose_json `duration` per request), rolling last hour / 24 h, against the free limits 7200 s/h and 28800 s/day; keep
   `x-ratelimit-remaining-requests` / `x-ratelimit-limit-requests` from the answer headers (requests per day). Shown in
   Settings -> Распознавание речи when Groq is chosen ("Groq, бесплатный тариф, распознано с этого устройства: за последний
@@ -21,11 +32,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   сайте" (console.groq.com/settings/limits); and in the part sheet (red with "Этот кусок может не пройти: свободно около N
   мин." when the part is longer than the free rest). Android `Transcribe.kt` (`GroqUsage`). On the web the /stt proxy must
   pass those headers through (Access-Control-Expose-Headers if needed).
-
-## To do on Android
-
-
-## Done
+  Web v1.35: `stt.ts` (`groqSummary`, `groqLeftSec`, usage log in localStorage `stt.groqUsage`, request counter `stt.groqReq`), Settings → Распознавание речи, `AudioPicker.tsx`; the Pages Function `/stt` passes `x-ratelimit-*-requests` through (same origin, no CORS header needed).
 
 - android v1.75 -> web (no change, still v1.34): a lesson without a level (LingQ sends `"level": null`, e.g. a fresh import before the AI level is set)
   showed "null" on the tile badge, and the remembered recent list kept that "null" for good. Now null = no level (no

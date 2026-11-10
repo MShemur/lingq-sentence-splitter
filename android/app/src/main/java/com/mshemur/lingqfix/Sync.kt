@@ -249,12 +249,25 @@ class SyncService(private val app: AppState) {
             }
             r == null || myT > rT -> {
                 // don't overwrite keys we cannot read with a different password
-                if (r != null && KeyVault.open(pass, r) == null) { keysNote = "Пароль не подходит к ключам на GitHub (на другом устройстве другой пароль?)"; return }
-                merged.put("secrets", KeyVault.seal(pass, mine, myT))
+                val theirs = r?.let { KeyVault.open(pass, it) ?: run { keysNote = "Пароль не подходит к ключам на GitHub (на другом устройстве другой пароль?)"; return } }
+                // both sides changed: keep a key the other device added (e.g. Groq set on the iPad) instead of dropping it
+                val union = if (theirs != null) unionKeys(JSONObject(mine), JSONObject(theirs)) else JSONObject(mine)
+                if (union.toString() != mine) { pendingKeys = union; AppLog.add("sync", "Ключи объединены с ключами другого устройства") }
+                merged.put("secrets", KeyVault.seal(pass, union.toString(), myT))
                 keysNote = "Ключи отправлены (зашифрованы)"
             }
             else -> keysNote = "Ключи совпадают"
         }
+    }
+
+    /** [theirs] with [mine] on top: our non-blank values win, keys only the other device has are kept. */
+    private fun unionKeys(mine: JSONObject, theirs: JSONObject): JSONObject {
+        val out = JSONObject(theirs.toString())
+        mine.keys().forEach { n -> if (n != "stt") mine.optString(n).takeIf { it.isNotBlank() || !out.has(n) }?.let { out.put(n, it) } }
+        val stt = theirs.optJSONObject("stt")?.let { JSONObject(it.toString()) } ?: JSONObject()
+        mine.optJSONObject("stt")?.let { m -> m.keys().forEach { id -> m.optString(id).takeIf { it.isNotBlank() }?.let { stt.put(id, it) } } }
+        if (stt.length() > 0) out.put("stt", stt) else out.remove("stt")
+        return out
     }
 
     /** Fills in the keys from the other device (blank values do not erase ours). */
