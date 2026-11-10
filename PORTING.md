@@ -9,6 +9,15 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.77: Groq usage (Groq has no usage request). Count audio seconds sent to Groq from this device (Whisper
+  verbose_json `duration` per request), rolling last hour / 24 h, against the free limits 7200 s/h and 28800 s/day; keep
+  `x-ratelimit-remaining-requests` / `x-ratelimit-limit-requests` from the answer headers (requests per day). Shown in
+  Settings -> Распознавание речи when Groq is chosen ("Groq, бесплатный тариф, распознано с этого устройства: за последний
+  час 25 мин из 2 ч, за сутки 1 ч 12 мин из 8 ч · запросов на сегодня осталось 1987 из 2000") + button "Лимиты Groq на
+  сайте" (console.groq.com/settings/limits); and in the part sheet (red with "Этот кусок может не пройти: свободно около N
+  мин." when the part is longer than the free rest). Android `Transcribe.kt` (`GroqUsage`). On the web the /stt proxy must
+  pass those headers through (Access-Control-Expose-Headers if needed).
+
 ## To do on Android
 
 
