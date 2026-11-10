@@ -267,6 +267,22 @@ class AppState(val ctx: Context) {
         if (player?.audioKey != k) player = ReaderSession(this, lang, l).apply { sentenceAtBottom = true; load() }
     }
 
+    /** Mini player: the player tab on the lesson that is sounding (also after the app screen was recreated). */
+    fun openSounding() {
+        val k = AudioEngine.key
+        if (k != null && player?.audioKey != k) {
+            val q = queueLessons[k]
+            val id = k.substringAfter('_').toIntOrNull()
+            val s = when {
+                q != null -> ReaderSession(this, q.first, q.second)
+                id != null -> ReaderSession(this, k.substringBefore('_'), Lesson(id, AudioEngine.title, AudioEngine.image))
+                else -> null
+            }
+            if (s != null) player = s.apply { sentenceAtBottom = true }
+        }
+        switchTab(Screen.Player)
+    }
+
     /** Audio bookmark: the player tab, from that place. */
     fun openAudioBookmark(b: Bookmark) = listenAt(b.lang, Lesson(b.lessonId, b.lessonTitle), b.ms)
 

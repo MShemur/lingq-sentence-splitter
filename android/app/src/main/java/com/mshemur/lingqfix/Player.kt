@@ -209,19 +209,14 @@ private fun TextWindow(s: ReaderSession, modifier: Modifier, onOpen: () -> Unit)
         ) {
             val size = s.font.toFloat()
             list.getOrNull(i - 1)?.let {
-                Text(it.text, fontSize = (size * 0.9f).sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(it.text, fontSize = (size * 1.15f).sp, lineHeight = (size * 1.5f).sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             list.getOrNull(i)?.let {
-                Text(it.text, fontSize = (size * 1.1f).sp, lineHeight = (size * 1.45f).sp, fontWeight = FontWeight.Bold)
+                Text(it.text, fontSize = (size * 1.55f).sp, lineHeight = (size * 2f).sp, fontWeight = FontWeight.Bold)
             }
             list.getOrNull(i + 1)?.let {
-                Text(it.text, fontSize = (size * 0.9f).sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(it.text, fontSize = (size * 1.15f).sp, lineHeight = (size * 1.5f).sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
-            Text(
-                "Нажмите — весь текст · двойное нажатие слева / справа — 5 с назад / вперёд",
-                style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.outline, modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
         }
         }
     }
@@ -278,11 +273,10 @@ private fun FullText(s: ReaderSession, paras: List<List<Sent>>) {
 private fun BottomTranslation(s: ReaderSession, id: Int) {
     Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            val tr = s.sentTr[id]
-            Text(
-                if (tr.isNullOrEmpty()) "…" else tr, Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            TranslationText(
+                s.sentTr[id], s.sentences.firstOrNull { it.id == id }?.text.orEmpty(),
+                MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+                MaterialTheme.colorScheme.onSecondaryContainer, Modifier.weight(1f),
             )
             IconButton(onClick = { s.bottomSent = null }) { Icon(Icons.Filled.Close, contentDescription = "Скрыть перевод") }
         }

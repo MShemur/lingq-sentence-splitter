@@ -11,7 +11,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- web v1.25 (user feedback from the iPad), check whether Android has the same and port:
+
+## Done
+
+- web v1.25 -> android v1.60 (same bug was there: tap with the docked panel asked the AI twice; mini player opened an empty player after the screen was recreated). Android: `ReaderSession.ai/hints` share in-flight requests (CompletableDeferred), `Extras.kt TranslationText`, `Audio.kt LoopSheet/LoopTile` + loop pill, `Player.kt TextWindow`, `AppState.openSounding`. Also "Повторять весь урок" tile as on the web. Headphone prev/next = ±5 s not ported (not asked).
   - One AI request per word place: a tap pins the word and the docked word window opens at once; two separate
     requests answered differently, so the pin showed one meaning and the window "the right one is …". Share the
     in-flight request (the same for LingQ hints).
@@ -23,7 +26,6 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
     running loop is a pill "Повтор 0:13 – 0:16 · 3-й раз" with × to stop at once.
   - Player text window: no hint line under the text, bigger text (current ×1.55, neighbours ×1.15 of reader font).
   - Mini player tap opens the player on the lesson that is sounding.
-## Done
 
 - android 90660e4 -> web v1.24: UX tidy-up: reader long press (no drag) = small menu right under the word (no direct sentence translation any
   more): Перевод предложения / В закладки / Исправить предложение / Слушать отсюда (only with audio; opens the player

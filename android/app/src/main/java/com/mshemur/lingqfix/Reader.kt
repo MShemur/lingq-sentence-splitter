@@ -130,6 +130,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -635,15 +636,29 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     fun sentenceShown(id: Int) = allSentences || shownSentences[id] == true
 
+    /** Requests still running: a pin and the word window that ask at the same time share one answer. */
+    private val hintsPending = HashMap<String, CompletableDeferred<List<String>>>()
+    private val aiPending = HashMap<WordRef, CompletableDeferred<WordMeaning>>()
+
     private suspend fun hints(word: String): List<String> {
         hintsCache[word]?.let { return it }
-        val h = withContext(Dispatchers.IO) {
-            app.api.hints(lang, word, target).ifEmpty {
-                if (word != word.lowercase()) app.api.hints(lang, word.lowercase(), target) else emptyList()
+        hintsPending[word]?.let { return it.await() }
+        val d = CompletableDeferred<List<String>>()
+        hintsPending[word] = d
+        try {
+            val h = withContext(Dispatchers.IO) {
+                app.api.hints(lang, word, target).ifEmpty {
+                    if (word != word.lowercase()) app.api.hints(lang, word.lowercase(), target) else emptyList()
+                }
             }
+            hintsCache[word] = h
+            d.complete(h)
+            return h
+        } catch (e: Throwable) {
+            d.completeExceptionally(e); throw e
+        } finally {
+            hintsPending.remove(word)
         }
-        hintsCache[word] = h
-        return h
     }
 
     /**
@@ -653,10 +668,20 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** Gemini: meaning of the word in this very sentence (cached). */
     private suspend fun ai(ref: WordRef): WordMeaning {
         aiCache[ref]?.let { return it }
-        val s = sentById.getValue(ref.sent)
-        val m = withContext(Dispatchers.IO) { app.geminiFast().word(app.prefs.promptWord + SEPARABLE, lang, target, word(ref), s.text) }
-        aiCache[ref] = m
-        return m
+        aiPending[ref]?.let { return it.await() }
+        val d = CompletableDeferred<WordMeaning>()
+        aiPending[ref] = d
+        try {
+            val s = sentById.getValue(ref.sent)
+            val m = withContext(Dispatchers.IO) { app.geminiFast().word(app.prefs.promptWord + SEPARABLE, lang, target, word(ref), s.text) }
+            aiCache[ref] = m
+            d.complete(m)
+            return m
+        } catch (e: Throwable) {
+            d.completeExceptionally(e); throw e
+        } finally {
+            aiPending.remove(ref)
+        }
     }
 
     /**
@@ -1702,12 +1727,11 @@ private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, ce
             .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            if (tr.isNullOrEmpty()) "…" else tr,
-            style = MaterialTheme.typography.bodyMedium.copy(fontSize = (s.font * 0.8f * scale).sp),
-            fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = if (center) TextAlign.Center else TextAlign.Start,
-            modifier = Modifier.weight(1f),
+        TranslationText(
+            tr, s.sentences.firstOrNull { it.id == id }?.text.orEmpty(),
+            MaterialTheme.typography.bodyMedium.copy(fontSize = (s.font * 0.8f * scale).sp, fontStyle = FontStyle.Italic),
+            MaterialTheme.colorScheme.onSurfaceVariant, Modifier.weight(1f),
+            busy = s.retranslating[id] == true, align = if (center) TextAlign.Center else TextAlign.Start,
         )
         RetranslateButton(s, id)
     }

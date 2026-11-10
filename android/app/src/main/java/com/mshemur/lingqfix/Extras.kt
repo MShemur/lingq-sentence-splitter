@@ -48,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
@@ -70,6 +71,39 @@ fun Modifier.skeleton(shape: Shape = RoundedCornerShape(12.dp)): Modifier {
     val t = rememberInfiniteTransition(label = "skeleton")
     val a by t.animateFloat(0.06f, 0.14f, infiniteRepeatable(tween(850), RepeatMode.Reverse), label = "alpha")
     return this.clip(shape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = a))
+}
+
+/**
+ * Sentence translation: shimmering lines (1-2 by sentence length) while it loads, then the text fades in;
+ * [busy] (translated again) makes the text shimmer.
+ */
+@Composable
+fun TranslationText(
+    tr: String?, sentence: String, style: androidx.compose.ui.text.TextStyle, color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier, busy: Boolean = false, align: TextAlign = TextAlign.Start,
+) {
+    val text = tr.orEmpty()
+    androidx.compose.animation.Crossfade(text.isEmpty(), modifier, animationSpec = tween(350), label = "translation") { empty ->
+        if (empty) {
+            val lines = if (sentence.length > 70) 2 else 1
+            val fs = if (style.fontSize.isSp) style.fontSize else androidx.compose.ui.unit.TextUnit(14f, androidx.compose.ui.unit.TextUnitType.Sp)
+            val h = with(androidx.compose.ui.platform.LocalDensity.current) { fs.toDp() }
+            Column(
+                Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = if (align == TextAlign.Center) Alignment.CenterHorizontally else Alignment.Start,
+            ) {
+                repeat(lines) { n ->
+                    Box(Modifier.fillMaxWidth(if (lines > 1 && n == lines - 1) 0.55f else 0.9f).height(h).skeleton(RoundedCornerShape(h / 2)))
+                }
+            }
+        } else {
+            val a = if (busy) {
+                val t = rememberInfiniteTransition(label = "busy")
+                t.animateFloat(0.35f, 0.9f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "alpha").value
+            } else 1f
+            Text(text, Modifier.fillMaxWidth().alpha(a), style = style, color = color, textAlign = align)
+        }
+    }
 }
 
 /** Placeholder of a cover tile with its title. */
@@ -158,7 +192,7 @@ fun TodayCard(state: AppState) {
 fun MiniPlayer(state: AppState) {
     if (AudioEngine.key == null) return
     Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 3.dp) {
-        Column(Modifier.fillMaxWidth().clickable { state.switchTab(Screen.Player) }) {
+        Column(Modifier.fillMaxWidth().clickable { state.openSounding() }) {
             val d = AudioEngine.duration
             LinearProgressIndicator(
                 progress = { if (d > 0) (AudioEngine.position.toFloat() / d).coerceIn(0f, 1f) else 0f },

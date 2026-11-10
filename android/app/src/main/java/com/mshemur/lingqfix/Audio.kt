@@ -18,7 +18,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -402,12 +419,28 @@ fun AudioBar(s: ReaderSession) {
                 )
                 Text(if (dur > 0) fmtTime(dur) else "–:––", style = digits, modifier = Modifier.width(48.dp).padding(start = 6.dp))
             }
-            if (mine && AudioEngine.looping) Text(
-                "Повтор ${fmtTime(AudioEngine.loopA)} – ${fmtTime(AudioEngine.loopB)}" +
-                    (if (AudioEngine.repeats > 0) " · ${AudioEngine.repeats + 1}-й раз" else ""),
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
+            // a running loop: a pill (tap = the loop sheet, x = stop at once)
+            if (mine && AudioEngine.looping) Surface(
+                shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = 2.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.clip(RoundedCornerShape(50)).clickable { loopSheet = true }.padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(AppIcons.Repeat, contentDescription = null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(
+                            " Повтор ${fmtTime(AudioEngine.loopA)} – ${fmtTime(AudioEngine.loopB)}" +
+                                (if (AudioEngine.repeats > 0) " · ${AudioEngine.repeats + 1}-й раз" else ""),
+                            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                    IconButton(onClick = { AudioEngine.clearLoop() }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Остановить повтор", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                }
+            }
             if (mine && AudioEngine.queueSize > 1) Row(
                 Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -445,66 +478,130 @@ fun AudioBar(s: ReaderSession) {
 
 private fun fmtSpeed(v: Float) = if (v == v.toInt().toFloat()) "${v.toInt()}.0" else "%.2f".format(v).replace(",", ".").trimEnd('0')
 
-/** Loop choices: this sentence, the last / next N minutes, own A–B, pause between repeats. */
+/** Loop sheet: a running loop and its stop first, then this sentence / whole lesson, a segment, own A–B, pause. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LoopSheet(s: ReaderSession, onClose: () -> Unit) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    var back by remember { mutableStateOf(true) }     // segment: what just sounded / from here on
+    var own by remember { mutableStateOf(AudioEngine.loopA >= 0 && !AudioEngine.looping) }
+    val on = AudioEngine.looping
+    fun segment(sec: Int) {
+        val ms = sec * 1000L
+        if (back) {
+            val p = AudioEngine.position
+            AudioEngine.setLoop(p - ms, p)
+        } else {
+            val p = s.sentenceStartAt(AudioEngine.position)
+            val d = AudioEngine.duration
+            AudioEngine.setLoop(p, if (d > 0) minOf(d, p + ms) else p + ms)
+        }
+        onClose()
+    }
     ModalBottomSheet(onDismissRequest = onClose) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp).navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp).padding(bottom = 24.dp).navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Повтор участка", style = MaterialTheme.typography.titleMedium)
-            if (AudioEngine.looping) Text(
-                "Сейчас: ${fmtTime(AudioEngine.loopA)} – ${fmtTime(AudioEngine.loopB)}",
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
-            )
-            OutlinedButton(onClick = { s.loopSentence(); onClose() }, enabled = s.hasTimes, modifier = Modifier.fillMaxWidth()) {
-                Text("Это предложение")
-            }
-            Label("Последние (то, что только что прозвучало)")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(1, 2, 3, 5).forEach { m ->
-                    FilterChip(false, onClick = {
-                        val p = AudioEngine.position
-                        AudioEngine.setLoop(p - m * 60_000L, p); onClose()
-                    }, label = { Text("$m мин") })
+            Text("Повтор", style = MaterialTheme.typography.titleLarge)
+            if (on) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(AppIcons.Repeat, contentDescription = null, Modifier.size(26.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Column(Modifier.padding(start = 14.dp)) {
+                            Text(
+                                "Повторяется ${fmtTime(AudioEngine.loopA)} – ${fmtTime(AudioEngine.loopB)}",
+                                style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                            Text(
+                                if (AudioEngine.repeats > 0) "${AudioEngine.repeats + 1}-й раз" else "первый раз",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                    }
+                }
+                Button(onClick = { AudioEngine.clearLoop(); onClose() }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Остановить повтор", style = MaterialTheme.typography.titleMedium)
                 }
             }
-            Label("Отсюда вперёд")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(1, 2, 3, 5).forEach { m ->
-                    FilterChip(false, onClick = {
-                        val p = s.sentenceStartAt(AudioEngine.position)
-                        val end = if (AudioEngine.duration > 0) minOf(AudioEngine.duration, p + m * 60_000L) else p + m * 60_000L
-                        AudioEngine.setLoop(p, end); onClose()
-                    }, label = { Text("$m мин") })
+            LoopTile(
+                if (on) "Повторять текущее предложение" else "Повторять это предложение",
+                if (!s.hasTimes) "в уроке нет разметки времени" else null, main = !on, enabled = s.hasTimes,
+            ) { s.loopSentence(); onClose() }
+            val d = AudioEngine.duration
+            LoopTile("Повторять весь урок", if (d > 0) "${fmtTime(d)}, по кругу" else null, main = false, enabled = d > 0) {
+                AudioEngine.setLoop(0, d); onClose()
+            }
+            Label("Отрезок")
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                SegmentedButton(back, { back = true }, SegmentedButtonDefaults.itemShape(0, 2), icon = {}) {
+                    Text("Только что прозвучало", style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                }
+                SegmentedButton(!back, { back = false }, SegmentedButtonDefaults.itemShape(1, 2), icon = {}) {
+                    Text("Отсюда вперёд", style = MaterialTheme.typography.labelMedium, maxLines = 1)
                 }
             }
-            Label("Свой участок (по началу / концу текущего предложения)")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { s.setLoopA() }, modifier = Modifier.weight(1f)) {
-                    Text("A: " + if (AudioEngine.loopA >= 0) fmtTime(AudioEngine.loopA) else "начало")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(30, 60, 120, 300).forEach { sec ->
+                    OutlinedButton(
+                        onClick = { segment(sec) }, modifier = Modifier.weight(1f),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                    ) { Text(if (sec < 60) "$sec с" else "${sec / 60} мин") }
                 }
-                OutlinedButton(onClick = { s.setLoopB(); if (AudioEngine.looping) onClose() }, modifier = Modifier.weight(1f)) {
-                    Text("B: " + if (AudioEngine.loopB >= 0) fmtTime(AudioEngine.loopB) else "конец")
+            }
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { own = !own }.padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Свой участок A – B", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                Icon(if (own) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, contentDescription = null)
+            }
+            if (own) {
+                Text(
+                    "Нажмите A в начале нужного места и B в конце (по границам предложений).",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val aText = "A · " + if (AudioEngine.loopA >= 0) fmtTime(AudioEngine.loopA) else "начало"
+                    val bText = "B · " + if (AudioEngine.loopB >= 0) fmtTime(AudioEngine.loopB) else "конец"
+                    if (AudioEngine.loopA >= 0) FilledTonalButton(onClick = { s.setLoopA() }, modifier = Modifier.weight(1f)) { Text(aText) }
+                    else OutlinedButton(onClick = { s.setLoopA() }, modifier = Modifier.weight(1f)) { Text(aText) }
+                    val onB = { s.setLoopB(); if (AudioEngine.looping) onClose() }
+                    if (AudioEngine.loopB >= 0) FilledTonalButton(onClick = onB, enabled = AudioEngine.loopA >= 0, modifier = Modifier.weight(1f)) { Text(bText) }
+                    else OutlinedButton(onClick = onB, enabled = AudioEngine.loopA >= 0, modifier = Modifier.weight(1f)) { Text(bText) }
                 }
             }
             Label("Пауза между повторами")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(0L, 1000L, 2000L, 3000L, 5000L).forEach { g ->
-                    FilterChip(AudioEngine.gap == g, onClick = { AudioEngine.setGap(ctx, g) }, label = { Text(if (g == 0L) "нет" else "${g / 1000} с") })
+            val gaps = listOf(0L, 1000L, 2000L, 3000L, 5000L)
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                gaps.forEachIndexed { n, g ->
+                    SegmentedButton(AudioEngine.gap == g, { AudioEngine.setGap(ctx, g) }, SegmentedButtonDefaults.itemShape(n, gaps.size), icon = {}) {
+                        Text(if (g == 0L) "нет" else "${g / 1000} с")
+                    }
                 }
             }
-            HorizontalDivider()
-            Row {
-                TextButton(onClick = { AudioEngine.clearLoop(); onClose() }, enabled = AudioEngine.looping || AudioEngine.loopA >= 0) {
-                    Text("Выключить повтор")
-                }
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = { AudioEngine.stop(); onClose() }) { Text("Остановить аудио") }
-            }
+        }
+    }
+}
+
+/** A big choice of the loop sheet; [main] = filled with the accent colour. */
+@Composable
+private fun LoopTile(title: String, sub: String?, main: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val bg = if (main) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+    val fg = if (main) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(bg)
+            .clickable(enabled = enabled, onClick = onClick).alpha(if (enabled) 1f else 0.45f)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(AppIcons.Repeat, contentDescription = null, Modifier.size(24.dp), tint = fg)
+        Column(Modifier.padding(start = 14.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = fg)
+            if (sub != null) Text(sub, style = MaterialTheme.typography.bodySmall, color = fg.copy(alpha = 0.75f))
         }
     }
 }
