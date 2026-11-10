@@ -9,6 +9,15 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.74: player "Недавние" no longer uses LingQ's recently-opened shelf (it showed junk and missed what was just
+  heard). It is the app's own list: every lesson whose audio got loaded (single or queue track) is remembered (title,
+  cover, course, audio url, length once known, time), plus lessons opened in the reader that have audio; latest first.
+  Sort chips under the header: "Недавно слушал" / "Как в курсе" (own order), "Новые сверху" (lesson id descending =
+  newest import), "По имени" (natural: Lektion 2 before Lektion 10); "Слушать все" plays in the shown order. Lesson tiles
+  in the library / course: a small dark badge top-right with a headphones icon and "N мин" when the lesson has audio.
+  Android `Player.kt` (AudioLessons, `naturalCompare`), `AppState.kt` (`listened`, `onListen`), `Audio.kt` (`onListen`,
+  `onDuration`), `Library.kt` (LessonTile).
+
 ## To do on Android
 
 
