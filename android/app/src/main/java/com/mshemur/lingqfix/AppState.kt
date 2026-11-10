@@ -591,6 +591,49 @@ class ImportSession(private val app: AppState) {
     /** What is being done while [loading] ("Распознаю страницу 3 из 7…"). */
     var status by mutableStateOf("")
 
+    /** PDF waiting for the choice of pages (null = none), its file name and the chosen pages (0-based). */
+    var pdf by mutableStateOf<PdfDoc?>(null)
+    var pdfName by mutableStateOf("")
+    val pdfPicked = mutableStateListOf<Int>()
+
+    fun cancelPdf() {
+        val d = pdf ?: return
+        pdf = null
+        app.scope.launch { d.close() }
+    }
+
+    /** The chosen pages: text layer where there is one, OCR for scanned pages. */
+    fun importPdfPages() {
+        val d = pdf ?: return
+        val pages = pdfPicked.sorted()
+        if (pages.isEmpty()) return
+        pdf = null
+        startLoad("Читаю PDF…")
+        app.scope.launch {
+            d.close()
+            try {
+                readPdf(d.uri, pdfName, pages, d.pages)
+                if (app.prefs.autoClean) cleanQuick()
+            } catch (e: Throwable) {
+                AppLog.error("import", "PDF", e)
+                error = "Не удалось прочитать PDF: ${e.message}"
+            }
+            loading = false; status = ""
+        }
+    }
+
+    private suspend fun readPdf(uri: android.net.Uri, name: String, pages: List<Int>, total: Int) {
+        var scans = 0
+        val text = PdfText.pages(app.ctx, uri, pages) { n, all, ocr ->
+            if (ocr) scans++
+            status = if (ocr) "Распознаю страницу $n из $all (скан)…" else "Читаю страницу $n из $all…"
+        }
+        val base = name.substringBeforeLast('.')
+        setSingle(if (pages.size == total) base else "$base, стр. ${pagesLabel(pages)}", text)
+        AppLog.add("import", "PDF: ${pages.size} из $total стр., распознано сканов: $scans")
+        if (text.isBlank()) error = "На выбранных страницах не нашлось текста"
+    }
+
     private fun setSingle(title: String, text: String) {
         pasteMode = true; isBook = false; items.clear()
         pasteTitle = title; pasteText = text
@@ -695,11 +738,20 @@ class ImportSession(private val app: AppState) {
                 val name = withContext(Dispatchers.IO) { Sources.name(app.ctx, uri) }
                 sourceName = name
                 if (withContext(Dispatchers.IO) { Sources.isPdf(app.ctx, uri, name) }) {
-                    status = "Читаю PDF…"
-                    val (layer, pages) = withContext(Dispatchers.IO) { PdfText.text(app.ctx, uri) }
-                    val text = if (!PdfText.isScan(layer, pages)) layer
-                    else withContext(Dispatchers.Default) { PdfText.ocr(app.ctx, uri) { i, n -> status = "Распознаю страницу $i из $n…" } }
-                    setSingle(name.substringBeforeLast('.'), text)
+                    status = "Открываю PDF…"
+                    cancelPdf()
+                    val d = withContext(Dispatchers.IO) { PdfDoc(app.ctx, uri) }
+                    if (d.pages <= 1) {
+                        d.close()
+                        readPdf(uri, name, listOf(0), 1)
+                    } else {
+                        // more than one page: the user picks which ones (sheet with previews)
+                        pdfName = name.substringBeforeLast('.')
+                        pdfPicked.clear()
+                        pdf = d
+                        loading = false; status = ""
+                        return@launch
+                    }
                 } else {
                     val (n, texts) = withContext(Dispatchers.IO) { Sources.read(app.ctx, uri) }
                     if (texts.size == 1) setSingle(texts[0].title.ifBlank { n.substringBeforeLast('.') }, texts[0].text)

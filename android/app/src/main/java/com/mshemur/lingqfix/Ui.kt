@@ -607,6 +607,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
     var courseMenu by remember { mutableStateOf(false) }
     var autoClean by remember { mutableStateOf(state.prefs.autoClean) }
     LaunchedEffect(state.lang) { state.loadCourses() }
+    s.pdf?.let { PdfPagePicker(s, it) }
     val courses = state.courses.orEmpty()
     LaunchedEffect(state.courses) {
         if (s.course == null) s.course = courses.firstOrNull()
@@ -631,7 +632,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             SourceTile(AppIcons.PhotoCamera, "Камера", Modifier.weight(1f), !s.running) { takePhoto() }
         }
         if (!s.pasteMode && s.items.isEmpty() && !s.loading) Text(
-            "Текст из буфера, TXT, EPUB, PDF (и сканы), фото страниц. Распознавание фото — прямо на телефоне, бесплатно. " +
+            "Текст из буфера, TXT, EPUB, PDF (выбранные страницы, и сканы), фото страниц. Распознавание — прямо на телефоне, бесплатно. " +
                 "Потом очистите текст от мусора и загрузите в LingQ.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

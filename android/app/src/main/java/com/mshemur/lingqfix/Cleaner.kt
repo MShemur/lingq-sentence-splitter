@@ -103,45 +103,6 @@ object TextCleaner {
     fun chunks(text: String, maxWords: Int = 1800): List<String> = Sources.splitLong(text, maxWords)
 }
 
-/** Text from PDF files: the text layer if there is one, otherwise page images read by OCR. */
-object PdfText {
-    /** Text layer and page count. */
-    fun text(ctx: Context, uri: Uri): Pair<String, Int> {
-        PDFBoxResourceLoader.init(ctx.applicationContext)
-        ctx.contentResolver.openInputStream(uri).use { input ->
-            PDDocument.load(input ?: throw ApiException("файл недоступен")).use { doc ->
-                val s = PDFTextStripper().apply { sortByPosition = true; pageEnd = "\n\n" }
-                return s.getText(doc) to doc.numberOfPages
-            }
-        }
-    }
-
-    /** No usable text layer (a scan): too few letters per page. */
-    fun isScan(text: String, pages: Int) = text.count { it.isLetter() } < 80 * maxOf(1, pages)
-
-    /** OCR of every page; [onPage] reports progress (page, pages). */
-    suspend fun ocr(ctx: Context, uri: Uri, onPage: (Int, Int) -> Unit): String {
-        val pfd = ctx.contentResolver.openFileDescriptor(uri, "r") ?: throw ApiException("файл недоступен")
-        val out = StringBuilder()
-        pfd.use {
-            PdfRenderer(pfd).use { r ->
-                for (i in 0 until r.pageCount) {
-                    onPage(i + 1, r.pageCount)
-                    val page = r.openPage(i)
-                    val scale = 1600f / page.width
-                    val bmp = Bitmap.createBitmap(1600, (page.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
-                    bmp.eraseColor(Color.WHITE)
-                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                    page.close()
-                    out.append(Ocr.read(InputImage.fromBitmap(bmp, 0))).append("\n\n")
-                    bmp.recycle()
-                }
-            }
-        }
-        return out.toString()
-    }
-}
-
 /** Text recognition on the phone (Google ML Kit, Latin script): free, offline. */
 object Ocr {
     private val client by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
