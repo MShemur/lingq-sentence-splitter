@@ -548,9 +548,11 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         error = null
         app.scope.launch {
             try {
+                var lvl = ""
                 val (t, paras, au) = withContext(Dispatchers.IO) {
                     val l = if (lesson.title.isBlank()) app.api.lesson(lang, lesson.id) else lesson
                     val o = app.api.editorObj(lang, lesson.id)
+                    lvl = LINGQ_LEVELS.getOrNull(o.optInt("level") - 1).orEmpty()   // 1..6; the AI may have set it after the import
                     val audio = o.optString("audio").takeIf { !o.isNull("audio") && it.startsWith("http") }
                     Triple(l.title, parse(o.optJSONArray("paragraphs") ?: JSONArray()), audio)
                 }
@@ -564,7 +566,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 trSaved.putAll(saved)
                 paras.forEach { para -> para.forEach { st -> saved[st.text]?.let { sentTr[st.id] = it } } }
                 title = t
-                app.lessonOpened(lang, lesson.copy(title = t, audio = au.orEmpty()))
+                app.lessonOpened(lang, lesson.copy(title = t, audio = au.orEmpty(), level = lvl.ifBlank { lesson.level }))
                 sentences = paras.flatten()
                 jump?.let { id -> page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0) }
                 paragraphs = paras
