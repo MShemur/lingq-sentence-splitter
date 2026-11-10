@@ -71,34 +71,56 @@ data class TSeg(val text: String, val start: Double, val end: Double, val newPar
 class Transcript(val text: String, val words: List<TWord>)
 
 class SttProvider(
-    val id: String, val name: String, val note: String, val keyUrl: String,
-    val models: List<String>,
+    val id: String, val name: String, val note: String, val keyUrl: String, val priceUrl: String,
+    /** Models (the first is the default) and their price, US$ per hour of audio. */
+    val prices: List<Pair<String, Double>>,
     /** Larger files are converted and sent in pieces. */
     val maxBytes: Long,
-)
+) {
+    val models get() = prices.map { it.first }
+    fun price(model: String): Double? = prices.firstOrNull { it.first == model }?.second
+}
+
+/** When the prices below were checked on the services' sites. */
+const val STT_PRICES_CHECKED = "10.11.2026"
 
 val STT_PROVIDERS = listOf(
     SttProvider(
-        "groq", "Groq", "Whisper large-v3: самый дешёвый и быстрый, около 0,04 $ за час аудио. Есть бесплатный лимит.",
-        "https://console.groq.com/keys", listOf("whisper-large-v3-turbo", "whisper-large-v3"), 24_000_000,
+        "groq", "Groq", "Whisper large-v3: самый дешёвый и быстрый. Есть бесплатный лимит.",
+        "https://console.groq.com/keys", "https://console.groq.com/docs/speech-to-text", listOf("whisper-large-v3-turbo" to 0.04, "whisper-large-v3" to 0.111), 24_000_000,
     ),
     SttProvider(
-        "openai", "OpenAI", "Whisper: около 0,36 $ за час. Время слов есть только у whisper-1.",
-        "https://platform.openai.com/api-keys", listOf("whisper-1"), 24_000_000,
+        "openai", "OpenAI", "Whisper. Время слов есть только у whisper-1.",
+        "https://platform.openai.com/api-keys", "https://platform.openai.com/docs/pricing", listOf("whisper-1" to 0.36), 24_000_000,
     ),
     SttProvider(
-        "deepgram", "Deepgram", "Nova-3: точный, быстрый, с абзацами. Около 0,26 $ за час, при регистрации бонус.",
-        "https://console.deepgram.com/", listOf("nova-3", "nova-2"), 500_000_000,
+        "deepgram", "Deepgram", "Nova-3: точный, быстрый, с абзацами. При регистрации 200 $ бесплатно.",
+        "https://console.deepgram.com/", "https://deepgram.com/pricing", listOf("nova-3" to 0.258), 500_000_000,
     ),
     SttProvider(
-        "assemblyai", "AssemblyAI", "Точный, с абзацами. Около 0,15–0,37 $ за час, при регистрации бонус.",
-        "https://www.assemblyai.com/dashboard", listOf("best", "nano"), 500_000_000,
+        "assemblyai", "AssemblyAI", "Точный, с абзацами. При регистрации 50 $ бесплатно.",
+        "https://www.assemblyai.com/dashboard", "https://www.assemblyai.com/pricing", listOf("universal-2" to 0.15, "universal-3-5-pro" to 0.21), 500_000_000,
     ),
     SttProvider(
-        "elevenlabs", "ElevenLabs", "Scribe: очень точный, около 0,40 $ за час.",
-        "https://elevenlabs.io/app/settings/api-keys", listOf("scribe_v1"), 500_000_000,
+        "elevenlabs", "ElevenLabs", "Scribe: очень точный. В бесплатном тарифе 4,5 часа.",
+        "https://elevenlabs.io/app/settings/api-keys", "https://elevenlabs.io/pricing/api", listOf("scribe_v2" to 0.22, "scribe_v1" to 0.40), 500_000_000,
     ),
 )
+
+/** "≈ 0,7 цента", "≈ 12 центов", "≈ 1,20 $" for [minutes] of audio; null when the price is unknown. */
+fun sttCost(p: SttProvider, model: String, minutes: Double): String? {
+    val usd = (p.price(model.ifBlank { p.models.first() }) ?: return null) * minutes / 60
+    val cents = usd * 100
+    return when {
+        cents < 0.1 -> "меньше 0,1 цента"
+        cents < 10 -> "≈ " + "%.1f".format(cents).replace('.', ',') + " цента"
+        cents < 100 -> cents.toInt().let { "≈ $it " + plural(it, "цент", "цента", "центов") }
+        else -> "≈ " + "%.2f".format(usd).replace('.', ',') + " $"
+    }
+}
+
+/** "0,04 $ за час". */
+fun sttHourPrice(v: Double) = "%.3f".format(v).trimEnd('0').trimEnd('.', ',').replace('.', ',') + " $ за час"
 
 fun sttProvider(id: String) = STT_PROVIDERS.firstOrNull { it.id == id } ?: STT_PROVIDERS[0]
 
@@ -701,7 +723,7 @@ fun SettingsSpeech(state: AppState) {
                 RadioButton(selected = prov == s.id, onClick = null)
                 Column(Modifier.padding(start = 12.dp)) {
                     Text(s.name + if (p.sttKey(s.id).isNotBlank()) " · ключ задан" else "", style = MaterialTheme.typography.bodyLarge)
-                    Hint(s.note)
+                    Hint("от ${sttHourPrice(s.prices.minOf { it.second })} · ${s.note}")
                 }
             }
         }
@@ -720,6 +742,8 @@ fun SettingsSpeech(state: AppState) {
             model, { model = it.trim(); p.setSttModel(prov, it) }, Modifier.fillMaxWidth(),
             label = { Text("Модель") }, singleLine = true,
         )
+        sp.price(model)?.let { Hint("$model: ${sttHourPrice(it)}, 10 минут ${sttCost(sp, model, 10.0)}. Цены проверены $STT_PRICES_CHECKED.") }
+        TextButton(onClick = { uri.openUri(sp.priceUrl) }) { Text("Цены ${sp.name} на сайте") }
         Hint("Ключи синхронизируются между устройствами зашифрованными, если задан пароль синхронизации.")
     }
 }
@@ -762,6 +786,15 @@ fun AudioPartPicker(s: ImportSession, pk: AudioPick) {
                     (to?.let { " (${((it - (from ?: 0)) / 60_000).coerceAtLeast(1)} мин)" } ?: "") +
                     ". Он же загрузится в урок как аудио.",
             )
+            val prov = sttProvider(s.sttProviderId())
+            val model = s.sttModelName(prov)
+            fun cost(ms: Long?): String =
+                if (useTr) "бесплатно, готовая расшифровка"
+                else ms?.takeIf { it > 0 }?.let { sttCost(prov, model, it / 60_000.0) }?.let { "${prov.name}: $it" } ?: prov.name
+            if (!bad) Text(
+                cost(to?.let { it - (from ?: 0) } ?: (dur - (from ?: 0)).takeIf { dur > 0 }),
+                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+            )
             if (pk.transcript != null) Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Готовая расшифровка подкаста")
@@ -774,7 +807,7 @@ fun AudioPartPicker(s: ImportSession, pk: AudioPick) {
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (useTr) "Взять кусок" else "Распознать") }
             TextButton(onClick = { s.transcribePart(0, null, useTr) }, Modifier.fillMaxWidth()) {
-                Text("Весь файл" + if (dur > 0) " (${clock(dur)})" else "")
+                Text("Весь файл" + if (dur > 0) " (${clock(dur)}, ${cost(dur)})" else "")
             }
         }
     }

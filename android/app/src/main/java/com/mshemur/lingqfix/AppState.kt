@@ -651,6 +651,9 @@ class ImportSession(private val app: AppState) {
     var audioName by mutableStateOf("")
     private var audioWords: List<TWord> = emptyList()
 
+    fun sttProviderId() = app.prefs.sttProvider
+    fun sttModelName(p: SttProvider) = app.prefs.sttModel(p.id).ifBlank { p.models.first() }
+
     fun dropAudio() { audioUri = null; audioName = ""; audioWords = emptyList() }
 
     /** Cover picture (bytes, MIME type) of the book / podcast; put on the course when [coverToCourse]. */
