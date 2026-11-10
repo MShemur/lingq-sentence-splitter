@@ -9,18 +9,21 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- android v1.66: PDF import, choose pages. A PDF with more than one page opens a sheet "Какие страницы взять?":
+## To do on Android
+
+
+## Done
+
+- android v1.66 -> web v1.28: PDF import, choose pages. A PDF with more than one page opens a sheet "Какие страницы взять?":
   page previews in a grid (tap = pick / unpick, ✓ badge, thick primary border), a field "Страницы, например 3-5, 8"
   (1-based, commas / dashes; error text if it cannot be read), buttons Все / Сбросить, "Взять N стр.". Only the chosen
   pages are read; the text layer is checked per page (fewer than 80 letters = a scan) and only those pages go to OCR
   (Android ML Kit; web has no OCR: report "страница N — скан, без текста" or skip). Lesson title gets ", стр. 3–5, 8"
   unless all pages were taken. One-page PDFs are read at once. Android `PdfPick.kt` (`PdfDoc`, `PdfText.pages`,
   `parsePages`, `pagesLabel`, `PdfPagePicker`), `ImportSession.importPdfPages`. Web: pdf.js renders the previews.
-
-## To do on Android
-
-
-## Done
+  Web v1.28: `importer/pdf.ts` (openPdf: previews via pdf.js one at a time, text per page, parsePages, pagesLabel),
+  `screens/PdfPicker.tsx` (previews rendered when scrolled into view); scanned pages are skipped with a snackbar
+  "Страница N — скан, без текста: пропущено" (no OCR on the web); all chosen pages scans = error.
 
 - android v1.63 -> web v1.27 (code review, speed / simplify; the same issues were found on the web):
   - Audio ticker: 50 ms only while a loop or a one-sentence stop is on, else 250 ms; the position shown on screen

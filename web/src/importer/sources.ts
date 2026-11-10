@@ -1,6 +1,7 @@
 // Reading .txt/.md/.epub/.pdf files picked on the iPad. Port of Android Sources.kt (Epub) and PdfText (text layer only:
-// there is no OCR on the web, scanned PDFs are reported as such).
+// there is no OCR on the web, scanned pages are reported as such; page choice in pdf.ts).
 import { ApiError } from '../lingq'
+import { openPdf, type PdfDoc } from './pdf'
 
 /** A piece of text that becomes one LingQ lesson (or several, if it is long). */
 export interface SourceText { title: string; text: string }
@@ -8,13 +9,18 @@ export interface SourceText { title: string; text: string }
 const baseName = (name: string) => name.replace(/\.[^.]+$/, '')
 
 /** The file's display name (without extension) and its texts (one per EPUB chapter). */
-export async function readFile(file: File, onStatus: (s: string) => void): Promise<{ name: string; texts: SourceText[] }> {
+export async function readFile(file: File, onStatus: (s: string) => void): Promise<{ name: string; texts: SourceText[]; pdf?: PdfDoc }> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const head = String.fromCharCode(...bytes.subarray(0, 4))
   if (/\.pdf$/i.test(file.name) || head === '%PDF') {
-    onStatus('Читаю PDF…')
-    const text = await pdfText(bytes, onStatus)
-    return { name: baseName(file.name), texts: [{ title: baseName(file.name), text }] }
+    onStatus('Открываю PDF…')
+    const pdf = await openPdf(bytes)
+    // several pages: the user picks which (the caller shows the picker); one page is read at once
+    if (pdf.pages > 1) return { name: baseName(file.name), texts: [], pdf }
+    try {
+      const { text } = await pdf.text([0], onStatus)
+      return { name: baseName(file.name), texts: [{ title: baseName(file.name), text }] }
+    } finally { pdf.close() }
   }
   if (/\.epub$/i.test(file.name) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) {
     onStatus('Читаю EPUB…')
@@ -23,42 +29,6 @@ export async function readFile(file: File, onStatus: (s: string) => void): Promi
   }
   const text = new TextDecoder('utf-8').decode(bytes).replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   return { name: baseName(file.name), texts: [{ title: baseName(file.name), text }] }
-}
-
-// --- PDF (pdf.js, loaded only when a PDF is opened) ---
-
-async function pdfText(bytes: Uint8Array, onStatus: (s: string) => void): Promise<string> {
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  const worker = (await import('pdfjs-dist/legacy/build/pdf.worker.mjs?url')).default
-  pdfjs.GlobalWorkerOptions.workerSrc = worker
-  const doc = await pdfjs.getDocument({ data: bytes, isEvalSupported: false }).promise
-  const pages: string[] = []
-  let letters = 0
-  for (let i = 1; i <= doc.numPages; i++) {
-    onStatus(`Читаю страницу ${i} из ${doc.numPages}…`)
-    const page = await doc.getPage(i)
-    const c = await page.getTextContent()
-    // items in reading order; a new line where pdf.js says so or where the text moves down
-    let out = ''
-    let lastY: number | null = null
-    for (const it of c.items as any[]) {
-      if (typeof it.str !== 'string') continue
-      const y = it.transform?.[5]
-      if (lastY != null && y != null && Math.abs(y - lastY) > 2 && !out.endsWith('\n')) out += '\n'
-      out += it.str
-      if (it.hasEOL) out += '\n'
-      if (y != null) lastY = y
-    }
-    letters += (out.match(/\p{L}/gu) ?? []).length
-    pages.push(out.trim())
-    page.cleanup()
-  }
-  await doc.destroy()
-  // no usable text layer (a scan): too few letters per page
-  if (letters < 80 * Math.max(1, doc.numPages)) {
-    throw new ApiError('в этом PDF нет текста — это скан. Распознавание сканов на iPad недоступно (на телефоне — есть).')
-  }
-  return pages.join('\n\n')
 }
 
 // --- EPUB: OPF spine order, XHTML -> plain text with paragraphs; images are skipped ---

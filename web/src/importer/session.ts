@@ -9,6 +9,7 @@ import { lang, prefs, prompt, useGemini } from '../settings'
 import { addReports, chunks, cleanText, countWords, EMPTY_REPORT, reportText, splitLong } from './cleaner'
 import { fix, type Change } from './fixer'
 import { readFile } from './sources'
+import { pagesLabel, type PdfDoc } from './pdf'
 import { saveBackup } from './backups'
 
 export class ImportItem {
@@ -75,8 +76,9 @@ export class ImportSession {
     this.startLoad('Читаю файл…')
     this.pasteMode.value = false
     try {
-      const { name, texts } = await readFile(file, (s) => { this.status.value = s })
+      const { name, texts, pdf } = await readFile(file, (s) => { this.status.value = s })
       this.sourceName.value = name
+      if (pdf) { this.pdfPick.value?.close(); this.pdfPick.value = pdf; this.loading.value = false; this.status.value = ''; return }
       if (texts.length === 1) this.setSingle(texts[0].title || name, texts[0].text)
       else {
         this.isBook.value = true
@@ -87,6 +89,32 @@ export class ImportSession {
     } catch (e) {
       this.error.value = `Не удалось прочитать файл: ${(e as Error).message}`
     }
+    this.loading.value = false; this.status.value = ''
+  }
+
+  // --- PDF: which pages ---
+
+  /** A PDF of several pages waiting for the page choice (the picker sheet is open). */
+  pdfPick = signal<PdfDoc | null>(null)
+
+  cancelPdf() { this.pdfPick.value?.close(); this.pdfPick.value = null }
+
+  /** Reads pages [list] (0-based) of the PDF being picked; the title gets ", стр. 3–5, 8" unless all were taken. */
+  async importPdfPages(list: number[]) {
+    const pdf = this.pdfPick.value
+    if (!pdf || !list.length) return
+    this.pdfPick.value = null
+    this.startLoad('Читаю PDF…')
+    try {
+      const { text, scans } = await pdf.text(list, (s) => { this.status.value = s })
+      const name = this.sourceName.value
+      const all = list.length === pdf.pages
+      this.setSingle(all ? name : `${name}, стр. ${pagesLabel(list)}`, text)
+      if (scans.length) say(`${scans.length === 1 ? 'Страница' : 'Страницы'} ${pagesLabel(scans)} — скан, без текста: пропущено`)
+      if (prefs.autoClean.value === '1') this.cleanQuick()
+    } catch (e) {
+      this.error.value = `Не удалось прочитать PDF: ${(e as Error).message}`
+    } finally { pdf.close() }
     this.loading.value = false; this.status.value = ''
   }
 

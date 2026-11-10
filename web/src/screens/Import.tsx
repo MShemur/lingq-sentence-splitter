@@ -8,6 +8,7 @@ import { Dialog, IconButton, ListItem, Loading, TopBar } from '../ui'
 import type { ImportSession } from '../importer/session'
 import { countWords } from '../importer/cleaner'
 import { wordsText } from '../stats'
+import { PdfPicker } from './PdfPicker'
 import { head, tail } from '../importer/fixer'
 import { deleteAllBackups, KEEP_DAYS, listBackups, restoreBackup, type Backup } from '../importer/backups'
 
@@ -64,6 +65,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
             <p class="hint">Текст из буфера или файл: TXT, MD, EPUB, PDF с текстом. Потом очистите текст от мусора и загрузите в LingQ.</p>
           )}
           {s.loading.value && <div class="row-status"><span class="spinner-sm" />{s.status.value || 'Загрузка…'}</div>}
+          {s.pdfPick.value && <PdfPicker s={s} d={s.pdfPick.value} />}
 
           {/* 2. the text */}
           {s.pasteMode.value ? (
