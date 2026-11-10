@@ -832,7 +832,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 Text("  слов")
             }
             val n = s.selectedCount()
-            Button(
+            if (!s.finished) Button(
                 onClick = { s.run() }, enabled = !s.running && n > 0 && (if (s.newCourse) s.newCourseTitle.isNotBlank() else s.course != null),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (n == 1) "Загрузить урок" else "Загрузить уроков: $n") }
@@ -845,24 +845,27 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
         s.error?.let { Text("Ошибка: $it", color = MaterialTheme.colorScheme.error) }
         if (s.finished) {
             HorizontalDivider()
+            val fixed = s.fixes.sumOf { it.changes.size }
             Text(
-                if (s.fixes.isEmpty()) "Готово ✅ Разбивка проверена сразу при загрузке, исправлять было нечего."
-                else "Готово ✅ Разбивка исправлена сразу при загрузке, ещё раз проверять не нужно. " +
-                    "Ниже — что склеено (‖ — место склейки). Копии до правки — в «Резервных копиях».",
+                "Готово ✅" + if (fixed > 0) " Разбивка на предложения поправлена ($fixed)." else "",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            s.fixes.forEach { f ->
-                Text(f.lesson.title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-                f.changes.forEach { ChangeRow(it) }
+            val ls = s.uploaded.toList()
+            if (ls.size == 1) Button(
+                onClick = { state.go(Screen.Reader(ReaderSession(state, state.lang, ls[0]))) }, Modifier.fillMaxWidth(),
+            ) { Text("Открыть урок") }
+            else ls.forEach { l ->
+                ListItem(
+                    headlineContent = { Text(l.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                    trailingContent = { Icon(AppIcons.Book, contentDescription = null) },
+                    modifier = Modifier.clickable { state.go(Screen.Reader(ReaderSession(state, state.lang, l))) },
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (s.fixes.isNotEmpty()) OutlinedButton(onClick = {
-                    shareText(ctx, "SatzLoop: ${s.course?.title.orEmpty()}",
-                        reportText("Загрузка в курс: ${s.course?.title.orEmpty()}", s.fixes.toList()))
-                }) { Text("📤 Отчёт") }
                 s.course?.let { c ->
-                    OutlinedButton(onClick = { state.go(Screen.Lessons(state.lang, c)) }) { Text("Открыть курс") }
+                    OutlinedButton(onClick = { state.go(Screen.Lessons(state.lang, c, reader = true)) }) { Text("Открыть курс") }
                 }
+                TextButton(onClick = { s.newImport() }) { Text("Новый импорт") }
             }
         }
         Spacer(Modifier.height(24.dp))

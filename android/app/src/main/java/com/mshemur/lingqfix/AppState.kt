@@ -588,6 +588,14 @@ class ImportSession(private val app: AppState) {
     var error by mutableStateOf<String?>(null)
     /** Lessons whose sentence split was fixed right after the upload (for the report). */
     val fixes = mutableStateListOf<LessonFix>()
+    /** Lessons made by the last upload, in order (for "Открыть урок"). */
+    val uploaded = mutableStateListOf<Lesson>()
+
+    /** After an upload: back to an empty form for the next lesson. */
+    fun newImport() {
+        finished = false; log.clear(); fixes.clear(); uploaded.clear(); error = null
+        pasteText = ""; items.clear(); dropAudio(); cover = null
+    }
 
     // --- reading the source: file, PDF (text layer or OCR), photos ---
 
@@ -757,6 +765,7 @@ class ImportSession(private val app: AppState) {
 
     private fun startLoad(msg: String) {
         dropAudio(); cover = null
+        finished = false; log.clear(); fixes.clear(); uploaded.clear()
         loading = true; status = msg; error = null
         cleanNote = null; before = null; canUndo = false
     }
@@ -914,6 +923,7 @@ class ImportSession(private val app: AppState) {
         error = null
         log.clear()
         fixes.clear()
+        uploaded.clear()
         app.scope.launch {
             try {
                 val c = if (newCourse) {
@@ -956,6 +966,7 @@ class ImportSession(private val app: AppState) {
                             line(i, "❌ ${e.message} ·"); failed++; done++; progress = done.toFloat() / jobs.size
                             continue
                         }
+                        uploaded += Lesson(id, title)
                         val level = autoLevel && app.useGemini
                         if (!autoFix && !level && audio == null) {
                             line(i, "✅"); done++; progress = done.toFloat() / jobs.size
