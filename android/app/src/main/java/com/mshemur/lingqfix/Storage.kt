@@ -82,6 +82,14 @@ class Prefs(ctx: Context) {
     var aiBase: String
         get() = read("aiBase", "https://api.deepseek.com")
         set(v) = write("aiBase", v.trim())
+    /** Speech recognition: service, and per service its key and model. */
+    var sttProvider: String
+        get() = read("sttProvider", "groq")
+        set(v) = write("sttProvider", v)
+    fun sttKey(id: String) = read("sttKey.$id")
+    fun setSttKey(id: String, v: String) = write("sttKey.$id", v.trim())
+    fun sttModel(id: String) = read("sttModel.$id")
+    fun setSttModel(id: String, v: String) = write("sttModel.$id", v.trim())
     var aiKey: String
         get() = read("aiKey")
         set(v) = write("aiKey", v.trim())

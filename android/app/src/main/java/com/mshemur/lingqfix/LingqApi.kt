@@ -23,7 +23,9 @@ class LingqApi(private val key: String) {
             .build()
     }
 
-    fun call(method: String, url: String, body: String? = null): String {
+    fun call(method: String, url: String, body: String? = null): String = send(method, url, body?.toRequestBody(JSON_TYPE))
+
+    private fun send(method: String, url: String, body: okhttp3.RequestBody?): String {
         if (key.isBlank()) throw ApiException("Не задан API-ключ LingQ (⚙ Настройки)")
         var attempt = 0
         val t0 = System.currentTimeMillis()
@@ -33,7 +35,7 @@ class LingqApi(private val key: String) {
                 .header("Accept", "application/json")
                 // Cloudflare rejects some default client signatures (error 1010)
                 .header("User-Agent", "lingq-lesson-fixer/1.0")
-                .method(method, body?.toRequestBody(JSON_TYPE))
+                .method(method, body)
                 .build()
             val (code, text, retryAfter) = try {
                 http.newCall(req).execute().use { r -> Triple(r.code, r.body?.string().orEmpty(), r.header("Retry-After")) }
@@ -192,6 +194,28 @@ class LingqApi(private val key: String) {
         val body = JSONObject().put("title", title.take(250)).put("description", "").put("level", 1)
         val d = JSONObject(call("POST", "$BASE/v3/$lang/collections/", body.toString()))
         return Course(d.getInt("id"), d.optString("title", title))
+    }
+
+    /** Creates a private lesson in [course] with an audio file; returns its id. */
+    fun importLessonAudio(lang: String, course: Int, title: String, text: String, audio: okhttp3.RequestBody, fileName: String): Int {
+        val form = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
+            .addFormDataPart("title", title.take(250))
+            .addFormDataPart("text", text)
+            .addFormDataPart("collection", course.toString())
+            .addFormDataPart("status", "private")
+            .addFormDataPart("save", "true")
+            .addFormDataPart("audio", fileName, audio)
+            .build()
+        return JSONObject(send("POST", "$BASE/v3/$lang/lessons/import/", form)).getInt("id")
+    }
+
+    /** "ok", "pending" (LingQ still processes it) or "none". */
+    fun audioState(lang: String, id: Int): String = obj("$BASE/v3/$lang/lessons/$id/").let { o ->
+        when {
+            !o.isNull("audioUrl") && o.optString("audioUrl").isNotBlank() -> "ok"
+            o.optBoolean("audioPending") -> "pending"
+            else -> "none"
+        }
     }
 
     /** Creates a private lesson in [course]; returns its id. */

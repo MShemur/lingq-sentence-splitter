@@ -212,6 +212,12 @@ class SyncService(private val app: AppState) {
         val p = app.prefs
         return JSONObject().put("lingq", p.apiKey).put("gemini", p.geminiKey)
             .put("aiBase", p.aiBase).put("aiKey", p.aiKey).put("aiModel", p.aiModel).put("aiFastModel", p.aiFastModel)
+            .also { o ->
+                // speech recognition keys, only when there are any (older versions do not know them)
+                val stt = JSONObject()
+                STT_PROVIDERS.forEach { s -> p.sttKey(s.id).takeIf { it.isNotBlank() }?.let { stt.put(s.id, it) } }
+                if (stt.length() > 0) o.put("stt", stt)
+            }
     }
 
     private fun hash(s: String) = java.security.MessageDigest.getInstance("SHA-256").digest(s.toByteArray())
@@ -261,6 +267,7 @@ class SyncService(private val app: AppState) {
             if (v("aiKey").isNotEmpty()) aiKey = v("aiKey")
             if (v("aiModel").isNotEmpty()) aiModel = v("aiModel")
             if (k.has("aiFastModel")) aiFastModel = v("aiFastModel")
+            k.optJSONObject("stt")?.let { o -> o.keys().forEach { id -> o.optString(id).trim().takeIf { it.isNotEmpty() }?.let { setSttKey(id, it) } } }
         }
         val now = localKeys()
         val e = prefs.edit().putString("keysHash", hash(now.toString()))

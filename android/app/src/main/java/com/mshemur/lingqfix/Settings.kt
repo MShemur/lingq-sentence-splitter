@@ -86,6 +86,10 @@ fun SettingsRoot(state: AppState) {
             when (p.translator) { "gemini" -> "Gemini · ${p.geminiModel}"; "openai" -> "ИИ · ${p.aiModel}"; else -> "LingQ" } + " → ${state.trLang}",
         ) { state.go(Screen.SettingsTranslation) }
         SectionItem(
+            AppIcons.Mic, "Распознавание речи",
+            sttProvider(p.sttProvider).let { it.name + if (sttKeyFor(p, it).isBlank()) " · ключ не задан" else " · ключ задан" },
+        ) { state.go(Screen.SettingsSpeech) }
+        SectionItem(
             Icons.Filled.Info, "Чтение",
             (readerThemeOf(state.readerTheme)?.name ?: "Фон как в системе") + " · " +
                 (HIGHLIGHTS.firstOrNull { it.key == state.highlight }?.name ?: "") + " · " +
@@ -112,7 +116,7 @@ fun SettingsRoot(state: AppState) {
 }
 
 @Composable
-private fun Page(content: @Composable () -> Unit) {
+internal fun Page(content: @Composable () -> Unit) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -120,7 +124,7 @@ private fun Page(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Hint(text: String) {
+internal fun Hint(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 

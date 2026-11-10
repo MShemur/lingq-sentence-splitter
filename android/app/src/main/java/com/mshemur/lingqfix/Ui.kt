@@ -219,6 +219,7 @@ fun App(state: AppState) {
                     Screen.SettingsPrompts -> SettingsPrompts(state)
                     Screen.SettingsUpdates -> SettingsUpdates(state)
                     Screen.SettingsReading -> SettingsReading(state)
+                    Screen.SettingsSpeech -> SettingsSpeech(state)
                     Screen.Stats -> StatsScreen(state)
                     Screen.SettingsSync -> SettingsSync(state)
                     Screen.Log -> LogScreen(state)
@@ -305,6 +306,7 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.SettingsPrompts -> "Промпты Gemini"
     Screen.SettingsUpdates -> "Обновления"
     Screen.SettingsReading -> "Чтение"
+    Screen.SettingsSpeech -> "Распознавание речи"
     Screen.Stats -> "Статистика"
     Screen.SettingsSync -> "Синхронизация"
     Screen.Log -> "Журнал действий"
@@ -589,6 +591,9 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) s.loadFile(uri)
     }
+    val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) s.pickAudio(uri)
+    }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { uris ->
         s.loadPhotos(uris, append = false)
     }
@@ -608,6 +613,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
     var autoClean by remember { mutableStateOf(state.prefs.autoClean) }
     LaunchedEffect(state.lang) { state.loadCourses() }
     s.pdf?.let { PdfPagePicker(s, it) }
+    s.audioPick?.let { AudioPartPicker(s, it) }
     val courses = state.courses.orEmpty()
     LaunchedEffect(state.courses) {
         if (s.course == null) s.course = courses.firstOrNull()
@@ -631,8 +637,12 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             }
             SourceTile(AppIcons.PhotoCamera, "Камера", Modifier.weight(1f), !s.running) { takePhoto() }
         }
+        SourceTile(AppIcons.Mic, "Аудио → текст (подкаст, запись)", Modifier.fillMaxWidth(), !s.running && !s.loading) {
+            audioPicker.launch(arrayOf("audio/*", "video/mp4", "application/ogg"))
+        }
         if (!s.pasteMode && s.items.isEmpty() && !s.loading) Text(
-            "Текст из буфера, TXT, EPUB, PDF (выбранные страницы, и сканы), фото страниц. Распознавание — прямо на телефоне, бесплатно. " +
+            "Текст из буфера, TXT, EPUB, PDF (выбранные страницы, и сканы), фото страниц — распознаются на телефоне, бесплатно. " +
+                "Аудио: выберите кусок (например 10 минут), он распознаётся сервисом из настроек и загружается в урок вместе с текстом. " +
                 "Потом очистите текст от мусора и загрузите в LingQ.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -647,6 +657,14 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 s.pasteTitle, { s.pasteTitle = it }, Modifier.fillMaxWidth(),
                 label = { Text("Название урока") }, singleLine = true, shape = RoundedCornerShape(12.dp),
             )
+            if (s.audioUri != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(AppIcons.Headphones, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                Text(
+                    "${s.audioName} — загрузится в урок, у предложений будет время", Modifier.weight(1f).padding(start = 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = { s.dropAudio() }) { Text("Без аудио") }
+            }
             OutlinedTextField(
                 s.pasteText, { s.pasteText = it }, Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 420.dp),
                 label = { Text("Текст") }, shape = RoundedCornerShape(12.dp),

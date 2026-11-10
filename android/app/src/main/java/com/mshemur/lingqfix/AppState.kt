@@ -29,6 +29,7 @@ sealed interface Screen {
     data object SettingsPrompts : Screen
     data object SettingsUpdates : Screen
     data object SettingsReading : Screen
+    data object SettingsSpeech : Screen
     data object Stats : Screen
     data object SettingsSync : Screen
     data object Log : Screen
@@ -639,7 +640,90 @@ class ImportSession(private val app: AppState) {
         pasteTitle = title; pasteText = text
     }
 
+    // --- audio: a part is cut, recognised and uploaded with the lesson ---
+
+    /** Audio file waiting for the choice of its part. */
+    var audioPick by mutableStateOf<AudioPick?>(null)
+    /** Audio that goes into the lesson (the cut part or the whole file), its file name, and the recognised words. */
+    var audioUri by mutableStateOf<Uri?>(null)
+    var audioName by mutableStateOf("")
+    private var audioWords: List<TWord> = emptyList()
+
+    fun dropAudio() { audioUri = null; audioName = ""; audioWords = emptyList() }
+
+    fun pickAudio(uri: Uri) {
+        val prov = sttProvider(app.prefs.sttProvider)
+        if (sttKeyFor(app.prefs, prov).isBlank()) {
+            app.say("Задайте ключ распознавания (${prov.name})")
+            app.go(Screen.SettingsSpeech)
+            return
+        }
+        startLoad("Открываю аудио…")
+        app.scope.launch {
+            val name = withContext(Dispatchers.IO) { Sources.name(app.ctx, uri) }
+            val dur = withContext(Dispatchers.IO) { AudioCut.duration(app.ctx, uri) }
+            loading = false; status = ""
+            audioPick = AudioPick(uri, name, dur)
+        }
+    }
+
+    /** Recognises [fromMs, toMs) of the picked audio (toMs null = to the end). */
+    fun transcribePart(fromMs: Long, toMs: Long?) {
+        val pk = audioPick ?: return
+        audioPick = null
+        val p = app.prefs
+        val prov = sttProvider(p.sttProvider)
+        val key = sttKeyFor(p, prov)
+        startLoad("Вырезаю кусок…")
+        pasteMode = false; items.clear()
+        app.scope.launch {
+            try {
+                val base = pk.name.substringBeforeLast('.')
+                val end = toMs ?: pk.durationMs.takeIf { it > 0 }
+                val whole = fromMs <= 0 && (end == null || (pk.durationMs > 0 && end >= pk.durationMs))
+                val (uri, name) = if (whole) pk.uri to pk.name else {
+                    val dir = java.io.File(app.ctx.cacheDir, "import").apply { deleteRecursively() }
+                    val f = withContext(Dispatchers.Default) { AudioCut.cut(app.ctx, pk.uri, fromMs, end ?: (1L shl 40), dir, "part") }
+                    Uri.fromFile(f) to f.name
+                }
+                val title = if (whole) base else "$base, ${clock(fromMs)}–${end?.let { clock(it) } ?: "конец"}"
+                val t = Stt.transcribe(app.ctx, uri, name, app.lang, prov, key, p.sttModel(prov.id)) { status = it }
+                setSingle(title, t.text)
+                audioUri = uri; audioName = if (whole) pk.name else "$title.${name.substringAfterLast('.')}"
+                audioWords = t.words
+                if (t.text.isBlank()) error = "В аудио не нашлось речи"
+                else if (p.autoClean) cleanQuick()
+            } catch (e: Throwable) {
+                AppLog.error("stt", "Распознавание", e)
+                error = "Не удалось распознать: ${e.message}"
+            }
+            loading = false; status = ""
+        }
+    }
+
+    /** Sets the time of every sentence of a fresh lesson from the recognised words; returns a note for the log. */
+    private fun setTimes(lang: String, id: Int, words: List<TWord>): String {
+        val state = app.api.audioState(lang, id)
+        if (state == "none") return "LingQ не принял аудио"
+        val paras = app.api.editor(lang, id)
+        val sents = mutableListOf<org.json.JSONObject>()
+        for (i in 0 until paras.length()) {
+            val ss = paras.getJSONObject(i).optJSONArray("sentences") ?: continue
+            for (j in 0 until ss.length()) sents += ss.getJSONObject(j)
+        }
+        if (sents.isEmpty() || words.isEmpty()) return "аудио есть"
+        val times = Stt.align(sents.map { it.optString("text") }, words)
+        sents.forEachIndexed { i, s ->
+            val (a, b) = times[i]
+            s.put("timestamp", JSONArray().put(Math.round(a * 100) / 100.0).put(Math.round(b * 100) / 100.0))
+        }
+        app.api.saveParagraphs(lang, id, paras)
+        AppLog.add("import", "Урок $id: время для ${sents.size} предложений (аудио: $state)")
+        return "аудио и время предложений"
+    }
+
     private fun startLoad(msg: String) {
+        dropAudio()
         loading = true; status = msg; error = null
         cleanNote = null; before = null; canUndo = false
     }
@@ -782,7 +866,10 @@ class ImportSession(private val app: AppState) {
         if (newCourse && createTitle.isEmpty()) return app.say("Введите название нового курса")
         if (!newCourse && c0 == null) return app.say("Выберите курс")
         val lang = app.lang
-        val max = splitWords.toIntOrNull() ?: 0
+        val audio = if (pasteMode) audioUri else null
+        val audioFile = audioName.replace(Regex("[^\\p{L}\\p{N}._ -]"), "_")
+        val words = audioWords
+        val max = if (audio != null) 0 else splitWords.toIntOrNull() ?: 0   // a lesson with audio stays whole
         val jobs = selected().flatMap { (title, text) ->
             val parts = Sources.splitLong(text, max)
             if (parts.size == 1) listOf(title to parts[0]) else parts.mapIndexed { i, p -> "$title (${i + 1})" to p }
@@ -818,13 +905,16 @@ class ImportSession(private val app: AppState) {
                         val (title, text) = job
                         line(i, "⬆")
                         val id = try {
-                            withContext(Dispatchers.IO) { app.api.importLesson(lang, c.id, title, text) }
+                            withContext(Dispatchers.IO) {
+                                if (audio != null) app.api.importLessonAudio(lang, c.id, title, text, UriBody(app.ctx, audio), audioFile)
+                                else app.api.importLesson(lang, c.id, title, text)
+                            }
                         } catch (e: Throwable) {
                             line(i, "❌ ${e.message} ·"); failed++; done++; progress = done.toFloat() / jobs.size
                             continue
                         }
                         val level = autoLevel && app.useGemini
-                        if (!autoFix && !level) {
+                        if (!autoFix && !level && audio == null) {
                             line(i, "✅"); done++; progress = done.toFloat() / jobs.size
                             continue
                         }
@@ -837,6 +927,15 @@ class ImportSession(private val app: AppState) {
                                         val r = withContext(Dispatchers.IO) { fixImported(lang, id, title) }
                                         found[i] = r
                                         parts += if (r != null) "исправлено ${r.changes.size}" else "разбивка в порядке"
+                                    }
+                                    if (audio != null) parts += try {
+                                        withContext(Dispatchers.IO) {
+                                            if (!autoFix) app.api.waitProcessed(lang, id)
+                                            setTimes(lang, id, words)
+                                        }
+                                    } catch (e: Throwable) {
+                                        AppLog.error("import", "Время предложений урока $id", e)
+                                        "время предложений не записано"
                                     }
                                     if (level) parts += try {
                                         withContext(Dispatchers.IO) { aiLevel(lang, id, text) }
