@@ -9,6 +9,7 @@ import type { ImportSession } from './importer/session'
 import type { PodcastSession } from './importer/podcasts'
 import { positions } from './progress'
 import { log, logError } from './applog'
+import { listenHooks, type Track } from './audio'
 
 export class LessonsScreen {
   readonly k = 'lessons'
@@ -173,6 +174,71 @@ export const recent = computed<Lesson[] | null>(() => {
   }
   return [...byId.values()].sort((a, b) => (b.opened ?? 0) - (a.opened ?? 0)).slice(0, 10)
 })
+
+// --- player "Недавние": lessons listened to (audio loaded) in this app, kept on the device ---
+
+function loadListened(): Record<string, Lesson[]> {
+  try { return JSON.parse(localStorage.getItem('listened') ?? '{}') } catch { return {} }
+}
+const listenedLocal = signal<Record<string, Lesson[]>>(loadListened())
+
+function saveListened(l: string, list: Lesson[]) {
+  listenedLocal.value = { ...listenedLocal.value, [l]: list.slice(0, 60) }
+  try { localStorage.setItem('listened', JSON.stringify(listenedLocal.value)) } catch { /* ignore */ }
+}
+
+/** "<lang>_<id>" of the audio engine. */
+function keyParts(k: string): [string, number] | null {
+  const i = k.lastIndexOf('_'), id = Number(k.slice(i + 1))
+  return i > 0 && Number.isInteger(id) ? [k.slice(0, i), id] : null
+}
+
+listenHooks.listen = (t: Track) => {
+  const kp = keyParts(t.key)
+  if (!kp) return
+  const [l, id] = kp
+  const all = listenedLocal.value[l] ?? []
+  const old = all.find((x) => x.id === id), seen = (recentLocal.value[l] ?? []).find((x) => x.id === id)
+  const now: Lesson = {
+    id, title: t.title || old?.title || seen?.title || '', imageUrl: t.image || old?.imageUrl || seen?.imageUrl || '',
+    courseTitle: old?.courseTitle || seen?.courseTitle || '', opened: Date.now(), audio: t.url || old?.audio || '',
+    duration: old?.duration || seen?.duration || 0,
+  }
+  saveListened(l, [now, ...all.filter((x) => x.id !== id)])
+}
+
+listenHooks.duration = (k: string, ms: number) => {
+  const kp = keyParts(k)
+  if (!kp) return
+  const [l, id] = kp
+  const all = listenedLocal.value[l] ?? []
+  if (!all.some((x) => x.id === id && !x.duration)) return
+  saveListened(l, all.map((x) => (x.id === id ? { ...x, duration: Math.round(ms / 1000) } : x)))
+}
+
+/** Player "Недавние": lessons listened to, plus lessons opened in the reader that have audio; the latest first. */
+export const listened = computed<Lesson[]>(() => {
+  const l = lang()
+  const heard = listenedLocal.value[l] ?? []
+  const ids = new Set(heard.map((x) => x.id))
+  const opened = (recentLocal.value[l] ?? []).filter((x) => !ids.has(x.id) && (x.audio || (x.duration ?? 0) > 0))
+  return [...heard, ...opened].sort((a, b) => (b.opened ?? 0) - (a.opened ?? 0))
+})
+
+/** "Lektion 2" before "Lektion 10": runs of digits compare as numbers, the rest ignoring case. */
+export function naturalCompare(a: string, b: string): number {
+  const x = a.toLowerCase().match(/\d+|\D+/g) ?? [], y = b.toLowerCase().match(/\d+|\D+/g) ?? []
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const p = x[i], q = y[i]
+    let c: number
+    if (/\d/.test(p[0]) && /\d/.test(q[0])) {
+      const pp = p.replace(/^0+/, ''), qq = q.replace(/^0+/, '')
+      c = pp.length - qq.length || (pp < qq ? -1 : pp > qq ? 1 : 0)
+    } else c = p < q ? -1 : p > q ? 1 : 0
+    if (c) return c
+  }
+  return x.length - y.length
+}
 
 export async function loadRecent() {
   const l = lang()

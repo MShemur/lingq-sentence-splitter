@@ -64,6 +64,9 @@ function LessonTile({ l, langCode, sub }: { l: Lesson; langCode: string; sub: st
     <button class="tile" onClick={() => go({ k: 'reader', s: new ReaderSession(langCode, l) })}>
       <Cover url={l.imageUrl} title={title} ratio="4 / 3">
         {!!l.level && <span class="cover-level">{l.level}</span>}
+        {!!(l.audio || l.duration) && (
+          <span class="cover-audio" title="Есть аудио"><Icon name="headphones" size={14} />{l.duration ? ` ${Math.round(l.duration / 60)} мин` : ''}</span>
+        )}
         {read > 0 && <span class="cover-progress"><span style={{ width: Math.min(100, read * 100) + '%' }} /></span>}
       </Cover>
       <span class="tile-title">{title}</span>

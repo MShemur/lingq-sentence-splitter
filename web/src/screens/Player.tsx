@@ -6,7 +6,7 @@ import type { JSX } from 'preact'
 import { effect } from '@preact/signals'
 import * as audio from '../audio'
 import { fmtLength, fmtSpeed, fmtTime } from '../audio'
-import { courses, loadCourses, loadRecent, recent, stack } from '../app'
+import { courses, listened, loadCourses, naturalCompare, stack } from '../app'
 import { lang, prefs } from '../settings'
 import * as api from '../lingq'
 import type { Course, Lesson } from '../lingq'
@@ -442,14 +442,17 @@ function AudioLessons({ onPick, onPlayAll }: { onPick: (lang: string, l: Lesson)
   const [course, setCourse] = useState<Course | null>(null)
   const [courseLessons, setCourseLessons] = useState<Lesson[] | null>(null)
   const [courseError, setCourseError] = useState<string | null>(null)
-  useEffect(() => { if (!recent.value) void loadRecent(); void loadCourses() }, [l])
+  const [sort, setSort] = useState(0) // 0 own order, 1 newest first, 2 by name
+  useEffect(() => { void loadCourses() }, [l])
   useEffect(() => {
     if (!course) return
     setCourseLessons(null); setCourseError(null)
     api.lessons(l, course.id).then((r) => setCourseLessons(r.lessons.filter((x) => (x.duration ?? 0) > 0 || x.audio)),
       (e) => setCourseError((e as Error).message))
   }, [course?.id])
-  const list = course ? courseLessons : recent.value?.filter((x) => x.audio || (x.duration ?? 0) > 0) ?? null
+  const raw = course ? courseLessons : listened.value
+  const list = raw && (sort === 1 ? [...raw].sort((a, b) => b.id - a.id) // lesson ids grow: the newest import first
+    : sort === 2 ? [...raw].sort((a, b) => naturalCompare(a.title, b.title)) : raw)
   const current = player.value?.lesson.id
   const total = (list ?? []).reduce((n, x) => n + (x.duration ?? 0), 0)
   return (
@@ -462,7 +465,7 @@ function AudioLessons({ onPick, onPlayAll }: { onPick: (lang: string, l: Lesson)
         : !list ? <div class="pad">{[0, 1, 2, 3].map((i) => <div class="skeleton card-skel" key={i} />)}</div>
         : !list.length ? (
           <p class="empty">{course ? 'В этом курсе нет уроков с аудио.'
-            : 'Среди последних уроков нет уроков с аудио. Выберите курс выше или откройте урок с аудио → ⋮ → «Слушать в плеере».'}</p>
+            : 'Здесь будут уроки, которые вы слушали или открывали с аудио. Выберите курс выше.'}</p>
         ) : (
           <>
             <div class="al-head">
@@ -473,6 +476,11 @@ function AudioLessons({ onPick, onPlayAll }: { onPick: (lang: string, l: Lesson)
               <button class="btn tonal" disabled={queueLoading.value} onClick={() => void playAll(l, list).then(() => onPlayAll?.())}>
                 <Icon name="play" size={20} /> {queueLoading.value ? 'Готовлю…' : 'Слушать все'}
               </button>
+            </div>
+            <div class="chip-row">
+              {[course ? 'Как в курсе' : 'Недавно слушал', 'Новые сверху', 'По имени'].map((t, i) => (
+                <Chip key={t} label={t} selected={sort === i} onClick={() => setSort(i)} />
+              ))}
             </div>
             <div class="al-list">
               {list.map((x) => (

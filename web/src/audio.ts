@@ -33,6 +33,15 @@ export const queueIndex = signal(0)
 let onTrack: ((key: string) => void) | null = null
 export const setOnTrack = (f: ((key: string) => void) | null) => { onTrack = f }
 
+/** For the player's "Недавние": a lesson's audio got loaded; the length of the loaded audio became known (ms). */
+export const listenHooks: { listen?: (t: Track) => void; duration?: (key: string, ms: number) => void } = {}
+
+function setDuration(ms: number) {
+  if (duration.value === ms) return
+  duration.value = ms
+  if (audioKey.value && ms > 0) listenHooks.duration?.(audioKey.value, ms)
+}
+
 function num(k: string, d: number) { const v = Number(localStorage.getItem(k)); return Number.isFinite(v) && localStorage.getItem(k) != null ? v : d }
 function store(k: string, v: string) { try { localStorage.setItem(k, v) } catch { /* ignore */ } }
 
@@ -71,11 +80,11 @@ function get(): HTMLAudioElement {
   a.addEventListener('canplay', () => { buffering.value = false })
   a.addEventListener('loadedmetadata', () => {
     if (a.src === SILENCE) return
-    if (Number.isFinite(a.duration)) duration.value = Math.round(a.duration * 1000)
+    if (Number.isFinite(a.duration)) setDuration(Math.round(a.duration * 1000))
     if (pending >= 0) { a.currentTime = pending / 1000; pending = -1 }
     a.playbackRate = speed.value
   })
-  a.addEventListener('durationchange', () => { if (a.src !== SILENCE && Number.isFinite(a.duration)) duration.value = Math.round(a.duration * 1000) })
+  a.addEventListener('durationchange', () => { if (a.src !== SILENCE && Number.isFinite(a.duration)) setDuration(Math.round(a.duration * 1000)) })
   a.addEventListener('ratechange', () => { if (a.playbackRate !== speed.value && a.src !== SILENCE) a.playbackRate = speed.value })
   a.addEventListener('ended', () => {
     if (a.src === SILENCE) return
@@ -121,6 +130,7 @@ function setSrc(t: Track, startMs: number) {
   a.playbackRate = speed.value
   a.load()
   metadata()
+  listenHooks.listen?.(t)
 }
 
 /** Loads the audio of a lesson (if it is not the one loaded), at [startMs]. */
