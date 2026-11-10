@@ -70,6 +70,8 @@ data class Podcast(val title: String, val author: String, val feed: String, val 
 data class Episode(
     val title: String, val date: Long, val audio: String, val type: String, val duration: Int,
     val description: String, val transcript: String, val transcriptType: String,
+    /** A transcript without times (plain text or HTML), "" = none. */
+    val textUrl: String = "",
 )
 
 object PodcastApi {
@@ -129,9 +131,9 @@ object PodcastApi {
                         }
                         "transcript" -> {
                             val t = p.getAttributeValue(null, "type").orEmpty().lowercase()
-                            if (trRank(t) > trRank(c["trType"].orEmpty())) {
-                                c["tr"] = p.getAttributeValue(null, "url").orEmpty(); c["trType"] = t
-                            }
+                            val u = p.getAttributeValue(null, "url").orEmpty()
+                            if (trRank(t) > trRank(c["trType"].orEmpty())) { c["tr"] = u; c["trType"] = t }
+                            else if (trRank(t) == 0 && u.isNotBlank() && (c["txt"] == null || t.contains("plain"))) c["txt"] = u
                         }
                         "title", "pubDate", "duration", "description", "summary", "encoded" -> {
                             val v = text()
@@ -153,7 +155,7 @@ object PodcastApi {
                                 duration(c["duration"].orEmpty()),
                                 Epub.htmlToText(c["description"].orEmpty().ifBlank { c["summary"].orEmpty() }.ifBlank { c["encoded"].orEmpty() })
                                     .replace(Regex("\\s+"), " ").take(400),
-                                c["tr"].orEmpty(), c["trType"].orEmpty(),
+                                c["tr"].orEmpty(), c["trType"].orEmpty(), c["txt"].orEmpty(),
                             )
                         }
                         cur = null
@@ -293,6 +295,16 @@ object PodcastApi {
         return out
     }
 
+    /** A transcript without times (plain text or HTML) as text with paragraphs. */
+    fun plainText(url: String): String {
+        val t = LingqApi.http.newCall(get(url)).execute().use { r ->
+            if (!r.isSuccessful) throw ApiException("текст выпуска: HTTP ${r.code}")
+            r.body?.string().orEmpty()
+        }.removePrefix("\uFEFF")
+        val html = url.substringBefore('?').endsWith(".html") || t.trimStart().startsWith("<")
+        return (if (html) Epub.htmlToText(t) else t).replace("\r", "").replace(Regex("\n{3,}"), "\n\n").trim()
+    }
+
     /** "01:02:03.500", "02:03,500" -> s (-1 if unreadable). */
     private fun clockSec(s: String): Double {
         val p = s.replace(',', '.').split(':').map { it.toDoubleOrNull() ?: return -1.0 }
@@ -428,11 +440,14 @@ class PodcastSession(private val app: AppState, private val imp: ImportSession) 
                 val tr = if (ep.transcript.isBlank()) null else runCatching {
                     withContext(Dispatchers.IO) { PodcastApi.transcript(ep.transcript, ep.transcriptType) }
                 }.onFailure { AppLog.error("podcast", "Расшифровка", it) }.getOrNull()?.takeIf { it.isNotEmpty() }
+                val text = if (tr != null || ep.textUrl.isBlank()) null else runCatching {
+                    withContext(Dispatchers.IO) { PodcastApi.plainText(ep.textUrl) }
+                }.onFailure { AppLog.error("podcast", "Текст выпуска", it) }.getOrNull()?.takeIf { it.length > 200 }
                 val cover = pod?.image?.takeIf { it.isNotBlank() }?.let { withContext(Dispatchers.IO) { PodcastApi.bytes(it) } }
-                AppLog.add("podcast", "«${ep.title.take(60)}»: ${f.length() / 1_000_000} МБ, расшифровка: ${if (tr != null) "есть" else "нет"}")
+                AppLog.add("podcast", "«${ep.title.take(60)}»: ${f.length() / 1_000_000} МБ, расшифровка: ${if (tr != null) "с временем" else if (text != null) "текст без времени" else "нет"}")
                 downloading = null
                 while (app.stack.size > 1 && app.stack.last() !is Screen.Import) app.back()
-                imp.pickAudio(Uri.fromFile(f), "${ep.title.ifBlank { "Выпуск" }}.$ext", tr)
+                imp.pickAudio(Uri.fromFile(f), "${ep.title.ifBlank { "Выпуск" }}.$ext", tr, text)
                 imp.setCover(cover, pod?.title.orEmpty())   // after pickAudio, which clears the old cover
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -586,7 +601,7 @@ fun PodcastFeedScreen(s: PodcastSession) {
                     supportingContent = {
                         Column {
                             Text(
-                                listOf(fmtDate(ep.date), fmtDur(ep.duration), if (ep.transcript.isNotBlank()) "есть расшифровка" else "")
+                                listOf(fmtDate(ep.date), fmtDur(ep.duration), if (ep.transcript.isNotBlank()) "есть расшифровка" else if (ep.textUrl.isNotBlank()) "есть текст" else "")
                                     .filter { it.isNotBlank() }.joinToString(" · "),
                                 style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
                             )

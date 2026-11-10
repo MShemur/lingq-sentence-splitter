@@ -351,6 +351,34 @@ object Stt {
         return Transcript(paragraphs(segs), words)
     }
 
+    /**
+     * The stretch of a podcast's own text (no times) that a recognised part covers: found by runs of 5 words at the
+     * start and the end of the recognition. The words with times stay the recognised ones (they set the sentence times).
+     * Null when the text does not match.
+     */
+    fun matchText(full: String, rec: Transcript, whole: Boolean): Transcript? {
+        if (whole) return Transcript(full.trim(), rec.words)
+        fun norm(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
+        val toks = Regex("\\S+").findAll(full).toList().filter { norm(it.value).isNotEmpty() }
+        val fw = toks.map { norm(it.value) }
+        val rw = rec.words.map { norm(it.text) }.filter { it.isNotEmpty() }
+        val n = 5
+        if (rw.size < 20 || fw.size < n) return null
+        fun at(k: Int, i: Int) = (0 until n).all { fw[k + it] == rw[i + it] }
+        fun find(i: Int, from: Int): Int? = (from..fw.size - n).firstOrNull { at(it, i) }
+        var start = -1
+        for (i in 0 until min(60, rw.size - n)) { val k = find(i, 0) ?: continue; start = maxOf(0, k - i); break }
+        if (start < 0) return null
+        var end = -1
+        for (i in rw.size - n downTo maxOf(0, rw.size - n - 60)) {
+            val k = find(i, start) ?: continue
+            end = min(fw.size, k + n + (rw.size - n - i)); break
+        }
+        if (end <= start || end - start < rw.size / 2 || end - start > rw.size * 2) return null
+        val text = full.substring(toks[start].range.first, toks[end - 1].range.last + 1).trim()
+        return Transcript(text, rec.words)
+    }
+
     /** Whisper sometimes "hears" subtitle credits in silence, or repeats a line: such pieces are dropped. */
     private fun dropHallucinations(segs: List<TSeg>): List<TSeg> {
         val junk = Regex("Untertitel (der|im Auftrag|von)|Amara\\.org|Copyright WDR|Vielen Dank fürs Zuschauen", RegexOption.IGNORE_CASE)
@@ -749,7 +777,7 @@ fun SettingsSpeech(state: AppState) {
 }
 
 /** An audio file waiting for the choice of its part. */
-class AudioPick(val uri: Uri, val name: String, val durationMs: Long, val transcript: List<TSeg>? = null)
+class AudioPick(val uri: Uri, val name: String, val durationMs: Long, val transcript: List<TSeg>? = null, val text: String? = null)
 
 /** Which part of the audio to recognise: start and length (10 min by default) or the whole file. */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -758,6 +786,7 @@ fun AudioPartPicker(s: ImportSession, pk: AudioPick) {
     var start by remember(pk) { mutableStateOf("0:00") }
     var len by remember(pk) { mutableStateOf<Int?>(10) }   // minutes; null = to the end
     var useTr by remember(pk) { mutableStateOf(pk.transcript != null) }
+    var useText by remember(pk) { mutableStateOf(pk.text != null) }
     val from = parseClock(start)
     val dur = pk.durationMs
     val to = len?.let { (from ?: 0L) + it * 60_000L }?.let { if (dur > 0) minOf(it, dur) else it } ?: dur.takeIf { it > 0 }
@@ -802,11 +831,21 @@ fun AudioPartPicker(s: ImportSession, pk: AudioPick) {
                 }
                 androidx.compose.material3.Switch(checked = useTr, onCheckedChange = { useTr = it })
             }
+            if (pk.text != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Текст подкаста")
+                    Hint(
+                        if (useText) "Текст от авторов подкаста, время предложений даст распознавание"
+                        else "Выключено: и текст, и время из распознавания",
+                    )
+                }
+                androidx.compose.material3.Switch(checked = useText, onCheckedChange = { useText = it })
+            }
             androidx.compose.material3.Button(
-                onClick = { s.transcribePart(from ?: 0, if (len == null) null else to, useTr) }, enabled = !bad,
+                onClick = { s.transcribePart(from ?: 0, if (len == null) null else to, useTr, useText) }, enabled = !bad,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (useTr) "Взять кусок" else "Распознать") }
-            TextButton(onClick = { s.transcribePart(0, null, useTr) }, Modifier.fillMaxWidth()) {
+            TextButton(onClick = { s.transcribePart(0, null, useTr, useText) }, Modifier.fillMaxWidth()) {
                 Text("Весь файл" + if (dur > 0) " (${clock(dur)}, ${cost(dur)})" else "")
             }
         }

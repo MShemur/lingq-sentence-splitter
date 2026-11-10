@@ -167,6 +167,7 @@ object AudioEngine {
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_SPEECH).build(), true,
             )
             .setHandleAudioBecomingNoisy(true)       // headphones pulled out: pause
+            .setSeekBackIncrementMs(5000).setSeekForwardIncrementMs(5000)
             .build()
         p.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -376,6 +377,42 @@ object AudioEngine {
     }
 }
 
+/**
+ * The player as headphones, the notification and the lock screen see it: "next" / "previous" jump 5 s forward / back
+ * instead of changing the track (in the app the queue buttons still switch lessons).
+ */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private class SkipBy5(p: Player) : androidx.media3.common.ForwardingPlayer(p) {
+    private val extra = intArrayOf(
+        Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_PREVIOUS,
+        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+    )
+
+    private fun fwd() { AppLog.add("audio", "Кнопка: вперёд 5 с"); AudioEngine.seekBy(5000) }
+    private fun back() { AppLog.add("audio", "Кнопка: назад 5 с"); AudioEngine.seekBy(-5000) }
+
+    override fun seekToNext() = fwd()
+    override fun seekToNextMediaItem() = fwd()
+    override fun seekToPrevious() = back()
+    override fun seekToPreviousMediaItem() = back()
+    override fun seekForward() = fwd()
+    override fun seekBack() = back()
+    override fun hasNextMediaItem() = true
+    override fun hasPreviousMediaItem() = true
+    override fun isCommandAvailable(command: Int) = command in extra || super.isCommandAvailable(command)
+    override fun getAvailableCommands(): Player.Commands = super.getAvailableCommands().buildUpon().addAll(*extra).build()
+
+    override fun addListener(listener: Player.Listener) = super.addListener(Cmds(listener))
+    override fun removeListener(listener: Player.Listener) = super.removeListener(Cmds(listener))
+
+    /** Passes the commands with next / previous on. */
+    private inner class Cmds(val l: Player.Listener) : Player.Listener by l {
+        override fun onAvailableCommandsChanged(availableCommands: Player.Commands) = l.onAvailableCommandsChanged(getAvailableCommands())
+        override fun equals(other: Any?) = other is Cmds && other.l == l
+        override fun hashCode() = l.hashCode()
+    }
+}
+
 /** Background playback: media notification, lock screen, headphone buttons. */
 class PlaybackService : MediaSessionService() {
     companion object { const val ACTION_PLAYER = "com.mshemur.lingqfix.PLAYER" }
@@ -388,7 +425,7 @@ class PlaybackService : MediaSessionService() {
             this, 0, Intent(this, MainActivity::class.java).setAction(ACTION_PLAYER).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(this, AudioEngine.get(this)).setSessionActivity(open).build()
+        session = MediaSession.Builder(this, SkipBy5(AudioEngine.get(this))).setSessionActivity(open).build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session

@@ -665,8 +665,11 @@ class ImportSession(private val app: AppState) {
         if (c != null && newCourseTitle.isBlank() && title.isNotBlank()) newCourseTitle = title
     }
 
-    /** [name] = file name when the uri has none (podcast episode); [transcript] = the podcast's own, if any. */
-    fun pickAudio(uri: Uri, name: String? = null, transcript: List<TSeg>? = null) {
+    /**
+     * [name] = file name when the uri has none (podcast episode); [transcript] = the podcast's own with times, if any;
+     * [text] = the podcast's own text without times (the times then come from recognition).
+     */
+    fun pickAudio(uri: Uri, name: String? = null, transcript: List<TSeg>? = null, text: String? = null) {
         val prov = sttProvider(app.prefs.sttProvider)
         if (transcript == null && sttKeyFor(app.prefs, prov).isBlank()) {
             app.say("Задайте ключ распознавания (${prov.name})")
@@ -678,12 +681,12 @@ class ImportSession(private val app: AppState) {
             val n = name ?: withContext(Dispatchers.IO) { Sources.name(app.ctx, uri) }
             val dur = withContext(Dispatchers.IO) { AudioCut.duration(app.ctx, uri) }
             loading = false; status = ""
-            audioPick = AudioPick(uri, n, dur, transcript)
+            audioPick = AudioPick(uri, n, dur, transcript, text)
         }
     }
 
     /** Recognises [fromMs, toMs) of the picked audio (toMs null = to the end). */
-    fun transcribePart(fromMs: Long, toMs: Long?, useTranscript: Boolean = false) {
+    fun transcribePart(fromMs: Long, toMs: Long?, useTranscript: Boolean = false, useText: Boolean = false) {
         val pk = audioPick ?: return
         val p = app.prefs
         val prov = sttProvider(p.sttProvider)
@@ -710,8 +713,14 @@ class ImportSession(private val app: AppState) {
                 }
                 val title = if (whole) base else "$base, ${clock(fromMs)}–${end?.let { clock(it) } ?: "конец"}"
                 cover = keepCover
-                val t = if (ready != null) Stt.fromSegments(ready, fromMs, end)
+                var t = if (ready != null) Stt.fromSegments(ready, fromMs, end)
                 else Stt.transcribe(app.ctx, uri, name, app.lang, prov, key, p.sttModel(prov.id)) { status = it }
+                val own = pk.text
+                if (ready == null && useText && own != null) {
+                    val m = Stt.matchText(own, t, whole)
+                    if (m != null) { t = m; AppLog.add("stt", "Текст подкаста: ${m.text.length} знаков, время из распознавания") }
+                    else AppLog.add("stt", "Текст подкаста не совпал с распознанным, беру распознанный")
+                }
                 setSingle(title, t.text)
                 audioUri = uri; audioName = if (whole) pk.name else "$title.${name.substringAfterLast('.')}"
                 audioWords = t.words

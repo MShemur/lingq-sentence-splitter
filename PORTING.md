@@ -9,6 +9,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.72: podcast transcripts WITHOUT times (`podcast:transcript` type text/plain or text/html, e.g. Lanz und
+  Precht has .transcript.txt / .html) are used too: episode row "есть текст"; on pick the text is downloaded (HTML ->
+  text, paragraphs kept); the part sheet gets a switch "Текст подкаста" (on by default): the part is still recognised
+  (paid, gives the word times), then the stretch of the podcast text covering it is found by 5-word runs at the start
+  and end of the recognition (whole file = all text) and used as the lesson text; the recognised words set the sentence
+  times as before. No match -> recognised text, log note. Android `Podcasts.kt` (`Episode.textUrl`, `plainText`),
+  `Transcribe.kt` (`Stt.matchText`, picker switch), `AppState.kt` (`transcribePart(..., useText)`).
+
 ## To do on Android
 
 
