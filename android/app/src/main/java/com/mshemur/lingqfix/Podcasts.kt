@@ -212,6 +212,49 @@ object PodcastApi {
         }
     }
 
+    /**
+     * Downloads [url] into [out] with the system download manager: it goes on while the app is in the background
+     * (a frozen app loses its own connections), resumes after a dropped connection and shows a notification.
+     * [progress] gets (bytes done, total or -1). Cancelling removes the download.
+     */
+    suspend fun downloadSystem(ctx: Context, url: String, title: String, out: File, progress: (Long, Long) -> Unit) {
+        val dm = ctx.getSystemService(android.app.DownloadManager::class.java)
+        out.delete()
+        val req = android.app.DownloadManager.Request(Uri.parse(url))
+            .setDestinationUri(Uri.fromFile(out))
+            .addRequestHeader("User-Agent", UA)
+            .setTitle(title)
+            .setDescription("SatzLoop: выпуск подкаста")
+            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE)
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(true)
+        val id = dm.enqueue(req)
+        try {
+            while (true) {
+                kotlinx.coroutines.delay(500)
+                val q = dm.query(android.app.DownloadManager.Query().setFilterById(id)) ?: continue
+                val (status, done, total, reason) = q.use { c ->
+                    if (!c.moveToFirst()) throw ApiException("скачивание отменено")
+                    fun col(n: String) = c.getLong(c.getColumnIndexOrThrow(n))
+                    listOf(
+                        col(android.app.DownloadManager.COLUMN_STATUS), col(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR),
+                        col(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES), col(android.app.DownloadManager.COLUMN_REASON),
+                    )
+                }
+                when (status.toInt()) {
+                    android.app.DownloadManager.STATUS_SUCCESSFUL -> { progress(done, total); return }
+                    android.app.DownloadManager.STATUS_FAILED -> {
+                        dm.remove(id)
+                        throw ApiException(if (reason.toInt() in 400..599) "сервер ответил HTTP $reason" else "ошибка загрузки (код $reason)")
+                    }
+                    else -> progress(done, total)
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            dm.remove(id); throw e
+        }
+    }
+
     /** Bytes of a small file (cover picture); null on any error. */
     fun bytes(url: String): Pair<ByteArray, String>? = runCatching {
         LingqApi.http.newCall(get(url)).execute().use { r ->
@@ -373,12 +416,14 @@ class PodcastSession(private val app: AppState, private val imp: ImportSession) 
         val pod = podcast
         job = app.scope.launch {
             try {
-                val dir = File(app.ctx.cacheDir, "podcast").apply { deleteRecursively(); mkdirs() }
+                // app's own folder on the shared storage: the system download manager writes there, no permission needed
+                val dir = File(app.ctx.getExternalFilesDir(null) ?: app.ctx.filesDir, "podcast").apply { deleteRecursively(); mkdirs() }
                 val ext = ext(ep)
                 val f = File(dir, "episode.$ext")
-                PodcastApi.download(ep.audio, f) { done, total ->
+                progressText = "Скачиваю… Можно свернуть приложение, загрузка продолжится"
+                PodcastApi.downloadSystem(app.ctx, ep.audio, ep.title.ifBlank { "Выпуск" }, f) { done, total ->
                     progress = if (total > 0) done.toFloat() / total else 0f
-                    progressText = "Скачиваю: ${done / 1_000_000} из ${if (total > 0) "${total / 1_000_000} МБ" else "? МБ"}"
+                    progressText = "Скачиваю: ${done / 1_000_000} из ${if (total > 0) "${total / 1_000_000} МБ" else "? МБ"} · можно свернуть приложение"
                 }
                 val tr = if (ep.transcript.isBlank()) null else runCatching {
                     withContext(Dispatchers.IO) { PodcastApi.transcript(ep.transcript, ep.transcriptType) }
