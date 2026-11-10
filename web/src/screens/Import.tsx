@@ -9,6 +9,7 @@ import type { ImportSession } from '../importer/session'
 import { countWords } from '../importer/cleaner'
 import { wordsText } from '../stats'
 import { PdfPicker } from './PdfPicker'
+import { AudioPicker } from './AudioPicker'
 import { head, tail } from '../importer/fixer'
 import { deleteAllBackups, KEEP_DAYS, listBackups, restoreBackup, type Backup } from '../importer/backups'
 
@@ -25,6 +26,7 @@ const wordsLabel = wordsText
 
 export function ImportScreen({ s }: { s: ImportSession }) {
   const file = useRef<HTMLInputElement>(null)
+  const audioFile = useRef<HTMLInputElement>(null)
   useEffect(() => { void loadCourses() }, [])
   const list = courses.value
   useEffect(() => {
@@ -61,11 +63,22 @@ export function ImportScreen({ s }: { s: ImportSession }) {
           </div>
           <input ref={file} type="file" hidden accept=".txt,.md,.markdown,.epub,.pdf,text/plain,text/markdown,application/epub+zip,application/pdf"
             onChange={(e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void s.loadFile(f); (e.target as HTMLInputElement).value = '' }} />
+          <button class="source-tile wide-tile" onClick={() => audioFile.current?.click()} disabled={running || s.loading.value}>
+            <Icon name="mic" size={26} />
+            <span>Аудио → текст (подкаст, запись)</span>
+          </button>
+          <input ref={audioFile} type="file" hidden accept="audio/*,video/mp4,.mp3,.m4a,.ogg,.opus,.wav,.flac,.webm"
+            onChange={(e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void s.pickAudio(f); (e.target as HTMLInputElement).value = '' }} />
           {!has && !s.loading.value && (
-            <p class="hint">Текст из буфера или файл: TXT, MD, EPUB, PDF с текстом. Потом очистите текст от мусора и загрузите в LingQ.</p>
+            <p class="hint">
+              Текст из буфера или файл: TXT, MD, EPUB, PDF с текстом. Аудио: выберите кусок (например 10 минут), он
+              распознаётся сервисом из настроек и загружается в урок вместе с текстом. Потом очистите текст от мусора и
+              загрузите в LingQ.
+            </p>
           )}
           {s.loading.value && <div class="row-status"><span class="spinner-sm" />{s.status.value || 'Загрузка…'}</div>}
           {s.pdfPick.value && <PdfPicker s={s} d={s.pdfPick.value} />}
+          {s.audioPick.value && <AudioPicker s={s} pk={s.audioPick.value} />}
 
           {/* 2. the text */}
           {s.pasteMode.value ? (
@@ -74,6 +87,13 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                 <span>Название урока</span>
                 <input value={s.pasteTitle.value} onInput={(e) => { s.pasteTitle.value = (e.target as HTMLInputElement).value }} />
               </label>
+              {s.audio.value && (
+                <div class="audio-row">
+                  <Icon name="headphones" size={20} />
+                  <span class="grow">{s.audioName.value} — загрузится в урок, у предложений будет время</span>
+                  <button class="btn text" onClick={() => s.dropAudio()}>Без аудио</button>
+                </div>
+              )}
               <label class="field">
                 <span>Текст</span>
                 <textarea class="import-text" value={s.pasteText.value} onInput={(e) => { s.pasteText.value = (e.target as HTMLTextAreaElement).value }} />
@@ -163,12 +183,12 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                   <span>ИИ определит уровень сложности (A1–C2)</span>
                 </label>
               )}
-              <div class="row split-row">
+              {!(s.pasteMode.value && s.audio.value) && <div class="row split-row">
                 <span class="grow">Делить длинные тексты по</span>
                 <input class="num" inputMode="numeric" value={s.splitWords.value}
                   onInput={(e) => { s.splitWords.value = (e.target as HTMLInputElement).value.replace(/\D/g, '') }} />
                 <span>слов</span>
-              </div>
+              </div>}
               <button class="btn filled wide" onClick={() => void s.run()}
                 disabled={running || n === 0 || (s.newCourse.value ? !s.newCourseTitle.value.trim() : !s.course.value)}>
                 {n === 1 ? 'Загрузить урок' : `Загрузить уроков: ${n}`}

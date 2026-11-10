@@ -49,6 +49,7 @@ export type Screen =
   | { k: 'settings' }
   | { k: 'settingsLingq' }
   | { k: 'settingsTranslation' }
+  | { k: 'settingsSpeech' }
   | { k: 'settingsPrompts' }
 
 export const stack = signal<Screen[]>([{ k: 'courses' }])

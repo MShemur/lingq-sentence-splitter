@@ -11,6 +11,7 @@
 import { signal } from '@preact/signals'
 import { log } from './applog'
 import { prefs } from './settings'
+import { STT_PROVIDERS, setSttKey, sttKey } from './importer/stt'
 import { bookmarkKey, bookmarks, bookmarksDeleted, replaceAllBookmarks, type Bookmark } from './bookmarks'
 import { exportPositions, importPositions } from './progress'
 import { exportDays, exportSeen, importStats } from './stats'
@@ -159,12 +160,18 @@ async function syncOnce() {
 // --- keys (encrypted) ---
 
 const KEY_NAMES = ['lingq', 'gemini', 'aiBase', 'aiKey', 'aiModel', 'aiFastModel'] as const
-type Keys = Record<(typeof KEY_NAMES)[number], string>
+type Keys = Record<(typeof KEY_NAMES)[number], string> & { stt?: Record<string, string> }
 
-const localKeys = (): Keys => ({
-  lingq: prefs.apiKey.value, gemini: prefs.geminiKey.value, aiBase: prefs.aiBase.value,
-  aiKey: prefs.aiKey.value, aiModel: prefs.aiModel.value, aiFastModel: prefs.aiFastModel.value,
-})
+const localKeys = (): Keys => {
+  const k: Keys = {
+    lingq: prefs.apiKey.value, gemini: prefs.geminiKey.value, aiBase: prefs.aiBase.value,
+    aiKey: prefs.aiKey.value, aiModel: prefs.aiModel.value, aiFastModel: prefs.aiFastModel.value,
+  }
+  // speech recognition keys, only when there are any (as Android: older versions do not know them)
+  const stt = Object.fromEntries(STT_PROVIDERS.map((p) => [p.id, sttKey(p.id)]).filter(([, v]) => v))
+  if (Object.keys(stt).length) k.stt = stt
+  return k
+}
 
 async function sha256(s: string): Promise<string> {
   const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))
@@ -222,10 +229,14 @@ async function applyKeys(k: Obj) {
   if (v('aiKey')) prefs.aiKey.value = v('aiKey')
   if (v('aiModel')) prefs.aiModel.value = v('aiModel')
   if ('aiFastModel' in k) prefs.aiFastModel.value = v('aiFastModel')
+  if (k.stt && typeof k.stt === 'object') {
+    for (const [id, key] of Object.entries(k.stt)) if (String(key ?? '').trim()) setSttKey(id, String(key))
+  }
   const now = localKeys()
   store('sync.keysHash', await sha256(JSON.stringify(now)))
   // this device had keys the other one lacked: send the union next time
-  if (KEY_NAMES.some((n) => now[n] !== String(k[n] ?? ''))) store('sync.keysT', String(Date.now()))
+  const sttOf = (o: unknown) => canon(o && typeof o === 'object' ? o : {})
+  if (KEY_NAMES.some((n) => now[n] !== String(k[n] ?? '')) || sttOf(now.stt) !== sttOf(k.stt)) store('sync.keysT', String(Date.now()))
 }
 
 // PBKDF2-HMAC-SHA256 (210000 rounds, 16-byte salt) -> AES-256-GCM (12-byte iv, tag appended), standard base64:

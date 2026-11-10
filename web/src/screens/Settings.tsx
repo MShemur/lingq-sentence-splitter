@@ -11,6 +11,7 @@ import * as api from '../lingq'
 import * as gemini from '../gemini'
 import { Chip, Dialog, IconButton, ListItem, Loading, SecretField, Spinner, TextField, TopBar } from '../ui'
 import { HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, highlightColors, highlightOf, themeOf } from '../readerLook'
+import { STT_PROVIDERS, setSttKey, setSttModel, sttKey, sttModel, sttProvider } from '../importer/stt'
 import { clearLog, lastLines, log, logText, logVersion } from '../applog'
 
 declare const __BUILD__: string
@@ -48,6 +49,9 @@ export function SettingsRoot() {
         <Section icon="edit" title="Перевод"
           summary={(gem ? `Gemini · ${prefs.geminiModel.value}` : prefs.translator.value === 'openai' ? `ИИ · ${prefs.aiModel.value}` : 'LingQ') + ` → ${trLang()}`}
           onClick={() => go({ k: 'settingsTranslation' })} />
+        <Section icon="mic" title="Распознавание речи"
+          summary={`${sttProvider(prefs.sttProvider.value).name} · ${sttKey(sttProvider(prefs.sttProvider.value).id) ? 'ключ задан' : 'ключ не задан'}`}
+          onClick={() => go({ k: 'settingsSpeech' })} />
         <Section icon="palette" title="Чтение"
           summary={`${themeOf(prefs.readerTheme.value)?.name ?? 'Цвета системы'} · выделение: ${highlightOf(prefs.highlight.value).name.toLowerCase()}`}
           onClick={() => go({ k: 'settingsReading' })} />
@@ -208,6 +212,44 @@ export function SettingsTranslation() {
           )}
         </Dialog>
       )}
+    </Page>
+  )
+}
+
+/** Settings → Распознавание речи: service, key, model. Port of Android SettingsSpeech. */
+export function SettingsSpeech() {
+  const sp = sttProvider(prefs.sttProvider.value)
+  void prefs.sttKeys.value; void prefs.sttModels.value // re-render on changes
+  const key = sttKey(sp.id)
+  const model = sttModel(sp.id) || sp.models[0]
+  return (
+    <Page title="Распознавание речи">
+      <Hint>
+        Аудио без текста (подкаст, запись) превращается в урок: текст распознаётся, аудио загружается в LingQ вместе с
+        ним, у каждого предложения своё время. Загрузка → Аудио.
+      </Hint>
+      <h3 class="section-title">Сервис</h3>
+      {STT_PROVIDERS.map((p) => (
+        <label key={p.id} class="radio-row">
+          <input type="radio" name="sttProvider" checked={sp.id === p.id} onChange={() => { prefs.sttProvider.value = p.id }} />
+          <span><span class="radio-title">{p.name}{sttKey(p.id) ? ' · ключ задан' : ''}</span><Hint>{p.note}</Hint></span>
+        </label>
+      ))}
+      <hr />
+      <SecretField label={`Ключ ${sp.name}`} value={key} onInput={(v) => setSttKey(sp.id, v)} />
+      {sp.id === 'groq' && !key && prefs.aiBase.value.includes('groq.com') && prefs.aiKey.value.trim() && (
+        <Hint>Пусто: будет взят ключ Groq из настроек перевода.</Hint>
+      )}
+      <a class="btn text link" href={sp.keyUrl} target="_blank" rel="noopener">Получить ключ {sp.name}</a>
+      <h3 class="section-title">Модель</h3>
+      <div class="chips">
+        {sp.models.map((m) => <Chip key={m} label={m} selected={model === m} onClick={() => setSttModel(sp.id, m)} />)}
+      </div>
+      <TextField label="Модель" value={model} onInput={(v) => setSttModel(sp.id, v)} />
+      <Hint>
+        Аудио уходит в выбранный сервис через прокси этого сайта (он ничего не хранит). Ключи синхронизируются с
+        телефоном зашифрованными, если задан пароль синхронизации.
+      </Hint>
     </Page>
   )
 }

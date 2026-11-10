@@ -54,6 +54,10 @@ export const prefs = {
   dockPanel: pref('dockPanel', '0'),
   /** Sentence mode: '1' = the sentence translation is shown under the sentence. */
   smTranslation: pref('smTranslation', '1'),
+  /** Speech recognition (audio -> lesson): service, keys per service (JSON, synced), models per service (JSON). */
+  sttProvider: pref('sttProvider', 'groq'),
+  sttKeys: pref('sttKeys', '{}'),
+  sttModels: pref('sttModels', '{}'),
 }
 
 /** Prompt with fallback to the default when the field was emptied. */

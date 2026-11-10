@@ -11,6 +11,13 @@ import { fix, type Change } from './fixer'
 import { readFile } from './sources'
 import { pagesLabel, type PdfDoc } from './pdf'
 import { saveBackup } from './backups'
+import { clock, cutMp3, decodePcm, mp3Frames, playerDuration, RATE, wav, type Mp3 } from './audio'
+import { align, sttKeyFor, sttModel, sttProvider, transcribe, type TWord } from './stt'
+import { go } from '../app'
+import { log } from '../applog'
+
+/** An audio file waiting for the choice of its part. */
+export interface AudioPick { file: File; name: string; durationMs: number; mp3: Mp3 | null }
 
 export class ImportItem {
   title: Signal<string>
@@ -59,6 +66,7 @@ export class ImportSession {
   }
 
   private startLoad(msg: string) {
+    this.dropAudio()
     this.loading.value = true; this.status.value = msg; this.error.value = null
     this.cleanNote.value = null; this.before = null; this.canUndo.value = false
   }
@@ -116,6 +124,92 @@ export class ImportSession {
       this.error.value = `Не удалось прочитать PDF: ${(e as Error).message}`
     } finally { pdf.close() }
     this.loading.value = false; this.status.value = ''
+  }
+
+  // --- audio: a part is cut, recognised and uploaded with the lesson ---
+
+  /** Audio file waiting for the choice of its part (the sheet is open). */
+  audioPick = signal<AudioPick | null>(null)
+  /** Audio that goes into the lesson (the cut part or the whole file), its file name, and the recognised words. */
+  audio = signal<Blob | null>(null)
+  audioName = signal('')
+  private audioWords: TWord[] = []
+
+  dropAudio() { this.audio.value = null; this.audioName.value = ''; this.audioWords = [] }
+
+  async pickAudio(file: File) {
+    const prov = sttProvider(prefs.sttProvider.value)
+    if (!sttKeyFor(prov)) { say(`Задайте ключ распознавания (${prov.name})`); go({ k: 'settingsSpeech' }); return }
+    this.startLoad('Открываю аудио…')
+    try {
+      const mp3 = /\.mp3$/i.test(file.name) || file.type === 'audio/mpeg' ? await mp3Frames(file) : null
+      const durationMs = mp3 ? Math.round(mp3.duration * 1000) : await playerDuration(file)
+      this.audioPick.value = { file, name: file.name, durationMs, mp3 }
+    } catch (e) {
+      this.error.value = `Не удалось открыть аудио: ${(e as Error).message}`
+    }
+    this.loading.value = false; this.status.value = ''
+  }
+
+  /** Recognises [fromMs, toMs) of the picked audio (toMs null = to the end). */
+  async transcribePart(fromMs: number, toMs: number | null) {
+    const pk = this.audioPick.value
+    if (!pk) return
+    this.audioPick.value = null
+    const prov = sttProvider(prefs.sttProvider.value)
+    this.startLoad('Вырезаю кусок…')
+    this.pasteMode.value = false; this.items.value = []
+    try {
+      const base = pk.name.replace(/\.[^.]+$/, '')
+      const dur = pk.durationMs
+      const end = toMs ?? (dur > 0 ? dur : null)
+      const whole = fromMs <= 0 && (end == null || (dur > 0 && end >= dur))
+      let blob: Blob = pk.file, name = pk.name, mp3 = pk.mp3, pcm: Int16Array | null = null
+      if (!whole) {
+        if (pk.mp3) {
+          blob = cutMp3(pk.file, pk.mp3, fromMs / 1000, end != null ? end / 1000 : Infinity)
+          name = 'part.mp3'
+          mp3 = await mp3Frames(blob)
+        } else {
+          // other formats: decoded and written as 16 kHz WAV
+          this.status.value = 'Готовлю аудио…'
+          const all = await decodePcm(pk.file)
+          const a = Math.min(all.length, Math.round((fromMs * RATE) / 1000))
+          const b = end == null ? all.length : Math.max(a, Math.min(all.length, Math.round((end * RATE) / 1000)))
+          if (b <= a) throw new Error('в выбранном куске нет звука')
+          pcm = all.slice(a, b)
+          blob = wav(pcm, 0, pcm.length)
+          name = 'part.wav'
+          mp3 = null
+        }
+      }
+      const title = whole ? base : `${base}, ${clock(fromMs)}–${end != null ? clock(end) : 'конец'}`
+      const t = await transcribe({ blob, name, mp3, pcm }, this.lang, prov, sttKeyFor(prov), sttModel(prov.id), (st) => { this.status.value = st })
+      this.setSingle(title, t.text)
+      this.audio.value = blob
+      this.audioName.value = whole ? pk.name : `${title}.${name.split('.').pop()}`
+      this.audioWords = t.words
+      if (!t.text.trim()) this.error.value = 'В аудио не нашлось речи'
+      else if (prefs.autoClean.value === '1') this.cleanQuick()
+    } catch (e) {
+      log('stt', `Распознавание ✗ ${(e as Error).message}`)
+      this.error.value = `Не удалось распознать: ${(e as Error).message}`
+    }
+    this.loading.value = false; this.status.value = ''
+  }
+
+  /** Sets the time of every sentence of a fresh lesson from the recognised words; returns a note for the log. */
+  private async setTimes(l: string, id: number, words: TWord[]): Promise<string> {
+    const state = await api.audioState(l, id)
+    if (state === 'none') return 'LingQ не принял аудио'
+    const paras = await api.editor(l, id)
+    const sents: any[] = paras.flatMap((p: any) => p.sentences ?? [])
+    if (!sents.length || !words.length) return 'аудио есть'
+    const times = align(sents.map((x) => String(x.text ?? '')), words)
+    sents.forEach((x, i) => { x.timestamp = [Math.round(times[i][0] * 100) / 100, Math.round(times[i][1] * 100) / 100] })
+    await api.saveParagraphs(l, id, paras)
+    log('import', `Урок ${id}: время для ${sents.length} предложений (аудио: ${state})`)
+    return 'аудио и время предложений'
   }
 
   // --- cleaning ---
@@ -194,7 +288,10 @@ export class ImportSession {
     if (this.newCourse.value && !createTitle) { say('Введите название нового курса'); return }
     if (!this.newCourse.value && !this.course.value) { say('Выберите курс'); return }
     const l = this.lang
-    const max = Number(this.splitWords.value) || 0
+    const audio = this.pasteMode.value ? this.audio.value : null
+    const audioFile = this.audioName.value.replace(/[^\p{L}\p{N}._ -]/gu, '_')
+    const words = this.audioWords
+    const max = audio ? 0 : Number(this.splitWords.value) || 0 // a lesson with audio stays whole
     const jobs = this.selectedTexts().flatMap(([title, text]) => {
       const parts = splitLong(text, max)
       return parts.length === 1 ? [[title, parts[0]] as const] : parts.map((p, i) => [`${title} (${i + 1})`, p] as const)
@@ -230,20 +327,28 @@ export class ImportSession {
         this.line(base + i, `⬆ ${title}`)
         let id: number
         try {
-          id = await api.importLesson(l, course.id, title, text)
+          id = audio ? await api.importLessonAudio(l, course.id, title, text, audio, audioFile) : await api.importLesson(l, course.id, title, text)
         } catch (e) {
           this.line(base + i, `❌ ${(e as Error).message} · ${title}`); failed++; step(); continue
         }
         const wantLevel = this.aiLevel.value && useGemini()
-        if (!this.autoFix.value && !wantLevel) { this.line(base + i, `✅ ${title}`); step(); continue }
+        if (!this.autoFix.value && !wantLevel && !audio) { this.line(base + i, `✅ ${title}`); step(); continue }
         this.line(base + i, `⏳ LingQ обрабатывает · ${title}`)
         fixing.push((async () => {
           await acquire()
           try {
             const r = this.autoFix.value ? await this.fixImported(l, id, title) : (await api.waitProcessed(l, id), null)
             found[i] = r
+            let au = ''
+            if (audio) {
+              try { au = ' · ' + await this.setTimes(l, id, words) } catch (e) {
+                log('import', `Время предложений урока ${id} ✗ ${(e as Error).message}`)
+                au = ' · время предложений не записано'
+              }
+            }
             const lv = wantLevel ? await this.setLevel(l, id, text) : ''
-            this.line(base + i, `${r ? `✅ исправлено ${r.changes.length}` : '✅ в порядке'}${lv} · ${title}`)
+            const fx = this.autoFix.value ? (r ? `✅ исправлено ${r.changes.length}` : '✅ в порядке') : '✅'
+            this.line(base + i, `${fx}${au}${lv} · ${title}`)
           } catch (e) {
             failed++; this.line(base + i, `❌ ${(e as Error).message} · ${title}`)
           } finally { release(); step() }

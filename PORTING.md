@@ -9,7 +9,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- android v1.67: audio → lesson (speech recognition). Import tile "Аудио → текст (подкаст, запись)" → sheet "Какую часть
+## To do on Android
+
+
+## Done
+
+- android v1.67 -> web v1.29: audio → lesson (speech recognition). Import tile "Аудио → текст (подкаст, запись)" → sheet "Какую часть
   распознать?": start field (мин:сек, also 1:05:00), length chips 5/10/15/20/30 мин / До конца (default 10), "Распознать",
   "Весь файл". The part is cut without re-encoding (MP3 frames, AAC/Vorbis/Opus remuxed; else 16 kHz WAV); title gets
   ", 12:30–22:30". Providers (Settings → "Распознавание речи": radio list, key per provider, model chips + field):
@@ -26,11 +31,11 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   (`Stt`, `AudioCut`, `AudioPrep`, `SettingsSpeech`, `AudioPartPicker`), `ImportSession.pickAudio / transcribePart /
   setTimes`, `LingqApi.importLessonAudio / audioState`. Web: decodeAudioData + WAV for cutting; providers may need the
   Pages Function proxy for CORS.
-
-## To do on Android
-
-
-## Done
+  Web v1.29: `importer/audio.ts` (MP3 cut by frames without re-encoding, other formats decoded to 16 kHz WAV via
+  decodeAudioData; MP3 pieces > limit cut at the quietest 0.1 s found by decoding only the 30 s before a border),
+  `importer/stt.ts` (providers, align), `screens/AudioPicker.tsx`, Settings → «Распознавание речи». All services go
+  through the Pages Function `functions/stt/[[path]].ts` (/stt/<service>/…, CORS; max ~95 MB per request).
+  Sync keeps / merges `stt` like Android. A part of a non-MP3 file is uploaded to LingQ as WAV (no remux on the web).
 
 - android v1.66 -> web v1.28: PDF import, choose pages. A PDF with more than one page opens a sheet "Какие страницы взять?":
   page previews in a grid (tap = pick / unpick, ✓ badge, thick primary border), a field "Страницы, например 3-5, 8"

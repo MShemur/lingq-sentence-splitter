@@ -2,6 +2,15 @@ import { defineConfig, loadEnv } from 'vite'
 import preact from '@preact/preset-vite'
 import { readFileSync } from 'node:fs'
 
+// the same services as functions/stt/[[path]].ts
+const STT_HOSTS: Record<string, string> = {
+  groq: 'https://api.groq.com/openai/v1',
+  openai: 'https://api.openai.com/v1',
+  deepgram: 'https://api.deepgram.com/v1',
+  assemblyai: 'https://api.assemblyai.com/v2',
+  elevenlabs: 'https://api.elevenlabs.io/v1',
+}
+
 // Web version v1.N: raised in package.json with every change of web/ (like Android's v1.<build number>)
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'))
 
@@ -18,6 +27,15 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
+        // speech recognition services, like functions/stt does in production
+        ...Object.fromEntries(Object.entries(STT_HOSTS).map(([id, host]) => [`/stt/${id}/`, {
+          target: new URL(host).origin,
+          changeOrigin: true,
+          rewrite: (p: string) => new URL(host).pathname + p.slice(`/stt/${id}`.length),
+          configure: (proxy: any) => {
+            proxy.on('proxyReq', (req: any) => { req.removeHeader('origin'); req.removeHeader('referer'); req.removeHeader('cookie') })
+          },
+        }])),
         '/api': {
           target: 'https://www.lingq.com',
           changeOrigin: true,

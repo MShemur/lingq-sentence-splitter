@@ -33,9 +33,9 @@ export async function call(method: string, url: string, body?: unknown, key = pr
         headers: {
           Authorization: `Token ${key}`,
           Accept: 'application/json',
-          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(body !== undefined && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: body instanceof FormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
       })
     } catch {
       log('lingq', `${method} ${shortUrl(url)} ✗ нет связи`)
@@ -146,6 +146,25 @@ export async function createCourse(lang: string, title: string): Promise<Course>
 export async function importLesson(lang: string, course: number, title: string, text: string): Promise<number> {
   const d = await call('POST', `/api/v3/${lang}/lessons/import/`, { title: title.slice(0, 250), text, collection: course, status: 'private', save: true })
   return d.id
+}
+
+/** Creates a private lesson in [course] with an audio file (multipart); returns its id. */
+export async function importLessonAudio(lang: string, course: number, title: string, text: string, audio: Blob, fileName: string): Promise<number> {
+  const f = new FormData()
+  f.append('title', title.slice(0, 250))
+  f.append('text', text)
+  f.append('collection', String(course))
+  f.append('status', 'private')
+  f.append('save', 'true')
+  f.append('audio', audio, fileName)
+  return (await call('POST', `/api/v3/${lang}/lessons/import/`, f)).id
+}
+
+/** "ok", "pending" (LingQ still processes it) or "none". */
+export async function audioState(lang: string, id: number): Promise<'ok' | 'pending' | 'none'> {
+  const o = await call('GET', `/api/v3/${lang}/lessons/${id}/`)
+  if (typeof o?.audioUrl === 'string' && o.audioUrl.trim()) return 'ok'
+  return o?.audioPending ? 'pending' : 'none'
 }
 
 /**
