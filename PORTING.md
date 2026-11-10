@@ -9,6 +9,24 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.67: audio → lesson (speech recognition). Import tile "Аудио → текст (подкаст, запись)" → sheet "Какую часть
+  распознать?": start field (мин:сек, also 1:05:00), length chips 5/10/15/20/30 мин / До конца (default 10), "Распознать",
+  "Весь файл". The part is cut without re-encoding (MP3 frames, AAC/Vorbis/Opus remuxed; else 16 kHz WAV); title gets
+  ", 12:30–22:30". Providers (Settings → "Распознавание речи": radio list, key per provider, model chips + field):
+  Groq / OpenAI (`/audio/transcriptions`, verbose_json, timestamp_granularities word+segment), Deepgram (`/v1/listen`
+  nova-3, paragraphs), AssemblyAI (upload → transcript → poll → /paragraphs), ElevenLabs (`/v1/speech-to-text` scribe_v1).
+  Groq key falls back to the translation AI key when aiBase is Groq. Files > 24 MB for Whisper services: decoded to
+  16 kHz mono, 8-min WAV pieces cut at the quietest 0.1 s of the 30 s before each border, times offset. Whisper junk
+  ("Untertitel der Amara.org…", 3× repeated lines) dropped; paragraphs = provider's, else at sentence end after a 1.2 s
+  pause or ~90 words. Text goes into the paste editor (auto clean as usual) with a line "<file> — загрузится в урок" +
+  "Без аудио". Upload: multipart `POST /v3/{lang}/lessons/import/` with an `audio` file part (not split into parts),
+  after processing each sentence gets `timestamp` [start, end] from the words (in-order match, 8-word look-ahead, gaps
+  filled from neighbours) and paragraphs are PATCHed. Sync: keys object gets `"stt": {provider: key}` (only when set) —
+  **web must keep / merge this field**, otherwise the two devices re-send keys on every sync. Android `Transcribe.kt`
+  (`Stt`, `AudioCut`, `AudioPrep`, `SettingsSpeech`, `AudioPartPicker`), `ImportSession.pickAudio / transcribePart /
+  setTimes`, `LingqApi.importLessonAudio / audioState`. Web: decodeAudioData + WAV for cutting; providers may need the
+  Pages Function proxy for CORS.
+
 ## To do on Android
 
 
