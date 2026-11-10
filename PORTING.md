@@ -9,7 +9,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- android v1.63 (code review, speed / simplify; the same issues were found on the web):
+## To do on Android
+
+
+## Done
+
+- android v1.63 -> web v1.27 (code review, speed / simplify; the same issues were found on the web):
   - Audio ticker: 50 ms only while a loop or a one-sentence stop is on, else 250 ms; the position shown on screen
     changes ~4 times a second (`audio.ts:229` setInterval 50 ms re-renders the bar and mini player 20x/s; a
     `computed` signal for the time text is enough).
@@ -24,25 +29,26 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
     `audio.ts` replaySentence / nextSentence / setStarts / starts (+ the setStarts call in session.ts:190),
     `Reader.tsx` EditButton, `app.ts` replaceTop, doubled comments (Reader.tsx:702, session.ts:628); `norm()`
     defined twice in session.ts (791, 946).
-- android v1.64 (review item, optional for the web, lower priority there): reader words no longer recompose on a
+- android v1.64 -> web v1.27 (review item, optional for the web, lower priority there): reader words no longer recompose on a
   selection drag / word window: the highlight is drawn (`drawBehind` reading the state), word positions via
   `onPlaced`; pages are laid out in the background in one pass per page start (`TextMetrics.bottoms`, heights of
   every prefix of a paragraph) instead of re-measuring each prefix. Web: `Reader.tsx` SentenceFlow re-renders all
   words of 3 pages on any pins / provisional / popup / sel change - same idea (classes toggled in an effect).
 
 
-- android v1.61: statistics split reading / audio. Day data is now `[seconds, words, listenSeconds]` (seconds = total,
+- android v1.61 -> web v1.27: statistics split reading / audio. Day data is now `[seconds, words, listenSeconds]` (seconds = total,
   listening included; old 2-number entries = no listening). Timer: audio playing -> counts as listening, else reading
   in the reader (as before); total unchanged everywhere (today card in the library stays one number). Sync `stats`
   per device carries the third number; read it with a default 0 and keep it when merging. Stats screen only: today card
   shows "Чтение X · Аудио Y" under the total; week / month / year cards add "чтение … / аудио …"; 2-week chart = stacked
   bars (reading bottom, primary; audio top, tertiary; 2 dp gap) with a legend, the picked day's line shows the split.
   `Stats.kt` (`addTime(sec, listening)`, `day`, `since`, `DaysChart`).
-
-## To do on Android
-
-
-## Done
+  Web v1.27: ticker 50/250 ms + position shown ~4/s (`audio.ts`); course words recounted at most daily
+  (`courseWordsT`); AI / machine sentence translations in IndexedDB `satzloop-tr` per lesson + target (`trcache.ts`);
+  FullText bolds the sounding sentence by DOM classes, `content-visibility` on its paragraphs; journal written
+  every 10 s and when hidden; dead code removed. Reader: each sentence is a memoized `SentView` getting its pins /
+  window / selection / phrases as data (re-renders only the sentence touched). Stats: day = [sec, words, listen],
+  `tickTime(listening)`, reading timer stays out while audio plays; stats screen split + stacked chart.
 
 - web v1.26 -> android v1.62 (`AudioEngine.loopWhole/loopLabel`, ENDED while looping starts over; `ReaderSession.selectStart/selectTo` autoShown, `trCoords` + `WordMenuLayer` puts the menu under the translation row; chat icon in `SentenceTranslation`): player repeat sheet has "Повторять весь урок" (loop 0..end, keeps playing from where it is; starts over
   at the end; the pill / status say "весь урок"). Sentence translation row: chat button next to ↻ again.

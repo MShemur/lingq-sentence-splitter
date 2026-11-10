@@ -4,7 +4,7 @@
 // - bookmarks: {"<lessonId>_<sent>": bookmark}, deleted: {"<lessonId>_<sent>": time} — the later event wins;
 // - notes: {"<lang>_<lessonId>": {t, pins, words}} — the whole lesson, the later `t` wins;
 // - progress: {"<lang>_<lessonId>": {pos, t, read}} — pos by later `t`, read = max;
-// - stats: {"<device>": {"<date>": [seconds, words]}} — every device writes only its own part;
+// - stats: {"<device>": {"<date>": [seconds, words, listening seconds]}} (old: 2 numbers) — every device writes only its own part;
 // - seen: {"<lang>_<lessonId>": index} — max;
 // - secrets: {v, iter, salt, iv, ct, t} — the keys (LingQ, Gemini, other AI) encrypted with the sync password
 //   (PBKDF2-SHA256 -> AES-256-GCM, tag appended to ct, base64); the later `t` wins. GitHub token is not synced.

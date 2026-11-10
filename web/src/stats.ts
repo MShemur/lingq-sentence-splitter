@@ -1,10 +1,16 @@
 // Reading statistics: time and words per day, kept on this device. Port of Android Stats.kt (ReadingStats, ReadingTimer).
+// A day is [seconds, words, listening seconds]: seconds = the total (listening to lesson audio included); old entries
+// have two numbers (no listening).
 import { signal } from '@preact/signals'
 import { useEffect } from 'preact/hooks'
 
+/** [seconds (total), words, listening seconds] */
+export type Day = [number, number, number]
+type Stored = number[]
+
 interface Data {
-  /** "2026-11-06" -> [seconds, words] */
-  days: Record<string, [number, number]>
+  /** "2026-11-06" -> [seconds, words, listening seconds] (or [seconds, words] from before) */
+  days: Record<string, Stored>
   /** "de_123" -> highest sentence index counted in that lesson (words are counted once). */
   seen: Record<string, number>
 }
@@ -19,8 +25,8 @@ function load(): Data {
 /** All numbers; replaced on every change so screens showing them re-render. */
 export const stats = signal<Data>(load())
 
-/** Days of the other devices (from sync): device -> date -> [seconds, words]. */
-function loadOthers(): Record<string, Record<string, [number, number]>> {
+/** Days of the other devices (from sync): device -> date -> [seconds, words, listening seconds]. */
+function loadOthers(): Record<string, Record<string, Stored>> {
   try { return JSON.parse(localStorage.getItem('statsOthers') ?? '{}') } catch { return {} }
 }
 export const statsOthers = signal(loadOthers())
@@ -30,7 +36,7 @@ export const exportDays = () => stats.value.days
 export const exportSeen = () => stats.value.seen
 
 /** Sync: the other devices' days replace what was known of them; counted sentences = max. */
-export function importStats(others: Record<string, Record<string, [number, number]>>, seen: Record<string, number>) {
+export function importStats(others: Record<string, Record<string, Stored>>, seen: Record<string, number>) {
   statsOthers.value = others
   try { localStorage.setItem('statsOthers', JSON.stringify(others)) } catch { /* ignore */ }
   const d = stats.value
@@ -49,20 +55,24 @@ function save(d: Data) {
 export const dayKey = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-/** [seconds, words] of a day: this device plus the others (synced). */
-export function dayOf(d: Date): [number, number] {
+const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : 0)
+
+/** [seconds, words, listening seconds] of a day: this device plus the others (synced). */
+export function dayOf(d: Date): Day {
   const k = dayKey(d)
-  const own = stats.value.days[k] ?? [0, 0]
-  let s = own[0], w = own[1]
-  for (const days of Object.values(statsOthers.value)) { const v = days[k]; if (v) { s += v[0]; w += v[1] } }
-  return [s, w]
+  const out: Day = [0, 0, 0]
+  for (const v of [stats.value.days[k], ...Object.values(statsOthers.value).map((days) => days[k])]) {
+    if (!v) continue
+    out[0] += num(v[0]); out[1] += num(v[1]); out[2] += num(v[2])
+  }
+  return out
 }
 
-function addToday(sec: number, words: number) {
+function addToday(sec: number, words: number, listening = false) {
   const d = stats.value
   const k = dayKey(new Date())
-  const v = d.days[k] ?? [0, 0]
-  save({ ...d, days: { ...d.days, [k]: [v[0] + sec, v[1] + words] } })
+  const v = d.days[k] ?? []
+  save({ ...d, days: { ...d.days, [k]: [num(v[0]) + sec, num(v[1]) + words, num(v[2]) + (listening ? sec : 0)] } })
 }
 
 /** Sentences [from]..[to] (indices in the lesson) are on screen: words not counted before are added to today. */
@@ -77,14 +87,14 @@ export function countRead(lang: string, lesson: number, from: number, to: number
   addToday(0, n)
 }
 
-/** Totals [seconds, words] from [from] to today. */
-export function since(from: Date): [number, number] {
-  const out: [number, number] = [0, 0]
+/** Totals [seconds, words, listening seconds] from [from] to today. */
+export function since(from: Date): Day {
+  const out: Day = [0, 0, 0]
   const d = new Date(from.getFullYear(), from.getMonth(), from.getDate())
   const end = dayKey(new Date())
   for (;;) {
     const v = dayOf(d)
-    out[0] += v[0]; out[1] += v[1]
+    out[0] += v[0]; out[1] += v[1]; out[2] += v[2]
     if (dayKey(d) === end || d > new Date()) break
     d.setDate(d.getDate() + 1)
   }
@@ -101,12 +111,17 @@ export function streak(): number {
 }
 
 let lastCounted = 0
-/** 15 s of study (reading or listening); reading while the audio plays counts once. */
-export function tickTime() {
+/** Lesson audio is playing (set by audio.ts): that time is listening, the reading timer stays out of it. */
+let listeningNow = false
+export function setListening(v: boolean) { listeningNow = v }
+
+/** 15 s of study: [listening] = lesson audio (else reading); reading while the audio plays counts once, as audio. */
+export function tickTime(listening = false) {
+  if (!listening && listeningNow) return
   const t = Date.now()
   if (t - lastCounted < 14_000) return
   lastCounted = t
-  addToday(15, 0)
+  addToday(15, 0, listening)
 }
 
 /** Daily goal of the library's "today" card, minutes. */

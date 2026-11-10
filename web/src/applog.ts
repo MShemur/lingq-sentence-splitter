@@ -46,7 +46,8 @@ export function log(tag: string, msg: string) {
   const limit = now - KEEP_MS
   while (lines.length && (lines[0][0] < limit || lines.length > MAX)) lines.shift()
   logVersion.value++
-  if (!saveTimer) saveTimer = window.setTimeout(save, 1000)
+  // written every 10 s at most (writing the whole journal after every line was slow), and when the app is hidden
+  if (!saveTimer) saveTimer = window.setTimeout(save, 10_000)
 }
 
 export function logError(tag: string, msg: string, e: unknown) {
@@ -73,4 +74,5 @@ export function clearLog() {
 
 // written when the page is left (the timer may not get to run)
 window.addEventListener('pagehide', () => { if (saveTimer) save() })
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) save() })
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) save() })

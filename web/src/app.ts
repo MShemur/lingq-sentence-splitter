@@ -78,11 +78,6 @@ export function back() {
   else stack.value = stack.value.slice(0, -1)
 }
 
-/** Replaces the whole stack (e.g. "go to source" from the bookmarks list). */
-export function replaceTop(s: Screen) {
-  stack.value = [...stack.value.slice(0, -1), s]
-}
-
 // --- snackbar ---
 
 export const toast = signal<{ text: string; id: number } | null>(null)
@@ -174,14 +169,20 @@ function loadCourseWords(): Record<string, number> {
 export const courseWords = signal<Record<string, number>>(loadCourseWords())
 export const wordsKey = (l: string, id: number) => `${l}_${id}`
 
+/** When each course was counted (ms): the library recounts a course at most once a day. */
+let wordsTime: Record<string, number> = (() => { try { return JSON.parse(localStorage.getItem('courseWordsT') ?? '{}') } catch { return {} } })()
+const DAY = 24 * 3600_000
+
 function setCourseWords(l: string, id: number, n: number) {
   const k = wordsKey(l, id)
+  wordsTime = { ...wordsTime, [k]: Date.now() }
+  try { localStorage.setItem('courseWordsT', JSON.stringify(wordsTime)) } catch { /* ignore */ }
   if (courseWords.value[k] === n) return
   courseWords.value = { ...courseWords.value, [k]: n }
   try { localStorage.setItem('courseWords', JSON.stringify(courseWords.value)) } catch { /* ignore */ }
 }
 
-/** Courses counted since the app started (each once per start; opening a course counts it again). */
+/** Courses queued since the app started (opening a course counts it again anyway, its lessons are loaded). */
 const wordsFetched = new Set<string>()
 const wordsQueue: (() => Promise<void>)[] = []
 let wordsRunning = 0
@@ -197,6 +198,7 @@ function pumpWords() {
 export function ensureCourseWords(l: string, id: number) {
   const k = wordsKey(l, id)
   if (wordsFetched.has(k)) return
+  if (k in courseWords.value && Date.now() - (wordsTime[k] ?? 0) < DAY) return
   wordsFetched.add(k)
   wordsQueue.push(async () => {
     try {

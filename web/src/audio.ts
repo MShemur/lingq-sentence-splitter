@@ -1,9 +1,9 @@
 // The lesson audio: one <audio> element for the whole app (keeps playing outside the player tab; lock screen and
 // headphone controls through the Media Session API). Loops a stretch A–B for drilling, with a pause between repeats.
 // Port of Android AudioEngine (Audio.kt).
-import { computed, signal } from '@preact/signals'
+import { computed, effect, signal } from '@preact/signals'
 import { log } from './applog'
-import { tickTime } from './stats'
+import { setListening, tickTime } from './stats'
 
 /** One lesson of a "play all" queue; [key] = "<lang>_<lessonId>". */
 export interface Track { key: string; url: string; title: string; image: string }
@@ -223,19 +223,30 @@ export function stop() {
 
 // --- while playing: position for the screen, the loop, listening time ---
 
+// 50 ms only while a loop must turn exactly at its end, else 250 ms; the position on screen changes ~4 times a
+// second either way (the bar, the mini player and the bold sentence follow it)
+let tickMs = 250
+let shownAt = 0
+const tickEvery = () => (looping.value ? 50 : 250)
+
 function startTicker() {
   if (ticker) return
   lastTick = Date.now()
-  ticker = window.setInterval(tick, 50)
+  tickMs = tickEvery()
+  ticker = window.setInterval(tick, tickMs)
 }
 
 function stopTicker() { clearInterval(ticker); ticker = 0 }
+
+effect(() => setListening(playing.value))
+effect(() => { const ms = tickEvery(); if (ticker && ms !== tickMs) { stopTicker(); startTicker() } })
 
 function tick() {
   const a = el
   if (!a) return
   const pos = now()
-  position.value = pos
+  const t0 = Date.now()
+  if (t0 - shownAt >= 240 || Math.abs(pos - position.value) > 1500) { position.value = pos; shownAt = t0 }
   if (looping.value && !waitingGap && (pos >= loopB.value || pos < loopA.value - 1500)) {
     repeats.value++
     if (gap.value > 0) {
@@ -247,7 +258,7 @@ function tick() {
   const t = Date.now()
   if (!a.paused) {
     listened += Math.min(1000, t - lastTick)
-    if (listened >= 15_000) { listened -= 15_000; tickTime() } // listening counts as study time
+    if (listened >= 15_000) { listened -= 15_000; tickTime(true) } // listening counts as study time (as audio)
   }
   lastTick = t
   if (t - lastSave > 5000) { save(); updatePositionState() }
@@ -263,28 +274,6 @@ function save() {
 window.addEventListener('pagehide', save)
 
 // --- lock screen / headphones ---
-
-/** Sentence starts (ms) of the lesson playing: the lock screen's ⏮ goes back to the sentence start. */
-let starts: number[] = []
-let startsKey: string | null = null
-export function setStarts(k: string, list: number[]) { startsKey = k; starts = list.filter((x) => x >= 0).sort((a, b) => a - b) }
-
-/** Back to the start of the sentence sounding now (the previous one in its first half second). */
-export function replaySentence() {
-  if (startsKey !== audioKey.value || !starts.length) { seekBy(-5000); return }
-  const pos = now()
-  const cur = [...starts].reverse().find((x) => x <= pos) ?? 0
-  const target = pos - cur < 500 ? [...starts].reverse().find((x) => x < cur) ?? 0 : cur
-  seekTo(target)
-  if (!playing.value) play()
-}
-
-function nextSentence() {
-  if (startsKey !== audioKey.value) { seekBy(5000); return }
-  const pos = now()
-  const n = starts.find((x) => x > pos + 50)
-  if (n != null) seekTo(n)
-}
 
 function metadata() {
   if (!('mediaSession' in navigator)) return

@@ -1,6 +1,7 @@
 // Reader screen: text with tappable words, sentence mode, word window. Port of the UI part of Reader.kt.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { Fragment, render, type JSX } from 'preact'
+import { memo } from 'preact/compat'
 import { signal } from '@preact/signals'
 import { Icon } from '../icons'
 import { Press } from '../press'
@@ -520,27 +521,79 @@ function Paragraph({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain
 
 type PhrasePin = { from: number; to: number; text: string }
 
+/** What one sentence shows besides its words; [sig] sums it up, so a sentence re-renders only when its part changes. */
+interface SentState {
+  pins: Record<string, string>
+  prov: Record<string, true>
+  popup: WordRef | null
+  sel: { from: number; to: number } | null
+  phrases: PhrasePin[]
+  marked: boolean
+  sig: string
+}
+
+const NO_STATE: SentState = { pins: {}, prov: {}, popup: null, sel: null, phrases: [], marked: false, sig: '' }
+
+/**
+ * The words of [sents] flowing as one text, with pinned translations above words / phrases.
+ * The session's state (pins, the word window, the selection, phrases, bookmarks) is read here once and handed to each
+ * sentence as plain data: a tap or a selection drag re-renders the sentence it touches, not every word of three pages.
+ */
 export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain?: boolean }) {
-  const pins = plain ? {} : s.pins.value
+  if (plain) {
+    return <div class="flow">{sents.map((sent) => <SentView key={sent.id} s={s} sent={sent} st={NO_STATE} plain />)}</div>
+  }
+  const pins = s.pins.value
   const prov = s.provisional.value
-  const popup = plain ? null : s.popup.value
-  const sounding = s.player && !plain ? s.playingSent.value : null
+  const popup = s.popup.value
+  const sel = s.sel.value
+  void s.phrasePins.value
+  const ids = new Set(sents.map((x) => x.id))
+  const by = new Map<number, { pins: Record<string, string>; prov: Record<string, true> }>()
+  for (const [k, v] of Object.entries(pins)) {
+    const id = refSent(k)
+    if (!ids.has(id)) continue
+    let e = by.get(id)
+    if (!e) by.set(id, e = { pins: {}, prov: {} })
+    e.pins[k] = v
+    if (prov[k]) e.prov[k] = true
+  }
+  return (
+    <div class="flow">
+      {sents.map((sent) => {
+        const e = by.get(sent.id)
+        const pp = e?.pins ?? {}
+        const pv = e?.prov ?? {}
+        const pu = popup && refSent(popup) === sent.id ? popup : null
+        const sl = sel && sel.sent === sent.id ? { from: sel.from, to: sel.to } : null
+        const phrases = s.phrasesIn(sent.id)
+        const marked = s.isBookmarked(sent.id)
+        const sig = JSON.stringify([pp, Object.keys(pv), pu, sl, phrases, marked])
+        return <SentView key={sent.id} s={s} sent={sent} st={{ pins: pp, prov: pv, popup: pu, sel: sl, phrases, marked, sig }} />
+      })}
+    </div>
+  )
+}
+
+const SentView = memo(function SentView({ s, sent, st, plain }: { s: ReaderSession; sent: Sent; st: SentState; plain?: boolean }) {
+  const { pins, prov, popup, sel, phrases: phr } = st
+  const picked = (i: number) => !!sel && i >= sel.from && i <= sel.to
 
   /** One chunk (a word with its punctuation); [ph]: the pinned phrase it belongs to. */
-  const chunkView = (sent: Sent, chunk: Token[], ph: PhrasePin | null, key: number) => (
-    <span class={'chunk' + (sounding === sent.id ? ' sounding' : '')} data-se={sent.id} key={key}>
+  const chunkView = (chunk: Token[], ph: PhrasePin | null, key: number) => (
+    <span class="chunk" data-se={sent.id} key={key}>
       {chunk.map((t) => {
         const inPhrase = !!ph && t.index >= ph.from && t.index <= ph.to
-        const picked = !plain && s.inSelection(sent.id, t.index)
+        const pk = !plain && picked(t.index)
         if (!t.isWord) {
           const between = !!ph && t.index > ph.from && t.index < ph.to
-          return <span class={'punct' + (picked ? ' picked' : between ? ' sel' : '')}>{t.text}</span>
+          return <span class={'punct' + (pk ? ' picked' : between ? ' sel' : '')}>{t.text}</span>
         }
         const r = wordRef(sent.id, t.index)
         const tr = inPhrase ? undefined : pins[r]
         const selected = tr !== undefined || popup === r || inPhrase
         return (
-          <span class={'w' + (selected ? ' sel' : '') + (picked ? ' picked' : '')} data-w={r}>
+          <span class={'w' + (selected ? ' sel' : '') + (pk ? ' picked' : '')} data-w={r}>
             {tr !== undefined && <span class={'pin' + (prov[r] ? ' prov' : '')}>{tr || '…'}</span>}
             <span class="wt">{t.text}</span>
           </span>
@@ -549,41 +602,33 @@ export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sen
     </span>
   )
 
-  const sentView = (sent: Sent) => {
-    const phr = plain ? [] : s.phrasesIn(sent.id)
-    // a chunk belongs to a phrase by one of its words, or by anything lying inside it (a dash between its words)
-    const phraseOf = (c: Token[]) => phr.find((p) => c.some((t) =>
-      t.isWord ? t.index >= p.from && t.index <= p.to : t.index > p.from && t.index < p.to)) ?? null
-    const out: JSX.Element[] = []
-    const ch = sent.chunks
-    for (let i = 0; i < ch.length;) {
-      const ph = phraseOf(ch[i])
-      if (!ph) { out.push(chunkView(sent, ch[i], null, i)); i++; continue }
-      // several words translated together: one translation above all of them
-      let j = i
-      while (j < ch.length && phraseOf(ch[j]) === ph) j++
-      out.push(
-        <span class="phrase" key={'p' + i}>
-          <span class="pin phrase-pin">{ph.text || '…'}</span>
-          <span class="phrase-words">{ch.slice(i, j).map((c, n) => chunkView(sent, c, ph, i + n))}</span>
-        </span>,
-      )
-      i = j
-    }
-    return out
+  // a chunk belongs to a phrase by one of its words, or by anything lying inside it (a dash between its words)
+  const phraseOf = (c: Token[]) => phr.find((p) => c.some((t) =>
+    t.isWord ? t.index >= p.from && t.index <= p.to : t.index > p.from && t.index < p.to)) ?? null
+  const out: JSX.Element[] = []
+  const ch = sent.chunks
+  for (let i = 0; i < ch.length;) {
+    const ph = phraseOf(ch[i])
+    if (!ph) { out.push(chunkView(ch[i], null, i)); i++; continue }
+    // several words translated together: one translation above all of them
+    let j = i
+    while (j < ch.length && phraseOf(ch[j]) === ph) j++
+    out.push(
+      <span class="phrase" key={'p' + i}>
+        <span class="pin phrase-pin">{ph.text || '…'}</span>
+        <span class="phrase-words">{ch.slice(i, j).map((c, n) => chunkView(c, ph, i + n))}</span>
+      </span>,
+    )
+    i = j
   }
-
+  void s
   return (
-    <div class="flow">
-      {sents.map((sent) => (
-        <Fragment key={sent.id}>
-          {!plain && s.isBookmarked(sent.id) && <span class="flow-mark" data-se={sent.id}><Icon name="bookmark" /></span>}
-          {sentView(sent)}
-        </Fragment>
-      ))}
-    </div>
+    <>
+      {st.marked && <span class="flow-mark" data-se={sent.id}><Icon name="bookmark" /></span>}
+      {out}
+    </>
   )
-}
+}, (a, b) => a.sent === b.sent && a.plain === b.plain && a.st.sig === b.st.sig)
 
 /**
  * A sentence translation, or a shimmering placeholder while it is being made (one or two lines, like the
@@ -651,10 +696,6 @@ function ReaderMenuItems({ s, id, close }: { s: ReaderSession; id: number; close
   )
 }
 
-const EditButton = ({ s, id }: { s: ReaderSession; id: number }) => (
-  <IconButton icon="edit" label="Редактировать предложение" size={20} class="small primary" onClick={() => s.startEdit(id)} />
-)
-
 /** Window to correct a sentence and its translation; saving writes them into the lesson on LingQ. */
 function SentenceEditDialog({ s, id }: { s: ReaderSession; id: number }) {
   const sent = s.sentences.value.find((x) => x.id === id)
@@ -699,12 +740,12 @@ function BookmarkButton({ s, id }: { s: ReaderSession; id: number }) {
   )
 }
 
-/** Translate the sentence again (Gemini, or LingQ's ChatGPT). */
 /** Chat about this sentence, next to its translation. */
 function ChatButton({ s, id }: { s: ReaderSession; id: number }) {
   return <IconButton icon="chat" label="Чат о предложении" size={20} class="small primary" onClick={() => s.chatSentence(id)} />
 }
 
+/** Translate the sentence again (Gemini, or LingQ's ChatGPT). */
 function RetranslateButton({ s, id }: { s: ReaderSession; id: number }) {
   if (s.retranslating.value[id]) return <span class="icon-btn small"><Spinner size={18} /></span>
   return <IconButton icon="refresh" label="Перевести заново" size={20} class="small primary" onClick={() => void s.retranslate(id)} />

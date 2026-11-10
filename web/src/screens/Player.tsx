@@ -3,6 +3,7 @@
 // Port of Android Player.kt and the audio parts of Audio.kt / Extras.kt.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { JSX } from 'preact'
+import { effect } from '@preact/signals'
 import * as audio from '../audio'
 import { fmtLength, fmtSpeed, fmtTime } from '../audio'
 import { courses, loadCourses, loadRecent, recent, stack } from '../app'
@@ -215,15 +216,21 @@ function FullText({ s }: { s: ReaderSession }) {
   const box = useRef<HTMLDivElement>(null)
   const userAt = useRef(0)
   const handlers = usePlayerPress(s)
-  const playingId = s.playingSent.value
-  useEffect(() => {
+  // the sentence sounding is made bold right in the page (re-rendering the whole lesson on every sentence was slow)
+  // and kept in view unless the user scrolled in the last 6 s
+  useEffect(() => effect(() => {
+    const id = s.playingSent.value
     const el = box.current
-    if (playingId == null || !el || Date.now() - userAt.current < 6000) return
-    const t = el.querySelector(`[data-se="${playingId}"]`) as HTMLElement | null
-    if (!t) return
+    if (!el) return
+    el.querySelectorAll('.chunk.sounding').forEach((x) => x.classList.remove('sounding'))
+    if (id == null) return
+    const all = el.querySelectorAll(`.chunk[data-se="${id}"]`)
+    all.forEach((x) => x.classList.add('sounding'))
+    const t = all[0] as HTMLElement | undefined
+    if (!t || Date.now() - userAt.current < 6000) return
     const r = t.getBoundingClientRect(), b = el.getBoundingClientRect()
     if (r.top < b.top || r.bottom > b.bottom - b.height / 4) el.scrollTo({ top: el.scrollTop + r.top - b.top - 24, behavior: 'smooth' })
-  }, [playingId])
+  }), [s])
   const touched = () => { userAt.current = Date.now() }
   return (
     <div class="player-text reader-text" ref={box} onTouchMove={touched} onWheel={touched} {...handlers}>

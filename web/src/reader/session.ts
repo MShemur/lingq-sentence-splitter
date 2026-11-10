@@ -10,6 +10,7 @@ import { go, say, stack, errorText, geminiFailed, lessonOpened } from '../app'
 import { ChatSession } from '../chat'
 import { hasBookmark, toggleBookmark as toggleBm, type Bookmark } from '../bookmarks'
 import { positionOf, savePosition } from '../progress'
+import { loadTr, rememberTr, trKey } from '../trcache'
 import { countRead } from '../stats'
 import { saveBackup } from '../importer/backups'
 import { log, logError } from '../applog'
@@ -113,6 +114,9 @@ function drop<V>(s: Signal<Record<string, V>>, k: string | number) {
 
 // --- session ---
 
+/** For comparing meanings: lower case, ё = е, letters and digits only. */
+const norm = (t: string) => t.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+
 export class ReaderSession {
   title: Signal<string>
   paragraphs = signal<Sent[][] | null>(null)
@@ -187,11 +191,11 @@ export class ReaderSession {
         this.lesson.audio = au
         if (o?.duration) this.lesson.duration = Number(o.duration) || 0
       }
-      if (this.player && au) audio.setStarts(this.audioKey, paras.flat().map((x) => x.start))
       this.loadNotes()
       this.title.value = l.title
       this.opened(l)
       this.sentences.value = paras.flat()
+      void this.applyCachedTr()
       // open where reading stopped last time (a bookmark's sentence wins)
       const start = this.jump.value ?? positionOf(this.lang, this.lesson.id)?.s ?? null
       if (start != null && this.sentById.has(start)) { this.page.value = this.indexOf(start); this.textAnchor = start }
@@ -201,6 +205,23 @@ export class ReaderSession {
       logError('reader', `Урок ${this.lesson.id} не открылся`, e)
       this.error.value = errorText(e)
     }
+  }
+
+  /** AI / machine sentence translations kept on this device from earlier visits (sentence text -> translation). */
+  private trMap: Record<string, string> = {}
+
+  private async applyCachedTr() {
+    const m = await loadTr(trKey(this.lang, this.lesson.id, this.target))
+    this.trMap = { ...m, ...this.trMap }
+    const add: Record<number, string> = {}
+    for (const s of this.sentences.value) { const t = m[s.text]; if (t && !this.sentTr.value[s.id]) add[s.id] = t }
+    if (Object.keys(add).length) this.sentTr.value = { ...this.sentTr.value, ...add }
+  }
+
+  private keepTr(text: string, tr: string) {
+    if (!tr.trim() || isError(tr) || this.trMap[text] === tr) return
+    this.trMap = { ...this.trMap, [text]: tr }
+    rememberTr(trKey(this.lang, this.lesson.id, this.target), this.trMap)
   }
 
   /** For the library's "Продолжить" row (the cover is fetched if missing). */
@@ -321,11 +342,13 @@ export class ReaderSession {
     const cur = this.sentTr.value[id]
     if (!isError(cur)) return cur
     const s = this.sentById.get(id)!
-    const t = s.translations[this.target] ??
+    const stored = s.translations[this.target]
+    const t = stored ??
       (useGemini()
         ? await gemini.sentence(prompt.sentence(), this.lang, this.target, s.text)
         : await api.translate(this.lang, this.target, s.text))
     put(this.sentTr, id, t)
+    if (stored == null) this.keepTr(s.text, t)
     return t
   }
 
@@ -358,7 +381,7 @@ export class ReaderSession {
         t = r.get(s.lingqIndex) ?? r.values().next().value
       }
       if (!t?.trim()) say('Переводчик не вернул перевод')
-      else put(this.sentTr, id, t.trim())
+      else { put(this.sentTr, id, t.trim()); this.keepTr(s.text, t.trim()) }
     } catch (e) {
       say(errorText(e) || 'Ошибка перевода')
       geminiFailed(e, () => void this.retranslate(id))
@@ -625,9 +648,8 @@ export class ReaderSession {
     return p
   }
 
-  /** Gemini: meaning of the word in this very sentence (cached). */
   /**
-   * One request per word place, shared while in flight: a tap pins the word and the docked window opens at once,
+   * Gemini: meaning of the word in this very sentence (cached). One request per word place, shared while in flight: a tap pins the word and the docked window opens at once,
    * and two separate requests could answer differently (the pin and the window disagreed).
    */
   private ai(r: WordRef): Promise<WordMeaning> {
@@ -788,7 +810,6 @@ export class ReaderSession {
     const saved = this.chosen.value[this.word(r).toLowerCase()]
     const all = [saved, this.popupBest.value, ...this.popupAi.value, ...hs.slice(0, 8), ...parts]
     const seen = new Set<string>()
-    const norm = (t: string) => t.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
     return all
       .filter((x): x is string => !!x)
       .map((x) => x.trim().replace(/^[. ]+|[. ]+$/g, ''))
@@ -943,7 +964,6 @@ export class ReaderSession {
 
   private dedupe(l: string[]): string[] {
     const seen = new Set<string>()
-    const norm = (t: string) => t.toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
     return l.map((x) => x.trim()).filter((x) => { const n = norm(x); if (!x || seen.has(n)) return false; seen.add(n); return true })
   }
 
