@@ -9,16 +9,18 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- android v1.73: after an import the upload button is hidden and the split report (merged pieces, "Отчёт") is gone (the
-  user: the split check is done anyway, there is a menu item for it). Instead: "Готово ✅ [Разбивка на предложения
-  поправлена (N).]", one lesson -> big "Открыть урок" (reader); several -> a list of the new lessons, tap opens each;
-  "Открыть курс" opens the course in the LIBRARY (reader list, not the split check); "Новый импорт" clears the form.
-  Loading a new source also resets it. Android `Ui.kt` ImportScreen, `AppState.kt` (`ImportSession.uploaded`, `newImport`).
-
 ## To do on Android
 
 
 ## Done
+
+- android v1.73 -> web v1.33: after an import the upload button is hidden and the split report (merged pieces, "Отчёт") is gone (the
+  user: the split check is done anyway, there is a menu item for it). Instead: "Готово ✅ [Разбивка на предложения
+  поправлена (N).]", one lesson -> big "Открыть урок" (reader); several -> a list of the new lessons, tap opens each;
+  "Открыть курс" opens the course in the LIBRARY (reader list, not the split check); "Новый импорт" clears the form.
+  Loading a new source also resets it. Android `Ui.kt` ImportScreen, `AppState.kt` (`ImportSession.uploaded`, `newImport`).
+  Web v1.33: `session.ts` (`uploaded`, `newImport`, reset in `startLoad`), finish block in `Import.tsx`
+  ("Открыть курс" = LessonsScreen, which on web is the library list).
 
 - android v1.72 -> web v1.32: podcast transcripts WITHOUT times (`podcast:transcript` type text/plain or text/html, e.g. Lanz und
   Precht has .transcript.txt / .html) are used too: episode row "есть текст"; on pick the text is downloaded (HTML ->

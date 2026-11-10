@@ -2,7 +2,7 @@
 // Port of Android ImportSession (photos / OCR left out: not available on the web).
 import { signal, type Signal } from '@preact/signals'
 import * as api from '../lingq'
-import type { Course } from '../lingq'
+import type { Course, Lesson } from '../lingq'
 import * as gemini from '../gemini'
 import { courses, geminiFailed, say } from '../app'
 import { lang, prefs, prompt, useGemini } from '../settings'
@@ -59,6 +59,14 @@ export class ImportSession {
   log = signal<string[]>([])
   error = signal<string | null>(null)
   fixes = signal<LessonFix[]>([])
+  /** Lessons made by the last upload, in order (for "Открыть урок"). */
+  uploaded = signal<Lesson[]>([])
+
+  /** After an upload: back to an empty form for the next lesson. */
+  newImport() {
+    this.finished.value = false; this.log.value = []; this.fixes.value = []; this.uploaded.value = []; this.error.value = null
+    this.pasteText.value = ''; this.pasteTitle.value = ''; this.items.value = []; this.dropAudio(); this.cover.value = null
+  }
   lang = lang()
 
   // --- source ---
@@ -70,6 +78,7 @@ export class ImportSession {
 
   private startLoad(msg: string) {
     this.dropAudio(); this.cover.value = null
+    this.finished.value = false; this.log.value = []; this.fixes.value = []; this.uploaded.value = []
     this.loading.value = true; this.status.value = msg; this.error.value = null
     this.cleanNote.value = null; this.before = null; this.canUndo.value = false
   }
@@ -322,7 +331,7 @@ export class ImportSession {
     })
     if (!jobs.length) { say('Нечего загружать'); return }
     this.running.value = true; this.finished.value = false; this.error.value = null
-    this.log.value = []; this.fixes.value = []; this.progress.value = 0
+    this.log.value = []; this.fixes.value = []; this.uploaded.value = []; this.progress.value = 0
     try {
       let c = this.course.value
       if (this.newCourse.value) {
@@ -363,6 +372,7 @@ export class ImportSession {
         } catch (e) {
           this.line(base + i, `❌ ${(e as Error).message} · ${title}`); failed++; step(); continue
         }
+        this.uploaded.value = [...this.uploaded.value, { id, title }]
         const wantLevel = this.aiLevel.value && useGemini()
         if (!this.autoFix.value && !wantLevel && !audio) { this.line(base + i, `✅ ${title}`); step(); continue }
         this.line(base + i, `⏳ LingQ обрабатывает · ${title}`)

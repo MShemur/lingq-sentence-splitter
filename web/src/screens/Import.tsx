@@ -12,7 +12,7 @@ import { PdfPicker } from './PdfPicker'
 import { AudioPicker } from './AudioPicker'
 import { PodcastSession } from '../importer/podcasts'
 import { useMemo } from 'preact/hooks'
-import { head, tail } from '../importer/fixer'
+import { ReaderSession } from '../reader/session'
 import { deleteAllBackups, KEEP_DAYS, listBackups, restoreBackup, type Backup } from '../importer/backups'
 
 function SourceTile({ icon, label, onClick, disabled }: { icon: IconName; label: string; onClick: () => void; disabled?: boolean }) {
@@ -53,6 +53,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
 
   const courseValue = s.newCourse.value ? 'new' : String(s.course.value?.id ?? '')
   const n = s.selectedCount()
+  const fixedCount = s.fixes.value.reduce((a, f) => a + f.changes.length, 0)
   return (
     <div class="screen">
       <TopBar nav={<IconButton icon="back" label="Назад" onClick={back} />} title="Загрузка в LingQ" />
@@ -192,10 +193,10 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                   onInput={(e) => { s.splitWords.value = (e.target as HTMLInputElement).value.replace(/\D/g, '') }} />
                 <span>слов</span>
               </div>}
-              <button class="btn filled wide" onClick={() => void s.run()}
+              {!s.finished.value && <button class="btn filled wide" onClick={() => void s.run()}
                 disabled={running || n === 0 || (s.newCourse.value ? !s.newCourseTitle.value.trim() : !s.course.value)}>
                 {n === 1 ? 'Загрузить урок' : `Загрузить уроков: ${n}`}
-              </button>
+              </button>}
             </>
           )}
 
@@ -209,26 +210,19 @@ export function ImportScreen({ s }: { s: ImportSession }) {
           {s.finished.value && (
             <>
               <hr />
-              <p>
-                {!s.fixes.value.length
-                  ? 'Готово ✅ Разбивка проверена сразу при загрузке, исправлять было нечего.'
-                  : 'Готово ✅ Разбивка исправлена сразу при загрузке. Ниже — что склеено (‖ — место склейки). Копии до правки — в «Резервных копиях» (Настройки).'}
-              </p>
-              {s.fixes.value.map((f) => (
-                <div key={f.id}>
-                  <h3 class="section-title">{f.title}</h3>
-                  {f.changes.map((c, i) => (
-                    <div key={i} class="change-line">
-                      {c.kind === 'merge' ? <>{tail(c.a)} <b>‖</b> {head(c.b ?? '')}</>
-                        : c.kind === 'dup' ? <>убран повтор: {head(c.a, 80)}</>
-                        : <>исправлены символы: {head(c.a, 80)}</>}
-                    </div>
-                  ))}
-                </div>
+              <p>Готово ✅{fixedCount > 0 ? ` Разбивка на предложения поправлена (${fixedCount}).` : ''}</p>
+              {s.uploaded.value.length === 1 ? (
+                <button class="btn filled wide" onClick={() => go({ k: 'reader', s: new ReaderSession(s.lang, s.uploaded.value[0]) })}>Открыть урок</button>
+              ) : s.uploaded.value.map((l) => (
+                <ListItem key={l.id} headline={l.title} trailing={<Icon name="chevron" />}
+                  onClick={() => go({ k: 'reader', s: new ReaderSession(s.lang, l) })} />
               ))}
-              {s.course.value && (
-                <button class="btn outlined" onClick={() => go(new LessonsScreen(s.lang, s.course.value!))}>Открыть курс</button>
-              )}
+              <div class="row">
+                {s.course.value && (
+                  <button class="btn outlined" onClick={() => go(new LessonsScreen(s.lang, s.course.value!))}>Открыть курс</button>
+                )}
+                <button class="btn text" onClick={() => s.newImport()}>Новый импорт</button>
+              </div>
             </>
           )}
         </div>
