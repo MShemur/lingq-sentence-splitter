@@ -9,12 +9,6 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- android v1.80: key sync lost a key when both devices changed keys between syncs (the user set the Groq key on the
-  iPad; the phone's own keys counted as newer and overwrote the GitHub copy, so the Groq key never reached the phone).
-  Now in the "mine are newer" branch the remote keys are decrypted and merged: theirs + our non-blank values on top, stt
-  maps merged per provider; the union is sealed and, if it differs from ours, applied locally too. Android `Sync.kt`
-  (`unionKeys`, syncKeys). Please do the same in web `sync.ts` syncKeys (the `!r || myT > rT` branch).
-
 - android v1.78: course screen in the library (lesson covers): sort chips under the course header "Как в курсе" /
   "Новые сверху" (lesson id descending = newest import) / "Старые сверху" / "По имени" (natural); the choice is
   remembered. Android `Library.kt` (LessonsGrid).
@@ -23,6 +17,13 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 
 ## Done
+
+- android v1.80 -> web v1.36: key sync lost a key when both devices changed keys between syncs (the user set the Groq key on the
+  iPad; the phone's own keys counted as newer and overwrote the GitHub copy, so the Groq key never reached the phone).
+  Now in the "mine are newer" branch the remote keys are decrypted and merged: theirs + our non-blank values on top, stt
+  maps merged per provider; the union is sealed and, if it differs from ours, applied locally too. Android `Sync.kt`
+  (`unionKeys`, syncKeys). Please do the same in web `sync.ts` syncKeys (the `!r || myT > rT` branch).
+  Web v1.36: `sync.ts` (`unionKeys`; in syncKeys' mine-newer branch the remote keys are opened and merged, the union is sealed and, if it differs from ours, returned so it is applied here too).
 
 - android v1.77 -> web v1.35: Groq usage (Groq has no usage request). Count audio seconds sent to Groq from this device (Whisper
   verbose_json `duration` per request), rolling last hour / 24 h, against the free limits 7200 s/h and 28800 s/day; keep

@@ -211,13 +211,33 @@ async function syncKeys(remote: Obj, merged: Obj): Promise<Obj | null> {
   }
   if (!r || myT > rT) {
     // don't overwrite keys we cannot read with a different password
-    if (r && (await vaultOpen(pass, r)) == null) { keysNote.value = WRONG_PASS; return null }
-    merged.secrets = await vaultSeal(pass, mine, myT)
+    let theirs: Obj | null = null
+    if (r) {
+      const plain = await vaultOpen(pass, r)
+      if (plain == null) { keysNote.value = WRONG_PASS; return null }
+      try { theirs = JSON.parse(plain) } catch { theirs = null }
+    }
+    // both sides changed: keep a key the other device added (e.g. Groq set on the phone) instead of dropping it
+    const union = theirs ? unionKeys(JSON.parse(mine), theirs) : null
+    const changed = !!union && canon(union) !== canon(JSON.parse(mine))
+    merged.secrets = await vaultSeal(pass, union ? JSON.stringify(union) : mine, myT)
     keysNote.value = 'Ключи отправлены (зашифрованы)'
+    if (changed) { log('sync', 'Ключи объединены с ключами другого устройства'); return union }
     return null
   }
   keysNote.value = 'Ключи совпадают'
   return null
+}
+
+/** [theirs] with [mine] on top: our non-blank values win, keys only the other device has are kept. */
+export function unionKeys(mine: Obj, theirs: Obj): Obj {
+  const out: Obj = { ...theirs }
+  for (const [n, v] of Object.entries(mine)) if (n !== 'stt' && (String(v ?? '').trim() || !(n in out))) out[n] = v
+  const stt: Obj = { ...(theirs.stt && typeof theirs.stt === 'object' ? theirs.stt : {}) }
+  if (mine.stt && typeof mine.stt === 'object') for (const [id, v] of Object.entries(mine.stt)) if (String(v ?? '').trim()) stt[id] = v
+  if (Object.keys(stt).length) out.stt = stt
+  else delete out.stt
+  return out
 }
 
 /** Fills in the keys from the other device (blank values do not erase ours). */
