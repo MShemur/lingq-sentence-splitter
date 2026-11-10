@@ -9,6 +9,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.66: PDF import, choose pages. A PDF with more than one page opens a sheet "Какие страницы взять?":
+  page previews in a grid (tap = pick / unpick, ✓ badge, thick primary border), a field "Страницы, например 3-5, 8"
+  (1-based, commas / dashes; error text if it cannot be read), buttons Все / Сбросить, "Взять N стр.". Only the chosen
+  pages are read; the text layer is checked per page (fewer than 80 letters = a scan) and only those pages go to OCR
+  (Android ML Kit; web has no OCR: report "страница N — скан, без текста" or skip). Lesson title gets ", стр. 3–5, 8"
+  unless all pages were taken. One-page PDFs are read at once. Android `PdfPick.kt` (`PdfDoc`, `PdfText.pages`,
+  `parsePages`, `pagesLabel`, `PdfPagePicker`), `ImportSession.importPdfPages`. Web: pdf.js renders the previews.
+
 ## To do on Android
 
 
