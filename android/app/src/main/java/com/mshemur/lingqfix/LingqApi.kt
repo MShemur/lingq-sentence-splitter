@@ -94,7 +94,7 @@ class LingqApi(private val key: String) {
         .getOrDefault(0L)
 
     private fun lessonOf(o: JSONObject) = Lesson(
-        o.getInt("id"), o.optString("title"), o.optString("imageUrl"), o.optString("level"),
+        o.getInt("id"), o.optString("title"), o.optString("imageUrl"), (if (o.isNull("level")) "" else o.optString("level")),
         o.optInt("wordCount"), o.optInt("newWordsCount"), o.optString("collectionTitle"),
         audio = if (o.isNull("audioUrl")) "" else o.optString("audioUrl"),
         duration = o.optInt("duration"),
@@ -168,7 +168,7 @@ class LingqApi(private val key: String) {
     }
 
     fun lesson(lang: String, id: Int): Lesson = obj("$BASE/v3/$lang/lessons/$id/").let { o ->
-        Lesson(id, o.optString("title"), o.optString("imageUrl"), o.optString("level"), o.optInt("wordCount"),
+        Lesson(id, o.optString("title"), o.optString("imageUrl"), (if (o.isNull("level")) "" else o.optString("level")), o.optInt("wordCount"),
             o.optInt("newWordsCount"), o.optString("collectionTitle"))
     }
 

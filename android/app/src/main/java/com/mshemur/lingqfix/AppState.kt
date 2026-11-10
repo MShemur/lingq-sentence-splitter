@@ -333,7 +333,7 @@ class AppState(val ctx: Context) {
         val a = org.json.JSONArray(recentPrefs.getString(l, "[]"))
         (0 until a.length()).map { i ->
             val o = a.getJSONObject(i)
-            Lesson(o.getInt("id"), o.optString("title"), o.optString("imageUrl"), o.optString("level"),
+            Lesson(o.getInt("id"), o.optString("title"), o.optString("imageUrl"), o.optString("level").takeIf { it != "null" }.orEmpty(),
                 o.optInt("words"), 0, o.optString("course"), o.optLong("t"), o.optString("audio"), o.optInt("dur"))
         }
     }.getOrDefault(emptyList())

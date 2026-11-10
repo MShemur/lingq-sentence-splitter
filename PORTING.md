@@ -9,6 +9,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.75: a lesson without a level (LingQ sends `"level": null`, e.g. a fresh import before the AI level is set)
+  showed "null" on the tile badge, and the remembered recent list kept that "null" for good. Now null = no level (no
+  badge); a stored "null" is read as empty. Check the web for the same (`${level}` of null).
+
 ## To do on Android
 
 

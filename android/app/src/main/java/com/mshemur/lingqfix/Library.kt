@@ -110,7 +110,7 @@ fun LessonTile(state: AppState, lang: String, l: Lesson, subtitle: String, modif
     Column(modifier.clip(TILE).clickable(onClick = onClick).padding(bottom = 6.dp)) {
         Box {
             Cover(l.imageUrl, l.title, Modifier.fillMaxWidth(), ratio = 4f / 3f)
-            if (l.level.isNotBlank()) Surface(
+            if (l.level.isNotBlank() && l.level != "null") Surface(
                 shape = RoundedCornerShape(8.dp), color = Color.Black.copy(alpha = 0.55f),
                 modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
             ) {
