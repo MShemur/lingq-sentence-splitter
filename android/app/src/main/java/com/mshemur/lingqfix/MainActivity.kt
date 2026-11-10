@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var state: AppState
@@ -30,10 +31,18 @@ class MainActivity : ComponentActivity() {
         AppLog.add("app", "На экране")
         state.sync.auto()
         state.checkUpdate(quiet = true)
+        // while the app stays open: look again every 5 minutes
+        updateJob?.cancel()
+        updateJob = state.scope.launch {
+            while (true) { kotlinx.coroutines.delay(5 * 60_000L); state.checkUpdate(quiet = true) }
+        }
     }
+
+    private var updateJob: kotlinx.coroutines.Job? = null
 
     override fun onPause() {
         state.resumed = false
+        updateJob?.cancel(); updateJob = null
         AppLog.add("app", "Свёрнуто")
         ContinueWidget.refresh(applicationContext)     // reading progress on the home screen widget
         state.sync.auto()

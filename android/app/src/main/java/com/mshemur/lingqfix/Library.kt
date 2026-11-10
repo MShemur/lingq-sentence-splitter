@@ -161,8 +161,11 @@ fun LibraryScreen(state: AppState) {
     val err = state.coursesError
     val list = state.courses
     val recent = state.recent.orEmpty()
+    val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    // the update card is added above the top card: the grid would keep the old top in view and hide it
+    LaunchedEffect(state.update?.code) { if (state.update != null && grid.firstVisibleItemIndex <= 1) grid.animateScrollToItem(0) }
     LazyVerticalGrid(
-        GridCells.Adaptive(GRID_MIN), Modifier.fillMaxSize(),
+        GridCells.Adaptive(GRID_MIN), Modifier.fillMaxSize(), state = grid,
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
