@@ -9,6 +9,21 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.68: podcasts + covers. Import: tiles "Подкаст" and "Аудиофайл → текст". Podcasts screen: search field
+  ("Название подкаста или ссылка на RSS"; an http link opens the feed) via Apple Podcasts search
+  (`itunes.apple.com/search?media=podcast&entity=podcast&country=DE&term=`, country from the language), suggestion chips
+  for German (Langsam gesprochene Nachrichten, Top-Thema mit Vokabeln, Easy German, Slow German, Deutschlandfunk, Coffee
+  Break German); "Мои подкасты" = subscriptions (local, not synced) with "N нов." badges (episodes newer than last
+  opening). Feed screen: cover, title, author, Подписаться / Вы подписаны ✓, episodes (new dot, date · duration · "есть
+  расшифровка", 2 lines of description). Tap = download (progress card with Отмена), then the audio part sheet; when the
+  feed has `podcast:transcript` (VTT / SRT / JSON) a switch "Готовая расшифровка подкаста" (on by default) takes its text
+  for the chosen part instead of recognition (word times spread over each cue). Covers: EPUB cover (cover-image /
+  meta cover / image named cover) or the podcast artwork → checkbox with a thumbnail next to the course choice: new course
+  = on ("Обложка для нового курса"), existing = off ("Поставить эту обложку курсу «…»"). LingQ: POST collections
+  multipart with `image` (fallback without), PATCH `/v3/{lang}/collections/{id}/` multipart `image` (fields seen via
+  OPTIONS). Android `Podcasts.kt`, `Epub.cover`, `LingqApi.createCourse(cover) / setCourseImage`. Web: feeds and
+  episode MP3s need the proxy (no CORS on most podcast hosts).
+
 ## To do on Android
 
 
