@@ -10,6 +10,7 @@ export function AudioPicker({ s, pk }: { s: ImportSession; pk: AudioPick }) {
   const [start, setStart] = useState('0:00')
   const [len, setLen] = useState<number | null>(10) // minutes; null = to the end
   const [useTr, setUseTr] = useState(!!pk.transcript)
+  const [useText, setUseText] = useState(!!pk.text)
   const from = parseClock(start)
   const dur = pk.durationMs
   const to = len != null ? (dur > 0 ? Math.min((from ?? 0) + len * 60_000, dur) : (from ?? 0) + len * 60_000) : dur > 0 ? dur : null
@@ -35,6 +36,12 @@ export function AudioPicker({ s, pk }: { s: ImportSession; pk: AudioPick }) {
             <span>Готовая расшифровка подкаста<br /><span class="hint">{useTr ? 'Бесплатно, без распознавания' : 'Выключено: распознает сервис из настроек'}</span></span>
           </label>
         )}
+        {pk.text && (
+          <label class="switch-row">
+            <input type="checkbox" class="switch" checked={useText} onChange={(e) => setUseText((e.target as HTMLInputElement).checked)} />
+            <span>Текст подкаста<br /><span class="hint">{useText ? 'Текст от авторов подкаста, время предложений даст распознавание' : 'Выключено: и текст, и время из распознавания'}</span></span>
+          </label>
+        )}
         <h3 class="section-title">Сколько взять</h3>
         <div class="chips">
           {[5, 10, 15, 20, 30].map((m) => <Chip key={m} label={`${m} мин`} selected={len === m} onClick={() => setLen(m)} />)}
@@ -47,8 +54,8 @@ export function AudioPicker({ s, pk }: { s: ImportSession; pk: AudioPick }) {
           </p>
         )}
         {!bad && <div class="audio-cost">{cost}</div>}
-        <button class="btn filled wide" disabled={bad} onClick={() => void s.transcribePart(from ?? 0, len == null ? null : to, useTr)}>{useTr ? 'Взять кусок' : 'Распознать'}</button>
-        <button class="btn text wide" onClick={() => void s.transcribePart(0, null, useTr)}>Весь файл{dur > 0 ? ` (${clock(dur)}${wholeCost ? `, ${wholeCost}` : ''})` : ''}</button>
+        <button class="btn filled wide" disabled={bad} onClick={() => void s.transcribePart(from ?? 0, len == null ? null : to, useTr, useText)}>{useTr ? 'Взять кусок' : 'Распознать'}</button>
+        <button class="btn text wide" onClick={() => void s.transcribePart(0, null, useTr, useText)}>Весь файл{dur > 0 ? ` (${clock(dur)}${wholeCost ? `, ${wholeCost}` : ''})` : ''}</button>
       </div>
     </Sheet>
   )

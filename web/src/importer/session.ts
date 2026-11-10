@@ -12,12 +12,15 @@ import { readFile } from './sources'
 import { pagesLabel, type PdfDoc } from './pdf'
 import { saveBackup } from './backups'
 import { clock, cutMp3, decodePcm, mp3Frames, playerDuration, RATE, wav, type Mp3 } from './audio'
-import { align, fromSegments, sttKeyFor, sttModel, sttProvider, transcribe, type TSeg, type TWord } from './stt'
+import { align, fromSegments, matchText, sttKeyFor, sttModel, sttProvider, transcribe, type TSeg, type TWord } from './stt'
 import { go } from '../app'
 import { log } from '../applog'
 
 /** An audio file waiting for the choice of its part. */
-export interface AudioPick { file: Blob; name: string; durationMs: number; mp3: Mp3 | null; transcript: TSeg[] | null }
+export interface AudioPick { file: Blob; name: string; durationMs: number; mp3: Mp3 | null; transcript: TSeg[] | null
+  /** The podcast's own text without times, if any. */
+  text: string | null
+}
 
 export class ImportItem {
   title: Signal<string>
@@ -147,15 +150,15 @@ export class ImportSession {
     if (c && !this.newCourseTitle.value.trim() && title.trim()) this.newCourseTitle.value = title
   }
 
-  /** [name] = file name (podcast episode); [transcript] = the podcast's own, if any. */
-  async pickAudio(file: Blob, name = (file as File).name ?? 'audio', transcript: TSeg[] | null = null) {
+  /** [name] = file name (podcast episode); [transcript] / [text] = the podcast's own (timed / plain), if any. */
+  async pickAudio(file: Blob, name = (file as File).name ?? 'audio', transcript: TSeg[] | null = null, text: string | null = null) {
     const prov = sttProvider(prefs.sttProvider.value)
     if (!transcript && !sttKeyFor(prov)) { say(`Задайте ключ распознавания (${prov.name})`); go({ k: 'settingsSpeech' }); return }
     this.startLoad('Открываю аудио…')
     try {
       const mp3 = /\.mp3$/i.test(name) || file.type === 'audio/mpeg' ? await mp3Frames(file) : null
       const durationMs = mp3 ? Math.round(mp3.duration * 1000) : await playerDuration(file)
-      this.audioPick.value = { file, name, durationMs, mp3, transcript }
+      this.audioPick.value = { file, name, durationMs, mp3, transcript, text }
     } catch (e) {
       this.error.value = `Не удалось открыть аудио: ${(e as Error).message}`
     }
@@ -163,7 +166,7 @@ export class ImportSession {
   }
 
   /** Recognises [fromMs, toMs) of the picked audio (toMs null = to the end). */
-  async transcribePart(fromMs: number, toMs: number | null, useTranscript = false) {
+  async transcribePart(fromMs: number, toMs: number | null, useTranscript = false, useText = false) {
     const pk = this.audioPick.value
     if (!pk) return
     const prov = sttProvider(prefs.sttProvider.value)
@@ -199,8 +202,13 @@ export class ImportSession {
         }
       }
       const title = whole ? base : `${base}, ${clock(fromMs)}–${end != null ? clock(end) : 'конец'}`
-      const t = ready ? fromSegments(ready, fromMs, end)
+      let t = ready ? fromSegments(ready, fromMs, end)
         : await transcribe({ blob, name, mp3, pcm }, this.lang, prov, sttKeyFor(prov), sttModel(prov.id), (st) => { this.status.value = st })
+      if (!ready && useText && pk.text) {
+        const m = matchText(pk.text, t, whole)
+        if (m) { t = m; log('stt', `Текст подкаста: ${m.text.length} знаков, время из распознавания`) }
+        else log('stt', 'Текст подкаста не совпал с распознанным, беру распознанный')
+      }
       this.setSingle(title, t.text)
       this.audio.value = blob
       this.audioName.value = whole ? pk.name : `${title}.${name.split('.').pop()}`

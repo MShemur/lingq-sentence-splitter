@@ -11,6 +11,8 @@ export interface Podcast { title: string; author: string; feed: string; image: s
 export interface Episode {
   title: string; date: number; audio: string; type: string; duration: number
   description: string; transcript: string; transcriptType: string
+  /** A transcript without times (plain text or HTML), '' = none. */
+  textUrl: string
 }
 
 const via = (url: string) => `/fetch?url=${encodeURIComponent(url)}`
@@ -60,17 +62,19 @@ export async function feed(url: string): Promise<[Podcast, Episode[]]> {
     const enc = kids(it, 'enclosure')[0]
     const audio = enc?.getAttribute('url') ?? ''
     if (!audio) continue
-    let tr = '', trType = ''
+    let tr = '', trType = '', txtUrl = ''
     for (const t of kids(it, 'transcript')) {
       const ty = (t.getAttribute('type') ?? '').toLowerCase()
-      if (trRank(ty) > trRank(trType)) { tr = t.getAttribute('url') ?? ''; trType = ty }
+      const u = t.getAttribute('url') ?? ''
+      if (trRank(ty) > trRank(trType)) { tr = u; trType = ty }
+      else if (trRank(ty) === 0 && u && (!txtUrl || ty.includes('plain'))) txtUrl = u
     }
     const date = Date.parse(txt(it, 'pubDate'))
     eps.push({
       title: txt(it, 'title'), date: Number.isFinite(date) ? date : 0, audio, type: enc.getAttribute('type') ?? '',
       duration: duration(txt(it, 'duration')),
       description: htmlToText(txt(it, 'description') || txt(it, 'summary') || txt(it, 'encoded')).replace(/\s+/g, ' ').slice(0, 400),
-      transcript: tr, transcriptType: trType,
+      transcript: tr, transcriptType: trType, textUrl: txtUrl,
     })
   }
   const title = txt(channel, 'title')
@@ -107,6 +111,13 @@ export async function bytes(url: string): Promise<Blob | null> {
 function clockSec(s: string): number {
   const p = s.replace(',', '.').split(':').map(Number)
   return p.some((x) => !Number.isFinite(x)) ? -1 : p.reduce((a, v) => a * 60 + v, 0)
+}
+
+/** A transcript without times (plain text or HTML) as text with paragraphs. */
+export async function plainText(url: string): Promise<string> {
+  const t = (await (await get(url, 'текст выпуска')).text()).replace(/^\uFEFF/, '')
+  const html = /\.html?$/i.test(url.split('?')[0]) || t.trimStart().startsWith('<')
+  return (html ? htmlToText(t) : t).replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim()
 }
 
 /** A podcast transcript (WebVTT, SRT or Podcasting 2.0 JSON) as timed pieces. */
@@ -256,11 +267,16 @@ export class PodcastSession {
         try { tr = await transcript(ep.transcript, ep.transcriptType) } catch (e) { log('podcast', `Расшифровка ✗ ${(e as Error).message}`) }
         if (!tr?.length) tr = null
       }
+      let text: string | null = null
+      if (!tr && ep.textUrl) {
+        try { text = await plainText(ep.textUrl) } catch (e) { log('podcast', `Текст выпуска ✗ ${(e as Error).message}`) }
+        if (text && text.length <= 200) text = null
+      }
       const cover = pod?.image ? await bytes(pod.image) : null
-      log('podcast', `«${ep.title.slice(0, 60)}»: ${mb(blob.size)} МБ, расшифровка: ${tr ? 'есть' : 'нет'}`)
+      log('podcast', `«${ep.title.slice(0, 60)}»: ${mb(blob.size)} МБ, расшифровка: ${tr ? 'с временем' : text ? 'текст без времени' : 'нет'}`)
       this.downloading.value = null
       await backTo((s) => s === this.imp)
-      await this.imp.pickAudio(blob, `${ep.title || 'Выпуск'}.${episodeExt(ep)}`, tr)
+      await this.imp.pickAudio(blob, `${ep.title || 'Выпуск'}.${episodeExt(ep)}`, tr, text)
       this.imp.setCover(cover, pod?.title ?? '') // after pickAudio, which clears the old cover
     } catch (e) {
       if ((e as Error).name === 'AbortError') return

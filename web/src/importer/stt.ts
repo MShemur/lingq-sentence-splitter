@@ -251,6 +251,33 @@ async function eleven(key: string, model: string, lang: string, body: Blob, name
 }
 
 /** A ready transcript (podcast VTT / SRT / JSON) cut to [fromMs, toMs): times of words spread over each piece. */
+/**
+ * The stretch of the podcast's own text [full] that the recognition [rec] covers, found by 5-word runs at the start
+ * and end of the recognition (the whole file = all text); the recognised words keep giving the times. null = no match.
+ */
+export function matchText(full: string, rec: Transcript, whole: boolean): Transcript | null {
+  if (whole) return { text: full.trim(), words: rec.words }
+  const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+  const toks = [...full.matchAll(/\S+/g)].filter((m) => norm(m[0]))
+  const fw = toks.map((m) => norm(m[0]))
+  const rw = rec.words.map((w) => norm(w.text)).filter(Boolean)
+  const n = 5
+  if (rw.length < 20 || fw.length < n) return null
+  const at = (k: number, i: number) => { for (let j = 0; j < n; j++) if (fw[k + j] !== rw[i + j]) return false; return true }
+  const find = (i: number, from: number) => { for (let k = from; k <= fw.length - n; k++) if (at(k, i)) return k; return -1 }
+  let start = -1
+  for (let i = 0; i < Math.min(60, rw.length - n); i++) { const k = find(i, 0); if (k >= 0) { start = Math.max(0, k - i); break } }
+  if (start < 0) return null
+  let end = -1
+  for (let i = rw.length - n; i >= Math.max(0, rw.length - n - 60); i--) {
+    const k = find(i, start)
+    if (k >= 0) { end = Math.min(fw.length, k + n + (rw.length - n - i)); break }
+  }
+  if (end <= start || end - start < rw.length / 2 || end - start > rw.length * 2) return null
+  const last = toks[end - 1]
+  return { text: full.slice(toks[start].index!, last.index! + last[0].length).trim(), words: rec.words }
+}
+
 export function fromSegments(all: TSeg[], fromMs: number, toMs: number | null): Transcript {
   const a = fromMs / 1000, b = toMs != null ? toMs / 1000 : Infinity
   const segs = all.filter((s) => s.end > a && s.start < b).map((s) => ({ ...s, start: Math.max(0, s.start - a), end: Math.max(0, s.end - a) }))

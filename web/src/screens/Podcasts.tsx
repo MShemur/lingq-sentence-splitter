@@ -105,7 +105,7 @@ export function PodcastFeedScreen({ s }: { s: PodcastSession }) {
                   <span class="grow">
                     <span class="pod-title">{ep.title}</span>
                     <span class="pod-meta">
-                      {[fmtDate(ep.date), fmtDur(ep.duration), ep.transcript ? 'есть расшифровка' : ''].filter(Boolean).join(' · ')}
+                      {[fmtDate(ep.date), fmtDur(ep.duration), ep.transcript ? 'есть расшифровка' : ep.textUrl ? 'есть текст' : ''].filter(Boolean).join(' · ')}
                     </span>
                     {ep.description && <span class="hint pod-desc">{ep.description}</span>}
                   </span>
