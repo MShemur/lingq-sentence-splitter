@@ -76,3 +76,21 @@ between them. **At the start of work, read it and port what is listed for your p
 reader feature, add a line for the other platform.**
 
 The improvement plan (what is done, what comes next, what is NOT wanted) is `ROADMAP.md`; keep it current.
+
+### Git rules for the two sessions (agreed 2026-11-10)
+
+The sessions share one working tree; the other session's uncommitted files are always there.
+
+1. No `git stash`, no `--autostash`: a failed pop (Vite dev server locks files on Windows) left the other session's
+   files deleted twice. Android works in `android/`, web in `web/`, so there is nothing of the other to put away.
+2. Commit only your own paths (`git add android/...` or `git add web/...` plus the shared files below), then push at
+   once. If the push is rejected: `git pull --no-rebase --no-edit` (a merge works with the other's dirty files as long
+   as the incoming commits do not touch them; a rebase refuses a dirty tree), then push again.
+3. If that pull refuses because an incoming commit touches the other session's uncommitted file: do not stash or
+   overwrite anything; tell the other session (SendMessage) and wait until it has committed.
+4. Shared files (`PORTING.md`, `ROADMAP.md`, `CLAUDE.md`): edit, add, commit and push in one go; never leave them
+   uncommitted.
+5. The web dev server runs only while testing, and is stopped before any pull / merge (its file locks break checkout).
+6. After adding a `PORTING.md` line for the other platform, send the other session a short message: "в очереди для
+   тебя: <version> — <the PORTING.md line>". The receiver ports it and moves the line to Done as usual.
+7. `ROADMAP.md` is the shared plan: mark what got done there.
