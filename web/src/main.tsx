@@ -13,6 +13,7 @@ import { PlayerScreen } from './screens/Player'
 import { useRef } from 'preact/hooks'
 import './styles.css'
 import { log, logError } from './applog'
+import { PodcastFeedScreen, PodcastsScreen } from './screens/Podcasts'
 
 function view(screen: Screen) {
   switch (screen.k) {
@@ -25,6 +26,8 @@ function view(screen: Screen) {
     case 'settingsLingq': return <SettingsLingq />
     case 'settingsTranslation': return <SettingsTranslation />
     case 'settingsSpeech': return <SettingsSpeech />
+    case 'podcasts': return <PodcastsScreen s={screen} />
+    case 'podcastFeed': return <PodcastFeedScreen s={screen.s} />
     case 'settingsPrompts': return <SettingsPrompts />
     case 'settingsReading': return <SettingsReading />
     case 'settingsSync': return <SettingsSync />

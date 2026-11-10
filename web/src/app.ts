@@ -6,6 +6,7 @@ import { lang, otherAi, prefs, useGemini } from './settings'
 import type { ReaderSession } from './reader/session'
 import type { ChatSession } from './chat'
 import type { ImportSession } from './importer/session'
+import type { PodcastSession } from './importer/podcasts'
 import { positions } from './progress'
 import { log, logError } from './applog'
 
@@ -50,6 +51,8 @@ export type Screen =
   | { k: 'settingsLingq' }
   | { k: 'settingsTranslation' }
   | { k: 'settingsSpeech' }
+  | PodcastSession
+  | { k: 'podcastFeed'; s: PodcastSession }
   | { k: 'settingsPrompts' }
 
 export const stack = signal<Screen[]>([{ k: 'courses' }])
@@ -70,6 +73,23 @@ export function go(s: Screen) {
   log('nav', `→ ${screenName(s)}`)
   stack.value = [...stack.value, s]
   try { history.pushState({ depth: stack.value.length - 1 }, '') } catch { /* ignore */ }
+}
+
+/** Goes back to the nearest screen matching [pred] (several steps at once); resolves when it is shown. */
+export function backTo(pred: (s: Screen) => boolean): Promise<void> {
+  const st = stack.value
+  let i = st.length - 1
+  while (i > 0 && !pred(st[i])) i--
+  const n = st.length - 1 - i
+  if (n <= 0) return Promise.resolve()
+  log('nav', `← ${screenName(st[i])}`)
+  if (history.state?.depth !== st.length - 1) { stack.value = st.slice(0, i + 1); return Promise.resolve() }
+  return new Promise((res) => {
+    const done = () => { window.removeEventListener('popstate', done); clearTimeout(t); setTimeout(res, 0) }
+    const t = setTimeout(() => { stack.value = stack.value.slice(0, i + 1); done() }, 1000)
+    window.addEventListener('popstate', done)
+    history.go(-n)
+  })
 }
 
 export function back() {

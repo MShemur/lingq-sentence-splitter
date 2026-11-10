@@ -136,10 +136,30 @@ export async function saveParagraphs(lang: string, id: number, paragraphs: unkno
   await call('PATCH', `/api/v3/${lang}/lessons/${id}/`, { paragraphs })
 }
 
-/** Creates a new (private) course. */
-export async function createCourse(lang: string, title: string): Promise<Course> {
+const coverName = (b: Blob) => 'cover.' + (/png/.test(b.type) ? 'png' : /webp/.test(b.type) ? 'webp' : /gif/.test(b.type) ? 'gif' : 'jpg')
+
+/** Creates a new (private) course, with a cover picture when given (without it if LingQ refuses the picture). */
+export async function createCourse(lang: string, title: string, cover?: Blob | null): Promise<Course> {
+  if (cover) {
+    try {
+      const f = new FormData()
+      f.append('title', title.slice(0, 250)); f.append('description', ''); f.append('level', '1')
+      f.append('image', cover, coverName(cover))
+      const d = await call('POST', `/api/v3/${lang}/collections/`, f)
+      return { id: d.id, title: d.title ?? title, imageUrl: image(d.imageUrl) }
+    } catch (e) {
+      log('lingq', `Курс с обложкой не создан, пробую без неё: ${(e as Error).message}`)
+    }
+  }
   const d = await call('POST', `/api/v3/${lang}/collections/`, { title: title.slice(0, 250), description: '', level: 1 })
   return { id: d.id, title: d.title ?? title, imageUrl: '' }
+}
+
+/** Puts a picture on the user's own course. */
+export async function setCourseImage(lang: string, id: number, cover: Blob) {
+  const f = new FormData()
+  f.append('image', cover, coverName(cover))
+  await call('PATCH', `/api/v3/${lang}/collections/${id}/`, f)
 }
 
 /** Creates a private lesson in [course]; returns its id. */

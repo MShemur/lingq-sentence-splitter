@@ -9,7 +9,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
-- android v1.68: podcasts + covers. Import: tiles "Подкаст" and "Аудиофайл → текст". Podcasts screen: search field
+## To do on Android
+
+
+## Done
+
+- android v1.68 -> web v1.30: podcasts + covers. Import: tiles "Подкаст" and "Аудиофайл → текст". Podcasts screen: search field
   ("Название подкаста или ссылка на RSS"; an http link opens the feed) via Apple Podcasts search
   (`itunes.apple.com/search?media=podcast&entity=podcast&country=DE&term=`, country from the language), suggestion chips
   for German (Langsam gesprochene Nachrichten, Top-Thema mit Vokabeln, Easy German, Slow German, Deutschlandfunk, Coffee
@@ -23,11 +28,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   multipart with `image` (fallback without), PATCH `/v3/{lang}/collections/{id}/` multipart `image` (fields seen via
   OPTIONS). Android `Podcasts.kt`, `Epub.cover`, `LingqApi.createCourse(cover) / setCourseImage`. Web: feeds and
   episode MP3s need the proxy (no CORS on most podcast hosts).
-
-## To do on Android
-
-
-## Done
+  Web v1.30: `importer/podcasts.ts` (search, feed via DOMParser, download with progress / cancel, transcripts,
+  subscriptions in localStorage, PodcastSession), `screens/Podcasts.tsx`, `stt.fromSegments`, EPUB cover in
+  `sources.ts`, `lingq.createCourse(cover) / setCourseImage`. Feeds, episodes, transcripts and covers come through the
+  Pages Function `functions/fetch.ts` (/fetch?url=…: GET only, public http(s), HTML refused).
 
 - android v1.67 -> web v1.29: audio → lesson (speech recognition). Import tile "Аудио → текст (подкаст, запись)" → sheet "Какую часть
   распознать?": start field (мин:сек, also 1:05:00), length chips 5/10/15/20/30 мин / До конца (default 10), "Распознать",

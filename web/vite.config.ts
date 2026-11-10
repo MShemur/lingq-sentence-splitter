@@ -1,6 +1,27 @@
 import { defineConfig, loadEnv } from 'vite'
 import preact from '@preact/preset-vite'
 import { readFileSync } from 'node:fs'
+import { Readable } from 'node:stream'
+import type { Plugin } from 'vite'
+
+/** Dev server: /fetch?url=… like functions/fetch.ts (podcast feeds, audio, covers). */
+const fetchProxy = (): Plugin => ({
+  name: 'fetch-proxy',
+  configureServer(server) {
+    server.middlewares.use('/fetch', async (req, res) => {
+      try {
+        const url = new URL(req.url ?? '', 'http://x').searchParams.get('url') ?? ''
+        const r = await fetch(url, { headers: { 'User-Agent': 'SatzLoop/1.0 (web; podcast import)' }, redirect: 'follow' })
+        const type = r.headers.get('content-type') ?? ''
+        if (/text\/html/i.test(type)) { res.statusCode = 415; res.end('Not a feed or media file'); return }
+        res.statusCode = r.status
+        // the body arrives decompressed: its length is known only when it was not compressed
+        for (const h of r.headers.get('content-encoding') ? ['content-type'] : ['content-type', 'content-length']) { const v = r.headers.get(h); if (v) res.setHeader(h, v) }
+        if (r.body) Readable.fromWeb(r.body as any).pipe(res); else res.end()
+      } catch (e) { res.statusCode = 502; res.end(String(e)) }
+    })
+  },
+})
 
 // the same services as functions/stt/[[path]].ts
 const STT_HOSTS: Record<string, string> = {
@@ -19,7 +40,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 export default defineConfig(({ mode }) => {
   const env = { ...process.env, ...loadEnv(mode, process.cwd(), '') }
   return {
-    plugins: [preact()],
+    plugins: [preact(), fetchProxy()],
     define: {
       // shown in Settings, so it is clear which deploy the iPad runs
       __VERSION__: JSON.stringify(pkg.version.split('.').slice(0, 2).join('.')),

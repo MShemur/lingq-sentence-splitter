@@ -813,8 +813,29 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .pdf-actions { align-items: center; }
 
 /* import: audio */
-.source-tile.wide-tile { width: 100%; flex-direction: row; justify-content: center; gap: 10px; }
 .audio-row { display: flex; align-items: center; gap: 8px; color: var(--primary); font-size: 14px; }
 .audio-row .grow { color: var(--on-surface-variant); }
 .audio-pick { display: flex; flex-direction: column; gap: 10px; }
 .audio-pick .section-title { margin: 6px 0 0; }
+
+/* podcasts */
+.pod-search { display: flex; align-items: flex-end; gap: 8px; }
+.pod-row, .pod-ep { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 0; background: none; border: 0;
+  border-bottom: 1px solid var(--outline-variant, #ccc4); text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.pod-ep:disabled { opacity: 0.6; cursor: default; }
+.pod-ep { align-items: flex-start; }
+.pod-cover { width: 56px; flex-shrink: 0; border-radius: 8px; }
+.pod-cover-big { width: 96px; flex-shrink: 0; border-radius: 12px; }
+.pod-row .grow, .pod-ep .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pod-title { font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pod-author { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pod-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pod-meta { font-size: 13px; color: var(--primary); }
+.pod-badge { background: var(--primary); color: var(--on-primary, #fff); border-radius: 10px; padding: 2px 8px; font-size: 12px; flex-shrink: 0; }
+.pod-new { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex-shrink: 0; margin-top: 8px; }
+.pod-head { display: flex; gap: 14px; align-items: center; }
+.pod-head .grow { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.pod-head-title { font-size: 18px; font-weight: 500; }
+.pod-dl { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 12px; background: var(--secondary-container, #e8def8); }
+.cover-row { align-items: center; }
+.cover-thumb { width: 40px; height: 56px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }

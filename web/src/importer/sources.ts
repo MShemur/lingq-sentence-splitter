@@ -9,7 +9,7 @@ export interface SourceText { title: string; text: string }
 const baseName = (name: string) => name.replace(/\.[^.]+$/, '')
 
 /** The file's display name (without extension) and its texts (one per EPUB chapter). */
-export async function readFile(file: File, onStatus: (s: string) => void): Promise<{ name: string; texts: SourceText[]; pdf?: PdfDoc }> {
+export async function readFile(file: File, onStatus: (s: string) => void): Promise<{ name: string; texts: SourceText[]; pdf?: PdfDoc; cover?: Blob }> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const head = String.fromCharCode(...bytes.subarray(0, 4))
   if (/\.pdf$/i.test(file.name) || head === '%PDF') {
@@ -25,7 +25,7 @@ export async function readFile(file: File, onStatus: (s: string) => void): Promi
   if (/\.epub$/i.test(file.name) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) {
     onStatus('Читаю EPUB…')
     const book = await readEpub(bytes)
-    return { name: book.title, texts: book.chapters }
+    return { name: book.title, texts: book.chapters, cover: book.cover }
   }
   const text = new TextDecoder('utf-8').decode(bytes).replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   return { name: baseName(file.name), texts: [{ title: baseName(file.name), text }] }
@@ -33,7 +33,7 @@ export async function readFile(file: File, onStatus: (s: string) => void): Promi
 
 // --- EPUB: OPF spine order, XHTML -> plain text with paragraphs; images are skipped ---
 
-async function readEpub(bytes: Uint8Array): Promise<{ title: string; chapters: SourceText[] }> {
+async function readEpub(bytes: Uint8Array): Promise<{ title: string; chapters: SourceText[]; cover?: Blob }> {
   const { unzipSync, strFromU8 } = await import('fflate')
   let files: Record<string, Uint8Array>
   try { files = unzipSync(bytes) } catch { throw new ApiError('файл не открылся как EPUB (zip)') }
@@ -67,7 +67,24 @@ async function readEpub(bytes: Uint8Array): Promise<{ title: string; chapters: S
     if (text.trim()) chapters.push({ title: chapterTitle(html), text })
   }
   if (!chapters.length) throw new ApiError('в EPUB не найден текст')
-  return { title, chapters }
+  return { title, chapters, cover: cover(opf, files, base) }
+}
+
+/** EPUB 3 "cover-image", EPUB 2 <meta name="cover">, or an image called "cover". */
+function cover(opf: string, files: Record<string, Uint8Array>, base: string): Blob | undefined {
+  const items = opf.match(/<item\b[^>]*>/g) ?? []
+  const isImage = (t: string) => (attr(t, 'media-type') ?? '').startsWith('image')
+  const meta = /<meta\b[^>]*\bname\s*=\s*["']cover["'][^>]*>/.exec(opf)?.[0]
+  const metaId = meta ? attr(meta, 'content') : null
+  const item = items.find((t) => (attr(t, 'properties') ?? '').includes('cover-image'))
+    ?? (metaId ? items.find((t) => attr(t, 'id') === metaId && isImage(t)) : undefined)
+    ?? items.find((t) => isImage(t) && /cover/i.test((attr(t, 'id') ?? '') + (attr(t, 'href') ?? '')))
+  const href = item && attr(item, 'href')
+  if (!href) return undefined
+  let path = href
+  try { path = decodeURIComponent(href) } catch { /* keep */ }
+  const b = files[resolve(base, path)]
+  return b ? new Blob([b as BlobPart], { type: attr(item!, 'media-type') ?? 'image/jpeg' }) : undefined
 }
 
 const attr = (tag: string, name: string) => new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`).exec(tag)?.[2] ?? null
@@ -92,7 +109,7 @@ const clean = (s: string) => unescape(s).replace(/[\s ]+/g, ' ').trim()
 
 const BLOCK = 'p|div|h[1-6]|li|blockquote|tr|section|article|pre|dd|dt|figcaption'
 
-function htmlToText(html: string): string {
+export function htmlToText(html: string): string {
   let s = html
   s = s.replace(/<head\b[\s\S]*?<\/head>/gi, ' ')
   s = s.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ')
@@ -110,7 +127,7 @@ const NAMED: Record<string, string> = {
   ldquo: '“', rdquo: '”', lsquo: '‘', rsquo: '’', sbquo: '‚', middot: '·',
 }
 
-function unescape(s: string): string {
+export function unescape(s: string): string {
   return s.replace(/&(#[xX][0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, (m, g: string) => {
     if (g[0] === '#') {
       const n = g[1] === 'x' || g[1] === 'X' ? parseInt(g.slice(2), 16) : parseInt(g.slice(1), 10)

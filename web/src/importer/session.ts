@@ -12,12 +12,12 @@ import { readFile } from './sources'
 import { pagesLabel, type PdfDoc } from './pdf'
 import { saveBackup } from './backups'
 import { clock, cutMp3, decodePcm, mp3Frames, playerDuration, RATE, wav, type Mp3 } from './audio'
-import { align, sttKeyFor, sttModel, sttProvider, transcribe, type TWord } from './stt'
+import { align, fromSegments, sttKeyFor, sttModel, sttProvider, transcribe, type TSeg, type TWord } from './stt'
 import { go } from '../app'
 import { log } from '../applog'
 
 /** An audio file waiting for the choice of its part. */
-export interface AudioPick { file: File; name: string; durationMs: number; mp3: Mp3 | null }
+export interface AudioPick { file: Blob; name: string; durationMs: number; mp3: Mp3 | null; transcript: TSeg[] | null }
 
 export class ImportItem {
   title: Signal<string>
@@ -66,7 +66,7 @@ export class ImportSession {
   }
 
   private startLoad(msg: string) {
-    this.dropAudio()
+    this.dropAudio(); this.cover.value = null
     this.loading.value = true; this.status.value = msg; this.error.value = null
     this.cleanNote.value = null; this.before = null; this.canUndo.value = false
   }
@@ -84,8 +84,9 @@ export class ImportSession {
     this.startLoad('Читаю файл…')
     this.pasteMode.value = false
     try {
-      const { name, texts, pdf } = await readFile(file, (s) => { this.status.value = s })
+      const { name, texts, pdf, cover } = await readFile(file, (s) => { this.status.value = s })
       this.sourceName.value = name
+      if (cover) this.setCover(cover, name)
       if (pdf) { this.pdfPick.value?.close(); this.pdfPick.value = pdf; this.loading.value = false; this.status.value = ''; return }
       if (texts.length === 1) this.setSingle(texts[0].title || name, texts[0].text)
       else {
@@ -137,14 +138,24 @@ export class ImportSession {
 
   dropAudio() { this.audio.value = null; this.audioName.value = ''; this.audioWords = [] }
 
-  async pickAudio(file: File) {
+  /** Cover picture of the book / podcast; put on the course when [coverToCourse]. */
+  cover = signal<Blob | null>(null)
+  coverToCourse = signal(true)
+
+  setCover(c: Blob | null, title: string) {
+    this.cover.value = c
+    if (c && !this.newCourseTitle.value.trim() && title.trim()) this.newCourseTitle.value = title
+  }
+
+  /** [name] = file name (podcast episode); [transcript] = the podcast's own, if any. */
+  async pickAudio(file: Blob, name = (file as File).name ?? 'audio', transcript: TSeg[] | null = null) {
     const prov = sttProvider(prefs.sttProvider.value)
-    if (!sttKeyFor(prov)) { say(`Задайте ключ распознавания (${prov.name})`); go({ k: 'settingsSpeech' }); return }
+    if (!transcript && !sttKeyFor(prov)) { say(`Задайте ключ распознавания (${prov.name})`); go({ k: 'settingsSpeech' }); return }
     this.startLoad('Открываю аудио…')
     try {
-      const mp3 = /\.mp3$/i.test(file.name) || file.type === 'audio/mpeg' ? await mp3Frames(file) : null
+      const mp3 = /\.mp3$/i.test(name) || file.type === 'audio/mpeg' ? await mp3Frames(file) : null
       const durationMs = mp3 ? Math.round(mp3.duration * 1000) : await playerDuration(file)
-      this.audioPick.value = { file, name: file.name, durationMs, mp3 }
+      this.audioPick.value = { file, name, durationMs, mp3, transcript }
     } catch (e) {
       this.error.value = `Не удалось открыть аудио: ${(e as Error).message}`
     }
@@ -152,12 +163,16 @@ export class ImportSession {
   }
 
   /** Recognises [fromMs, toMs) of the picked audio (toMs null = to the end). */
-  async transcribePart(fromMs: number, toMs: number | null) {
+  async transcribePart(fromMs: number, toMs: number | null, useTranscript = false) {
     const pk = this.audioPick.value
     if (!pk) return
-    this.audioPick.value = null
     const prov = sttProvider(prefs.sttProvider.value)
+    const ready = useTranscript ? pk.transcript : null
+    if (!ready && !sttKeyFor(prov)) { say(`Задайте ключ распознавания (${prov.name})`); go({ k: 'settingsSpeech' }); return }
+    this.audioPick.value = null
+    const keepCover = this.cover.value
     this.startLoad('Вырезаю кусок…')
+    this.cover.value = keepCover
     this.pasteMode.value = false; this.items.value = []
     try {
       const base = pk.name.replace(/\.[^.]+$/, '')
@@ -184,7 +199,8 @@ export class ImportSession {
         }
       }
       const title = whole ? base : `${base}, ${clock(fromMs)}–${end != null ? clock(end) : 'конец'}`
-      const t = await transcribe({ blob, name, mp3, pcm }, this.lang, prov, sttKeyFor(prov), sttModel(prov.id), (st) => { this.status.value = st })
+      const t = ready ? fromSegments(ready, fromMs, end)
+        : await transcribe({ blob, name, mp3, pcm }, this.lang, prov, sttKeyFor(prov), sttModel(prov.id), (st) => { this.status.value = st })
       this.setSingle(title, t.text)
       this.audio.value = blob
       this.audioName.value = whole ? pk.name : `${title}.${name.split('.').pop()}`
@@ -303,11 +319,19 @@ export class ImportSession {
       let c = this.course.value
       if (this.newCourse.value) {
         this.log.value = [`➕ Курс «${createTitle}»`]
-        c = await api.createCourse(l, createTitle)
+        c = await api.createCourse(l, createTitle, this.coverToCourse.value ? this.cover.value : null)
         this.log.value = [`✅ Курс «${c.title}» создан`]
         courses.value = [c, ...(courses.value ?? [])]
         this.course.value = c
         this.newCourse.value = false
+      } else if (this.cover.value && this.coverToCourse.value) {
+        try {
+          await api.setCourseImage(l, c!.id, this.cover.value)
+          this.log.value = [...this.log.value, `🖼 Обложка курса «${c!.title}» обновлена`]
+        } catch (e) {
+          log('import', `Обложка курса ✗ ${(e as Error).message}`)
+          this.log.value = [...this.log.value, `⚠ Обложку не удалось поставить: ${(e as Error).message}`]
+        }
       }
       const course = c!
       // uploads go one after another (keeps the lesson order); LingQ then processes each lesson on its own,

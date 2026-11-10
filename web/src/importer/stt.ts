@@ -7,7 +7,7 @@ import { decodePcm, mp3Pieces, pcmCuts, RATE, wav, type Mp3 } from './audio'
 /** One recognised word with its time in the audio, s. */
 export interface TWord { text: string; start: number; end: number }
 /** A piece of recognised speech (sentence, Whisper segment or paragraph); [newPara] = a paragraph starts here. */
-interface TSeg { text: string; start: number; end: number; newPara?: boolean }
+export interface TSeg { text: string; start: number; end: number; newPara?: boolean }
 export interface Transcript { text: string; words: TWord[] }
 
 export interface SttProvider { id: string; name: string; note: string; keyUrl: string; models: string[]; maxBytes: number }
@@ -215,6 +215,19 @@ async function eleven(key: string, model: string, lang: string, body: Blob, name
   if (sb.trim()) segs.push({ text: sb.trim(), start: Math.max(0, start), end: words[words.length - 1]?.end ?? 0 })
   if (!segs.length) segs.push({ text: String(o.text ?? ''), start: 0, end: 0 })
   return [segs, words]
+}
+
+/** A ready transcript (podcast VTT / SRT / JSON) cut to [fromMs, toMs): times of words spread over each piece. */
+export function fromSegments(all: TSeg[], fromMs: number, toMs: number | null): Transcript {
+  const a = fromMs / 1000, b = toMs != null ? toMs / 1000 : Infinity
+  const segs = all.filter((s) => s.end > a && s.start < b).map((s) => ({ ...s, start: Math.max(0, s.start - a), end: Math.max(0, s.end - a) }))
+  const words = segs.flatMap((s) => {
+    const ws = s.text.split(/\s+/).filter(Boolean)
+    const total = Math.max(1, ws.reduce((n, w) => n + w.length, 0))
+    let t = s.start
+    return ws.map((w) => { const d = ((s.end - s.start) * w.length) / total; const x = { text: w, start: t, end: t + d }; t += d; return x })
+  })
+  return { text: paragraphs(segs), words }
 }
 
 /** Whisper sometimes "hears" subtitle credits in silence, or repeats a line: such pieces are dropped. */

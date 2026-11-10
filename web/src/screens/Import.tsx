@@ -10,6 +10,8 @@ import { countWords } from '../importer/cleaner'
 import { wordsText } from '../stats'
 import { PdfPicker } from './PdfPicker'
 import { AudioPicker } from './AudioPicker'
+import { PodcastSession } from '../importer/podcasts'
+import { useMemo } from 'preact/hooks'
 import { head, tail } from '../importer/fixer'
 import { deleteAllBackups, KEEP_DAYS, listBackups, restoreBackup, type Backup } from '../importer/backups'
 
@@ -63,10 +65,10 @@ export function ImportScreen({ s }: { s: ImportSession }) {
           </div>
           <input ref={file} type="file" hidden accept=".txt,.md,.markdown,.epub,.pdf,text/plain,text/markdown,application/epub+zip,application/pdf"
             onChange={(e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void s.loadFile(f); (e.target as HTMLInputElement).value = '' }} />
-          <button class="source-tile wide-tile" onClick={() => audioFile.current?.click()} disabled={running || s.loading.value}>
-            <Icon name="mic" size={26} />
-            <span>Аудио → текст (подкаст, запись)</span>
-          </button>
+          <div class="source-tiles">
+            <SourceTile icon="headphones" label="Подкаст" onClick={() => go(new PodcastSession(s, s.lang))} disabled={running || s.loading.value} />
+            <SourceTile icon="mic" label="Аудиофайл → текст" onClick={() => audioFile.current?.click()} disabled={running || s.loading.value} />
+          </div>
           <input ref={audioFile} type="file" hidden accept="audio/*,video/mp4,.mp3,.m4a,.ogg,.opus,.wav,.flac,.webm"
             onChange={(e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void s.pickAudio(f); (e.target as HTMLInputElement).value = '' }} />
           {!has && !s.loading.value && (
@@ -170,6 +172,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                 </label>
               )}
               {coursesError.value && <p class="error-text">Курсы не загрузились: {coursesError.value}</p>}
+              {s.cover.value && <CoverChoice s={s} />}
               <label class="check-row">
                 <input type="checkbox" checked={s.autoFix.value} onChange={(e) => { s.autoFix.value = (e.target as HTMLInputElement).checked }} />
                 <span>Сразу исправить разбивку на предложения</span>
@@ -231,6 +234,22 @@ export function ImportScreen({ s }: { s: ImportSession }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/** The book's / podcast's picture for the course: on for a new course, off for an existing one. */
+function CoverChoice({ s }: { s: ImportSession }) {
+  const isNew = s.newCourse.value
+  useEffect(() => { s.coverToCourse.value = isNew }, [isNew])
+  const blob = s.cover.value!
+  const url = useMemo(() => URL.createObjectURL(blob), [blob])
+  useEffect(() => () => URL.revokeObjectURL(url), [url])
+  return (
+    <label class="check-row cover-row">
+      <input type="checkbox" checked={s.coverToCourse.value} onChange={(e) => { s.coverToCourse.value = (e.target as HTMLInputElement).checked }} />
+      <img class="cover-thumb" src={url} alt="" />
+      <span>{isNew ? 'Обложка для нового курса' : `Поставить эту обложку курсу «${s.course.value?.title ?? ''}»`}</span>
+    </label>
   )
 }
 
