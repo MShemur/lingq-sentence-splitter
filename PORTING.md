@@ -9,6 +9,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
+- android v1.61: statistics split reading / audio. Day data is now `[seconds, words, listenSeconds]` (seconds = total,
+  listening included; old 2-number entries = no listening). Timer: audio playing -> counts as listening, else reading
+  in the reader (as before); total unchanged everywhere (today card in the library stays one number). Sync `stats`
+  per device carries the third number; read it with a default 0 and keep it when merging. Stats screen only: today card
+  shows "Чтение X · Аудио Y" under the total; week / month / year cards add "чтение … / аудио …"; 2-week chart = stacked
+  bars (reading bottom, primary; audio top, tertiary; 2 dp gap) with a legend, the picked day's line shows the split.
+  `Stats.kt` (`addTime(sec, listening)`, `day`, `since`, `DaysChart`).
+
 ## To do on Android
 
 - web v1.26: player repeat sheet has "Повторять весь урок" (loop 0..end, keeps playing from where it is; starts over

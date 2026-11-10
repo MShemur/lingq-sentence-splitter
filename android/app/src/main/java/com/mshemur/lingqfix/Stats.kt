@@ -3,7 +3,9 @@ package com.mshemur.lingqfix
 import android.content.Context
 import android.os.SystemClock
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +33,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.text.font.FontWeight
@@ -48,9 +51,9 @@ import java.util.Locale
 /** Reading time and words read per day, plus how far each lesson was read (for counting new words only once). */
 class ReadingStats(ctx: Context) {
     private val file = File(ctx.filesDir, "stats.json")
-    private val days = HashMap<String, IntArray>()     // "2026-11-06" -> [seconds, words]
+    private val days = HashMap<String, IntArray>()     // "2026-11-06" -> [seconds, words, listening seconds]
     private val seen = HashMap<String, Int>()          // "de_123" -> highest sentence index counted
-    /** Days of the other devices (from sync): device -> date -> [seconds, words]. */
+    /** Days of the other devices (from sync): device -> date -> [seconds, words, listening seconds]. */
     private val others = HashMap<String, HashMap<String, IntArray>>()
     private val othersFile = File(ctx.filesDir, "stats_others.json")
     /** Bumped on every change so screens showing the numbers recompose. */
@@ -60,7 +63,7 @@ class ReadingStats(ctx: Context) {
     init {
         runCatching {
             val o = JSONObject(file.readText())
-            o.optJSONObject("days")?.let { d -> d.keys().forEach { k -> val a = d.getJSONArray(k); days[k] = intArrayOf(a.getInt(0), a.getInt(1)) } }
+            o.optJSONObject("days")?.let { d -> d.keys().forEach { k -> days[k] = dayOf(d.getJSONArray(k)) } }
             o.optJSONObject("seen")?.let { d -> d.keys().forEach { k -> seen[k] = d.getInt(k) } }
         }
         reloadOthers()
@@ -68,7 +71,10 @@ class ReadingStats(ctx: Context) {
 
     // --- sync ---
 
-    fun exportDays(): JSONObject = JSONObject().also { d -> days.forEach { (k, v) -> d.put(k, org.json.JSONArray().put(v[0]).put(v[1])) } }
+    fun exportDays(): JSONObject = JSONObject().also { d -> days.forEach { (k, v) -> d.put(k, org.json.JSONArray().put(v[0]).put(v[1]).put(v[2])) } }
+
+    /** [seconds, words] of old data or [seconds, words, listening seconds]. */
+    private fun dayOf(a: org.json.JSONArray) = intArrayOf(a.optInt(0), a.optInt(1), a.optInt(2))
 
     fun exportSeen(): JSONObject = JSONObject().also { s -> seen.forEach { (k, v) -> s.put(k, v) } }
 
@@ -87,7 +93,7 @@ class ReadingStats(ctx: Context) {
             o.keys().forEach { dev ->
                 val d = o.getJSONObject(dev)
                 others[dev] = HashMap<String, IntArray>().apply {
-                    d.keys().forEach { k -> val a = d.getJSONArray(k); put(k, intArrayOf(a.getInt(0), a.getInt(1))) }
+                    d.keys().forEach { k -> put(k, dayOf(d.getJSONArray(k))) }
                 }
             }
         }
@@ -96,16 +102,22 @@ class ReadingStats(ctx: Context) {
 
     private fun save() {
         val d = JSONObject()
-        days.forEach { (k, v) -> d.put(k, org.json.JSONArray().put(v[0]).put(v[1])) }
+        days.forEach { (k, v) -> d.put(k, org.json.JSONArray().put(v[0]).put(v[1]).put(v[2])) }
         val s = JSONObject()
         seen.forEach { (k, v) -> s.put(k, v) }
         runCatching { file.writeText(JSONObject().put("days", d).put("seen", s).toString()) }
         version++
     }
 
-    private fun today() = days.getOrPut(LocalDate.now().toString()) { intArrayOf(0, 0) }
+    private fun today() = days.getOrPut(LocalDate.now().toString()) { intArrayOf(0, 0, 0) }
 
-    fun addTime(sec: Int) { today()[0] += sec; save() }
+    /** [listening]: the time was lesson audio (counted in the total too). */
+    fun addTime(sec: Int, listening: Boolean = false) {
+        val t = today()
+        t[0] += sec
+        if (listening) t[2] += sec
+        save()
+    }
 
     /** Sentences [from]..[to] (indices in the lesson) are on screen: words not counted before are added to today. */
     fun read(lang: String, lesson: Int, from: Int, to: Int, words: (Int) -> Int) {
@@ -119,20 +131,21 @@ class ReadingStats(ctx: Context) {
         save()
     }
 
-    /** Totals of a day over all devices. */
+    /** Totals of a day over all devices: [seconds, words, listening seconds]. */
     fun day(d: LocalDate): IntArray {
         val k = d.toString()
-        val out = (days[k] ?: intArrayOf(0, 0)).copyOf()
-        others.values.forEach { m -> m[k]?.let { out[0] += it[0]; out[1] += it[1] } }
+        val out = (days[k] ?: intArrayOf(0, 0, 0)).copyOf()
+        others.values.forEach { m -> m[k]?.let { out[0] += it[0]; out[1] += it[1]; out[2] += it[2] } }
+        out[2] = minOf(out[2], out[0])
         return out
     }
 
-    /** Totals [seconds, words] from [from] to today. */
+    /** Totals [seconds, words, listening seconds] from [from] to today. */
     fun since(from: LocalDate): IntArray {
-        val out = intArrayOf(0, 0)
+        val out = intArrayOf(0, 0, 0)
         var d = from
         val now = LocalDate.now()
-        while (!d.isAfter(now)) { val v = day(d); out[0] += v[0]; out[1] += v[1]; d = d.plusDays(1) }
+        while (!d.isAfter(now)) { val v = day(d); out[0] += v[0]; out[1] += v[1]; out[2] += v[2]; d = d.plusDays(1) }
         return out
     }
 
@@ -155,9 +168,10 @@ fun ReadingTimer(state: AppState) {
     LaunchedEffect(Unit) {
         while (true) {
             delay(15_000)
-            // reading (touched lately) or listening to the lesson
+            // listening to lesson audio, else reading (touched lately); both count in the total
             val reading = state.screen is Screen.Reader && state.resumed && SystemClock.uptimeMillis() - state.lastTouch < 180_000
-            if (reading || AudioEngine.playing) state.stats.addTime(15)
+            if (AudioEngine.playing) state.stats.addTime(15, listening = true)
+            else if (reading) state.stats.addTime(15)
         }
     }
 }
@@ -208,6 +222,10 @@ fun StatsScreen(state: AppState) {
                 Text("Сегодня", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 Text(formatTime(today[0]), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 Text(words(today[1]), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Split(AppIcons.Book, "Чтение", today[0] - today[2], MaterialTheme.colorScheme.onPrimaryContainer)
+                    Split(AppIcons.Headphones, "Аудио", today[2], MaterialTheme.colorScheme.onPrimaryContainer)
+                }
                 Text(
                     if (streak > 0) "Серия: ${days(streak)} подряд" else "Почитайте хотя бы минуту — начнётся серия дней",
                     Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -221,7 +239,8 @@ fun StatsScreen(state: AppState) {
         }
         DaysChart(st, now)
         Text(
-            "Время считается, пока открыт урок и вы касаетесь экрана; если 3 минуты ничего не происходит, счёт стоит. " +
+            "Чтение считается, пока открыт урок и вы касаетесь экрана; если 3 минуты ничего не происходит, счёт стоит. " +
+                "Аудио — пока играет урок в плеере. Общее время — сумма. " +
                 "Слова — новые предложения, которые вы впервые увидели в уроке.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -235,28 +254,60 @@ private fun PeriodCard(title: String, v: IntArray, modifier: Modifier) {
             Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(formatTime(v[0]), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(words(v[1]), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "чтение ${formatTime(v[0] - v[2])}", Modifier.padding(top = 6.dp),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text("аудио ${formatTime(v[2])}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
-/** Minutes per day, last 14 days: one series, thin rounded bars on a baseline; tap a bar for its numbers. */
+/** Reading or listening part of the time: icon, name, time. */
+@Composable
+private fun Split(icon: androidx.compose.ui.graphics.vector.ImageVector, name: String, sec: Int, color: androidx.compose.ui.graphics.Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.Icon(icon, contentDescription = null, Modifier.size(18.dp), tint = color)
+        Text(" $name ", style = MaterialTheme.typography.bodyMedium, color = color)
+        Text(formatTime(sec), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = color)
+    }
+}
+
+/** Legend entry of the chart. */
+@Composable
+private fun LegendDot(color: androidx.compose.ui.graphics.Color, name: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).background(color, androidx.compose.foundation.shape.RoundedCornerShape(3.dp)))
+        Text(" $name", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Minutes per day, last 14 days: stacked bars reading (bottom) + audio (top); tap a bar for its numbers. */
 @Composable
 private fun DaysChart(st: ReadingStats, now: LocalDate) {
     val dates = (13 downTo 0).map { now.minusDays(it.toLong()) }
-    val mins = dates.map { st.day(it)[0] / 60f }
+    val vals = dates.map { st.day(it) }
+    val mins = vals.map { it[0] / 60f }
+    val listenMins = vals.map { it[2] / 60f }
     val max = maxOf(mins.maxOrNull() ?: 0f, 10f)
     var picked by remember { mutableStateOf(dates.size - 1) }
-    val bar = MaterialTheme.colorScheme.primary
-    val dim = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+    val readColor = MaterialTheme.colorScheme.primary
+    val listenColor = MaterialTheme.colorScheme.tertiary
+    val gapColor = MaterialTheme.colorScheme.surfaceContainerLow
     val base = MaterialTheme.colorScheme.outlineVariant
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("Минуты чтения за 2 недели", style = MaterialTheme.typography.titleSmall)
+            Text("Минуты за 2 недели", style = MaterialTheme.typography.titleSmall)
+            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                LegendDot(readColor, "Чтение")
+                LegendDot(listenColor, "Аудио")
+            }
             val d = dates[picked]
-            val dv = st.day(d)
+            val dv = vals[picked]
             Text(
-                "${d.dayOfMonth} ${d.month.getDisplayName(TextStyle.FULL, Locale("ru"))}: ${formatTime(dv[0])} · ${words(dv[1])}",
-                Modifier.padding(top = 2.dp, bottom = 10.dp),
+                "${d.dayOfMonth} ${d.month.getDisplayName(TextStyle.FULL, Locale("ru"))}: ${formatTime(dv[0])} · ${words(dv[1])}\n" +
+                    "чтение ${formatTime(dv[0] - dv[2])} · аудио ${formatTime(dv[2])}",
+                Modifier.padding(top = 4.dp, bottom = 10.dp),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Box(Modifier.fillMaxWidth().height(120.dp)) {
@@ -269,7 +320,9 @@ private fun DaysChart(st: ReadingStats, now: LocalDate) {
                         if (h > 0f) {
                             val left = slot * i + (slot - w) / 2
                             val top = size.height - h
-                            // rounded at the data end only, square on the baseline
+                            val a = if (i == picked) 1f else 0.45f
+                            // listening is the top part of the bar; the whole bar is rounded at the data end only
+                            val lh = if (m > 0f) h * (listenMins[i] / m) else 0f
                             val p = Path().apply {
                                 addRoundRect(
                                     RoundRect(
@@ -278,7 +331,15 @@ private fun DaysChart(st: ReadingStats, now: LocalDate) {
                                     ),
                                 )
                             }
-                            drawPath(p, if (i == picked) bar else dim, style = Fill)
+                            drawPath(p, readColor.copy(alpha = a), style = Fill)
+                            if (lh > 0.5f) {
+                                clipRect(left, top, left + w, top + lh) {
+                                    drawPath(p, gapColor, style = Fill)
+                                    drawPath(p, listenColor.copy(alpha = a), style = Fill)
+                                }
+                                // 2 dp gap between the two parts
+                                if (lh < h - 1f) drawRect(gapColor, Offset(left, top + lh - 1.dp.toPx()), Size(w, 2.dp.toPx()))
+                            }
                         }
                     }
                     drawRect(base, Offset(0f, size.height - 1.dp.toPx()), Size(size.width, 1.dp.toPx()))

@@ -48,7 +48,8 @@ import java.util.Locale
  * - bookmarks: {"<lessonId>_<sent>": bookmark}, deleted: {"<lessonId>_<sent>": time} — the later event wins;
  * - notes: {"<lang>_<lessonId>": {t, pins, words}} — the whole lesson, the later `t` wins;
  * - progress: {"<lang>_<lessonId>": {pos, t, read}} — pos by later `t`, read = max;
- * - stats: {"<device>": {"<date>": [seconds, words]}} — every device writes only its own part;
+ * - stats: {"<device>": {"<date>": [seconds, words, listenSeconds]}} — every device writes only its own part
+ *   (seconds = all time, listening included; the third number may be missing in old data);
  * - seen: {"<lang>_<lessonId>": index} — max.
  * - secrets: {v, iter, salt, iv, ct, t} — the keys (LingQ, Gemini, other AI), encrypted with the sync password
  *   (PBKDF2-SHA256 → AES-256-GCM, tag appended to ct, base64); the later `t` wins. See [KeyVault].
