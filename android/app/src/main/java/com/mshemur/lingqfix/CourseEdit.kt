@@ -266,6 +266,10 @@ fun LibraryMenu(state: AppState) {
                 text = { Text("Архив курсов (${state.archivedCourses().size})") },
                 onClick = { open = false; state.go(Screen.Archive) },
             )
+            DropdownMenuItem(
+                text = { Text("Отзыв / задача") },
+                onClick = { open = false; state.go(Screen.Feedback) },
+            )
         }
     }
 }

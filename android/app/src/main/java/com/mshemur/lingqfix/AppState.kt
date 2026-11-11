@@ -40,6 +40,7 @@ sealed interface Screen {
     data object Courses : Screen
     data object Backups : Screen
     data object Archive : Screen
+    data object Feedback : Screen
     class Import(val session: ImportSession) : Screen
     class Check(val session: CheckSession) : Screen
 

@@ -7,6 +7,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- android v1.84: "Отзыв / задача" (Settings and library ⋮): the user writes a note for Claude; it is saved as `feedback/<yyyyMMdd-HHmmss>-<device>.json` on the `sync` branch via the contents API with the sync token ({t, device: "android"|"web", version, text, status: "new", log?}). The screen lists the latest notes of both devices with status (new / work / done + `doneIn` / no) and Claude's `reply`. Optional "Приложить журнал". Android `Feedback.kt`.
+
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)
 
 ## To do on Android

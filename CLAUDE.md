@@ -94,3 +94,10 @@ The sessions share one working tree; the other session's uncommitted files are a
 6. After adding a `PORTING.md` line for the other platform, send the other session a short message: "в очереди для
    тебя: <version> — <the PORTING.md line>". The receiver ports it and moves the line to Done as usual.
 7. `ROADMAP.md` is the shared plan: mark what got done there.
+
+## Feedback from the apps (agreed 2026-11-11)
+
+The user writes notes in the app ("Отзыв / задача"); they land as `feedback/*.json` on the `sync` branch. The Android
+session checks them hourly (`git fetch origin sync`), does the work, then writes back into the same file `status`
+("work" / "done" / "no"), `doneIn` (e.g. "android v1.85") and `reply` (short Russian), committed to `sync` from a
+separate worktree (never switch the shared working tree). Web-only notes go to the web session via PORTING.md.
