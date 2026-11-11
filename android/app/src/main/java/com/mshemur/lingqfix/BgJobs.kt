@@ -173,7 +173,8 @@ class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?, resto
             lessons = imp.uploaded.toList()
             if (lessons.isEmpty()) throw ApiException(bad.firstOrNull()?.removePrefix("❌")?.trim() ?: "урок не загрузился")
             done = true; progress = 1f
-            status = "Готово: урок в курсе «${imp.course?.title ?: t.newTitle}»" + if (bad.isNotEmpty()) " · ошибок: ${bad.size}" else ""
+            status = "Готово: урок в курсе «${imp.course?.title ?: t.newTitle}»" + (if (bad.isNotEmpty()) " · ошибок: ${bad.size}" else "") +
+                (imp.textNote?.let { " · $it" } ?: if (t.useTranscript && g.tr != null) " · готовая расшифровка подкаста" else "")
             AppLog.add("podcast", "Фоновая загрузка «${title.take(60)}»: $status")
             ImportService.finished(app.ctx, title, status, ok = true)
             g.file.delete()

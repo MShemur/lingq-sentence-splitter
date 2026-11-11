@@ -427,6 +427,7 @@ private fun CoursesScreen(state: AppState, library: Boolean = false, onPick: (Co
             OutlinedTextField(
                 q, { q = it }, Modifier.weight(1f),
                 placeholder = { Text("Поиск курса") }, singleLine = true,
+                trailingIcon = { ClearButton(q) { q = "" } },
             )
             IconButton(onClick = { state.loadCourses(force = true) }) { Icon(Icons.Filled.Refresh, contentDescription = "Обновить") }
         }

@@ -48,6 +48,14 @@ object AppIcons {
         icon("BarChart", "M5,9.2h3V19H5V9.2zM10.6,5h2.8v14h-2.8V5zM16.2,13H19v6h-2.8V13z")
     }
 
+    val ContentCopy: ImageVector by lazy {
+        icon(
+            "ContentCopy",
+            "M16,1H4c-1.1,0 -2,0.9 -2,2v14h2V3h12V1zM19,5H8c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h11c1.1,0 2,-0.9 2,-2V7" +
+                "c0,-1.1 -0.9,-2 -2,-2zM19,21H8V7h11v14z",
+        )
+    }
+
     val ContentPaste: ImageVector by lazy {
         icon(
             "ContentPaste",

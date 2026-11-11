@@ -795,6 +795,8 @@ class ImportSession(private val app: AppState) {
 
     /** Audio file waiting for the choice of its part. */
     var audioPick by mutableStateOf<AudioPick?>(null)
+    /** What became of the podcast's own text without times (shown after the import), null = not used. */
+    var textNote by mutableStateOf<String?>(null)
     /** Audio that goes into the lesson (the cut part or the whole file), its file name, and the recognised words. */
     var audioUri by mutableStateOf<Uri?>(null)
     var audioName by mutableStateOf("")
@@ -867,8 +869,13 @@ class ImportSession(private val app: AppState) {
                 val own = pk.text
                 if (ready == null && useText && own != null) {
                     val m = Stt.matchText(own, t, whole)
-                    if (m != null) { t = m; AppLog.add("stt", "Текст подкаста: ${m.text.length} знаков, время из распознавания") }
-                    else AppLog.add("stt", "Текст подкаста не совпал с распознанным, беру распознанный")
+                    if (m != null) {
+                        t = m; AppLog.add("stt", "Текст подкаста: ${m.text.length} знаков, время из распознавания")
+                        textNote = "текст подкаста взят, время из распознавания"
+                    } else {
+                        AppLog.add("stt", "Текст подкаста не совпал с распознанным, беру распознанный")
+                        textNote = "текст подкаста не совпал с речью, взят распознанный"
+                    }
                 }
                 setSingle(title, t.text)
                 audioUri = uri; audioName = if (whole) pk.name else "$title.${name.substringAfterLast('.')}"
@@ -905,7 +912,7 @@ class ImportSession(private val app: AppState) {
     }
 
     private fun startLoad(msg: String) {
-        dropAudio(); cover = null
+        dropAudio(); cover = null; textNote = null
         finished = false; log.clear(); fixes.clear(); uploaded.clear()
         loading = true; status = msg; error = null
         cleanNote = null; before = null; canUndo = false
@@ -1166,6 +1173,7 @@ class ImportSession(private val app: AppState) {
                     }
                 }
                 fixes.addAll(found.filterNotNull())
+                if (audio != null) textNote?.let { log.add("ℹ ${it.replaceFirstChar { c -> c.uppercase() }}") }
                 finished = true
                 app.say(if (failed == 0) "Загружено уроков: ${jobs.size}" else "Загружено: ${jobs.size - failed}, ошибок: $failed")
             } catch (e: Throwable) {

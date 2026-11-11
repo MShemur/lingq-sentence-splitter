@@ -825,7 +825,7 @@ fun SettingsSpeech(state: AppState) {
             }
         }
         HorizontalDivider()
-        SecretField(key, "Ключ ${sp.name}") { key = it; p.setSttKey(prov, it) }
+        SecretField(key, "Ключ ${sp.name}", "SatzLoop: ключ ${sp.name}") { key = it; p.setSttKey(prov, it) }
         if (prov == "groq" && key.isBlank() && p.aiBase.contains("groq.com") && p.aiKey.isNotBlank())
             Hint("Пусто: будет взят ключ Groq из настроек перевода.")
         TextButton(onClick = { uri.openUri(sp.keyUrl) }) { Text("Получить ключ ${sp.name}") }

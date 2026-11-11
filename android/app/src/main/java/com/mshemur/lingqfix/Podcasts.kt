@@ -528,7 +528,12 @@ fun PodcastsScreen(state: AppState, s: PodcastSession) {
                     label = { Text("Название подкаста или ссылка на RSS") },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { s.search() }),
-                    trailingIcon = { TextButton(onClick = { s.search() }) { Text("Найти") } },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ClearButton(s.query) { s.query = ""; s.results = null }
+                            TextButton(onClick = { s.search() }) { Text("Найти") }
+                        }
+                    },
                 )
                 if (s.busy) Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -623,7 +628,7 @@ fun PodcastFeedScreen(s: PodcastSession) {
                     supportingContent = {
                         Column {
                             Text(
-                                listOf(fmtDate(ep.date), fmtDur(ep.duration), if (ep.transcript.isNotBlank()) "есть расшифровка" else if (ep.textUrl.isNotBlank()) "есть текст" else "")
+                                listOf(fmtDate(ep.date), fmtDur(ep.duration), if (ep.transcript.isNotBlank()) "есть расшифровка" else if (ep.textUrl.isNotBlank()) "есть текст (без времени)" else "")
                                     .filter { it.isNotBlank() }.joinToString(" · "),
                                 style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
                             )

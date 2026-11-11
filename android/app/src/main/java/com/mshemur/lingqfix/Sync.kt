@@ -438,7 +438,7 @@ fun SettingsSync(state: AppState) {
             style = MaterialTheme.typography.bodySmall,
         )
         var pass by remember { mutableStateOf(s.password) }
-        SecretField(pass, "Пароль синхронизации ключей") { pass = it }
+        SecretField(pass, "Пароль синхронизации ключей", "SatzLoop: пароль синхронизации") { pass = it }
         if (pass != s.password) Button(
             onClick = { s.setPass(pass.trim()); pass = pass.trim(); if (s.enabled) s.now() },
             modifier = Modifier.fillMaxWidth(),

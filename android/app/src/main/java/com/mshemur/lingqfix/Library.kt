@@ -214,6 +214,7 @@ fun LibraryScreen(state: AppState) {
                     q, { q = it }, Modifier.weight(1f),
                     placeholder = { Text("Поиск курса") }, singleLine = true, shape = RoundedCornerShape(28.dp),
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = { ClearButton(q) { q = "" } },
                 )
                 IconButton(onClick = { state.loadCourses(force = true); state.loadRecent() }) {
                     Icon(Icons.Filled.Refresh, contentDescription = "Обновить")

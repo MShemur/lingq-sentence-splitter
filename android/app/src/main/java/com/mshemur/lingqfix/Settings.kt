@@ -138,16 +138,6 @@ internal fun Hint(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-/** Text field for a key/token: hidden, with "Показать". */
-@Composable
-internal fun SecretField(value: String, label: String, onChange: (String) -> Unit) {
-    var show by remember { mutableStateOf(false) }
-    OutlinedTextField(
-        value, onChange, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = true,
-        visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(),
-        trailingIcon = { TextButton(onClick = { show = !show }) { Text(if (show) "Скрыть" else "Показать") } },
-    )
-}
 
 @Composable
 fun SettingsLingq(state: AppState) {
@@ -158,7 +148,7 @@ fun SettingsLingq(state: AppState) {
     val uri = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     Page {
-        SecretField(key, "API-ключ LingQ") { key = it; state.applyPrefs { apiKey = it } }
+        SecretField(key, "API-ключ LingQ", "SatzLoop: ключ LingQ") { key = it; state.applyPrefs { apiKey = it } }
         TextButton(onClick = { uri.openUri("https://www.lingq.com/accounts/apikey/") }) { Text("Где взять ключ") }
         Box {
             OutlinedTextField(
@@ -235,7 +225,7 @@ fun SettingsTranslation(state: AppState) {
         HorizontalDivider()
         if (translator == "gemini") {
             Text("Gemini", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-            SecretField(gKey, "Ключ Gemini API") { gKey = it; state.applyPrefs { geminiKey = it } }
+            SecretField(gKey, "Ключ Gemini API", "SatzLoop: ключ Gemini") { gKey = it; state.applyPrefs { geminiKey = it } }
             TextButton(onClick = { uri.openUri("https://aistudio.google.com/apikey") }) { Text("Получить ключ бесплатно") }
         } else {
             Text("Сервис", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
@@ -251,7 +241,7 @@ fun SettingsTranslation(state: AppState) {
                 aBase, { aBase = it.trim(); state.applyPrefs { aiBase = it } }, Modifier.fillMaxWidth(),
                 label = { Text("Адрес API") }, singleLine = true,
             )
-            SecretField(aKey, "Ключ API") { aKey = it; state.applyPrefs { aiKey = it } }
+            SecretField(aKey, "Ключ API", "SatzLoop: ключ ИИ") { aKey = it; state.applyPrefs { aiKey = it } }
             Hint("Ключ берётся на сайте сервиса (platform.deepseek.com, openrouter.ai, console.groq.com…). Тексты уходят на серверы этого сервиса.")
         }
         // two models: a light one for the many word / sentence requests, the main one for chat and retranslation
@@ -373,7 +363,7 @@ fun SettingsUpdates(state: AppState) {
             Text("Установить ${state.update?.versionName}")
         }
         HorizontalDivider()
-        SecretField(token, "GitHub-токен") { token = it; state.applyPrefs { ghToken = it } }
+        SecretField(token, "GitHub-токен", "SatzLoop: токен GitHub") { token = it; state.applyPrefs { ghToken = it } }
         Hint(
             "Нужен, чтобы скачивать новые версии из приватного репозитория. GitHub → Settings → Developer settings → " +
                 "Fine-grained tokens: репозиторий lingq-sentence-splitter, права Contents: Read-only " +
