@@ -11,7 +11,9 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- web v1.38 (user's iPad feedback, 11.11.2026; check Android for the same):
+## Done
+
+- web v1.38 -> android v1.82 (user's iPad feedback, 11.11.2026; check Android for the same):
   1. Page view: changing the font (A+ / A−) or the window size (switching apps) lost the reading place: after a few
      A+ A− it was back at page 1. Cause: on every page rebuild the anchor became the first sentence of the page that
      held it, so it crept back. Now the anchor (sentence reached) stays as it is while it is still on the page shown,
@@ -26,8 +28,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
      podcast episode list did not scroll): the flag now applies only over the reader text and is dropped on touchend.
   Web: `reader/Reader.tsx` (TextView anchor / `rebuilt`, PageSlider, SentenceMenu), `session.ts` (`selectEnd(menu)`,
   `pageCount`), `styles.css`.
-
-## Done
+  Android v1.82: `Reader.kt` TextPager (settle events before the rebuilt pages are placed are ignored, anchor kept while on the page), `selectEnd` (text: translation only; player keeps its menu), PageSlider in the top bar, SentenceMenu in the sentence mode header; `Library.kt` green cover line. Item 6 is web-only (Compose scroll is not blocked).
 
 - android v1.78 -> web v1.37: course screen in the library (lesson covers): sort chips under the course header "Как в курсе" /
   "Новые сверху" (lesson id descending = newest import) / "Старые сверху" / "По имени" (natural); the choice is

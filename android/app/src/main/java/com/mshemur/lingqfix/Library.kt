@@ -138,6 +138,7 @@ fun LessonTile(state: AppState, lang: String, l: Lesson, subtitle: String, modif
             }
             if (read > 0f) LinearProgressIndicator(
                 progress = { read }, drawStopIndicator = {}, gapSize = 0.dp,
+                color = Color(0xFF43A047),
                 trackColor = Color.Black.copy(alpha = 0.35f),
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)
                     .height(4.dp).clip(RoundedCornerShape(2.dp)),

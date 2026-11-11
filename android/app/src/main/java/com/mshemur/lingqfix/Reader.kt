@@ -379,7 +379,12 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         if (sent == null || words < 2) {
             val id = selSent; val tok = selFrom
             clearSelection()
-            if (sent != null) wordMenu = WordRef(id, tok)          // a small menu right at the word
+            // reader text: long press = sentence translation only (shown already while pressing, or toggled);
+            // the player keeps its menu at the word
+            if (sent != null) when (menuArea) {
+                "player" -> wordMenu = WordRef(id, tok)
+                "text" -> if (autoShown != id) toggleSentence(id)
+            }
             return
         }
         openPhrase(sent.id, selFrom, selTo)
@@ -481,6 +486,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     var pageLabel by mutableStateOf("")
     /** First sentence of the page being read: the page is kept when pages are rebuilt (pins, font). */
     var anchor: Int? = null
+    /** Pages of the text view (for the slider in the top bar) and the page the slider asks for. */
+    var pageCount by mutableStateOf(0)
+    var pageNow by mutableStateOf(0)
+    var goPage by mutableStateOf<Int?>(null)
     /** After sentence mode is collapsed: sentence the text view should show. */
     var syncTo by mutableStateOf<Int?>(null)
 
@@ -1258,13 +1267,15 @@ private fun ReaderHelp(onClose: () -> Unit) {
             "Долгое нажатие и, не отпуская, провести по соседним словам — перевод нескольких слов вместе.",
         ),
         "Предложения" to listOf(
-            "Долгое нажатие на слово — меню у слова: перевод предложения, в закладки, исправить предложение " +
-                "(сохраняется в уроке на LingQ), слушать отсюда (если у урока есть аудио), чат о предложении.",
+            "Долгое нажатие на слово — перевод предложения (ещё раз — скрыть). У перевода — чат о предложении.",
+            "В режиме «По предложениям» ⋮ — исправить предложение (сохраняется в уроке на LingQ), слушать отсюда " +
+                "(если у урока есть аудио), размер текста; значок закладки — в закладки.",
             "У перевода предложения — ↻ «перевести заново»; касание перевода скрывает его.",
             "Внизу «Переводы» — показать переводы всех предложений сразу.",
         ),
         "Страницы и режимы" to listOf(
             "Свайп влево / вправо — следующая / предыдущая страница. Если страница выросла от переводов — её можно прокрутить.",
+            "Ползунок вверху — быстро перейти к любой странице урока.",
             "«По предложениям» — по одному предложению на экране, свайп — следующее; стрелка ⌄ слева сворачивает обратно к тексту.",
             "«Скрыть / Показать перевод» под предложением — сворачивает перевод для всех предложений.",
             "Урок открывается там, где вы остановились; прочитанный процент виден в списке уроков.",
@@ -1337,10 +1348,23 @@ fun ProgressPill(p: Float) {
     )
 }
 
+/** Page slider in the reader's top bar: dragging it turns the pages. */
+@Composable
+private fun PageSlider(s: ReaderSession) {
+    val n = s.pageCount
+    if (n < 2) { ProgressPill(s.textProgress); return }
+    androidx.compose.material3.Slider(
+        value = s.pageNow.toFloat(),
+        onValueChange = { v -> val i = Math.round(v).coerceIn(0, n - 1); if (i != s.pageNow) { s.pageNow = i; s.goPage = i } },
+        valueRange = 0f..(n - 1).toFloat(),
+        modifier = Modifier.width(170.dp).height(24.dp),
+    )
+}
+
 @Composable
 fun ReaderProgress(s: ReaderSession) {
     if (s.paragraphs != null) Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        ProgressPill(s.textProgress)
+        PageSlider(s)
         if (s.pageLabel.isNotEmpty()) Text(
             s.pageLabel, Modifier.padding(top = 4.dp),
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline,
@@ -1504,24 +1528,38 @@ private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
     val sig = pages.map { p -> p.first().sents.first().id }   // changes only when the split changes
     fun pageOf(id: Int) = latest.indexOfFirst { p -> p.any { b -> b.sents.any { it.id == id } } }
 
+    // pages these settle events belong to: until the rebuilt pages are put on the anchor's page, a settle
+    // (page index clamped by the new page count) is not a page turn and must not move the anchor
+    val placed = remember { arrayOfNulls<Any>(1) }
     // same text stays on screen when pages are rebuilt
     LaunchedEffect(sig) {
         val i = s.anchor?.let { pageOf(it) } ?: -1
         if (i >= 0 && i != pager.currentPage) pager.scrollToPage(i)
+        placed[0] = latest
     }
     LaunchedEffect(pager) {
         snapshotFlow { pager.settledPage }.collect { i ->
+            if (placed[0] !== latest) return@collect
             latest.getOrNull(i)?.let { p ->
-                s.anchor = p.first().sents.first().id
+                // the anchor (sentence reached) stays while it is on this page, else it becomes the page's first one
+                if (s.anchor == null || p.none { b -> b.sents.any { it.id == s.anchor } }) s.anchor = p.first().sents.first().id
                 if (s.jump == null) s.reached(p.first().sents.first().id, p.last().sents.last().id)
             }
         }
+    }
+    // page slider in the top bar
+    LaunchedEffect(s.goPage) {
+        val i = s.goPage ?: return@LaunchedEffect
+        if (i in latest.indices && i != pager.currentPage) pager.scrollToPage(i)
+        s.goPage = null
     }
     LaunchedEffect(pager.currentPage, sig) {
         val p = latest.getOrNull(pager.currentPage) ?: return@LaunchedEffect
         s.visibleSents = p.flatMap { b -> b.sents.map { it.id } }.toSet()
         s.textProgress = (pager.currentPage + 1f) / latest.size
         s.pageLabel = "${pager.currentPage + 1} / ${latest.size}"
+        s.pageCount = latest.size
+        s.pageNow = pager.currentPage
     }
     // bookmark: go to its page
     LaunchedEffect(s.jump, sig) {
@@ -1879,7 +1917,10 @@ private fun SentencePager(s: ReaderSession) {
                 )
             }
             list.getOrNull(pager.currentPage)?.let {
-                Box(Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)) { BookmarkButton(s, it.id) }
+                Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                    BookmarkButton(s, it.id)
+                    SentenceMenu(s, it.id)
+                }
             }
         }
         Row(Modifier.fillMaxWidth().weight(1f)) {
@@ -1915,6 +1956,30 @@ private fun SentencePager(s: ReaderSession) {
                 VerticalDivider()
                 DockedPanel(s, Modifier.width(PANEL_WIDTH).fillMaxHeight())
             }
+        }
+    }
+}
+
+/** Sentence mode ⋮: edit the sentence, listen from it, text size. */
+@Composable
+private fun SentenceMenu(s: ReaderSession, id: Int) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text("Редактировать предложение") },
+                leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                onClick = { open = false; s.startEdit(id) },
+            )
+            if (s.hasTime(id)) DropdownMenuItem(
+                text = { Text("Слушать отсюда") },
+                leadingIcon = { Icon(AppIcons.Headphones, contentDescription = null) },
+                onClick = { open = false; s.listenFrom(id) },
+            )
+            HorizontalDivider()
+            DropdownMenuItem(text = { Text("Крупнее  A+") }, onClick = { s.changeFont(+2) })
+            DropdownMenuItem(text = { Text("Мельче  A−") }, onClick = { s.changeFont(-2) })
         }
     }
 }
