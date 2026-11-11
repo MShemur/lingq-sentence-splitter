@@ -874,3 +874,9 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .job-main:disabled { cursor: default; opacity: 1; }
 .job-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .job .bar-progress > span { display: block; height: 100%; background: var(--primary); }
+.feedback { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px; }
+.feedback textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--outline); background: transparent; color: inherit; }
+.fb-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; }
+.fb-meta { font-size: 12px; color: var(--outline); }
+.fb-text { white-space: pre-wrap; }
+.fb-reply { color: var(--primary); white-space: pre-wrap; }

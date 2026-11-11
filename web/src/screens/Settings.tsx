@@ -62,6 +62,8 @@ export function SettingsRoot() {
           onClick={() => go({ k: 'backups' })} />
         <Section icon="history" title="Журнал действий" summary="Что происходило за 2 дня — для сообщения об ошибке"
           onClick={() => go({ k: 'log' })} />
+        <Section icon="chat" title="Отзыв / задача" summary="Написать Claude, что поправить или добавить"
+          onClick={() => go({ k: 'feedback' })} />
         <Section icon="star" title="Промпты ИИ" summary="Как Gemini или другой ИИ переводит и отвечает в чате"
           onClick={() => go({ k: 'settingsPrompts' })} />
         <hr />

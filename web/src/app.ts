@@ -43,6 +43,7 @@ export type Screen =
   | { k: 'bookmarks' }
   | { k: 'stats' }
   | { k: 'archive' }
+  | { k: 'feedback' }
   | { k: 'log' }
   | { k: 'player' }
   | { k: 'settingsReading' }

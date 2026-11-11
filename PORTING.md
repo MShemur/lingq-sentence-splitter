@@ -7,13 +7,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-- android v1.84: "Отзыв / задача" (Settings and library ⋮): the user writes a note for Claude; it is saved as `feedback/<yyyyMMdd-HHmmss>-<device>.json` on the `sync` branch via the contents API with the sync token ({t, device: "android"|"web", version, text, status: "new", log?}). The screen lists the latest notes of both devices with status (new / work / done + `doneIn` / no) and Claude's `reply`. Optional "Приложить журнал". Android `Feedback.kt`.
-
-(the web version starts from `web/PLAN.md`, which already covers Android v1.23)
-
 ## To do on Android
 
 ## Done
+
+- android v1.84 -> web v1.41: "Отзыв / задача" (Settings and library ⋮): the user writes a note for Claude; it is saved as `feedback/<yyyyMMdd-HHmmss>-<device>.json` on the `sync` branch via the contents API with the sync token ({t, device: "android"|"web", version, text, status: "new", log?}). The screen lists the latest notes of both devices with status (new / work / done + `doneIn` / no) and Claude's `reply`. Optional "Приложить журнал". Android `Feedback.kt`.
+
+(the web version starts from `web/PLAN.md`, which already covers Android v1.23)
+  Web v1.41: `screens/Feedback.tsx` (send: PUT contents/feedback/<stamp>-web.json on `sync` with the sync token, device web, version web
 
 - web v1.40 -> android v1.85 / v1.86 (user's iPad feedback, part 3):
   1. LingQ's lesson limit is ~6000 WORDS (checked 11.11.2026 in a test course, deleted after: an import of 40 000 chars

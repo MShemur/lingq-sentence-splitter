@@ -15,6 +15,7 @@ import './styles.css'
 import { log, logError } from './applog'
 import { PodcastFeedScreen, PodcastsScreen } from './screens/Podcasts'
 import { ArchiveScreen } from './screens/CourseEdit'
+import { FeedbackScreen } from './screens/Feedback'
 
 function view(screen: Screen) {
   switch (screen.k) {
@@ -38,6 +39,7 @@ function view(screen: Screen) {
     case 'backups': return <BackupsScreen />
     case 'stats': return <StatsScreen />
     case 'archive': return <ArchiveScreen />
+    case 'feedback': return <FeedbackScreen />
   }
 }
 
