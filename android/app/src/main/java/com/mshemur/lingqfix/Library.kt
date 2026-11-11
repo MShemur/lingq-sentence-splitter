@@ -81,7 +81,7 @@ fun Cover(url: String, title: String, modifier: Modifier = Modifier, ratio: Floa
 
 /** Course: square cover, title under it. */
 @Composable
-private fun CourseTile(state: AppState, c: Course, onClick: () -> Unit) {
+internal fun CourseTile(state: AppState, c: Course, onClick: () -> Unit) {
     LaunchedEffect(c.id) { state.ensureCourseWords(state.lang, c.id) }
     Column(Modifier.clip(TILE).clickable(onClick = onClick).padding(bottom = 6.dp)) {
         Cover(c.imageUrl, c.title, Modifier.fillMaxWidth())
@@ -177,7 +177,7 @@ fun LibraryScreen(state: AppState) {
     LaunchedEffect(state.lang) { state.loadCourses() }
     LaunchedEffect(Unit) { state.loadRecent() }
     val err = state.coursesError
-    val list = state.courses
+    val list = state.visibleCourses()
     val recent = state.recent.orEmpty()
     val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     // the update card is added above the top card: the grid would keep the old top in view and hide it

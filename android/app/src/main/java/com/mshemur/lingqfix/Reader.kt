@@ -100,6 +100,7 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.layout.positionInRoot
@@ -1213,6 +1214,8 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
     if (marks) LessonBookmarksDialog(state, s) { marks = false }
     var help by remember { mutableStateOf(false) }
     if (help) ReaderHelp { help = false }
+    var delete by remember { mutableStateOf(false) }
+    if (delete) LessonDeleteDialog(state, s) { delete = false }
     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
         MenuGroup("Урок")
@@ -1226,6 +1229,11 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
             enabled = !s.levelBusy,
             onClick = { menu = false; s.detectLevel() },
+        )
+        DropdownMenuItem(
+            text = { Text("Удалить урок…", color = MaterialTheme.colorScheme.error) },
+            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            onClick = { menu = false; delete = true },
         )
         HorizontalDivider()
         MenuGroup("Вид")

@@ -164,7 +164,9 @@ fun App(state: AppState) {
                                 IconButton(onClick = { state.go(Screen.Settings) }) {
                                     Icon(Icons.Filled.Settings, contentDescription = "Настройки")
                                 }
+                                LibraryMenu(state)
                             }
+                            is Screen.Lessons -> if (screen.reader) CourseMenu(state, screen)
                             else -> {}
                         }
                     },
@@ -230,6 +232,7 @@ fun App(state: AppState) {
                     Screen.Player -> PlayerScreen(state)
                     Screen.Courses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c)) }
                     Screen.Backups -> BackupsScreen(state)
+                    Screen.Archive -> ArchiveScreen(state)
                     is Screen.Lessons -> LessonsScreen(state, screen)
                     is Screen.Check -> CheckScreen(screen.session)
                     is Screen.Import -> ImportScreen(state, screen.session)
@@ -319,6 +322,7 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.Player -> "Плеер"
     Screen.Courses -> "Мои курсы · ${state.lang}"
     Screen.Backups -> "Резервные копии"
+    Screen.Archive -> "Архив курсов"
     is Screen.Lessons -> s.title
     is Screen.Check -> s.session.label
     is Screen.Import -> "Загрузка в LingQ"
@@ -806,23 +810,11 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 }
             }
             state.coursesError?.let { Text("Курсы не загрузились: $it", color = MaterialTheme.colorScheme.error) }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = s.autoFix, onCheckedChange = { s.autoFix = it })
-                Text("Сразу исправить разбивку на предложения")
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = s.autoLevel && state.useGemini, enabled = state.useGemini,
-                    onCheckedChange = { v -> s.autoLevel = v; state.applyPrefs { autoLevel = v } },
-                )
-                Column {
-                    Text("ИИ определит уровень сложности (A1–C2)")
-                    if (!state.useGemini) Text(
-                        "Нужен Gemini или другой ИИ: Настройки → Перевод",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            Text(
+                "Разбивка на предложения исправляется сразу" +
+                    if (state.useGemini) ", ИИ ставит уровень сложности (A1–C2)." else ". Уровень ставит ИИ — нужен Gemini или другой ИИ: Настройки → Перевод.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Делить длинные тексты по", Modifier.weight(1f))
                 OutlinedTextField(

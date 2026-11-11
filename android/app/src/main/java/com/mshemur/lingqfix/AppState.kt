@@ -39,6 +39,7 @@ sealed interface Screen {
     data object Player : Screen
     data object Courses : Screen
     data object Backups : Screen
+    data object Archive : Screen
     class Import(val session: ImportSession) : Screen
     class Check(val session: CheckSession) : Screen
 
@@ -48,7 +49,9 @@ sealed interface Screen {
     class Reader(val session: ReaderSession) : Screen
 
     /** Lessons of a course: [reader] = open the lesson for reading, otherwise check/fix it. */
-    class Lessons(val lang: String, val course: Course, val reader: Boolean = false) : Screen {
+    class Lessons(val lang: String, course: Course, val reader: Boolean = false) : Screen {
+        /** Changes after "Изменить курс" (title, cover). */
+        var course by mutableStateOf(course)
         var title by mutableStateOf(course.title.ifBlank { "Курс ${course.id}" })
         var lessons by mutableStateOf<List<Lesson>?>(null)
         var error by mutableStateOf<String?>(null)
@@ -107,6 +110,49 @@ class AppState(val ctx: Context) {
 
     var courses by mutableStateOf<List<Course>?>(null)
     var coursesError by mutableStateOf<String?>(null)
+
+    /** Courses put in the archive: hidden in the library and the player on this device (LingQ untouched). */
+    private val uiPrefs = ctx.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE)
+    var archived by mutableStateOf(
+        uiPrefs.getString("archive", "").orEmpty().split(',').mapNotNull { it.trim().toIntOrNull() }.toSet()
+    )
+        private set
+
+    fun setArchived(id: Int, on: Boolean) {
+        archived = if (on) archived + id else archived - id
+        uiPrefs.edit().putString("archive", archived.joinToString(",")).apply()
+    }
+
+    /** Courses of the library and the player: without the archived ones. */
+    fun visibleCourses(): List<Course>? = courses?.filter { it.id !in archived }
+    fun archivedCourses(): List<Course> = courses.orEmpty().filter { it.id in archived }
+
+    /** A lesson was deleted on LingQ: it leaves the recent / listened lists and the open course lists. */
+    fun forgetLesson(l: String, id: Int) {
+        fun drop(key: String) = runCatching {
+            val a = org.json.JSONArray(recentPrefs.getString(key, "[]"))
+            val b = org.json.JSONArray()
+            for (i in 0 until a.length()) a.getJSONObject(i).let { if (it.optInt("id") != id) b.put(it) }
+            recentPrefs.edit().putString(key, b.toString()).apply()
+        }
+        drop(l); drop("listen.$l")
+        recentApi = recentApi.filter { it.id != id }
+        if (lang == l) { recent = mergeRecent(l); listened = mergeListened(l) }
+        stack.forEach { sc -> if (sc is Screen.Lessons && sc.lang == l) sc.lessons = sc.lessons?.filter { it.id != id } }
+    }
+
+    /** A course was deleted on LingQ. */
+    fun forgetCourse(l: String, id: Int, lessons: List<Int>) {
+        courses = courses?.filter { it.id != id }
+        if (id in archived) setArchived(id, false)
+        lessons.forEach { forgetLesson(l, it) }
+    }
+
+    /** Title / cover of a course changed. */
+    fun courseChanged(c: Course) {
+        courses = courses?.map { if (it.id == c.id) c else it }
+        stack.forEach { sc -> if (sc is Screen.Lessons && sc.course.id == c.id) { sc.course = c; sc.title = c.title } }
+    }
     private var coursesLang = ""
 
     var update by mutableStateOf<Updater.Release?>(null)
@@ -1028,7 +1074,7 @@ class ImportSession(private val app: AppState) {
                             continue
                         }
                         uploaded += Lesson(id, title)
-                        val level = autoLevel && app.useGemini
+                        val level = app.useGemini      // since v1.83 always (no switch), like the split fix
                         if (!autoFix && !level && audio == null) {
                             line(i, "✅"); done++; progress = done.toFloat() / jobs.size
                             continue
@@ -1086,7 +1132,17 @@ class ImportSession(private val app: AppState) {
         val (lvl, _) = app.geminiFast().level(app.prefs.promptLevel, lang, text)
         app.api.waitProcessed(lang, id)
         app.api.setLevel(lang, id, lvl)
-        AppLog.add("import", "Урок $id: уровень ${levelName(lvl)}")
+        // LingQ did not always keep the level right after the import: read it back, set it once more if missing
+        val want = LINGQ_LEVELS[lvl - 1]
+        var kept = runCatching { app.api.lessonLevel(lang, id) }.getOrDefault("")
+        if (!kept.equals(want, ignoreCase = true)) {
+            AppLog.add("import", "Урок $id: уровень после записи «$kept», ставлю ещё раз")
+            Thread.sleep(4000)
+            app.api.setLevel(lang, id, lvl)
+            kept = runCatching { app.api.lessonLevel(lang, id) }.getOrDefault("")
+        }
+        AppLog.add("import", "Урок $id: уровень ${levelName(lvl)}, на LingQ «$kept»")
+        if (!kept.equals(want, ignoreCase = true)) return "уровень ${CEFR[lvl - 1]} не сохранился на LingQ"
         return "уровень ${CEFR[lvl - 1]}"
     }
 

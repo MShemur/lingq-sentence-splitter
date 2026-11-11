@@ -206,12 +206,28 @@ class LingqApi(private val key: String) {
         return Course(d.getInt("id"), d.optString("title", title))
     }
 
-    /** Puts a picture on the user's own course. */
-    fun setCourseImage(lang: String, id: Int, cover: Pair<ByteArray, String>) {
+    /** Puts a picture on the user's own course; returns the new picture URL if LingQ gives it. */
+    fun setCourseImage(lang: String, id: Int, cover: Pair<ByteArray, String>): String? {
         val form = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
             .addFormDataPart("image", "cover." + coverExt(cover.second), cover.first.toRequestBody(cover.second.toMediaType()))
             .build()
-        send("PATCH", "$BASE/v3/$lang/collections/$id/", form)
+        val t = send("PATCH", "$BASE/v3/$lang/collections/$id/", form)
+        return runCatching { JSONObject(t).optString("imageUrl").takeIf { it.isNotBlank() && it != "null" } }.getOrNull()
+    }
+
+    fun renameCourse(lang: String, id: Int, title: String) {
+        call("PATCH", "$BASE/v3/$lang/collections/$id/", JSONObject().put("title", title.take(250)).toString())
+    }
+
+    /** Deletes a lesson on LingQ (cannot be undone). */
+    fun deleteLesson(lang: String, id: Int) { call("DELETE", "$BASE/v3/$lang/lessons/$id/") }
+
+    /** Deletes a course with its lessons on LingQ (cannot be undone). */
+    fun deleteCourse(lang: String, id: Int) { call("DELETE", "$BASE/v3/$lang/collections/$id/") }
+
+    /** Level LingQ keeps for a lesson, e.g. "Intermediate 2" ("" if none). */
+    fun lessonLevel(lang: String, id: Int): String = obj("$BASE/v3/$lang/lessons/$id/").let { o ->
+        if (o.isNull("level")) "" else o.optString("level")
     }
 
     private fun coverExt(type: String) = when { type.contains("png") -> "png"; type.contains("webp") -> "webp"; type.contains("gif") -> "gif"; else -> "jpg" }

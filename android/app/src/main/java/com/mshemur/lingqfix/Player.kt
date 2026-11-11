@@ -374,7 +374,7 @@ private fun AudioLessons(state: AppState, modifier: Modifier, onPick: (String, L
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item { FilterChip(course == null, onClick = { course = null }, label = { Text("Недавние") }) }
-            state.courses.orEmpty().forEach { c ->
+            state.visibleCourses().orEmpty().forEach { c ->
                 item(key = c.id) {
                     FilterChip(course?.id == c.id, onClick = { course = c }, label = { Text(c.title.ifBlank { "Курс ${c.id}" }, maxLines = 1) })
                 }

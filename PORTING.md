@@ -11,7 +11,9 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- web v1.39 (user's iPad feedback, part 2):
+## Done
+
+- web v1.39 -> android v1.83 (user's iPad feedback, part 2):
   1. Import: the switches "Сразу исправить разбивку" and "ИИ определит уровень" are gone: the split is always fixed and,
      with an AI set up, the level always set. The user said the level of imported lessons was not set: after the PATCH
      the level is now read back (GET lessons/{id}/ `level`, e.g. "Intermediate 2"); if LingQ did not keep it, it is set
@@ -26,8 +28,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   Web: `screens/CourseEdit.tsx` (CourseMenu, dialogs, ArchiveScreen), `app.ts` (`archive`, `visibleCourses`,
   `forgetLesson` / `forgetCourse` / `courseChanged`), `lingq.ts` (`deleteLesson`, `deleteCourse`, `renameCourse`,
   `lessonLevel`), import in `session.ts`. The DELETE / PATCH calls were tested against mocks only.
-
-## Done
+  Android v1.83: `CourseEdit.kt` (CourseMenu, edit / delete dialogs, LessonDeleteDialog, LibraryMenu, ArchiveScreen; gallery cover scaled to a 1200 px JPEG), `AppState.kt` (`archived` in prefs "ui" key `archive`, `visibleCourses`, `forgetLesson` / `forgetCourse` / `courseChanged`, `aiLevel` read-back + second PATCH after 4 s), `LingqApi.kt` (`deleteLesson`, `deleteCourse`, `renameCourse`, `lessonLevel`, `setCourseImage` returns imageUrl). Import switches replaced by a hint line. DELETE / PATCH not yet tried on the real server.
 
 - web v1.38 -> android v1.82 (user's iPad feedback, 11.11.2026; check Android for the same):
   1. Page view: changing the font (A+ / A−) or the window size (switching apps) lost the reading place: after a few
