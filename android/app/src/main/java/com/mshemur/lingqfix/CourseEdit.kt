@@ -264,17 +264,19 @@ fun LibraryMenu(state: AppState) {
         IconButton(onClick = { open = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
-                text = { Text("Настройки") },
-                leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                onClick = { open = false; state.go(Screen.Settings) },
-            )
-            DropdownMenuItem(
                 text = { Text("Архив курсов (${state.archivedCourses().size})") },
                 onClick = { open = false; state.go(Screen.Archive) },
             )
             DropdownMenuItem(
                 text = { Text("Отзыв / задача") },
+                leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
                 onClick = { open = false; state.go(Screen.Feedback) },
+            )
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text("Настройки") },
+                leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                onClick = { open = false; state.go(Screen.Settings) },
             )
         }
     }

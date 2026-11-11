@@ -1230,30 +1230,41 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             enabled = !s.levelBusy,
             onClick = { menu = false; s.detectLevel() },
         )
-        DropdownMenuItem(
-            text = { Text("Удалить урок…", color = MaterialTheme.colorScheme.error) },
-            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            onClick = { menu = false; delete = true },
-        )
         HorizontalDivider()
-        MenuGroup("Вид")
-        DropdownMenuItem(text = { Text("Шрифт крупнее  A+") }, onClick = { s.changeFont(+2) })
-        DropdownMenuItem(text = { Text("Шрифт мельче  A−") }, onClick = { s.changeFont(-2) })
-        DropdownMenuItem(
-            text = { Text("Оформление и экран") },
-            onClick = { menu = false; state.go(Screen.SettingsReading) },
-        )
+        MenuGroup("Текст")
+        FontSizeRow(s)
         if (s.pins.isNotEmpty() || s.phrasePins.isNotEmpty()) DropdownMenuItem(
             text = { Text("Снять переводы над словами (${s.pins.size + s.phrasePins.size})") },
             onClick = { s.clearPins(); menu = false },
         )
+        DropdownMenuItem(
+            text = { Text("Оформление и экран") },
+            onClick = { menu = false; state.go(Screen.SettingsReading) },
+        )
         HorizontalDivider()
-        MenuGroup("Помощь")
         DropdownMenuItem(
             text = { Text("Как пользоваться") },
             leadingIcon = { Icon(Icons.Filled.Info, contentDescription = null) },
             onClick = { menu = false; help = true },
         )
+        // the only action that cannot be undone: last, apart, in red
+        HorizontalDivider()
+        DropdownMenuItem(
+            text = { Text("Удалить урок…", color = MaterialTheme.colorScheme.error) },
+            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            onClick = { menu = false; delete = true },
+        )
+    }
+}
+
+/** Text size in a menu as one row "Размер текста  A−  18  A+"; the menu stays open for several taps. */
+@Composable
+private fun FontSizeRow(s: ReaderSession) {
+    Row(Modifier.padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Размер текста", Modifier.padding(end = 8.dp), style = MaterialTheme.typography.bodyLarge)
+        TextButton(onClick = { s.changeFont(-2) }) { Text("A−") }
+        Text("${s.font}", style = MaterialTheme.typography.labelLarge)
+        TextButton(onClick = { s.changeFont(+2) }) { Text("A+") }
     }
 }
 
@@ -1303,7 +1314,7 @@ private fun ReaderHelp(onClose: () -> Unit) {
             "Закладка вверху — закладки этого урока; все закладки — в библиотеке.",
             "«Чат» внизу — разговор с ИИ о всём тексте.",
             "⋮ → «Оформление и экран»: фон страницы, цвет выделения слов, сколько экран не гаснет.",
-            "⋮ → шрифт крупнее / мельче, снять все переводы над словами.",
+            "⋮ → размер текста (A− / A+), снять все переводы над словами, удалить урок (в самом низу).",
         ),
     )
     androidx.compose.material3.AlertDialog(
@@ -1986,8 +1997,7 @@ private fun SentenceMenu(s: ReaderSession, id: Int) {
                 onClick = { open = false; s.listenFrom(id) },
             )
             HorizontalDivider()
-            DropdownMenuItem(text = { Text("Крупнее  A+") }, onClick = { s.changeFont(+2) })
-            DropdownMenuItem(text = { Text("Мельче  A−") }, onClick = { s.changeFont(-2) })
+            FontSizeRow(s)
         }
     }
 }
