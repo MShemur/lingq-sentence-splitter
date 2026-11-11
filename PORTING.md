@@ -13,7 +13,9 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- web v1.40 (user's iPad feedback, part 3):
+## Done
+
+- web v1.40 -> android v1.85 / v1.86 (user's iPad feedback, part 3):
   1. LingQ's lesson limit is ~6000 WORDS (checked 11.11.2026 in a test course, deleted after: an import of 40 000 chars
      became 2 lessons, 80 000 chars 4 lessons, each ~6000 words / ~33 000 chars, each with the audio). The user wants a
      podcast as ONE lesson. Works: import the first ≤5000 words with the audio, wait until processed, then PATCH the
@@ -32,11 +34,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
      audio: a settings item "Очистить кэш аудио", files older than 30 days deleted on start, and a lesson whose local
      audio is gone loads it again (from LingQ).
   Android v1.85: items 1 and 3 done (`AppState.kt` run / `extendLesson`, `Sources.kt` `LINGQ_MAX_WORDS`, `splitSentences`,
-  `AudioCache`, settings item). Item 2 (background podcasts) still to do.
+  `AudioCache`, settings item). Android v1.86: item 2 (`BgJobs.kt`: BgJob drives a headless ImportSession,
+  EpisodeSheet, JobsRow; episode file per job, deleted when done).
   Web: `importer/jobs.ts` (BgJob, startJob, closeJob), `screens/Jobs.tsx` (EpisodeSheet, JobsRow), `session.ts`
   (`extendLesson`, Job.rest), `cleaner.ts` (`LINGQ_MAX_WORDS`, `splitSentences`).
-
-## Done
 
 - web v1.39 -> android v1.83 (user's iPad feedback, part 2):
   1. Import: the switches "Сразу исправить разбивку" and "ИИ определит уровень" are gone: the split is always fixed and,

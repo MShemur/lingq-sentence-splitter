@@ -220,6 +220,7 @@ fun LibraryScreen(state: AppState) {
                 }
             }
         }
+        if (q.isBlank() && state.bgJobs.any { it.target != null }) fullWidth("jobs") { JobsRow(state) }
         if (q.isBlank() && state.recent == null) {
             fullWidth("recentTitle") { SectionTitle("Продолжить") }
             fullWidth("recentSkeleton") {

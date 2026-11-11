@@ -75,6 +75,17 @@ data class Episode(
 )
 
 object PodcastApi {
+    /** File extension of an episode's audio. */
+    fun ext(ep: Episode): String {
+        val e = ep.audio.substringBefore('?').substringAfterLast('/').substringAfterLast('.', "").lowercase()
+        if (e in setOf("mp3", "m4a", "aac", "ogg", "opus", "mp4", "wav", "flac")) return e
+        return when {
+            ep.type.contains("mp4") || ep.type.contains("m4a") -> "m4a"
+            ep.type.contains("ogg") -> "ogg"
+            else -> "mp3"
+        }
+    }
+
     private const val UA = "SatzLoop/1.0 (Android; podcast import)"
 
     private fun get(url: String) = Request.Builder().url(url).header("User-Agent", UA).build()
@@ -340,7 +351,17 @@ class PodcastSubs(ctx: Context) {
     fun seen(feed: String, t: Long) = save(list().map { if (it.podcast.feed == feed && t > it.seen) Sub(it.podcast, t) else it })
 }
 
-class PodcastSession(private val app: AppState, private val imp: ImportSession) {
+class PodcastSession(val app: AppState, private val imp: ImportSession) {
+    /** "В LingQ" sheet of the episode being downloaded in the background. */
+    var sheet by mutableStateOf<BgJob?>(null)
+
+    /** Tap on an episode: its download starts at once in the background, the sheet asks where it goes. */
+    fun startJob(ep: Episode) {
+        val j = BgJob(app, ep, podcast)
+        app.bgJobs.add(0, j)
+        sheet = j
+    }
+
     private val subsStore = PodcastSubs(app.ctx)
     var query by mutableStateOf("")
     var results by mutableStateOf<List<Podcast>?>(null)
@@ -548,6 +569,7 @@ fun PodcastsScreen(state: AppState, s: PodcastSession) {
 @Composable
 fun PodcastFeedScreen(s: PodcastSession) {
     val p = s.podcast ?: return
+    s.sheet?.let { j -> EpisodeSheet(s.app, j) { s.sheet = null } }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -588,7 +610,7 @@ fun PodcastFeedScreen(s: PodcastSession) {
         if (eps != null) {
             item {
                 Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    Hint("Выпусков: ${eps.size}. Нажмите на выпуск: он скачается, потом выберете, какую часть взять.")
+                    Hint("Выпусков: ${eps.size}. Нажмите на выпуск: он сразу начнёт скачиваться, а вы выберете курс; дальше всё идёт в фоне.")
                 }
             }
             items(eps, key = { it.audio }) { ep ->
@@ -608,7 +630,7 @@ fun PodcastFeedScreen(s: PodcastSession) {
                             if (ep.description.isNotBlank()) Text(ep.description, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     },
-                    modifier = Modifier.clickable(enabled = s.downloading == null) { s.pick(ep) },
+                    modifier = Modifier.clickable { s.startJob(ep) },
                 )
                 HorizontalDivider()
             }

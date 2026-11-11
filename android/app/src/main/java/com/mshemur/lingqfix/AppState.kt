@@ -111,6 +111,8 @@ class AppState(val ctx: Context) {
         (prefs.translator == "openai" && prefs.aiKey.isNotBlank() && prefs.aiBase.isNotBlank())
 
     var courses by mutableStateOf<List<Course>?>(null)
+    /** Podcast episodes going to LingQ in the background ("Актуальные загрузки"). */
+    val bgJobs = mutableStateListOf<BgJob>()
     var coursesError by mutableStateOf<String?>(null)
 
     /** Courses put in the archive: hidden in the library and the player on this device (LingQ untouched). */
