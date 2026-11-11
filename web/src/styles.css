@@ -450,7 +450,7 @@ div.list-item { cursor: default; }
   position: absolute; left: 10px; right: 10px; bottom: 8px; height: 4px; border-radius: 2px; overflow: hidden;
   background: rgba(0, 0, 0, 0.35);
 }
-.cover-progress > span { display: block; height: 100%; background: var(--primary); border-radius: 2px; }
+.cover-progress > span { display: block; height: 100%; background: #43a047; border-radius: 2px; }
 .course-head { display: flex; align-items: center; gap: 16px; padding: 12px 16px 16px; }
 .course-head-cover { width: 88px; flex: none; }
 .course-head-cover .cover-letter { font-size: 32px; }
@@ -846,3 +846,17 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 }
 .error-text.small { font-size: 13px; }
 .chip-row.pad-x { padding: 0 16px; margin-bottom: 12px; }
+/* page mode: the progress line is a slider */
+.page-slider {
+  -webkit-appearance: none; appearance: none; width: 170px; height: 22px; margin: -8px 0; background: transparent; touch-action: none;
+}
+.page-slider::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 3px;
+  background: linear-gradient(to right, var(--primary) var(--p), var(--secondary-container) var(--p));
+}
+.page-slider::-moz-range-track { height: 6px; border-radius: 3px; background: var(--secondary-container); }
+.page-slider::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--primary); }
+.page-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 18px; height: 18px; margin-top: -6px; border-radius: 50%; background: var(--primary); border: none;
+}
+.page-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--primary); border: none; }

@@ -199,7 +199,7 @@ function usePlayerPress(s: ReaderSession) {
       const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('[data-w]') as HTMLElement | null
       if (el) s.selectTo(el.dataset.w!)
     },
-    longEnd: () => s.selectEnd(),
+    longEnd: () => s.selectEnd(true),
   }), [s])
   const target = (e: Event) => (e.target as Element | null)?.closest?.('[data-w]') as HTMLElement | null
   return {

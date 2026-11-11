@@ -11,6 +11,21 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- web v1.38 (user's iPad feedback, 11.11.2026; check Android for the same):
+  1. Page view: changing the font (A+ / A−) or the window size (switching apps) lost the reading place: after a few
+     A+ A− it was back at page 1. Cause: on every page rebuild the anchor became the first sentence of the page that
+     held it, so it crept back. Now the anchor (sentence reached) stays as it is while it is still on the page shown,
+     and scroll events right after a rebuild (clamped offset) are not taken as page turns.
+  2. The long-press menu in the reader is gone (it came up after every long press for a sentence translation and had
+     to be closed each time). Long press = sentence translation only. The player keeps its menu (loop start / end).
+  3. Sentence mode header: ⋮ menu with "Редактировать предложение", "Слушать отсюда" (timed sentences), text size
+     "Крупнее A+" / "Мельче A−". (Editing a sentence is now only there.)
+  4. Page view: the progress line at the top is a slider; dragging it moves through the lesson page by page.
+  5. Reading progress line on lesson covers is green (#43a047).
+  6. A long press that ended without its end event kept the 'no scroll' flag on and blocked scrolling elsewhere (the
+     podcast episode list did not scroll): the flag now applies only over the reader text and is dropped on touchend.
+  Web: `reader/Reader.tsx` (TextView anchor / `rebuilt`, PageSlider, SentenceMenu), `session.ts` (`selectEnd(menu)`,
+  `pageCount`), `styles.css`.
 
 ## Done
 

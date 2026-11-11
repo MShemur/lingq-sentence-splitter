@@ -20,7 +20,14 @@ import { levelName } from '../lingq'
 let selecting = false
 /** A finger (or mouse) is dragging pages: they must not be snapped from elsewhere meanwhile. */
 let dragging = false
-document.addEventListener('touchmove', (e) => { if (selecting) e.preventDefault() }, { passive: false })
+// only over the reader's text, and the flag is dropped when the finger lifts: a long press that ended without its
+// "end" (iOS cancels pointers on its own) left [selecting] on and blocked scrolling everywhere, e.g. podcast episodes
+document.addEventListener('touchmove', (e) => {
+  if (selecting && (e.target as Element | null)?.closest?.('.reader-text')) e.preventDefault()
+}, { passive: false })
+const dropSelecting = (e: TouchEvent) => { if (!e.touches.length) selecting = false }
+document.addEventListener('touchend', dropSelecting)
+document.addEventListener('touchcancel', dropSelecting)
 
 /** Phone-sized screen: no docked panel (and no page-turn buttons, see styles). */
 const narrowQuery = window.matchMedia('(max-width: 600px)')
@@ -180,7 +187,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
       <TopBar
         center
         nav={<IconButton icon="close" label="Закрыть урок" onClick={back} />}
-        title={paras ? <div class="reader-progress"><ProgressPill p={s.textProgress.value} /><span>{s.pageLabel.value}</span></div> : null}
+        title={paras ? <div class="reader-progress"><PageSlider s={s} /><span>{s.pageLabel.value}</span></div> : null}
         actions={<ReaderActions s={s} />}
       />
       <div class={'screen-body reader-body' + (docked() ? ' docked' : '')}>
@@ -201,11 +208,6 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
       {!docked() && s.phrase.value && <PhraseSheet s={s} />}
       {s.bookmarksOpen.value && <LessonBookmarksDialog s={s} onClose={() => { s.bookmarksOpen.value = false }} />}
       {s.editing.value != null && <SentenceEditDialog s={s} id={s.editing.value} />}
-      {s.wordMenu.value && (
-        <WordMenuAt r={s.wordMenu.value} box={s.sentenceMode.value ? '.sentence-overlay' : '.text-area'} onClose={() => { s.wordMenu.value = null }}>
-          {(close) => <ReaderMenuItems s={s} id={refSent(s.wordMenu.value!)} close={close} />}
-        </WordMenuAt>
-      )}
       {s.levelResult.value && (
         <Dialog title="Уровень урока" onClose={() => { s.levelResult.value = null }}
           actions={<button class="btn text" onClick={() => { s.levelResult.value = null }}>OK</button>}>
@@ -349,6 +351,8 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   const cache = useRef<MeasureCache>(new Map())
   /** The pager width the current pages were laid out for. */
   const laidOut = useRef(0)
+  /** When pages were last rebuilt (scroll events right after it come from the layout, not the reader). */
+  const rebuilt = useRef(0)
 
   // what changes the layout of the bare text (translations do not: the page scrolls instead)
   const deps = [paras, prefs.readerFont.value, size.w, size.h]
@@ -375,11 +379,17 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     const cs = getComputedStyle(box)
     const h = size.h - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
     const next = paginate(box, s, paras, h, cache.current, `${size.w}|${prefs.readerFont.value}|`)
-    // the same text stays on screen when pages are rebuilt: the first sentence of the page being read
-    const anchor = pagesRef.current[s.textPage.value]?.[0]?.sents[0]?.id ?? s.textAnchor
+    // the same text stays on screen when pages are rebuilt. The anchor is the sentence the reader got to and is NOT
+    // moved to the first sentence of the new page: that crept back a little with every rebuild (font A+ / A−, the
+    // window resized when switching apps) until the reading position was back at the start.
+    const old = pagesRef.current[s.textPage.value]
+    const onPage = (id: number | null) => id != null && !!old?.some((b) => b.sents.some((x) => x.id === id))
+    const anchor = !old || onPage(s.textAnchor) ? s.textAnchor : old[0]?.sents[0]?.id ?? s.textAnchor
     s.textAnchor = anchor
     const i = anchor == null ? 0 : Math.max(0, pageOf(next, anchor))
     laidOut.current = size.w
+    // the browser clamps / keeps the old scroll offset while the new pages go in: those scroll events are not page turns
+    rebuilt.current = Date.now()
     setPages(next)
     s.textPage.value = i
   }, deps)
@@ -389,6 +399,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     if (!pages.length) return
     const el = pager.current
     if (el && el.clientWidth && !scrolling.current && Math.abs(el.scrollLeft - cur * el.clientWidth) > 1) scrollTo(cur, false)
+    if (s.textAnchor == null && pages[cur]) s.textAnchor = pages[cur][0]?.sents[0]?.id ?? null
   }, [pages, cur])
 
   // publish progress and what is on screen
@@ -398,6 +409,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     s.visibleSents = new Set(p.flatMap((b) => b.sents.map((x) => x.id)))
     s.textProgress.value = (cur + 1) / pages.length
     s.pageLabel.value = `${cur + 1} / ${pages.length}`
+    s.pageCount.value = pages.length
     const ids = p.flatMap((b) => b.sents.map((x) => x.id))
     if (ids.length) s.savePos(ids[0], ids[ids.length - 1])
   }, [pages, cur])
@@ -469,6 +481,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     // which points at another page now. That is not the reader turning pages: the pages are rebuilt around
     // the same sentence and put in place, and the position must not move (it used to jump ahead).
     if (Math.abs(el.clientWidth - laidOut.current) > 1) return
+    if (Date.now() - rebuilt.current < 400 && !dragging && !glides.has(el)) { settle(); return }
     scrolling.current = true
     clearTimeout(scrollEnd.current)
     scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null; settle() }, 150)
@@ -678,21 +691,37 @@ export function WordMenuAt({ r, box, onClose, children }: {
   )
 }
 
-/** Reader: what to do with the sentence of a long-pressed word. */
-function ReaderMenuItems({ s, id, close }: { s: ReaderSession; id: number; close: () => void }) {
-  const marked = s.isBookmarked(id)
+/** Page mode: the progress line on top is a slider; dragging it moves through the lesson page by page. */
+function PageSlider({ s }: { s: ReaderSession }) {
+  const n = s.pageCount.value
+  if (n < 2) return <ProgressPill p={s.textProgress.value} />
+  const v = Math.min(n - 1, s.textPage.value)
   return (
-    <>
-      <MenuItem icon="translate" onClick={() => { close(); s.toggleSentence(id) }}>
-        {s.shown.value[id] ? 'Скрыть перевод предложения' : 'Перевод предложения'}
-      </MenuItem>
-      <MenuItem icon={marked ? 'bookmark' : 'bookmarkBorder'} onClick={() => { close(); s.toggleBookmark(id) }}>
-        {marked ? 'Убрать закладку' : 'В закладки'}
-      </MenuItem>
-      <MenuItem icon="edit" onClick={() => { close(); s.startEdit(id) }}>Исправить предложение</MenuItem>
-      {s.hasTime(id) && <MenuItem icon="headphones" onClick={() => { close(); s.listenFrom(id) }}>Слушать отсюда</MenuItem>}
-      <MenuItem icon="chat" onClick={() => { close(); s.chatSentence(id) }}>Чат о предложении</MenuItem>
-    </>
+    <input class="page-slider" type="range" min={0} max={n - 1} step={1} value={v} aria-label="Страница"
+      style={{ '--p': (v / (n - 1)) * 100 + '%' } as JSX.CSSProperties}
+      onInput={(e) => { s.textAnchor = null; s.textPage.value = Number((e.target as HTMLInputElement).value) }} />
+  )
+}
+
+/** Sentence mode ⋮: text size, correct the sentence, listen from it. */
+function SentenceMenu({ s, id }: { s: ReaderSession; id: number }) {
+  const [open, setOpen] = useState(false)
+  const close = () => setOpen(false)
+  return (
+    <div class="menu-anchor">
+      <IconButton icon="more" label="Ещё" onClick={() => setOpen(true)} />
+      {open && (
+        <Menu onClose={close}>
+          <div class="menu-group">Предложение</div>
+          <MenuItem icon="edit" onClick={() => { close(); s.startEdit(id) }}>Редактировать предложение</MenuItem>
+          {s.hasTime(id) && <MenuItem icon="headphones" onClick={() => { close(); s.listenFrom(id) }}>Слушать отсюда</MenuItem>}
+          <hr />
+          <div class="menu-group">Текст</div>
+          <MenuItem onClick={() => s.changeFont(+2)}>Крупнее&nbsp; A+</MenuItem>
+          <MenuItem onClick={() => s.changeFont(-2)}>Мельче&nbsp; A−</MenuItem>
+        </Menu>
+      )}
+    </div>
   )
 }
 
@@ -830,7 +859,7 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
           <ProgressPill p={(page + 1) / Math.max(1, list.length)} />
           <span>{page + 1} / {list.length}</span>
         </div>
-        <div class="sm-right">{cur && <BookmarkButton s={s} id={cur.id} />}</div>
+        <div class="sm-right">{cur && <BookmarkButton s={s} id={cur.id} />}{cur && <SentenceMenu s={s} id={cur.id} />}</div>
       </div>
       <div class="sm-main">
       <div class="sm-body">

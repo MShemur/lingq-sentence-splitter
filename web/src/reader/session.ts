@@ -159,6 +159,8 @@ export class ReaderSession {
   /** Text view pages: the page shown, "3 / 12", the sentence the page starts with (kept when pages are rebuilt). */
   textPage = signal(0)
   pageLabel = signal('')
+  /** Pages of the text view (for the page slider). */
+  pageCount = signal(0)
   textAnchor: number | null = null
   /** Sentences on the page being read. */
   visibleSents = new Set<number>()
@@ -876,14 +878,15 @@ export class ReaderSession {
   }
 
   /** Long press released: several words -> their translation; one word -> sentence translation (as before). */
-  selectEnd() {
+  /** [menu]: a single long-pressed word opens the small menu (player only; the reader has none). */
+  selectEnd(menu = false) {
     const x = this.sel.value
     const sent = x ? this.sentById.get(x.sent) : undefined
     const words = sent ? sent.tokens.slice(x!.from, x!.to + 1).filter((t) => t.isWord).length : 0
     if (!x || !sent || words < 2) {
       this.longShown = null
       this.sel.value = null
-      if (sent) this.wordMenu.value = ref(sent.id, x!.from) // a small menu right at the word
+      if (sent && menu) this.wordMenu.value = ref(sent.id, x!.from) // a small menu right at the word
       return
     }
     // several words: their translation is wanted, not the sentence's
