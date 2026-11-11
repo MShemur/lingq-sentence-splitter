@@ -6,7 +6,7 @@ import type { Course, Lesson } from '../lingq'
 import * as gemini from '../gemini'
 import { courses, geminiFailed, say } from '../app'
 import { lang, prefs, prompt, useGemini } from '../settings'
-import { addReports, chunks, cleanText, countWords, EMPTY_REPORT, reportText, splitLong } from './cleaner'
+import { addReports, chunks, cleanText, countWords, EMPTY_REPORT, LINGQ_MAX_WORDS, reportText, splitLong, splitSentences } from './cleaner'
 import { fix, type Change } from './fixer'
 import { readFile } from './sources'
 import { pagesLabel, type PdfDoc } from './pdf'
@@ -35,6 +35,33 @@ export class ImportItem {
 export interface LessonFix { id: number; title: string; changes: Change[] }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * One lesson to upload; [audio] its audio, [words] the recognised words with their times. [rest]: text that does
+ * not fit into one LingQ import (more than LINGQ_MAX_WORDS words): it is added to the same lesson afterwards, so a
+ * long podcast stays one lesson with one audio.
+ */
+interface Job { title: string; text: string; rest: string; audio: Blob | null; file: string; words: TWord[] }
+
+/** Adds the paragraphs of [rest] after the lesson's own (sentence objects shaped like LingQ's). */
+async function extendLesson(l: string, id: number, rest: string) {
+  const o = await api.editorObj(l, id)
+  const paras: any[] = o?.paragraphs ?? []
+  const lastP = paras[paras.length - 1]
+  const tmpl = lastP?.sentences?.[0]
+  if (!lastP || !tmpl) throw new Error('урок пустой, текст не дописан')
+  let idx = paras.reduce((n, p) => n + (p.sentences?.length ?? 0), 0)
+  for (const pt of rest.split(/\n\s*\n/)) {
+    const ss = splitSentences(pt.trim())
+    if (!ss.length) continue
+    paras.push({
+      ...lastP,
+      sentences: ss.map((t) => ({ ...tmpl, text: t, cleanText: t, translations: [], phrases: [], notes: [], index: ++idx })),
+    })
+  }
+  await api.saveParagraphs(l, id, paras)
+  log('import', `Урок ${id}: дописан до ${idx} предложений (длиннее одного импорта LingQ)`)
+}
 
 export class ImportSession {
   readonly k = 'import'
@@ -322,13 +349,22 @@ export class ImportSession {
     const l = this.lang
     const audio = this.pasteMode.value ? this.audio.value : null
     const audioFile = this.audioName.value.replace(/[^\p{L}\p{N}._ -]/gu, '_')
-    const words = this.audioWords
-    const max = audio ? 0 : Number(this.splitWords.value) || 0 // a lesson with audio stays whole
-    const jobs = this.selectedTexts().flatMap(([title, text]) => {
-      const parts = splitLong(text, max)
-      return parts.length === 1 ? [[title, parts[0]] as const] : parts.map((p, i) => [`${title} (${i + 1})`, p] as const)
-    })
-    if (!jobs.length) { say('Нечего загружать'); return }
+    // books and files: parts of the chosen size, never above LingQ's own limit (its parts would not be fixed)
+    const max = Math.min(Number(this.splitWords.value) || LINGQ_MAX_WORDS - 500, LINGQ_MAX_WORDS - 500)
+    let jobs: Job[]
+    if (audio) {
+      // audio (podcast, recording): one lesson, however long; what does not fit into one import is added afterwards
+      const [title, text] = this.selectedTexts()[0] ?? ['', '']
+      const parts = splitLong(text, LINGQ_MAX_WORDS - 1000)
+      jobs = [{ title, text: parts[0] ?? '', rest: parts.slice(1).join('\n\n'), audio, file: audioFile, words: this.audioWords }]
+    } else {
+      jobs = this.selectedTexts().flatMap(([title, text]) => {
+        const parts = splitLong(text, max)
+        return (parts.length === 1 ? [[title, parts[0]]] : parts.map((p, i) => [`${title} (${i + 1})`, p]))
+          .map(([t, x]) => ({ title: t, text: x, rest: '', audio: null, file: '', words: [] }))
+      })
+    }
+    if (!jobs.length || !jobs[0].text.trim()) { say('Нечего загружать'); return }
     this.running.value = true; this.finished.value = false; this.error.value = null
     this.log.value = []; this.fixes.value = []; this.uploaded.value = []; this.progress.value = 0
     try {
@@ -353,7 +389,7 @@ export class ImportSession {
       // uploads go one after another (keeps the lesson order); LingQ then processes each lesson on its own,
       // so every lesson is waited for and fixed in parallel (at most 4 at a time)
       const base = this.log.value.length
-      this.log.value = [...this.log.value, ...jobs.map(([t]) => `· ${t} · в очереди`)]
+      this.log.value = [...this.log.value, ...jobs.map((j) => `· ${j.title} · в очереди`)]
       let done = 0, failed = 0
       const found: (LessonFix | null)[] = jobs.map(() => null)
       const step = () => { done++; this.progress.value = done / jobs.length }
@@ -363,7 +399,7 @@ export class ImportSession {
       const release = () => { active--; waiting.shift()?.() }
       const fixing: Promise<void>[] = []
       for (let i = 0; i < jobs.length; i++) {
-        const [title, text] = jobs[i]
+        const { title, text, rest, audio, file: audioFile, words } = jobs[i]
         this.line(base + i, `⬆ ${title}`)
         let id: number
         try {
@@ -379,6 +415,7 @@ export class ImportSession {
         fixing.push((async () => {
           await acquire()
           try {
+            if (rest) { await api.waitProcessed(l, id); await extendLesson(l, id, rest) }
             const r = this.autoFix.value ? await this.fixImported(l, id, title) : (await api.waitProcessed(l, id), null)
             found[i] = r
             let au = ''

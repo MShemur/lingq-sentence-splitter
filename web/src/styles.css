@@ -865,3 +865,12 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .course-edit-cover { display: flex; align-items: center; gap: 14px; }
 .cover-thumb.big { width: 96px; height: 96px; border-radius: 12px; }
 .tile-open { display: flex; flex-direction: column; gap: 6px; background: none; border: 0; padding: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.ep-sheet { display: flex; flex-direction: column; gap: 12px; padding: 0 16px 16px; }
+.sheet-title { margin: 0; font-size: 20px; font-weight: 500; }
+.jobs { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 8px; }
+.job { display: flex; align-items: center; gap: 6px; padding: 10px 6px 10px 14px; border-radius: 12px; background: var(--secondary-container); }
+.job.failed { background: var(--error-container, #f9dedc); }
+.job-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; background: none; border: 0; padding: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.job-main:disabled { cursor: default; opacity: 1; }
+.job-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job .bar-progress > span { display: block; height: 100%; background: var(--primary); }

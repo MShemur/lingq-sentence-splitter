@@ -1,5 +1,7 @@
 // Podcasts: search / subscriptions, and the episodes of one podcast. Port of Android PodcastsScreen / PodcastFeedScreen.
-import { useEffect } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
+import { startJob, type BgJob } from '../importer/jobs'
+import { EpisodeSheet } from './Jobs'
 import { back } from '../app'
 import { isSub, subs, type Podcast, type PodcastSession } from '../importer/podcasts'
 import { IconButton, TopBar } from '../ui'
@@ -69,6 +71,7 @@ export function PodcastFeedScreen({ s }: { s: PodcastSession }) {
   const eps = s.episodes.value
   const dl = s.downloading.value
   const subbed = isSub(p.feed) // reads subs.value: re-renders on (un)subscribe
+  const [job, setJob] = useState<BgJob | null>(null)
   return (
     <div class="screen">
       <TopBar nav={<IconButton icon="back" label="Назад" onClick={() => { s.cancel(); back() }} />} title={p.title || 'Подкаст'} />
@@ -98,9 +101,9 @@ export function PodcastFeedScreen({ s }: { s: PodcastSession }) {
           {!eps && !s.feedError.value && <div class="row-status"><span class="spinner-sm" />Загружаю выпуски…</div>}
           {eps && (
             <>
-              <p class="hint">Выпусков: {eps.length}. Нажмите на выпуск: он скачается, потом выберете, какую часть взять.</p>
+              <p class="hint">Выпусков: {eps.length}. Нажмите на выпуск: он начнёт скачиваться, а вы тем временем выберете курс.</p>
               {eps.map((ep) => (
-                <button key={ep.audio} class="pod-ep" disabled={!!dl} onClick={() => void s.pick(ep)}>
+                <button key={ep.audio} class="pod-ep" disabled={!!dl} onClick={() => setJob(startJob(ep, p, s.lang))}>
                   {ep.date > s.seenBefore && <span class="pod-new" />}
                   <span class="grow">
                     <span class="pod-title">{ep.title}</span>
@@ -115,6 +118,7 @@ export function PodcastFeedScreen({ s }: { s: PodcastSession }) {
           )}
         </div>
       </div>
+      {job && <EpisodeSheet j={job} onClose={() => setJob(null)} />}
     </div>
   )
 }

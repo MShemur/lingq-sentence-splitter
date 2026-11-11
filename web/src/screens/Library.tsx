@@ -6,6 +6,7 @@ import {
   archive, back, courses, coursesError, courseWords, ensureCourseWords, go, loadCourses, loadRecent, LessonsScreen, recent, visibleCourses, wordsKey,
 } from '../app'
 import { CourseMenu } from './CourseEdit'
+import { JobsRow } from './Jobs'
 import { lang, prefs } from '../settings'
 import { Chip, ErrorBox, IconButton, Loading, Menu, MenuItem, TopBar } from '../ui'
 import { naturalCompare } from '../app'
@@ -161,6 +162,7 @@ export function CoursesScreen() {
                 <input class="search" type="search" placeholder="Поиск курса" value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} />
                 <IconButton icon="refresh" label="Обновить" onClick={() => { void loadCourses(true); void loadRecent() }} />
               </div>
+              {!q.trim() && <JobsRow />}
               {!q.trim() && !recent.value && (
                 <>
                   <h2 class="section-title">Продолжить</h2>

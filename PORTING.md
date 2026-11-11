@@ -13,6 +13,27 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- web v1.40 (user's iPad feedback, part 3):
+  1. LingQ's lesson limit is ~6000 WORDS (checked 11.11.2026 in a test course, deleted after: an import of 40 000 chars
+     became 2 lessons, 80 000 chars 4 lessons, each ~6000 words / ~33 000 chars, each with the audio). The user wants a
+     podcast as ONE lesson. Works: import the first ≤5000 words with the audio, wait until processed, then PATCH the
+     editor paragraphs with all the rest appended (sentence objects copied from LingQ's, text / cleanText set,
+     translations / phrases / notes empty, index renumbered; own sentence split, the fixer merges after it). Tested
+     through the app on LingQ: 78 000 chars / 14 000 words = 1 lesson, 1001 sentences, audio kept, every sentence timed.
+     Books / files stay split into parts (the words field, capped below 6000 words). The words field is hidden for audio.
+  2. Podcasts in the background: tapping an episode starts its download at once and opens a sheet "В LingQ": course
+     (a course named like the podcast is preselected, else "Новый курс" with the podcast's name), part (whole / 10 /
+     20 / 30 min), podcast transcript / text switches, cover, price; "Загрузить в фоне". No transcript is shown: the job
+     recognises, uploads, fixes, sets times and level by itself. Library: "Актуальные загрузки" above "Продолжить":
+     one card per job with status and progress; done -> tap opens the lesson; error -> shown in red; × stops / removes.
+  3. Audio cache (user asked for "очистить кэш аудио", files older than a month deleted automatically, and a way to
+     load a lesson's audio again): the web keeps no audio on the device (it streams from LingQ; podcast episodes are
+     only in memory while importing), so nothing to do on web. On Android: downloaded podcast episodes / any cached
+     audio: a settings item "Очистить кэш аудио", files older than 30 days deleted on start, and a lesson whose local
+     audio is gone loads it again (from LingQ).
+  Web: `importer/jobs.ts` (BgJob, startJob, closeJob), `screens/Jobs.tsx` (EpisodeSheet, JobsRow), `session.ts`
+  (`extendLesson`, Job.rest), `cleaner.ts` (`LINGQ_MAX_WORDS`, `splitSentences`).
+
 ## Done
 
 - web v1.39 -> android v1.83 (user's iPad feedback, part 2):

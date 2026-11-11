@@ -109,5 +109,17 @@ export function splitLong(text: string, maxWords: number): string[] {
   return parts
 }
 
+/**
+ * An import longer than this many words is split by LingQ into several lessons (checked 11.11.2026: 40 000 characters
+ * became 2 lessons of ~6000 words). A sentence list saved with PATCH afterwards is not split (80 000 characters stayed
+ * one lesson with its audio).
+ */
+export const LINGQ_MAX_WORDS = 6000
+
+/** Sentences of a paragraph (LingQ's own split is not available for text added later; the fixer merges after it). */
+export function splitSentences(p: string): string[] {
+  return (p.match(/[^.!?…]+(?:[.!?…]+["»“”')\]]*|$)\s*/g) ?? []).map((x) => x.trim()).filter(Boolean)
+}
+
 /** Pieces of ~1800 words for AI cleaning. */
 export const chunks = (text: string, maxWords = 1800) => splitLong(text, maxWords)
