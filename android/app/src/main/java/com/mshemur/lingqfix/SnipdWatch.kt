@@ -87,16 +87,46 @@ class SnipdWatch : NotificationListenerService() {
         watched.clear()
     }
 
-    private fun watch(list: List<MediaController>) {
-        unwatch()
-        list.filter { isSnipd(it.packageName) }.forEach { c ->
-            val cb = object : MediaController.Callback() {
-                override fun onPlaybackStateChanged(state: PlaybackState?) = recompute()
-                override fun onSessionDestroyed() = recompute()
-            }
-            c.registerCallback(cb, handler)
-            watched += c to cb
+    /** Players seen (package names only), logged once per change so a missing Snipd can be found. */
+    private var seenPlayers = ""
+
+    private fun logPlayers(list: List<MediaController>) {
+        val s = list.joinToString(", ") { "${it.packageName}=${it.playbackState?.state ?: "-"}" }
+        if (s != seenPlayers) { seenPlayers = s; AppLog.add("snipd", "Плееры: ${s.ifBlank { "нет" }}") }
+    }
+
+    /** Snipd's notification carries its player: used when the session list does not show it. */
+    override fun onNotificationPosted(sbn: android.service.notification.StatusBarNotification?) {
+        val n = sbn?.notification ?: return
+        val token = runCatching {
+            if (Build.VERSION.SDK_INT >= 33) n.extras.getParcelable(android.app.Notification.EXTRA_MEDIA_SESSION, android.media.session.MediaSession.Token::class.java)
+            else @Suppress("DEPRECATION") n.extras.getParcelable<android.media.session.MediaSession.Token>(android.app.Notification.EXTRA_MEDIA_SESSION)
+        }.getOrNull() ?: return
+        if (!isSnipd(sbn.packageName)) {
+            if (sbn.packageName != packageName && !seenPlayers.contains(sbn.packageName)) AppLog.add("snipd", "Плеер в уведомлении: ${sbn.packageName}")
+            return
         }
+        if (watched.any { it.first.sessionToken == token }) return
+        AppLog.add("snipd", "Snipd найден по уведомлению")
+        add(MediaController(this, token))
+        recompute()
+    }
+
+    private fun add(c: MediaController) {
+        val cb = object : MediaController.Callback() {
+            override fun onPlaybackStateChanged(state: PlaybackState?) = recompute()
+            override fun onSessionDestroyed() = recompute()
+        }
+        c.registerCallback(cb, handler)
+        watched += c to cb
+    }
+
+    private fun watch(list: List<MediaController>) {
+        logPlayers(list)
+        unwatch()
+        list.filter { isSnipd(it.packageName) }.forEach { add(it) }
+        // Snipd's notification may already be there: take its player too
+        runCatching { activeNotifications?.forEach { onNotificationPosted(it) } }
         recompute()
     }
 
