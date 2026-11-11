@@ -49,7 +49,13 @@ import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
 /** Reading time and words read per day, plus how far each lesson was read (for counting new words only once). */
-class ReadingStats(ctx: Context) {
+class ReadingStats private constructor(ctx: Context) {
+    companion object {
+        @Volatile private var one: ReadingStats? = null
+        /** One per process: the app and the Snipd listener write the same file. */
+        fun get(ctx: Context): ReadingStats = one ?: synchronized(this) { one ?: ReadingStats(ctx.applicationContext).also { one = it } }
+    }
+
     private val file = File(ctx.filesDir, "stats.json")
     private val days = HashMap<String, IntArray>()     // "2026-11-06" -> [seconds, words, listening seconds]
     private val seen = HashMap<String, Int>()          // "de_123" -> highest sentence index counted
@@ -113,7 +119,7 @@ class ReadingStats(ctx: Context) {
     private fun today() = days.getOrPut(LocalDate.now().toString()) { intArrayOf(0, 0, 0) }
 
     /** [listening]: the time was lesson audio (counted in the total too). */
-    fun addTime(sec: Int, listening: Boolean = false) {
+    @Synchronized fun addTime(sec: Int, listening: Boolean = false) {
         val t = today()
         t[0] += sec
         if (listening) t[2] += sec
@@ -239,9 +245,10 @@ fun StatsScreen(state: AppState) {
             PeriodCard("Год", year, Modifier.weight(1f))
         }
         DaysChart(st, now)
+        SnipdCard(state)
         Text(
             "Чтение считается, пока открыт урок и вы касаетесь экрана; если 3 минуты ничего не происходит, счёт стоит. " +
-                "Аудио — пока играет урок в плеере. Общее время — сумма. " +
+                "Аудио — пока играет урок в плеере и, если включено, пока играет Snipd. Общее время — сумма. " +
                 "Слова — новые предложения, которые вы впервые увидели в уроке.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -358,6 +365,29 @@ private fun DaysChart(st: ReadingStats, now: LocalDate) {
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+        }
+    }
+}
+
+/** Snipd time: on / off and the button to the system switch "Доступ к уведомлениям". */
+@Composable
+private fun SnipdCard(state: AppState) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var on by remember { mutableStateOf(SnipdWatch.enabled(ctx)) }
+    // the switch is in Android's settings: look again while this screen is shown
+    LaunchedEffect(Unit) { while (true) { delay(1500); on = SnipdWatch.enabled(ctx) } }
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Время в Snipd", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (on) "Включено: пока Snipd играет (и свёрнутый), время идёт в «Аудио»."
+                else "Выключено. Чтобы считать, сколько вы слушаете подкасты в Snipd, дайте SatzLoop «Доступ к уведомлениям»: " +
+                    "приложение смотрит только, играет ли Snipd, уведомления не читает и никуда не отправляет.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            androidx.compose.material3.OutlinedButton(onClick = { SnipdWatch.openSettings(ctx) }) {
+                Text(if (on) "Выключить в настройках Android" else "Включить")
             }
         }
     }

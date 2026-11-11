@@ -80,7 +80,7 @@ class AppState(val ctx: Context) {
     val backups = Backups(ctx)
     val bookmarks = BookmarkStore(ctx)
     val progress = ReadingProgress(ctx)
-    val stats = ReadingStats(ctx)
+    val stats = ReadingStats.get(ctx)
     val sync = SyncService(this)
     /** The app is on the screen (between onResume and onPause). */
     var resumed = false
@@ -505,6 +505,7 @@ class AppState(val ctx: Context) {
     }
 
     init {
+        SnipdWatch.rebind(ctx)
         restoreJobs()
         watchJobs()
         scope.launch(Dispatchers.IO) { AudioCache.purgeOld(ctx) }
