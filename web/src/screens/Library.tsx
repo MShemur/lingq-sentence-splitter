@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'preact/hooks'
 import type { JSX } from 'preact'
 import {
-  back, courses, coursesError, courseWords, ensureCourseWords, go, loadCourses, loadRecent, LessonsScreen, recent, wordsKey,
+  archive, back, courses, coursesError, courseWords, ensureCourseWords, go, loadCourses, loadRecent, LessonsScreen, recent, visibleCourses, wordsKey,
 } from '../app'
+import { CourseMenu } from './CourseEdit'
 import { lang, prefs } from '../settings'
-import { Chip, ErrorBox, IconButton, Loading, TopBar } from '../ui'
+import { Chip, ErrorBox, IconButton, Loading, Menu, MenuItem, TopBar } from '../ui'
 import { naturalCompare } from '../app'
 import type { Course, Lesson } from '../lingq'
 import { ReaderSession } from '../reader/session'
@@ -118,8 +119,10 @@ export function CoursesScreen() {
   const [q, setQ] = useState('')
   const l = lang()
   useEffect(() => { if (prefs.apiKey.value.trim()) { void loadCourses(); void loadRecent() } }, [l, prefs.apiKey.value])
-  const list = courses.value
+  const list = visibleCourses.value
   const err = coursesError.value
+  const [menu, setMenu] = useState(false)
+  const archived = (archive.value[l] ?? []).length
   const noKey = !prefs.apiKey.value.trim()
   const rec = recent.value ?? []
   return (
@@ -130,6 +133,16 @@ export function CoursesScreen() {
           <>
             <IconButton icon="bookmark" label="Закладки" onClick={() => go({ k: 'bookmarks' })} />
             <IconButton icon="settings" label="Настройки" onClick={() => go({ k: 'settings' })} />
+            <div class="menu-anchor">
+              <IconButton icon="more" label="Ещё" onClick={() => setMenu(true)} />
+              {menu && (
+                <Menu onClose={() => setMenu(false)}>
+                  <MenuItem icon="library" onClick={() => { setMenu(false); go({ k: 'archive' }) }}>
+                    Архив курсов{archived ? ` (${archived})` : ''}
+                  </MenuItem>
+                </Menu>
+              )}
+            </div>
           </>
         }
       />
@@ -199,11 +212,11 @@ export function LessonsView({ s }: { s: LessonsScreen }) {
   const err = s.error.value
   return (
     <div class="screen">
-      <TopBar nav={<IconButton icon="back" label="Назад" onClick={back} />} title={s.title.value} />
+      <TopBar nav={<IconButton icon="back" label="Назад" onClick={back} />} title={s.title.value} actions={<CourseMenu s={s} />} />
       <div class="screen-body scroll">
         <div class="content library">
           <div class="course-head">
-            <Cover url={s.course.imageUrl} title={s.title.value} class="course-head-cover" />
+            <Cover url={(courses.value?.find((c) => c.id === s.course.id) ?? s.course).imageUrl} title={s.title.value} class="course-head-cover" />
             <div>
               <div class="course-head-title">{s.title.value}</div>
               {list && <div class="course-head-sub">{list.length} {plural(list.length, 'урок', 'урока', 'уроков')}</div>}

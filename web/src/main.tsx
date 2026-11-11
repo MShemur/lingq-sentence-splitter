@@ -14,6 +14,7 @@ import { useRef } from 'preact/hooks'
 import './styles.css'
 import { log, logError } from './applog'
 import { PodcastFeedScreen, PodcastsScreen } from './screens/Podcasts'
+import { ArchiveScreen } from './screens/CourseEdit'
 
 function view(screen: Screen) {
   switch (screen.k) {
@@ -36,6 +37,7 @@ function view(screen: Screen) {
     case 'import': return <ImportScreen s={screen} />
     case 'backups': return <BackupsScreen />
     case 'stats': return <StatsScreen />
+    case 'archive': return <ArchiveScreen />
   }
 }
 

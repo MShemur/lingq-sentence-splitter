@@ -15,6 +15,7 @@ import { ReaderHelp } from './Help'
 import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef } from './session'
 import { playLesson } from '../player'
 import { levelName } from '../lingq'
+import { LessonDeleteDialog } from '../screens/CourseEdit'
 
 /** A long-press selection is being dragged: the page must not scroll under the finger (iOS). */
 let selecting = false
@@ -225,9 +226,11 @@ function ReaderActions({ s }: { s: ReaderSession }) {
   const close = () => { s.menuOpen.value = false }
   const pinCount = Object.keys(s.pins.value).length + Object.keys(s.phrasePins.value).length
   const [help, setHelp] = useState(false)
+  const [del, setDel] = useState(false)
   return (
     <>
       {help && <ReaderHelp onClose={() => setHelp(false)} />}
+      {del && <LessonDeleteDialog l={s.lang} id={s.lesson.id} title={s.title.value || s.lesson.title} onClose={() => setDel(false)} />}
       <IconButton icon="bookmark" label="Закладки урока" onClick={() => { s.bookmarksOpen.value = true }} />
       <div class="menu-anchor">
         <IconButton icon="more" label="Ещё" onClick={() => { s.menuOpen.value = true }} />
@@ -243,6 +246,7 @@ function ReaderActions({ s }: { s: ReaderSession }) {
             <MenuItem icon="chart" onClick={() => { close(); void s.detectLevel() }}>
               {s.levelBusy.value ? 'Определяю уровень…' : 'Определить уровень (ИИ)'}
             </MenuItem>
+            <MenuItem icon="delete" onClick={() => { close(); setDel(true) }}>Удалить урок…</MenuItem>
             <hr />
             <div class="menu-group">Вид</div>
             <MenuItem onClick={() => s.changeFont(+2)}>Шрифт крупнее&nbsp; A+</MenuItem>

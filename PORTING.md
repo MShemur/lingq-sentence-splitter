@@ -11,6 +11,22 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- web v1.39 (user's iPad feedback, part 2):
+  1. Import: the switches "Сразу исправить разбивку" and "ИИ определит уровень" are gone: the split is always fixed and,
+     with an AI set up, the level always set. The user said the level of imported lessons was not set: after the PATCH
+     the level is now read back (GET lessons/{id}/ `level`, e.g. "Intermediate 2"); if LingQ did not keep it, it is set
+     once more after 4 s, and the import log says "уровень X не сохранился на LingQ" if it still did not stick.
+  2. Delete a lesson: reader ⋮ → "Удалить урок…" → confirmation ("Отменить это нельзя") → DELETE
+     /api/v3/{lang}/lessons/{id}/; the lesson leaves the recent / listened lists and the open course list.
+  3. Course screen ⋮: "Изменить курс" (title: PATCH collections/{id}/ {title}; own cover picture: PATCH multipart
+     `image`), "В архив" / "Вернуть из архива", "Удалить курс…" (confirmation naming the number of lessons; DELETE
+     /api/v3/{lang}/collections/{id}/; the dialog suggests the archive instead).
+  4. Course archive: archived courses are hidden in the library and the player's course chips (kept on this device,
+     LingQ untouched). Library ⋮ (top right) → "Архив курсов (N)": tiles, tap opens, "Вернуть" restores.
+  Web: `screens/CourseEdit.tsx` (CourseMenu, dialogs, ArchiveScreen), `app.ts` (`archive`, `visibleCourses`,
+  `forgetLesson` / `forgetCourse` / `courseChanged`), `lingq.ts` (`deleteLesson`, `deleteCourse`, `renameCourse`,
+  `lessonLevel`), import in `session.ts`. The DELETE / PATCH calls were tested against mocks only.
+
 ## Done
 
 - web v1.38 -> android v1.82 (user's iPad feedback, 11.11.2026; check Android for the same):

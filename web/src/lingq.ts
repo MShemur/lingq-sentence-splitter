@@ -122,6 +122,12 @@ export async function editor(lang: string, id: number): Promise<any[]> {
   return (await editorObj(lang, id))?.paragraphs ?? []
 }
 
+/** The lesson's level as LingQ names it ("Intermediate 2"), '' when it has none. */
+export async function lessonLevel(lang: string, id: number): Promise<string> {
+  const d = await call('GET', `/api/v3/${lang}/lessons/${id}/`)
+  return typeof d?.level === 'string' ? d.level : ''
+}
+
 /** Lesson level 1..6 (Beginner 1 .. Advanced 2 ~ A1..C2). */
 export async function setLevel(lang: string, id: number, level: number) {
   await call('PATCH', `/api/v3/${lang}/lessons/${id}/`, { level })
@@ -160,6 +166,20 @@ export async function setCourseImage(lang: string, id: number, cover: Blob) {
   const f = new FormData()
   f.append('image', cover, coverName(cover))
   await call('PATCH', `/api/v3/${lang}/collections/${id}/`, f)
+}
+
+/** Deletes a lesson on LingQ (cannot be undone). */
+export async function deleteLesson(lang: string, id: number) {
+  await call('DELETE', `/api/v3/${lang}/lessons/${id}/`)
+}
+
+/** Deletes a course with its lessons on LingQ (cannot be undone). */
+export async function deleteCourse(lang: string, id: number) {
+  await call('DELETE', `/api/v3/${lang}/collections/${id}/`)
+}
+
+export async function renameCourse(lang: string, id: number, title: string) {
+  await call('PATCH', `/api/v3/${lang}/collections/${id}/`, { title: title.slice(0, 250) })
 }
 
 /** Creates a private lesson in [course]; returns its id. */

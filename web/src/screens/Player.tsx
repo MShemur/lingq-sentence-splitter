@@ -6,7 +6,7 @@ import type { JSX } from 'preact'
 import { effect } from '@preact/signals'
 import * as audio from '../audio'
 import { fmtLength, fmtSpeed, fmtTime } from '../audio'
-import { courses, listened, loadCourses, naturalCompare, stack } from '../app'
+import { listened, loadCourses, naturalCompare, stack, visibleCourses } from '../app'
 import { lang, prefs } from '../settings'
 import * as api from '../lingq'
 import type { Course, Lesson } from '../lingq'
@@ -459,7 +459,7 @@ function AudioLessons({ onPick, onPlayAll }: { onPick: (lang: string, l: Lesson)
     <div class="audio-lessons">
       <div class="chip-row">
         <Chip label="Недавние" selected={!course} onClick={() => setCourse(null)} />
-        {(courses.value ?? []).map((c) => <Chip key={c.id} label={c.title || `Курс ${c.id}`} selected={course?.id === c.id} onClick={() => setCourse(c)} />)}
+        {(visibleCourses.value ?? []).map((c) => <Chip key={c.id} label={c.title || `Курс ${c.id}`} selected={course?.id === c.id} onClick={() => setCourse(c)} />)}
       </div>
       {courseError ? <p class="error-text pad">Ошибка: {courseError}</p>
         : !list ? <div class="pad">{[0, 1, 2, 3].map((i) => <div class="skeleton card-skel" key={i} />)}</div>

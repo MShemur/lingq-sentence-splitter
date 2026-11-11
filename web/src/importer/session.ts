@@ -51,7 +51,6 @@ export class ImportSession {
   newCourseTitle = signal('')
   autoFix = signal(true)
   /** The AI sets the level (A1–C2) of every new lesson; remembered. */
-  aiLevel = signal(localStorage.getItem('import.aiLevel') !== '0')
   splitWords = signal('3000')
   running = signal(false)
   finished = signal(false)
@@ -373,7 +372,8 @@ export class ImportSession {
           this.line(base + i, `❌ ${(e as Error).message} · ${title}`); failed++; step(); continue
         }
         this.uploaded.value = [...this.uploaded.value, { id, title }]
-        const wantLevel = this.aiLevel.value && useGemini()
+        // the split is always fixed and, with an AI, the level always set (no switches: the user wants both)
+        const wantLevel = useGemini()
         if (!this.autoFix.value && !wantLevel && !audio) { this.line(base + i, `✅ ${title}`); step(); continue }
         this.line(base + i, `⏳ LingQ обрабатывает · ${title}`)
         fixing.push((async () => {
@@ -411,9 +411,20 @@ export class ImportSession {
   private async setLevel(l: string, id: number, text: string): Promise<string> {
     try {
       const [n] = await gemini.level(prompt.level(), l, text)
-      await api.setLevel(l, id, n)
+      // LingQ may still be busy with the fresh lesson: check the level stuck, set it again once if not
+      for (let attempt = 0; ; attempt++) {
+        await api.setLevel(l, id, n)
+        await sleep(1500)
+        const got = (await api.lessonLevel(l, id)).toLowerCase()
+        if (!got || got === api.LINGQ_LEVELS[n - 1].toLowerCase()) break
+        log('import', `Урок ${id}: уровень ${api.CEFR[n - 1]} не сохранился (LingQ: ${got}), попытка ${attempt + 1}`)
+        if (attempt >= 1) return ` · уровень ${api.CEFR[n - 1]} не сохранился на LingQ`
+        await sleep(4000)
+      }
+      log('import', `Урок ${id}: уровень ${api.levelName(n)}`)
       return ` · уровень ${api.CEFR[n - 1]}`
     } catch (e) {
+      log('import', `Урок ${id}: уровень не определён ✗ ${(e as Error).message}`)
       geminiFailed(e, () => {}, true)
       return ' · уровень не определён'
     }

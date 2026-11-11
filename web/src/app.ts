@@ -42,6 +42,7 @@ export type Screen =
   | { k: 'chat'; c: ChatSession }
   | { k: 'bookmarks' }
   | { k: 'stats' }
+  | { k: 'archive' }
   | { k: 'log' }
   | { k: 'player' }
   | { k: 'settingsReading' }
@@ -130,6 +131,37 @@ export async function loadCourses(force = false) {
   } catch (e) {
     coursesError.value = (e as Error).message
   }
+}
+
+// --- course archive: courses the user does not want to see; hidden here only (LingQ keeps them), restorable ---
+
+function loadArchive(): Record<string, Course[]> {
+  try { return JSON.parse(localStorage.getItem('courses.archive') ?? '{}') } catch { return {} }
+}
+export const archive = signal<Record<string, Course[]>>(loadArchive())
+function saveArchive(v: Record<string, Course[]>) {
+  archive.value = v
+  try { localStorage.setItem('courses.archive', JSON.stringify(v)) } catch { /* ignore */ }
+}
+export const archivedIds = computed(() => new Set((archive.value[lang()] ?? []).map((c) => c.id)))
+/** Courses shown in the library and the player (archived ones left out). */
+export const visibleCourses = computed(() => courses.value?.filter((c) => !archivedIds.value.has(c.id)) ?? null)
+
+export function archiveCourse(l: string, c: Course) {
+  saveArchive({ ...archive.value, [l]: [{ id: c.id, title: c.title, imageUrl: c.imageUrl }, ...(archive.value[l] ?? []).filter((x) => x.id !== c.id)] })
+}
+export function restoreCourse(l: string, id: number) {
+  saveArchive({ ...archive.value, [l]: (archive.value[l] ?? []).filter((x) => x.id !== id) })
+}
+
+/** A course was deleted / changed on LingQ: the lists of this device follow. */
+export function forgetCourse(l: string, id: number) {
+  if (courses.value) courses.value = courses.value.filter((c) => c.id !== id)
+  restoreCourse(l, id)
+}
+export function courseChanged(c: Course) {
+  if (courses.value) courses.value = courses.value.map((x) => (x.id === c.id ? { ...x, ...c } : x))
+  for (const s of stack.value) if (s instanceof LessonsScreen && s.course.id === c.id) s.title.value = c.title
 }
 
 // --- "Продолжить" row: LingQ's list + lessons opened here (LingQ does not always notice an opening through the API);
@@ -224,6 +256,16 @@ export const listened = computed<Lesson[]>(() => {
   const opened = (recentLocal.value[l] ?? []).filter((x) => !ids.has(x.id) && (x.audio || (x.duration ?? 0) > 0))
   return [...heard, ...opened].sort((a, b) => (b.opened ?? 0) - (a.opened ?? 0))
 })
+
+/** A lesson was deleted on LingQ: it leaves every list of this device. */
+export function forgetLesson(l: string, id: number) {
+  const drop = (m: Record<string, Lesson[]>) => ({ ...m, [l]: (m[l] ?? []).filter((x) => x.id !== id) })
+  recentLocal.value = drop(recentLocal.value)
+  try { localStorage.setItem('recent', JSON.stringify(recentLocal.value)) } catch { /* ignore */ }
+  saveListened(l, (listenedLocal.value[l] ?? []).filter((x) => x.id !== id))
+  if (recentApi.value?.lang === l) recentApi.value = { lang: l, list: recentApi.value.list.filter((x) => x.id !== id) }
+  for (const s of stack.value) if (s instanceof LessonsScreen && s.lessons.value) s.lessons.value = s.lessons.value.filter((x) => x.id !== id)
+}
 
 /** "Lektion 2" before "Lektion 10": runs of digits compare as numbers, the rest ignoring case. */
 export function naturalCompare(a: string, b: string): number {

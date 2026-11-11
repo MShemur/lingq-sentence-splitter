@@ -860,3 +860,8 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
   -webkit-appearance: none; width: 18px; height: 18px; margin-top: -6px; border-radius: 50%; background: var(--primary); border: none;
 }
 .page-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--primary); border: none; }
+.btn.text.danger { color: var(--error); }
+.course-edit { display: flex; flex-direction: column; gap: 14px; }
+.course-edit-cover { display: flex; align-items: center; gap: 14px; }
+.cover-thumb.big { width: 96px; height: 96px; border-radius: 12px; }
+.tile-open { display: flex; flex-direction: column; gap: 6px; background: none; border: 0; padding: 0; text-align: left; color: inherit; font: inherit; cursor: pointer; }
