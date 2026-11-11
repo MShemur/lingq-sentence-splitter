@@ -87,10 +87,12 @@ export class ImportSession {
   fixes = signal<LessonFix[]>([])
   /** Lessons made by the last upload, in order (for "Открыть урок"). */
   uploaded = signal<Lesson[]>([])
+  /** What happened to the podcast's own text, for the result line ('' = not tried). */
+  textNote = signal('')
 
   /** After an upload: back to an empty form for the next lesson. */
   newImport() {
-    this.finished.value = false; this.log.value = []; this.fixes.value = []; this.uploaded.value = []; this.error.value = null
+    this.finished.value = false; this.log.value = []; this.fixes.value = []; this.uploaded.value = []; this.error.value = null; this.textNote.value = ''
     this.pasteText.value = ''; this.pasteTitle.value = ''; this.items.value = []; this.dropAudio(); this.cover.value = null
   }
   lang = lang()
@@ -239,10 +241,11 @@ export class ImportSession {
       const title = whole ? base : `${base}, ${clock(fromMs)}–${end != null ? clock(end) : 'конец'}`
       let t = ready ? fromSegments(ready, fromMs, end)
         : await transcribe({ blob, name, mp3, pcm }, this.lang, prov, sttKeyFor(prov), sttModel(prov.id), (st) => { this.status.value = st })
+      this.textNote.value = ready ? 'Взята расшифровка подкаста.' : ''
       if (!ready && useText && pk.text) {
         const m = matchText(pk.text, t, whole)
-        if (m) { t = m; log('stt', `Текст подкаста: ${m.text.length} знаков, время из распознавания`) }
-        else log('stt', 'Текст подкаста не совпал с распознанным, беру распознанный')
+        if (m) { t = m; log('stt', `Текст подкаста: ${m.text.length} знаков, время из распознавания`); this.textNote.value = 'Взят текст подкаста, время из распознавания.' }
+        else { log('stt', 'Текст подкаста не совпал с распознанным, беру распознанный'); this.textNote.value = 'Текст подкаста не совпал с речью — взят распознанный.' }
       }
       this.setSingle(title, t.text)
       this.audio.value = blob

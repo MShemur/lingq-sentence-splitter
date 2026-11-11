@@ -8,7 +8,7 @@ import {
 import { CourseMenu } from './CourseEdit'
 import { JobsRow } from './Jobs'
 import { lang, prefs } from '../settings'
-import { Chip, ErrorBox, IconButton, Loading, Menu, MenuItem, TopBar } from '../ui'
+import { Chip, ClearX, ErrorBox, IconButton, Loading, Menu, MenuItem, TopBar } from '../ui'
 import { naturalCompare } from '../app'
 import type { Course, Lesson } from '../lingq'
 import { ReaderSession } from '../reader/session'
@@ -160,7 +160,10 @@ export function CoursesScreen() {
           ) : (
             <>
               <div class="search-row">
-                <input class="search" type="search" placeholder="Поиск курса" value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} />
+                <div class="clearable grow">
+                  <input class="search" type="search" placeholder="Поиск курса" value={q} onInput={(e) => setQ((e.target as HTMLInputElement).value)} />
+                  <ClearX value={q} onClear={() => setQ('')} />
+                </div>
                 <IconButton icon="refresh" label="Обновить" onClick={() => { void loadCourses(true); void loadRecent() }} />
               </div>
               {!q.trim() && <JobsRow />}

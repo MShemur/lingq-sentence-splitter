@@ -11,6 +11,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## Done
 
+- android v1.88 -> web v1.43: × clears the search fields (courses, podcasts); key / password fields get a copy button; the import result (finish screen and background job) says whether the podcast's transcript / text was taken or the text did not match the speech; episode row says "есть текст (без времени)". Password manager and foreground service are Android-only. Web: `ui.tsx` (ClearX, SecretField copy), `session.ts` textNote.
 - android v1.84 -> web v1.41: "Отзыв / задача" (Settings and library ⋮): the user writes a note for Claude; it is saved as `feedback/<yyyyMMdd-HHmmss>-<device>.json` on the `sync` branch via the contents API with the sync token ({t, device: "android"|"web", version, text, status: "new", log?}). The screen lists the latest notes of both devices with status (new / work / done + `doneIn` / no) and Claude's `reply`. Optional "Приложить журнал". Android `Feedback.kt`.
 
 (the web version starts from `web/PLAN.md`, which already covers Android v1.23)

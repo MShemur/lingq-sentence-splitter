@@ -197,7 +197,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
           {s.finished.value && (
             <>
               <hr />
-              <p>Готово ✅{fixedCount > 0 ? ` Разбивка на предложения поправлена (${fixedCount}).` : ''}</p>
+              <p>Готово ✅{fixedCount > 0 ? ` Разбивка на предложения поправлена (${fixedCount}).` : ''}{s.textNote.value ? ` ${s.textNote.value}` : ''}</p>
               {s.uploaded.value.length === 1 ? (
                 <button class="btn filled wide" onClick={() => go({ k: 'reader', s: new ReaderSession(s.lang, s.uploaded.value[0]) })}>Открыть урок</button>
               ) : s.uploaded.value.map((l) => (

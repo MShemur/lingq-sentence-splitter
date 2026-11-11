@@ -880,3 +880,7 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .fb-meta { font-size: 12px; color: var(--outline); }
 .fb-text { white-space: pre-wrap; }
 .fb-reply { color: var(--primary); white-space: pre-wrap; }
+.clearable { position: relative; display: flex; flex: 1; min-width: 0; }
+.clearable input { flex: 1; min-width: 0; padding-right: 40px; }
+.clearable input::-webkit-search-cancel-button { display: none; }
+.clear-x { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: none; background: transparent; color: var(--outline); padding: 6px; border-radius: 50%; display: flex; cursor: pointer; }

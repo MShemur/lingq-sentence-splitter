@@ -4,7 +4,7 @@ import { startJob, type BgJob } from '../importer/jobs'
 import { EpisodeSheet } from './Jobs'
 import { back } from '../app'
 import { isSub, subs, type Podcast, type PodcastSession } from '../importer/podcasts'
-import { IconButton, TopBar } from '../ui'
+import { ClearX, IconButton, TopBar } from '../ui'
 import { Cover } from './Library'
 
 const fmtDate = (t: number) => (t > 0 ? new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
@@ -34,8 +34,11 @@ export function PodcastsScreen({ s }: { s: PodcastSession }) {
           <form class="pod-search" onSubmit={(e) => { e.preventDefault(); void s.search() }}>
             <label class="field grow">
               <span>Название подкаста или ссылка на RSS</span>
-              <input type="search" enterkeyhint="search" value={s.query.value} autocapitalize="off"
-                onInput={(e) => { s.query.value = (e.target as HTMLInputElement).value }} />
+              <div class="clearable">
+                <input type="search" enterkeyhint="search" value={s.query.value} autocapitalize="off"
+                  onInput={(e) => { s.query.value = (e.target as HTMLInputElement).value }} />
+                <ClearX value={s.query.value} onClear={() => { s.query.value = '' }} />
+              </div>
             </label>
             <button class="btn tonal" type="submit">Найти</button>
           </form>
@@ -108,7 +111,7 @@ export function PodcastFeedScreen({ s }: { s: PodcastSession }) {
                   <span class="grow">
                     <span class="pod-title">{ep.title}</span>
                     <span class="pod-meta">
-                      {[fmtDate(ep.date), fmtDur(ep.duration), ep.transcript ? 'есть расшифровка' : ep.textUrl ? 'есть текст' : ''].filter(Boolean).join(' · ')}
+                      {[fmtDate(ep.date), fmtDur(ep.duration), ep.transcript ? 'есть расшифровка' : ep.textUrl ? 'есть текст (без времени)' : ''].filter(Boolean).join(' · ')}
                     </span>
                     {ep.description && <span class="hint pod-desc">{ep.description}</span>}
                   </span>

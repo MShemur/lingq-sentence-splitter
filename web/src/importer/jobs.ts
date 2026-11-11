@@ -101,7 +101,7 @@ export class BgJob {
       this.done.value = true
       this.progress.value = 1
       const n = imp.uploaded.value.length
-      this.status.value = `Готово: ${n === 1 ? 'урок' : `${n} урока(ов)`} в курсе «${imp.course.value?.title ?? t.newTitle}»` + (bad.length ? ` · ошибок: ${bad.length}` : '')
+      this.status.value = `Готово: ${n === 1 ? 'урок' : `${n} урока(ов)`} в курсе «${imp.course.value?.title ?? t.newTitle}»` + (imp.textNote.value ? ` · ${imp.textNote.value.replace(/\.$/, '')}` : '') + (bad.length ? ` · ошибок: ${bad.length}` : '')
       log('podcast', `Фоновая загрузка «${this.title.slice(0, 60)}»: ${this.status.value}`)
     } catch (e) {
       if (this.cancelled) return

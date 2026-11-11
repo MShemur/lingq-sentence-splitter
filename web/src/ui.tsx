@@ -126,8 +126,19 @@ export function Chip(p: { label: ComponentChildren; icon?: IconName; selected?: 
   )
 }
 
+/** The cross inside a search field: empties it (shown only while there is text). */
+export function ClearX(p: { value: string; onClear: () => void }) {
+  return p.value ? (
+    <button class="clear-x" type="button" aria-label="Очистить" onClick={p.onClear}><Icon name="close" size={18} /></button>
+  ) : null
+}
+
 export function SecretField(p: { label: string; value: string; onInput: (v: string) => void }) {
   const [show, setShow] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard?.writeText(p.value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) }, () => { /* no clipboard */ })
+  }
   return (
     <label class="field">
       <span class="field-label">{p.label}</span>
@@ -136,6 +147,7 @@ export function SecretField(p: { label: string; value: string; onInput: (v: stri
           type={show ? 'text' : 'password'} value={p.value} autocomplete="off" autocapitalize="off" spellcheck={false}
           onInput={(e) => p.onInput((e.target as HTMLInputElement).value)}
         />
+        {!!p.value && <button class="btn text" type="button" onClick={copy}>{copied ? 'Скопировано' : 'Копировать'}</button>}
         <button class="btn text" type="button" onClick={() => setShow(!show)}>{show ? 'Скрыть' : 'Показать'}</button>
       </div>
     </label>
