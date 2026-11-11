@@ -68,7 +68,7 @@ export function SettingsRoot() {
           onClick={() => go({ k: 'settingsPrompts' })} />
         <hr />
         <ListItem
-          leading={<Icon name="info" />} headline={`LingQ Fix для iPad v${__VERSION__}`}
+          leading={<Icon name="info" />} headline={`SatzLoop для iPad v${__VERSION__}`}
           supporting={`Сборка ${__BUILD__} · обновляется сама при открытии`}
         />
       </div>
@@ -397,7 +397,7 @@ export function SettingsLog() {
     try { await navigator.clipboard.writeText(logText()); say('Журнал скопирован') } catch { say('Не удалось скопировать') }
   }
   const share = async () => {
-    try { await navigator.share({ title: 'LingQ Fix: журнал', text: logText() }) } catch { /* cancelled */ }
+    try { await navigator.share({ title: 'SatzLoop: журнал', text: logText() }) } catch { /* cancelled */ }
   }
   return (
     <Page title="Журнал действий">
