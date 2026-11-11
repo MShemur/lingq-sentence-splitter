@@ -64,9 +64,9 @@ class JobTarget(
  * the destination is chosen meanwhile; then a headless [ImportSession] recognises (or takes the transcript),
  * uploads, fixes, sets the times and the level. An error stays in the row until the user closes it.
  */
-class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?) {
-    val id = System.nanoTime()
-    val lang = app.lang
+class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?, restored: org.json.JSONObject? = null) {
+    val id = restored?.optLong("id") ?: System.nanoTime()
+    val lang = restored?.optString("lang") ?: app.lang
     var status by mutableStateOf("Скачиваю…")
     var progress by mutableFloatStateOf(0f)
     var error by mutableStateOf<String?>(null)
@@ -79,8 +79,26 @@ class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?) {
     private val downloaded = CompletableDeferred<Got>()
     private var job: Job? = null
 
+    /** For the saved list (a job survives the app being closed as a row with its result). */
+    fun toJson(): org.json.JSONObject = org.json.JSONObject().put("id", id).put("lang", lang).put("title", title)
+        .put("status", status).put("error", error).put("done", done)
+        .put("lessons", org.json.JSONArray().apply { lessons.forEach { put(org.json.JSONObject().put("id", it.id).put("title", it.title)) } })
+
+    private fun step(s: String) { status = s; AppLog.add("podcast", "«${title.take(50)}»: $s") }
+
     init {
-        job = app.scope.launch {
+        if (restored != null) {
+            status = restored.optString("status")
+            done = restored.optBoolean("done")
+            error = restored.optString("error").takeIf { it.isNotBlank() && it != "null" }
+            lessons = restored.optJSONArray("lessons")?.let { a -> (0 until a.length()).map { Lesson(a.getJSONObject(it).getInt("id"), a.getJSONObject(it).optString("title")) } }.orEmpty()
+            target = JobTarget(null, "", null, false, false, false)
+            if (!done && error == null) {
+                error = "Прервано: Android закрыл приложение. Нажмите на выпуск ещё раз"
+                AppLog.add("podcast", "«${title.take(50)}»: прервано (приложение было закрыто)")
+            }
+            downloaded.cancel()
+        } else job = app.scope.launch {
             try {
                 val dir = File(app.ctx.getExternalFilesDir(null) ?: app.ctx.filesDir, "podcast").apply { mkdirs() }
                 val ext = PodcastApi.ext(ep)
@@ -97,7 +115,11 @@ class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?) {
                     withContext(Dispatchers.IO) { PodcastApi.plainText(ep.textUrl) }
                 }.onFailure { AppLog.error("podcast", "Текст выпуска", it) }.getOrNull()?.takeIf { it.length > 200 }
                 val cover = pod?.image?.takeIf { it.isNotBlank() }?.let { runCatching { withContext(Dispatchers.IO) { PodcastApi.bytes(it) } }.getOrNull() }
-                AppLog.add("podcast", "«${title.take(60)}»: ${f.length() / 1_000_000} МБ скачано (фоновая загрузка)")
+                AppLog.add(
+                    "podcast",
+                    "«${title.take(60)}»: ${f.length() / 1_000_000} МБ скачано (фоновая загрузка), расшифровка: " +
+                        if (tr != null) "с временем" else if (text != null) "текст без времени" else "нет",
+                )
                 if (target == null) status = "Скачано (${f.length() / 1_000_000} МБ), выберите курс"
                 downloaded.complete(Got(f, ext, tr, text, cover))
                 target?.let { work(it) }
@@ -106,6 +128,7 @@ class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?) {
             } catch (e: Throwable) {
                 AppLog.error("podcast", "Фоновая загрузка: скачивание", e)
                 error = "Не удалось скачать: ${e.message}"
+                if (target != null) ImportService.finished(app.ctx, title, error.orEmpty(), ok = false)
                 downloaded.completeExceptionally(e)
             }
         }
@@ -123,20 +146,20 @@ class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?) {
         try {
             val g = downloaded.await()
             val imp = ImportSession(app)
-            status = "Открываю аудио…"
+            step("Открываю аудио…")
             imp.pickAudio(Uri.fromFile(g.file), "$title.${g.ext}", g.tr, g.text)
             waitWhile { imp.loading && imp.audioPick == null && imp.error == null }
             val pk = imp.audioPick ?: throw ApiException(imp.error ?: "аудио не открылось")
             if (t.cover) imp.setCover(g.cover, pod?.title.orEmpty())
             val to = t.lenMin?.let { m -> (m * 60_000L).let { if (pk.durationMs > 0) minOf(it, pk.durationMs) else it } }
-            status = if (t.useTranscript && g.tr != null) "Беру расшифровку подкаста…" else "Распознаю речь…"
+            step(if (t.useTranscript && g.tr != null) "Беру расшифровку подкаста…" else "Распознаю речь…")
             imp.transcribePart(0, to, t.useTranscript && g.tr != null, t.useText && g.text != null)
             delay(100)
             waitWhile { imp.loading.also { if (it && imp.status.isNotBlank()) status = imp.status } }
             imp.error?.let { throw ApiException(it) }
             if (t.course != null) { imp.course = t.course; imp.newCourse = false } else { imp.newCourse = true; imp.newCourseTitle = t.newTitle }
             imp.coverToCourse = t.cover && imp.cover != null
-            status = "Загружаю в LingQ…"
+            step("Загружаю в LingQ…")
             imp.run()
             delay(100)
             waitWhile {
@@ -152,12 +175,14 @@ class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?) {
             done = true; progress = 1f
             status = "Готово: урок в курсе «${imp.course?.title ?: t.newTitle}»" + if (bad.isNotEmpty()) " · ошибок: ${bad.size}" else ""
             AppLog.add("podcast", "Фоновая загрузка «${title.take(60)}»: $status")
+            ImportService.finished(app.ctx, title, status, ok = true)
             g.file.delete()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
             AppLog.error("podcast", "Фоновая загрузка «${title.take(60)}»", e)
             error = e.message ?: e.toString()
+            ImportService.finished(app.ctx, title, error.orEmpty(), ok = false)
         }
     }
 
@@ -194,6 +219,15 @@ fun EpisodeSheet(state: AppState, j: BgJob, onClose: () -> Unit) {
         else if (min > 0) "${prov.name}: ${sttCost(prov, state.prefs.sttModel(prov.id), min) ?: ""}" else prov.name
     val ok = course != null || newTitle.isNotBlank()
     fun cancel() { j.close(); onClose() }
+    val notifPerm = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) {}
+    LaunchedEffect(Unit) {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(
+                state.ctx, android.Manifest.permission.POST_NOTIFICATIONS,
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) notifPerm.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
     ModalBottomSheet(onDismissRequest = { cancel() }) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),

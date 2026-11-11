@@ -10,6 +10,10 @@ import androidx.activity.enableEdgeToEdge
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        /** One per process: a re-created activity keeps the state (and the running background jobs). */
+        private var shared: AppState? = null
+    }
     private lateinit var state: AppState
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -17,7 +21,7 @@ class MainActivity : ComponentActivity() {
         AppLog.init(applicationContext)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        state = AppState(applicationContext)
+        state = shared ?: AppState(applicationContext).also { shared = it }
         // covers: same HTTP client, with the user agent LingQ's CDN accepts
         coil.Coil.setImageLoader(Covers.loader(applicationContext))
         setContent { App(state) }

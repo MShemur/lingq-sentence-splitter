@@ -113,6 +113,33 @@ class AppState(val ctx: Context) {
     var courses by mutableStateOf<List<Course>?>(null)
     /** Podcast episodes going to LingQ in the background ("Актуальные загрузки"). */
     val bgJobs = mutableStateListOf<BgJob>()
+    private val jobsPrefs = ctx.getSharedPreferences("bgjobs", android.content.Context.MODE_PRIVATE)
+
+    /** Saved rows of earlier jobs; one that was still running when the app was killed shows as interrupted. */
+    private fun restoreJobs() = runCatching {
+        val a = org.json.JSONArray(jobsPrefs.getString("list", "[]"))
+        for (i in 0 until a.length()) {
+            val o = a.getJSONObject(i)
+            bgJobs += BgJob(this, Episode(o.optString("title"), 0, "", "", 0, "", "", ""), null, o)
+        }
+    }
+
+    /** Foreground service while a job runs (the notification shows its step), and the rows saved on every change. */
+    private fun watchJobs() = scope.launch {
+        androidx.compose.runtime.snapshotFlow {
+            bgJobs.map { listOf(it.status, it.error, it.done, it.target != null, (it.progress * 20).toInt()) }
+        }.collect {
+            val shown = bgJobs.filter { it.target != null }
+            jobsPrefs.edit().putString("list", org.json.JSONArray().apply { shown.take(10).forEach { put(it.toJson()) } }.toString()).apply()
+            val active = bgJobs.filter { !it.done && it.error == null }
+            if (active.isEmpty()) ImportService.stop(ctx)
+            else {
+                ImportService.start(ctx)
+                val j = active.first()
+                ImportService.update(ctx, j.title + if (active.size > 1) " (+${active.size - 1})" else "", j.status, j.progress)
+            }
+        }
+    }
     var coursesError by mutableStateOf<String?>(null)
 
     /** Courses put in the archive: hidden in the library and the player on this device (LingQ untouched). */
@@ -478,6 +505,8 @@ class AppState(val ctx: Context) {
     }
 
     init {
+        restoreJobs()
+        watchJobs()
         scope.launch(Dispatchers.IO) { AudioCache.purgeOld(ctx) }
         AudioEngine.onListen = { k, t, i, u -> onListen(k, t, i, u) }
         AudioEngine.onDuration = { k, ms -> onDuration(k, ms) }

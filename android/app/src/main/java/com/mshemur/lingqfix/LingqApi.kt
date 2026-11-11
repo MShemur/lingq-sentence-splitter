@@ -40,7 +40,9 @@ class LingqApi(private val key: String) {
             val (code, text, retryAfter) = try {
                 http.newCall(req).execute().use { r -> Triple(r.code, r.body?.string().orEmpty(), r.header("Retry-After")) }
             } catch (e: java.io.IOException) {
-                AppLog.error("lingq", "$method ${AppLog.short(url)}", e); throw e
+                AppLog.error("lingq", "$method ${AppLog.short(url)}", e)
+                if (method == "GET" && attempt < 4) { attempt++; Thread.sleep(2000L * attempt); continue }
+                throw e
             }
             AppLog.add("lingq", "$method ${AppLog.short(url)} → $code (${System.currentTimeMillis() - t0} мс)")
             if ((code == 429 || code >= 500) && attempt < 4) {

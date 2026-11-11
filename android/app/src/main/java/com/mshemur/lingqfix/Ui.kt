@@ -161,9 +161,6 @@ fun App(state: AppState) {
                                 IconButton(onClick = { state.go(Screen.Bookmarks) }) {
                                     Icon(AppIcons.Bookmark, contentDescription = "Закладки")
                                 }
-                                IconButton(onClick = { state.go(Screen.Settings) }) {
-                                    Icon(Icons.Filled.Settings, contentDescription = "Настройки")
-                                }
                                 LibraryMenu(state)
                             }
                             is Screen.Lessons -> if (screen.reader) CourseMenu(state, screen)
