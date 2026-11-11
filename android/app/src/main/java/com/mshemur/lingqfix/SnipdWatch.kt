@@ -21,7 +21,8 @@ import androidx.core.app.NotificationManagerCompat
  */
 class SnipdWatch : NotificationListenerService() {
     companion object {
-        fun isSnipd(pkg: String?) = pkg?.contains("snipd", ignoreCase = true) == true
+        /** Snipd's package is "ai.topicfinder.podcastdiscovery" (seen on the user's phone, 11.11.2026). */
+        fun isSnipd(pkg: String?) = pkg != null && (pkg.contains("snipd", ignoreCase = true) || pkg.startsWith("ai.topicfinder."))
 
         fun enabled(ctx: Context) = NotificationManagerCompat.getEnabledListenerPackages(ctx).contains(ctx.packageName)
 
