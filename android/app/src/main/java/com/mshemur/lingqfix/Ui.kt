@@ -817,7 +817,10 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                     if (state.useGemini) ", ИИ ставит уровень сложности (A1–C2)." else ". Уровень ставит ИИ — нужен Gemini или другой ИИ: Настройки → Перевод.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (s.audioUri != null && s.pasteMode) Text(
+                "С аудио получается один урок, даже очень длинный: LingQ берёт за раз около 6000 слов, остальное дописывается после.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            ) else Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Делить длинные тексты по", Modifier.weight(1f))
                 OutlinedTextField(
                     s.splitWords, { v -> s.splitWords = v.filter { it.isDigit() } }, Modifier.width(96.dp),

@@ -20,6 +20,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONObject
 
 sealed interface Screen {
     data object Home : Screen
@@ -475,6 +476,7 @@ class AppState(val ctx: Context) {
     }
 
     init {
+        scope.launch(Dispatchers.IO) { AudioCache.purgeOld(ctx) }
         AudioEngine.onListen = { k, t, i, u -> onListen(k, t, i, u) }
         AudioEngine.onDuration = { k, ms -> onDuration(k, ms) }
     }
@@ -1020,10 +1022,20 @@ class ImportSession(private val app: AppState) {
         val audio = if (pasteMode) audioUri else null
         val audioFile = audioName.replace(Regex("[^\\p{L}\\p{N}._ -]"), "_")
         val words = audioWords
-        val max = if (audio != null) 0 else splitWords.toIntOrNull() ?: 0   // a lesson with audio stays whole
-        val jobs = selected().flatMap { (title, text) ->
-            val parts = Sources.splitLong(text, max)
-            if (parts.size == 1) listOf(title to parts[0]) else parts.mapIndexed { i, p -> "$title (${i + 1})" to p }
+        // LingQ takes about 6000 words per import (more becomes several lessons, not fixed by us).
+        // Audio (podcast, recording): ONE lesson however long: the first <= 5000 words are imported with the audio,
+        // the rest is added to the lesson afterwards. Books / files: parts of the chosen size, below LingQ's limit.
+        var rest = ""
+        val jobs = if (audio != null) selected().take(1).map { (title, text) ->
+            val parts = Sources.splitLong(text, LINGQ_MAX_WORDS - 1000)
+            rest = parts.drop(1).joinToString("\n\n")
+            title to parts.firstOrNull().orEmpty()
+        } else {
+            val max = minOf(splitWords.toIntOrNull()?.takeIf { it > 0 } ?: (LINGQ_MAX_WORDS - 500), LINGQ_MAX_WORDS - 500)
+            selected().flatMap { (title, text) ->
+                val parts = Sources.splitLong(text, max)
+                if (parts.size == 1) listOf(title to parts[0]) else parts.mapIndexed { i, p -> "$title (${i + 1})" to p }
+            }
         }
         if (jobs.isEmpty()) return app.say("Нечего загружать")
         running = true
@@ -1085,6 +1097,10 @@ class ImportSession(private val app: AppState) {
                             val msg = try {
                                 limit.withPermit {
                                     val parts = mutableListOf<String>()
+                                    if (i == 0 && rest.isNotBlank()) {
+                                        val n = withContext(Dispatchers.IO) { app.api.waitProcessed(lang, id); extendLesson(lang, id, rest) }
+                                        parts += "урок дописан до $n предложений"
+                                    }
                                     if (autoFix) {
                                         val r = withContext(Dispatchers.IO) { fixImported(lang, id, title) }
                                         found[i] = r
@@ -1126,6 +1142,34 @@ class ImportSession(private val app: AppState) {
             }
             running = false
         }
+    }
+
+    /**
+     * Adds [rest] (text beyond one LingQ import) to lesson [id]: own sentence split (the fixer merges after it),
+     * sentence objects copied from LingQ's with text / cleanText set and translations / phrases / notes empty.
+     * Returns the number of sentences.
+     */
+    private fun extendLesson(lang: String, id: Int, rest: String): Int {
+        val paras = app.api.editor(lang, id)
+        if (paras.length() == 0) throw ApiException("урок пустой, текст не дописан")
+        val lastP = paras.getJSONObject(paras.length() - 1)
+        val tmpl = lastP.optJSONArray("sentences")?.optJSONObject(0) ?: throw ApiException("урок пустой, текст не дописан")
+        var idx = (0 until paras.length()).sumOf { paras.getJSONObject(it).optJSONArray("sentences")?.length() ?: 0 }
+        for (pt in rest.split(Regex("\\n\\s*\\n"))) {
+            val ss = splitSentences(pt.trim())
+            if (ss.isEmpty()) continue
+            val p = JSONObject(lastP.toString())
+            val arr = JSONArray()
+            ss.forEach { t ->
+                arr.put(JSONObject(tmpl.toString()).put("text", t).put("cleanText", t)
+                    .put("translations", JSONArray()).put("phrases", JSONArray()).put("notes", JSONArray()).put("index", ++idx))
+            }
+            p.put("sentences", arr)
+            paras.put(p)
+        }
+        app.api.saveParagraphs(lang, id, paras)
+        AppLog.add("import", "Урок $id: дописан до $idx предложений (длиннее одного импорта LingQ)")
+        return idx
     }
 
     /** The AI estimates the level of a fresh lesson and saves it on LingQ; returns e.g. "уровень B1". */

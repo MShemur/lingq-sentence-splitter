@@ -31,6 +31,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
      only in memory while importing), so nothing to do on web. On Android: downloaded podcast episodes / any cached
      audio: a settings item "Очистить кэш аудио", files older than 30 days deleted on start, and a lesson whose local
      audio is gone loads it again (from LingQ).
+  Android v1.85: items 1 and 3 done (`AppState.kt` run / `extendLesson`, `Sources.kt` `LINGQ_MAX_WORDS`, `splitSentences`,
+  `AudioCache`, settings item). Item 2 (background podcasts) still to do.
   Web: `importer/jobs.ts` (BgJob, startJob, closeJob), `screens/Jobs.tsx` (EpisodeSheet, JobsRow), `session.ts`
   (`extendLesson`, Job.rest), `cleaner.ts` (`LINGQ_MAX_WORDS`, `splitSentences`).
 

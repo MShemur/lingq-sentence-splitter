@@ -103,6 +103,13 @@ fun SettingsRoot(state: AppState) {
             if (state.sync.enabled) "Телефон и iPad · включена" else "Телефон и iPad · выключена",
         ) { state.go(Screen.SettingsSync) }
         HorizontalDivider()
+        run {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            var mb by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(AudioCache.size(ctx) / 1_048_576) }
+            SectionItem(AppIcons.Headphones, "Очистить кэш аудио", "Скачанные выпуски и куски для распознавания · $mb МБ · старше 30 дней удаляются сами") {
+                AudioCache.clear(ctx); mb = 0; state.say("Кэш аудио очищен")
+            }
+        }
         SectionItem(Icons.Filled.Refresh, "Резервные копии", "Вернуть урок к версии до исправления") {
             state.go(Screen.Backups)
         }

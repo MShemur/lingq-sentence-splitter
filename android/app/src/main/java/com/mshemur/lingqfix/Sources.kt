@@ -167,3 +167,41 @@ object Epub {
         }
     }
 }
+
+
+/** LingQ makes several lessons from one import above about this many words. */
+const val LINGQ_MAX_WORDS = 6000
+
+/** Sentences of a paragraph (LingQ's own split is not available for text added later; the fixer merges after it). */
+fun splitSentences(p: String): List<String> =
+    Regex("[^.!?…]+(?:[.!?…]+[\"»“”')\\]]*|$)\\s*").findAll(p).map { it.value.trim() }.filter { it.isNotEmpty() }.toList()
+
+/**
+ * Audio files the app keeps on the phone: downloaded podcast episodes, cut parts for recognition and import.
+ * Files older than 30 days go at start; "Очистить кэш аудио" in the settings removes all. Lesson audio itself
+ * is streamed from LingQ, so nothing is lost.
+ */
+object AudioCache {
+    private fun dirs(ctx: android.content.Context) = listOfNotNull(
+        java.io.File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "podcast"),
+        java.io.File(ctx.filesDir, "podcast"),
+        java.io.File(ctx.cacheDir, "stt"),
+        java.io.File(ctx.cacheDir, "import"),
+    )
+
+    private fun files(ctx: android.content.Context) = dirs(ctx).flatMap { d -> d.walkTopDown().filter { it.isFile }.toList() }
+
+    fun size(ctx: android.content.Context): Long = files(ctx).sumOf { it.length() }
+
+    fun clear(ctx: android.content.Context) {
+        dirs(ctx).forEach { it.deleteRecursively() }
+        AppLog.add("app", "Кэш аудио очищен")
+    }
+
+    fun purgeOld(ctx: android.content.Context, days: Int = 30) {
+        val limit = System.currentTimeMillis() - days * 86_400_000L
+        val old = files(ctx).filter { it.lastModified() < limit }
+        old.forEach { it.delete() }
+        if (old.isNotEmpty()) AppLog.add("app", "Кэш аудио: удалено старых файлов ${old.size}")
+    }
+}
