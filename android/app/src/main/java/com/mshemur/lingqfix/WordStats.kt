@@ -67,7 +67,7 @@ import java.util.zip.GZIPInputStream
 
 /**
  * German word forms -> base form ("bin", "ist", "war" -> "sein"; "Häusern" -> "Haus"), offline.
- * Data: lemmatization-lists by Michal Měchura (Open Database License), packed in assets/lemma-de.tsv.gz as
+ * Data: lemmatization-lists by Michal Měchura (Open Database License), packed gzipped in assets/lemma-de.dat (not ".gz": the build unpacks those) as
  * "lemma<TAB>form<TAB>form…" per line. Loaded only while counting; kept as a soft reference.
  */
 class Lemmatizer private constructor(private val forms: HashMap<String, String>, private val lemmas: HashSet<String>) {
@@ -80,7 +80,7 @@ class Lemmatizer private constructor(private val forms: HashMap<String, String>,
             cache?.get()?.let { return it }
             val forms = HashMap<String, String>(420_000)
             val lemmas = HashSet<String>(100_000)
-            GZIPInputStream(ctx.assets.open("lemma-de.tsv.gz")).bufferedReader().useLines { lines ->
+            GZIPInputStream(ctx.assets.open("lemma-de.dat")).bufferedReader().useLines { lines ->
                 lines.forEach { line ->
                     val p = line.split('\t')
                     val lm = p[0]
