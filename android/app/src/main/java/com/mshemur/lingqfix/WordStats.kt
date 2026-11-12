@@ -312,7 +312,7 @@ private fun RareSlider(state: AppState, r: WsResult) {
         )
         androidx.compose.material3.Slider(
             value = state.wsMin.toFloat(),
-            onValueChange = { val n = Math.round(it).coerceIn(0, 10); if (n != state.wsMin) state.setWsMin(n) },
+            onValueChange = { val n = Math.round(it).coerceIn(0, 10); if (n != state.wsMin) state.changeWsMin(n) },
             valueRange = 0f..10f, steps = 9, enabled = r.lemmas.isNotEmpty(),
         )
         if (r.lemmas.isEmpty()) Text(
