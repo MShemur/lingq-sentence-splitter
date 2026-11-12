@@ -6,6 +6,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.drawText
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -245,6 +250,7 @@ fun StatsScreen(state: AppState) {
             PeriodCard("Год", year, Modifier.weight(1f))
         }
         DaysChart(st, now)
+        ActivityCalendar(st, now)
         SnipdCard(state)
         Text(
             "Чтение считается, пока открыт урок и вы касаетесь экрана; если 3 минуты ничего не происходит, счёт стоит. " +
@@ -365,6 +371,105 @@ private fun DaysChart(st: ReadingStats, now: LocalDate) {
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+        }
+    }
+}
+
+/** Minutes of a day -> shade 0..4 of the activity calendar. */
+private fun level(sec: Int): Int {
+    val m = sec / 60
+    return when {
+        m < 1 -> 0
+        m < 15 -> 1
+        m < 30 -> 2
+        m < 60 -> 3
+        else -> 4
+    }
+}
+
+/**
+ * Activity calendar like GitHub's: one column per week (Monday on top), the last year, the darker the more minutes.
+ * Scrolls sideways, starts at today; tap a day for its numbers.
+ */
+@Composable
+private fun ActivityCalendar(st: ReadingStats, now: LocalDate) {
+    val weeks = 53
+    val firstMonday = now.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks((weeks - 1).toLong())
+    val secs = remember(st.version, now) {
+        IntArray(weeks * 7) { i -> val d = firstMonday.plusDays(i.toLong()); if (d.isAfter(now)) -1 else st.day(d)[0] }
+    }
+    var picked by remember { mutableStateOf(now) }
+    val empty = MaterialTheme.colorScheme.surfaceContainerHighest
+    val fill = MaterialTheme.colorScheme.primary
+    val shades = listOf(empty, fill.copy(alpha = 0.3f), fill.copy(alpha = 0.5f), fill.copy(alpha = 0.75f), fill)
+    val ring = MaterialTheme.colorScheme.onSurface
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val labelStyle = MaterialTheme.typography.labelSmall
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val scroll = rememberScrollState()
+    LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
+    val cell = 13.dp
+    val gap = 3.dp
+    val top = 16.dp
+    val ru = Locale("ru")
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Календарь активности", style = MaterialTheme.typography.titleSmall)
+            val dv = st.day(picked)
+            Text(
+                "${picked.dayOfMonth} ${picked.month.getDisplayName(TextStyle.FULL, ru)} ${picked.year}, " +
+                    "${picked.dayOfWeek.getDisplayName(TextStyle.SHORT, ru)}: " +
+                    (if (dv[0] < 60) "ничего" else "${formatTime(dv[0])} · ${words(dv[1])}\nчтение ${formatTime(dv[0] - dv[2])} · аудио ${formatTime(dv[2])}"),
+                Modifier.padding(top = 4.dp, bottom = 10.dp),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Box(Modifier.fillMaxWidth().horizontalScroll(scroll)) {
+                Canvas(
+                    Modifier
+                        .width(cell * weeks + gap * (weeks - 1))
+                        .height(top + cell * 7 + gap * 6)
+                        .pointerInput(firstMonday) {
+                            detectTapGestures { p ->
+                                val step = (cell + gap).toPx()
+                                val w = (p.x / step).toInt()
+                                val d = ((p.y - top.toPx()) / step).toInt()
+                                if (w in 0 until weeks && d in 0..6 && p.y >= top.toPx()) {
+                                    val day = firstMonday.plusDays((w * 7 + d).toLong())
+                                    if (!day.isAfter(now)) picked = day
+                                }
+                            }
+                        },
+                ) {
+                    val c = cell.toPx()
+                    val step = (cell + gap).toPx()
+                    val y0 = top.toPx()
+                    val r = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                    for (w in 0 until weeks) {
+                        // month name above the week where a month starts
+                        val monday = firstMonday.plusWeeks(w.toLong())
+                        if (monday.dayOfMonth <= 7 && w < weeks - 1) {
+                            val name = monday.month.getDisplayName(TextStyle.SHORT, ru).trimEnd('.')
+                            drawText(measurer, name, Offset(w * step, 0f), style = labelStyle.copy(color = labelColor))
+                        }
+                        for (d in 0..6) {
+                            val s = secs[w * 7 + d]
+                            if (s < 0) continue
+                            val o = Offset(w * step, y0 + d * step)
+                            drawRoundRect(shades[level(s)], o, Size(c, c), r)
+                            if (firstMonday.plusDays((w * 7 + d).toLong()) == picked)
+                                drawRoundRect(ring, o, Size(c, c), r, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+                        }
+                    }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("меньше ", style = labelStyle, color = labelColor)
+                shades.forEach { Box(Modifier.padding(horizontal = 1.5.dp).size(11.dp).background(it, androidx.compose.foundation.shape.RoundedCornerShape(2.dp))) }
+                Text(" больше · 15 / 30 / 60 мин", style = labelStyle, color = labelColor)
             }
         }
     }

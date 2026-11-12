@@ -7,6 +7,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- android v1.93: Statistics "Календарь активности" like GitHub's: 53 week columns (Monday on top), scrolls sideways, starts at today; shade by the day's total minutes (0 / <15 / <30 / <60 / 60+, primary at 30/50/75/100 %); month names above; tap a day -> its date, time, words, reading / audio; legend "меньше … больше". Android `Stats.kt` ActivityCalendar.
 - user's iPad notes 12.11.2026 (sync branch feedback/20261112-0330..0449-web.json; web: do them, set status/doneIn/reply in those files, then add a line "To do on Android" for the reader parts):
   1. 033007: the page slider's round thumb is cut off at the top (something overlaps it): show it whole.
   2. 044909: the page slider is too big / "hangs like a canopy": make it thin, maybe no visible thumb, keep the function.
