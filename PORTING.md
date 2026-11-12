@@ -7,6 +7,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's iPad notes 12.11.2026 (sync branch feedback/20261112-0330..0449-web.json; web: do them, set status/doneIn/reply in those files, then add a line "To do on Android" for the reader parts):
+  1. 033007: the page slider's round thumb is cut off at the top (something overlaps it): show it whole.
+  2. 044909: the page slider is too big / "hangs like a canopy": make it thin, maybe no visible thumb, keep the function.
+  3. 035006: reader ⋮ "Временно скрыть переводы": word highlights stay, the translations above words vanish; tapping a word fades its translation in for 5 s, then fades it out smoothly.
+  4. 035138: Оформление: a setting for the gap between the text line and the translation above it (to try a smaller gap; may be removed later).
+  5. 035524: a list of the lesson's words marked with a translation (word + translation, tap jumps to its sentence), inside the lesson; and give the lesson AI chat these words as context.
+  6. 040714: microphone in the AI chat: dictate, the speech is recognised and sent at once, the answer comes back fast (own quick menu / setting like the lesson's quick translation). Implement if simple, else discuss with the user.
+
 ## To do on Android
 
 ## Done
