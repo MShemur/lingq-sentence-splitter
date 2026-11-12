@@ -9,6 +9,7 @@ import type { Course } from '../lingq'
 import { lang } from '../settings'
 import { Dialog, IconButton, Menu, MenuItem, Spinner, TopBar } from '../ui'
 import { log } from '../applog'
+import { WordStatsSession } from '../wordstats'
 import { Cover, plural } from './Library'
 
 /** ⋮ on the course screen. */
@@ -24,6 +25,7 @@ export function CourseMenu({ s }: { s: LessonsScreen }) {
       {open && (
         <Menu onClose={close}>
           <MenuItem icon="edit" onClick={() => { close(); setDlg('edit') }}>Изменить курс</MenuItem>
+          <MenuItem icon="chart" onClick={() => { close(); go({ k: 'wordStats', ws: new WordStatsSession(s.lang, { ...c, title: s.title.value || c.title }) }) }}>Слова по урокам</MenuItem>
           {archived
             ? <MenuItem icon="history" onClick={() => { close(); restoreCourse(s.lang, c.id); say('Курс снова в библиотеке') }}>Вернуть из архива</MenuItem>
             : <MenuItem icon="library" onClick={() => { close(); archiveCourse(s.lang, { ...c, title: s.title.value }); say('Курс убран в архив (⋮ в библиотеке)'); back() }}>В архив</MenuItem>}

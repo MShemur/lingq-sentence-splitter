@@ -913,3 +913,26 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 /* key fields are tiny login forms for the password manager: the user name is there but not shown */
 .pm-user { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
 .field .pm-save { align-self: flex-start; padding-left: 0; font-size: 13px; }
+/* "Слова по урокам" */
+.wstats { display: flex; flex-direction: column; gap: 12px; }
+.wstats > .btn { align-self: flex-start; }
+.ws-prog { height: 4px; border-radius: 2px; background: var(--secondary-container); overflow: hidden; }
+.ws-prog > div { height: 100%; background: var(--primary); transition: width 0.3s; }
+.ws-summary { background: var(--primary-container); color: var(--on-primary-container); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 2px; }
+.ws-when { margin-top: 6px; }
+.ws-scroll { overflow-x: auto; margin-top: 6px; }
+.ws-scroll svg { display: block; cursor: pointer; }
+.ws-bar { fill: var(--primary); }
+.ws-lbl { font-size: 10px; fill: var(--on-surface-variant); }
+.ws-lbl.on { fill: var(--primary); font-weight: 600; }
+.ws-base { fill: var(--outline-variant); }
+.ws-area { fill: color-mix(in srgb, var(--primary) 12%, transparent); }
+.ws-line { fill: none; stroke: var(--primary); stroke-width: 2; }
+.ws-dot-bg { fill: var(--surface-c); }
+.ws-dot { fill: var(--primary); }
+.ws-details { display: flex; flex-direction: column; gap: 4px; }
+.ws-title { font-weight: 600; }
+.ws-sub { font-size: 13px; font-weight: 500; margin-top: 4px; }
+.ws-details .chip { cursor: default; }
+.ws-course { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; border: none; border-bottom: 1px solid var(--outline-variant); background: none; color: inherit; font: inherit; padding: 12px 4px; cursor: pointer; }
+.ws-done { font-size: 13px; color: var(--primary); }

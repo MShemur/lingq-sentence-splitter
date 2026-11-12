@@ -7,6 +7,7 @@ import type { ReaderSession } from './reader/session'
 import type { ChatSession } from './chat'
 import type { ImportSession } from './importer/session'
 import type { PodcastSession } from './importer/podcasts'
+import type { WordStatsSession } from './wordstats'
 import { positions } from './progress'
 import { log, logError } from './applog'
 import { listenHooks, type Track } from './audio'
@@ -44,6 +45,8 @@ export type Screen =
   | { k: 'stats' }
   | { k: 'archive' }
   | { k: 'feedback' }
+  | { k: 'wordStats'; ws: WordStatsSession }
+  | { k: 'wordStatsPick' }
   | { k: 'log' }
   | { k: 'player' }
   | { k: 'settingsReading' }

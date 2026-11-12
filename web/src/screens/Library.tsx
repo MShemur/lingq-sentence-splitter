@@ -141,6 +141,7 @@ export function CoursesScreen() {
                   <MenuItem icon="library" onClick={() => { setMenu(false); go({ k: 'archive' }) }}>
                     Архив курсов{archived ? ` (${archived})` : ''}
                   </MenuItem>
+                  <MenuItem icon="chart" onClick={() => { setMenu(false); go({ k: 'wordStatsPick' }) }}>Слова по урокам курса…</MenuItem>
                   <MenuItem icon="chat" onClick={() => { setMenu(false); go({ k: 'feedback' }) }}>Отзыв / задача</MenuItem>
                 </Menu>
               )}
