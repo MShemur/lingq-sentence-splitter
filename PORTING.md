@@ -12,6 +12,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## Done
 
+- web v1.45: key / password fields are tiny login forms (hidden user name 'SatzLoop: <label>', password autocomplete=current-password) with a button 'Сохранить в менеджер паролей' (form submit), so Chrome's Google Password Manager / iCloud Keychain on the iPad can save the keys and offer them above the keyboard. Nothing to do on Android (it has Credential Manager since v1.88); listed only so the platforms stay in step.
 - web v1.44 -> android v1.94 (user's iPad notes 12.11.2026, do on Android too): 1) the page slider on top is a thin line (3 dp) with a
   small dot, nothing overlaps it; 2) reader ⋮ "Временно скрыть переводы" / "Показать переводы над словами": word
   highlights stay, translations above words go invisible (space kept); a tap on a translated word shows its translation

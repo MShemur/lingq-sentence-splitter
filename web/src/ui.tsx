@@ -133,24 +133,36 @@ export function ClearX(p: { value: string; onClear: () => void }) {
   ) : null
 }
 
+/**
+ * A key / password field. It is a small login form (hidden user name = the field's label), so the browser's password
+ * manager (Google in Chrome, iCloud Keychain in Safari) can offer to save the key on "Сохранить в менеджер паролей"
+ * and to fill it in later from its suggestions above the keyboard.
+ */
 export function SecretField(p: { label: string; value: string; onInput: (v: string) => void }) {
   const [show, setShow] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [saved, setSaved] = useState(false)
   const copy = () => {
     navigator.clipboard?.writeText(p.value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) }, () => { /* no clipboard */ })
   }
+  const user = `SatzLoop: ${p.label}`
   return (
-    <label class="field">
-      <span class="field-label">{p.label}</span>
+    <form class="field" method="post" action="#" autocomplete="on"
+      onSubmit={(e) => { e.preventDefault(); setSaved(true); setTimeout(() => setSaved(false), 8000) }}>
+      <label class="field-label" for={'k-' + user}>{p.label}</label>
+      <input class="pm-user" type="text" name="username" autocomplete="username" value={user} readOnly tabIndex={-1} aria-hidden="true" />
       <div class="field-row">
-        <input
-          type={show ? 'text' : 'password'} value={p.value} autocomplete="off" autocapitalize="off" spellcheck={false}
+        <input id={'k-' + user} name="password"
+          type={show ? 'text' : 'password'} value={p.value} autocomplete="current-password" autocapitalize="off" spellcheck={false}
           onInput={(e) => p.onInput((e.target as HTMLInputElement).value)}
         />
         {!!p.value && <button class="btn text" type="button" onClick={copy}>{copied ? 'Скопировано' : 'Копировать'}</button>}
         <button class="btn text" type="button" onClick={() => setShow(!show)}>{show ? 'Скрыть' : 'Показать'}</button>
       </div>
-    </label>
+      {!!p.value && (
+        <button class="btn text pm-save" type="submit">{saved ? 'Если браузер спросил — нажмите «Сохранить»' : 'Сохранить в менеджер паролей'}</button>
+      )}
+    </form>
   )
 }
 

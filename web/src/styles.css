@@ -910,3 +910,6 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .cal-cell.picked { outline: 2px solid var(--on-surface); outline-offset: 1px; }
 .cal-legend { display: flex; align-items: center; justify-content: flex-end; gap: 3px; font-size: 11px; color: var(--outline); margin-top: 4px; }
 .cal-legend .cal-cell { cursor: default; }
+/* key fields are tiny login forms for the password manager: the user name is there but not shown */
+.pm-user { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+.field .pm-save { align-self: flex-start; padding-left: 0; font-size: 13px; }
