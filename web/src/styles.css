@@ -242,7 +242,7 @@ div.list-item { cursor: default; }
 /* no spare room at the top and bottom: translations do not re-lay the pages, a page that grows scrolls */
 .reader-text.measurer, .reader-text.page-text { padding-top: 6px; padding-bottom: 6px; }
 .page-text > .para:last-child { margin-bottom: 0; }
-.reader-progress { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--outline); }
+.reader-progress { display: flex; flex-direction: column; align-items: center; gap: 0; font-size: 11px; color: var(--outline); }
 .reader-hint { font-size: 13px; line-height: 1.4; color: var(--outline); margin: 0 0 14px; }
 .para { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .flow { display: flex; flex-wrap: wrap; align-items: flex-end; row-gap: 2px; }
@@ -254,6 +254,7 @@ div.list-item { cursor: default; }
 .w.picked { background: color-mix(in srgb, var(--primary) 28%, transparent); }
 .pin {
   font-size: 0.6em; line-height: 1.13; color: var(--green); font-weight: 500; text-align: center; padding: 0 1px;
+  margin-bottom: var(--pin-gap, 0px);
   max-width: 11em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .pin.prov { color: var(--outline); }
@@ -848,18 +849,18 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .chip-row.pad-x { padding: 0 16px; margin-bottom: 12px; }
 /* page mode: the progress line is a slider */
 .page-slider {
-  -webkit-appearance: none; appearance: none; width: 170px; height: 22px; margin: -8px 0; background: transparent; touch-action: none;
+  -webkit-appearance: none; appearance: none; width: 170px; height: 18px; margin: 0; background: transparent; touch-action: none;
 }
 .page-slider::-webkit-slider-runnable-track {
-  height: 6px; border-radius: 3px;
-  background: linear-gradient(to right, var(--primary) var(--p), var(--secondary-container) var(--p));
+  height: 3px; border-radius: 2px;
+  background: linear-gradient(to right, var(--primary) var(--p), var(--outline-variant) var(--p));
 }
-.page-slider::-moz-range-track { height: 6px; border-radius: 3px; background: var(--secondary-container); }
-.page-slider::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--primary); }
+.page-slider::-moz-range-track { height: 3px; border-radius: 2px; background: var(--outline-variant); }
+.page-slider::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--primary); }
 .page-slider::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 18px; height: 18px; margin-top: -6px; border-radius: 50%; background: var(--primary); border: none;
+  -webkit-appearance: none; width: 9px; height: 9px; margin-top: -3px; border-radius: 50%; background: var(--primary); border: none;
 }
-.page-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--primary); border: none; }
+.page-slider::-moz-range-thumb { width: 9px; height: 9px; border-radius: 50%; background: var(--primary); border: none; }
 .btn.text.danger { color: var(--error); }
 .course-edit { display: flex; flex-direction: column; gap: 14px; }
 .course-edit-cover { display: flex; align-items: center; gap: 14px; }
@@ -884,3 +885,28 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .clearable input { flex: 1; min-width: 0; padding-right: 40px; }
 .clearable input::-webkit-search-cancel-button { display: none; }
 .clear-x { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: none; background: transparent; color: var(--outline); padding: 6px; border-radius: 50%; display: flex; cursor: pointer; }
+/* "Временно скрыть переводы": the highlight stays, the translation fades; a tap shows it for 5 s */
+.pins-hidden .pin { opacity: 0; transition: opacity 0.9s ease; }
+.pins-hidden .pin.peek { opacity: 1; transition: opacity 0.3s ease; }
+.pin-preview { padding: 12px 16px; max-width: none; margin: 0; }
+.pinned-list { display: flex; flex-direction: column; max-height: 60vh; overflow-y: auto; margin: 0 -8px; }
+.pinned-row { display: flex; gap: 12px; align-items: baseline; text-align: left; border: none; background: none; color: inherit; font: inherit; padding: 9px 8px; border-radius: 8px; cursor: pointer; }
+.pinned-row:hover { background: var(--surface-ch); }
+.pinned-row b { font-weight: 600; }
+.pinned-row span { color: var(--on-surface-variant); }
+.fab-send.mic.on { background: var(--error); color: #fff; }
+.rec-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--error); animation: rec 1s infinite alternate; }
+@keyframes rec { from { opacity: 1 } to { opacity: 0.3 } }
+.cal-scroll { overflow-x: auto; padding: 4px 0; }
+.cal { display: inline-flex; gap: 3px; }
+.cal-col { display: flex; flex-direction: column; gap: 3px; }
+.cal-m { height: 14px; width: 12px; font-size: 10px; color: var(--outline); white-space: nowrap; overflow: visible; }
+.cal-cell { display: inline-block; width: 12px; height: 12px; border-radius: 2px; border: none; padding: 0; background: var(--surface-variant); cursor: pointer; }
+.cal-cell.future { visibility: hidden; }
+.cal-cell.l1 { background: color-mix(in srgb, var(--primary) 30%, transparent); }
+.cal-cell.l2 { background: color-mix(in srgb, var(--primary) 50%, transparent); }
+.cal-cell.l3 { background: color-mix(in srgb, var(--primary) 75%, transparent); }
+.cal-cell.l4 { background: var(--primary); }
+.cal-cell.picked { outline: 2px solid var(--on-surface); outline-offset: 1px; }
+.cal-legend { display: flex; align-items: center; justify-content: flex-end; gap: 3px; font-size: 11px; color: var(--outline); margin-top: 4px; }
+.cal-legend .cal-cell { cursor: default; }

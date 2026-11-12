@@ -1,5 +1,5 @@
 // Statistics: today, this week / month / year, streak, minutes per day for two weeks. Port of Android StatsScreen.
-import { useState } from 'preact/hooks'
+import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { back } from '../app'
 import { IconButton, TopBar } from '../ui'
 import { Icon } from '../icons'
@@ -38,6 +38,7 @@ export function StatsScreen() {
             <Period title="Год" v={year} />
           </div>
           <DaysChart now={now} />
+          <ActivityCalendar now={now} />
           <p class="hint">
             Чтение считается, пока открыт урок и вы касаетесь экрана; если 3 минуты ничего не происходит, счёт стоит.
             Аудио — пока играет урок в плеере. Общее время — сумма.
@@ -97,6 +98,49 @@ function DaysChart({ now }: { now: Date }) {
         {dates.map((x, i) => <span key={i}>{i % 2 === 1 || i === dates.length - 1 ? x.getDate() : ''}</span>)}
       </div>
       <MiniPlayer />
+    </div>
+  )
+}
+
+/** A year of days like GitHub's: week columns (Monday on top), shade by the day's minutes; tap a day for its numbers. */
+function ActivityCalendar({ now }: { now: Date }) {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const start = new Date(today)
+  start.setDate(today.getDate() - ((today.getDay() + 6) % 7) - 52 * 7)
+  const weeks = Array.from({ length: 53 }, (_, w) => Array.from({ length: 7 }, (_, d) => {
+    const x = new Date(start); x.setDate(start.getDate() + w * 7 + d); return x
+  }))
+  const [picked, setPicked] = useState<Date>(today)
+  const box = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => { const el = box.current; if (el) el.scrollLeft = el.scrollWidth }, [])
+  const level = (sec: number) => { const m = sec / 60; return m <= 0 ? 0 : m < 15 ? 1 : m < 30 ? 2 : m < 60 ? 3 : 4 }
+  const pv = dayOf(picked)
+  const same = (a: Date, b: Date) => a.getTime() === b.getTime()
+  return (
+    <div class="stat-chart">
+      <div class="stat-chart-head"><div class="stat-chart-title">Календарь активности</div></div>
+      <div class="stat-small">
+        {picked.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}: {formatTime(pv[0])} · {wordsText(pv[1])}
+        {pv[0] > 0 && ` · чтение ${formatTime(pv[0] - pv[2])}, аудио ${formatTime(pv[2])}`}
+      </div>
+      <div class="cal-scroll" ref={box}>
+        <div class="cal">
+          {weeks.map((col, w) => {
+            const m = col[0].getMonth()
+            const label = w > 0 && weeks[w - 1][0].getMonth() !== m ? col[0].toLocaleDateString('ru-RU', { month: 'short' }).replace('.', '') : ''
+            return (
+              <div class="cal-col" key={w}>
+                <span class="cal-m">{label}</span>
+                {col.map((d, i) => d > today ? <span key={i} class="cal-cell future" /> : (
+                  <button key={i} class={`cal-cell l${level(dayOf(d)[0])}` + (same(d, picked) ? ' picked' : '')}
+                    aria-label={d.toLocaleDateString('ru-RU')} onClick={() => setPicked(d)} />
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div class="cal-legend">меньше {[0, 1, 2, 3, 4].map((l) => <span key={l} class={`cal-cell l${l}`} />)} больше</div>
     </div>
   )
 }

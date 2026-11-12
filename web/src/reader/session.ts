@@ -141,6 +141,13 @@ export class ReaderSession {
   pins = signal<Record<WordRef, string>>({})
   /** Pins that show LingQ's quick guess while Gemini is still thinking. */
   provisional = signal<Record<WordRef, true>>({})
+  /** "Временно скрыть переводы": highlights stay, the translations above words are invisible. */
+  pinsHidden = signal(false)
+  /** While hidden: translations (word refs / phrase keys) shown for a moment after a tap. */
+  peek = signal<Record<string, true>>({})
+  private peekTimers: Record<string, number> = {}
+  /** "Слова с переводом" list is open. */
+  wordsOpen = signal(false)
   /** Meaning chosen for a word (lower case) in this lesson. */
   chosen = signal<Record<string, string>>({})
   retranslating = signal<Record<number, true>>({})
@@ -291,6 +298,30 @@ export class ReaderSession {
     const phrases: Record<string, string> = {}
     for (const [k, v] of Object.entries(this.phrasePins.value)) if (v && !v.startsWith('⚠')) phrases[k] = v
     try { localStorage.setItem(this.notesKey, JSON.stringify({ pins, words: this.chosen.value, phrases, t: Date.now() })) } catch { /* ignore */ }
+  }
+
+  /** While translations are hidden: shows the one of [k] (a word or a phrase) for 5 s, then it fades out. */
+  peekAt(k: string) {
+    put(this.peek, k, true)
+    clearTimeout(this.peekTimers[k])
+    this.peekTimers[k] = window.setTimeout(() => { drop(this.peek, k); delete this.peekTimers[k] }, 5000)
+  }
+
+  /** Words and phrases with a translation above them, in text order (for the list and the chat). */
+  pinnedList(): { key: string; sent: number; word: string; tr: string }[] {
+    const out: { key: string; sent: number; word: string; tr: string; at: number }[] = []
+    const ok = (v: string) => !!v && !v.startsWith('⚠')
+    for (const [k, v] of Object.entries(this.pins.value)) {
+      if (!ok(v) || this.provisional.value[k]) continue
+      out.push({ key: k, sent: refSent(k), word: this.word(k), tr: v, at: this.indexOf(refSent(k)) * 10000 + refToken(k) })
+    }
+    for (const [k, v] of Object.entries(this.phrasePins.value)) {
+      if (!ok(v)) continue
+      const [s, f, e] = phraseParts(k)
+      const words = (this.sentById.get(s)?.tokens ?? []).filter((t) => t.isWord && t.index >= f && t.index <= e).map((t) => t.text).join(' ')
+      out.push({ key: k, sent: s, word: words, tr: v, at: this.indexOf(s) * 10000 + f })
+    }
+    return out.sort((a, b) => a.at - b.at).map((x) => ({ key: x.key, sent: x.sent, word: x.word, tr: x.tr }))
   }
 
   clearPins() { this.pins.value = {}; this.provisional.value = {}; this.phrasePins.value = {}; this.persist() }
@@ -707,9 +738,12 @@ export class ReaderSession {
     log('reader', `Нажатие «${this.word(r)}» (предл. ${refSent(r)})`)
     this.focusSent = refSent(r)
     const pk = this.phraseKeyAt(r)
-    if (pk) { drop(this.phrasePins, pk); this.persist(); return }
-    if (r in this.pins.value) { drop(this.pins, r); drop(this.provisional, r); this.persist(); return }
+    const hidden = this.pinsHidden.value
+    // translations hidden: a tap on a translated word shows its translation for a moment instead of removing it
+    if (pk) { if (hidden) this.peekAt(pk); else { drop(this.phrasePins, pk); this.persist() } return }
+    if (r in this.pins.value) { if (hidden) this.peekAt(r); else { drop(this.pins, r); drop(this.provisional, r); this.persist() } return }
     put(this.pins, r, '')
+    if (hidden) this.peekAt(r)
     const saved = this.chosen.value[this.word(r).toLowerCase()]
     if (saved) { put(this.pins, r, saved); this.persist(); return }
     if (!useGemini()) {
@@ -974,7 +1008,10 @@ export class ReaderSession {
 
   chatText() {
     const text = (this.paragraphs.value ?? []).map((p) => p.map((s) => s.text).join(' ')).join('\n\n')
-    const sys = fill(prompt.chatText(), { lang: this.lang, target: this.target, text })
+    const marked = this.pinnedList()
+    const sys = fill(prompt.chatText(), { lang: this.lang, target: this.target, text }) + (marked.length
+      ? `\n\nСлова, которые ученик отметил в этом уроке (слово — перевод), учитывай их в ответах:\n${marked.map((m) => `- ${m.word} — ${m.tr}`).join('\n')}`
+      : '')
     go({ k: 'chat', c: new ChatSession('Чат о тексте', sys, this.title.value, 'text') })
   }
 

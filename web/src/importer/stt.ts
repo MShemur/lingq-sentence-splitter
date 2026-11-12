@@ -222,7 +222,7 @@ async function whisper(service: string, key: string, model: string, lang: string
   const f = new FormData()
   f.append('file', body, name)
   f.append('model', model)
-  f.append('language', lang)
+  if (lang) f.append('language', lang)
   f.append('response_format', 'verbose_json')
   f.append('timestamp_granularities[]', 'word')
   f.append('timestamp_granularities[]', 'segment')

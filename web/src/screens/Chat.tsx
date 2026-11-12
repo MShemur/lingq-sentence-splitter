@@ -53,6 +53,8 @@ export function ChatScreen({ c }: { c: ChatSession }) {
               {m.user ? m.text : <Markdown text={m.text} />}
             </div>
           ))}
+          {c.recording.value && <div class="typing"><span class="rec-dot" /> Говорите… нажмите ещё раз — вопрос уйдёт сразу</div>}
+          {c.hearing.value && <div class="typing"><Spinner size={18} /> Распознаю вопрос…</div>}
           {sending && <div class="typing"><Spinner size={18} /> {aiName()} пишет…</div>}
           {c.error.value && (
             <div class="chat-error">
@@ -74,9 +76,16 @@ export function ChatScreen({ c }: { c: ChatSession }) {
           }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void c.send() } }}
         />
-        <button class="fab-send" type="submit" aria-label="Отправить" disabled={sending || !c.input.value.trim()}>
-          <Icon name="send" />
-        </button>
+        {c.input.value.trim() ? (
+          <button class="fab-send" type="submit" aria-label="Отправить" disabled={sending}>
+            <Icon name="send" />
+          </button>
+        ) : (
+          <button class={'fab-send mic' + (c.recording.value ? ' on' : '')} type="button" disabled={sending || c.hearing.value}
+            aria-label={c.recording.value ? 'Отправить голосом' : 'Спросить голосом'} onClick={() => void c.toggleVoice()}>
+            {c.hearing.value ? <Spinner size={20} /> : <Icon name={c.recording.value ? 'send' : 'mic'} />}
+          </button>
+        )}
       </form>
     </div>
   )

@@ -305,6 +305,16 @@ export function SettingsReading() {
       <div class="hl-preview" style={page}>
         Er las das <span class="hl-word"><span style={{ color: c.text }}>книгу</span><span style={{ background: c.bg }}>Buch</span></span> bis zum Ende.
       </div>
+      <h3 class="section-title">Перевод над словом</h3>
+      <p class="hint">Расстояние между переводом и словом под ним.</p>
+      <div class="chips">
+        {[['-6', 'Вплотную'], ['-4', 'Ближе'], ['-2', 'Чуть ближе'], ['0', 'Обычно'], ['3', 'Дальше']].map(([v, label]) => (
+          <Chip key={v} label={label} selected={(prefs.pinGap.value || '0') === v} onClick={() => { prefs.pinGap.value = v }} />
+        ))}
+      </div>
+      <div class="hl-preview reader-text pin-preview" style={{ ...page, '--pin-gap': (Number(prefs.pinGap.value) || 0) + 'px', '--green': c.text, '--green-bg': c.bg } as any}>
+        Er las das <span class="w sel"><span class="pin">книгу</span><span class="wt">Buch</span></span> bis zum Ende.
+      </div>
       <h3 class="section-title">Экран не гаснет при чтении</h3>
       {KEEP_AWAKE.map(([k, label]) => (
         <label key={k} class="radio-row">

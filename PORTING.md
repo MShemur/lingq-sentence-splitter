@@ -7,19 +7,35 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-- android v1.93: Statistics "Календарь активности" like GitHub's: 53 week columns (Monday on top), scrolls sideways, starts at today; shade by the day's total minutes (0 / <15 / <30 / <60 / 60+, primary at 30/50/75/100 %); month names above; tap a day -> its date, time, words, reading / audio; legend "меньше … больше". Android `Stats.kt` ActivityCalendar.
-- user's iPad notes 12.11.2026 (sync branch feedback/20261112-0330..0449-web.json; web: do them, set status/doneIn/reply in those files, then add a line "To do on Android" for the reader parts):
+## To do on Android
+
+- web v1.44 (user's iPad notes 12.11.2026, do on Android too): 1) the page slider on top is a thin line (3 dp) with a
+  small dot, nothing overlaps it; 2) reader ⋮ "Временно скрыть переводы" / "Показать переводы над словами": word
+  highlights stay, translations above words go invisible (space kept); a tap on a translated word shows its translation
+  for 5 s, then it fades out (~1 s); a tap on a new word pins it and shows it the same way; 3) Reading settings
+  "Перевод над словом": gap between a translation and its word, chips Вплотную -6 / Ближе -4 / Чуть ближе -2 / Обычно 0 /
+  Дальше +3 (px/dp) with a sample; 4) reader ⋮ "Слова с переводом (N)": words and phrases with a translation, in text
+  order, tap jumps to the sentence; the chat about the text gets this list ("слово — перевод") in its system prompt;
+  5) AI chat: with an empty input the send button is a microphone: tap = record, tap again = recognise (the chosen
+  speech service; Whisper without a language) and send at once, answered by the light / fast model. Web: Reader.tsx,
+  session.ts, chat.ts, Chat.tsx, Settings.tsx.
+
+## Done
+
+- android v1.93 -> web v1.44: Statistics "Календарь активности" like GitHub's: 53 week columns (Monday on top), scrolls sideways, starts at today; shade by the day's total minutes (0 / <15 / <30 / <60 / 60+, primary at 30/50/75/100 %); month names above; tap a day -> its date, time, words, reading / audio; legend "меньше … больше". Android `Stats.kt` ActivityCalendar. Web: `screens/Stats.tsx` ActivityCalendar.
+- web v1.44: user's iPad notes 12.11.2026 (sync branch feedback/20261112-0330..0449-web.json; web: do them, set status/doneIn/reply in those files, then add a line "To do on Android" for the reader parts):
   1. 033007: the page slider's round thumb is cut off at the top (something overlaps it): show it whole.
   2. 044909: the page slider is too big / "hangs like a canopy": make it thin, maybe no visible thumb, keep the function.
   3. 035006: reader ⋮ "Временно скрыть переводы": word highlights stay, the translations above words vanish; tapping a word fades its translation in for 5 s, then fades it out smoothly.
   4. 035138: Оформление: a setting for the gap between the text line and the translation above it (to try a smaller gap; may be removed later).
   5. 035524: a list of the lesson's words marked with a translation (word + translation, tap jumps to its sentence), inside the lesson; and give the lesson AI chat these words as context.
   6. 040714: microphone in the AI chat: dictate, the speech is recognised and sent at once, the answer comes back fast (own quick menu / setting like the lesson's quick translation). Implement if simple, else discuss with the user.
-
-## To do on Android
-
-## Done
-
+  Web v1.44: all six done, statuses / replies written to the feedback files. Slider: 3 px line, 9 px dot, no negative
+  margin. Hide: reader ⋮ toggle, `.pins-hidden .pin` opacity 0 (0.9 s), a tap on a translated word / phrase peeks it
+  for 5 s (`ReaderSession.peek`, `peekAt`); a tap on a new word pins it and peeks. Gap: pref `pinGap` (px, -6..3) ->
+  `--pin-gap` margin under `.pin`. Words: reader ⋮ "Слова с переводом (N)" (`pinnedList`, `PinnedWordsDialog`), chat
+  about the text gets the list appended to its system prompt. Mic: `ChatSession.toggleVoice` (MediaRecorder ->
+  the chosen speech service, Whisper without a language = auto-detect -> sent at once, answered by the light model).
 - android v1.88 -> web v1.43: × clears the search fields (courses, podcasts); key / password fields get a copy button; the import result (finish screen and background job) says whether the podcast's transcript / text was taken or the text did not match the speech; episode row says "есть текст (без времени)". Password manager and foreground service are Android-only. Web: `ui.tsx` (ClearX, SecretField copy), `session.ts` textNote.
 - android v1.84 -> web v1.41: "Отзыв / задача" (Settings and library ⋮): the user writes a note for Claude; it is saved as `feedback/<yyyyMMdd-HHmmss>-<device>.json` on the `sync` branch via the contents API with the sync token ({t, device: "android"|"web", version, text, status: "new", log?}). The screen lists the latest notes of both devices with status (new / work / done + `doneIn` / no) and Claude's `reply`. Optional "Приложить журнал". Android `Feedback.kt`.
 

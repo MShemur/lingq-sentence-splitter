@@ -70,7 +70,7 @@ const ACCENT_DARK = {
 export function readerStyle(): JSX.CSSProperties {
   const t = themeOf(prefs.readerTheme.value)
   const hl = highlightColors(prefs.highlight.value, darkPage())
-  const out: Record<string, string> = { '--green': hl.text, '--green-bg': hl.bg }
+  const out: Record<string, string> = { '--green': hl.text, '--green-bg': hl.bg, '--pin-gap': (Number(prefs.pinGap.value) || 0) + 'px' }
   if (t) {
     const mix = (f: number) => `color-mix(in srgb, ${t.fg} ${f * 100}%, ${t.bg})`
     Object.assign(out, t.dark ? ACCENT_DARK : ACCENT_LIGHT, {

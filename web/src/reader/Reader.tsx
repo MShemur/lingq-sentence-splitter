@@ -184,7 +184,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
   useReadingTimer(active && !!paras)
   useKeepAwake(active)
   return (
-    <div class="screen reader" style={readerStyle()}>
+    <div class={'screen reader' + (s.pinsHidden.value ? ' pins-hidden' : '')} style={readerStyle()}>
       <TopBar
         center
         nav={<IconButton icon="close" label="Закрыть урок" onClick={back} />}
@@ -207,6 +207,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
       <SentenceOverlay s={s} />
       {!docked() && s.popup.value && <WordSheet s={s} r={s.popup.value} />}
       {!docked() && s.phrase.value && <PhraseSheet s={s} />}
+      {s.wordsOpen.value && <PinnedWordsDialog s={s} />}
       {s.bookmarksOpen.value && <LessonBookmarksDialog s={s} onClose={() => { s.bookmarksOpen.value = false }} />}
       {s.editing.value != null && <SentenceEditDialog s={s} id={s.editing.value} />}
       {s.levelResult.value && (
@@ -252,6 +253,12 @@ function ReaderActions({ s }: { s: ReaderSession }) {
             <MenuItem onClick={() => s.changeFont(+2)}>Шрифт крупнее&nbsp; A+</MenuItem>
             <MenuItem onClick={() => s.changeFont(-2)}>Шрифт мельче&nbsp; A−</MenuItem>
             <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
+            {pinCount > 0 && <MenuItem icon="list" onClick={() => { close(); s.wordsOpen.value = true }}>Слова с переводом ({pinCount})</MenuItem>}
+            {(pinCount > 0 || s.pinsHidden.value) && (
+              <MenuItem icon="translate" onClick={() => { close(); s.pinsHidden.value = !s.pinsHidden.value; s.peek.value = {} }}>
+                {s.pinsHidden.value ? 'Показать переводы над словами' : 'Временно скрыть переводы'}
+              </MenuItem>
+            )}
             {pinCount > 0 && <MenuItem onClick={() => { s.clearPins(); close() }}>Снять переводы над словами ({pinCount})</MenuItem>}
             <hr />
             <div class="menu-group">Помощь</div>
@@ -541,6 +548,7 @@ type PhrasePin = { from: number; to: number; text: string }
 /** What one sentence shows besides its words; [sig] sums it up, so a sentence re-renders only when its part changes. */
 interface SentState {
   pins: Record<string, string>
+  peek: Record<string, true>
   prov: Record<string, true>
   popup: WordRef | null
   sel: { from: number; to: number } | null
@@ -549,7 +557,7 @@ interface SentState {
   sig: string
 }
 
-const NO_STATE: SentState = { pins: {}, prov: {}, popup: null, sel: null, phrases: [], marked: false, sig: '' }
+const NO_STATE: SentState = { pins: {}, peek: {}, prov: {}, popup: null, sel: null, phrases: [], marked: false, sig: '' }
 
 /**
  * The words of [sents] flowing as one text, with pinned translations above words / phrases.
@@ -564,6 +572,7 @@ export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sen
   const prov = s.provisional.value
   const popup = s.popup.value
   const sel = s.sel.value
+  const peekAll = s.peek.value
   void s.phrasePins.value
   const ids = new Set(sents.map((x) => x.id))
   const by = new Map<number, { pins: Record<string, string>; prov: Record<string, true> }>()
@@ -585,15 +594,17 @@ export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sen
         const sl = sel && sel.sent === sent.id ? { from: sel.from, to: sel.to } : null
         const phrases = s.phrasesIn(sent.id)
         const marked = s.isBookmarked(sent.id)
-        const sig = JSON.stringify([pp, Object.keys(pv), pu, sl, phrases, marked])
-        return <SentView key={sent.id} s={s} sent={sent} st={{ pins: pp, prov: pv, popup: pu, sel: sl, phrases, marked, sig }} />
+        const pk: Record<string, true> = {}
+        for (const k in peekAll) if (refSent(k) === sent.id) pk[k] = true
+        const sig = JSON.stringify([pp, Object.keys(pv), pu, sl, phrases, marked, Object.keys(pk)])
+        return <SentView key={sent.id} s={s} sent={sent} st={{ pins: pp, peek: pk, prov: pv, popup: pu, sel: sl, phrases, marked, sig }} />
       })}
     </div>
   )
 }
 
 const SentView = memo(function SentView({ s, sent, st, plain }: { s: ReaderSession; sent: Sent; st: SentState; plain?: boolean }) {
-  const { pins, prov, popup, sel, phrases: phr } = st
+  const { pins, peek, prov, popup, sel, phrases: phr } = st
   const picked = (i: number) => !!sel && i >= sel.from && i <= sel.to
 
   /** One chunk (a word with its punctuation); [ph]: the pinned phrase it belongs to. */
@@ -611,7 +622,7 @@ const SentView = memo(function SentView({ s, sent, st, plain }: { s: ReaderSessi
         const selected = tr !== undefined || popup === r || inPhrase
         return (
           <span class={'w' + (selected ? ' sel' : '') + (pk ? ' picked' : '')} data-w={r}>
-            {tr !== undefined && <span class={'pin' + (prov[r] ? ' prov' : '')}>{tr || '…'}</span>}
+            {tr !== undefined && <span class={'pin' + (prov[r] ? ' prov' : '') + (peek[r] ? ' peek' : '')}>{tr || '…'}</span>}
             <span class="wt">{t.text}</span>
           </span>
         )
@@ -632,7 +643,7 @@ const SentView = memo(function SentView({ s, sent, st, plain }: { s: ReaderSessi
     while (j < ch.length && phraseOf(ch[j]) === ph) j++
     out.push(
       <span class="phrase" key={'p' + i}>
-        <span class="pin phrase-pin">{ph.text || '…'}</span>
+        <span class={'pin phrase-pin' + (peek[`${sent.id}:${ph.from}:${ph.to}`] ? ' peek' : '')}>{ph.text || '…'}</span>
         <span class="phrase-words">{ch.slice(i, j).map((c, n) => chunkView(c, ph, i + n))}</span>
       </span>,
     )
@@ -704,6 +715,25 @@ function PageSlider({ s }: { s: ReaderSession }) {
     <input class="page-slider" type="range" min={0} max={n - 1} step={1} value={v} aria-label="Страница"
       style={{ '--p': (v / (n - 1)) * 100 + '%' } as JSX.CSSProperties}
       onInput={(e) => { s.textAnchor = null; s.textPage.value = Number((e.target as HTMLInputElement).value) }} />
+  )
+}
+
+/** The lesson's words with a translation above them; a tap goes to the word's sentence. */
+function PinnedWordsDialog({ s }: { s: ReaderSession }) {
+  const close = () => { s.wordsOpen.value = false }
+  const list = s.pinnedList()
+  return (
+    <Dialog title={`Слова с переводом (${list.length})`} onClose={close} actions={<button class="btn text" onClick={close}>Закрыть</button>}>
+      {!list.length ? <p class="hint">Нажмите на слово в тексте — перевод появится над ним и здесь.</p> : (
+        <div class="pinned-list">
+          {list.map((x) => (
+            <button key={x.key} class="pinned-row" onClick={() => { close(); s.jumpTo(x.sent) }}>
+              <b>{x.word}</b><span>{x.tr}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Dialog>
   )
 }
 
