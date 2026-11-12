@@ -42,6 +42,8 @@ sealed interface Screen {
     data object Backups : Screen
     data object Archive : Screen
     data object Feedback : Screen
+    /** New words per lesson of a course (course chosen in it when none is given). */
+    class WordStats(val ws: WordStatsScreenState) : Screen
     class Import(val session: ImportSession) : Screen
     class Check(val session: CheckSession) : Screen
 

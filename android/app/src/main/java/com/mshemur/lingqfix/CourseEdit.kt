@@ -77,6 +77,11 @@ fun CourseMenu(state: AppState, s: Screen.Lessons) {
                 onClick = { open = false; edit = true },
             )
             DropdownMenuItem(
+                text = { Text("Слова по урокам") },
+                leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
+                onClick = { open = false; state.go(Screen.WordStats(WordStatsScreenState(s.lang, s.course.copy(title = s.title)))) },
+            )
+            DropdownMenuItem(
                 text = { Text(if (archived) "Вернуть из архива" else "В архив") },
                 onClick = {
                     open = false
@@ -266,6 +271,11 @@ fun LibraryMenu(state: AppState) {
             DropdownMenuItem(
                 text = { Text("Архив курсов (${state.archivedCourses().size})") },
                 onClick = { open = false; state.go(Screen.Archive) },
+            )
+            DropdownMenuItem(
+                text = { Text("Слова по урокам курса…") },
+                leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
+                onClick = { open = false; state.go(Screen.WordStats(WordStatsScreenState(state.lang, null))) },
             )
             DropdownMenuItem(
                 text = { Text("Отзыв / задача") },

@@ -231,6 +231,7 @@ fun App(state: AppState) {
                     Screen.Backups -> BackupsScreen(state)
                     Screen.Archive -> ArchiveScreen(state)
                     Screen.Feedback -> FeedbackScreen(state)
+                    is Screen.WordStats -> WordStatsScreen(state, screen.ws)
                     is Screen.Lessons -> LessonsScreen(state, screen)
                     is Screen.Check -> CheckScreen(screen.session)
                     is Screen.Import -> ImportScreen(state, screen.session)
@@ -322,6 +323,7 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     Screen.Backups -> "Резервные копии"
     Screen.Archive -> "Архив курсов"
     Screen.Feedback -> "Отзыв / задача"
+    is Screen.WordStats -> "Слова по урокам"
     is Screen.Lessons -> s.title
     is Screen.Check -> s.session.label
     is Screen.Import -> "Загрузка в LingQ"

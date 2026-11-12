@@ -7,6 +7,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- android v1.95: "Слова по урокам" (course ⋮, and library ⋮ → choose a course): loads every lesson's text (editor), lemmatizes German offline with the lemmatization-lists dictionary (Michal Měchura, ODbL; packed as `android/app/src/main/assets/lemma-de.tsv.gz`, lines "lemma<TAB>form<TAB>form…", 1 MB; unknown word: longest known ending decides, "Bahnhofsuhren" -> "Bahnhofsuhr"; else counted as written); per lesson: new base forms not seen in earlier lessons, words in text, top 20 new; summary: unique words, words in text, lessons, first-lesson new, not in dictionary; bar chart new words per lesson (tap = details + top new words as chips), line chart unique words so far; result kept per course on the device, "Пересчитать". Other languages: no dictionary, each form counted. Android `WordStats.kt`.
 ## To do on Android
 
 
