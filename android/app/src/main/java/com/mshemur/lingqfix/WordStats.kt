@@ -106,7 +106,8 @@ class Lemmatizer private constructor(private val forms: HashMap<String, String>,
             val lm = direct(tail) ?: direct(cap) ?: continue
             return (w.substring(0, i) + lm.lowercase()) to true
         }
-        return w to false
+        // not in the dictionary (und, zu, names…): "Und" at a sentence start and "und" are one word
+        return low to false
     }
 }
 
