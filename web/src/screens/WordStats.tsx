@@ -1,14 +1,18 @@
 // "Слова по урокам": new words per lesson of a course (bars) and unique words so far (line). Port of Android WordStats.kt.
 import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { back, go, loadCourses, visibleCourses } from '../app'
-import { lang } from '../settings'
+import { lang, prefs } from '../settings'
 import { IconButton, Spinner, TopBar } from '../ui'
-import { loadResult, WordStatsSession, type WsResult } from '../wordstats'
+import { loadResult, without, WordStatsSession, type WsResult } from '../wordstats'
 
 const num = (n: number) => n.toLocaleString('ru-RU')
 
+const times = (n: number) => (n % 10 >= 2 && n % 10 <= 4 && !(n % 100 >= 12 && n % 100 <= 14) ? 'раза' : 'раз')
+
 export function WordStatsScreen({ ws }: { ws: WordStatsSession }) {
-  const r = ws.result.value
+  const raw = ws.result.value
+  const min = Number(prefs.wsMin.value) || 0
+  const [r, cut] = raw ? without(raw, min) : [null, 0]
   const [picked, setPicked] = useState(0)
   const p = r ? Math.min(picked, r.chapters.length - 1) : 0
   return (
@@ -35,7 +39,8 @@ export function WordStatsScreen({ ws }: { ws: WordStatsSession }) {
             </>
           )) : (
             <>
-              <Summary r={r} />
+              <RareSlider r={raw!} min={min} />
+              <Summary r={r} cut={cut} min={min} />
               <Chart title="Новые слова по урокам" note={`макс. ${num(Math.max(1, ...r.chapters.map((c) => c.new)))}`} r={r} picked={p} pick={setPicked} kind="bars" />
               <Details r={r} i={p} />
               <Chart title="Всего уникальных слов" note={`после урока ${p + 1}: ${num(r.chapters[p].total)} из ${num(r.unique)}`} r={r} picked={p} pick={setPicked} kind="line" />
@@ -54,12 +59,26 @@ export function WordStatsScreen({ ws }: { ws: WordStatsSession }) {
   )
 }
 
-function Summary({ r }: { r: WsResult }) {
+/** Words met at most N times in the whole course are not counted (typos, names, one-off words). */
+function RareSlider({ r, min }: { r: WsResult; min: number }) {
+  const ok = !!r.lemmas?.length
+  return (
+    <div class="ws-rare">
+      <div class="ws-title">{min === 0 ? 'Считаются все слова' : `Не считать слова, которые встретились ${min} ${times(min)} и реже`}</div>
+      <input type="range" min={0} max={10} step={1} value={min} disabled={!ok}
+        onInput={(e) => { prefs.wsMin.value = (e.target as HTMLInputElement).value }} />
+      {!ok && <p class="error-text small">Чтобы ползунок работал, нажмите «Пересчитать» внизу (этот курс посчитан старой версией).</p>}
+    </div>
+  )
+}
+
+function Summary({ r, cut, min }: { r: WsResult; cut: number; min: number }) {
   return (
     <div class="ws-summary">
       <div class="stat-label">Уникальных слов</div>
       <div class="stat-big">{num(r.unique)}</div>
       <div>всего слов в тексте {num(r.words)} · уроков {r.chapters.length}</div>
+      {cut > 0 && <div>отсечено редких слов (встретились {min} {times(min)} и реже): {num(cut)}</div>}
       {r.chapters[0] && <div>в первом уроке {num(r.chapters[0].new)} новых</div>}
       {r.lemmatized && r.unknown > 0 && <div class="stat-small">не найдено в словаре: {num(r.unknown)} (имена, редкие слова)</div>}
       <div class="stat-small ws-when">посчитано {new Date(r.t).toLocaleString('ru-RU', { day: 'numeric', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>

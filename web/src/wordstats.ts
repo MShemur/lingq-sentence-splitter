@@ -61,7 +61,33 @@ export class Lemmatizer {
 
 /** One lesson (chapter) of the count. */
 export interface WsChapter { id: number; title: string; words: number; new: number; total: number; top: string[] }
-export interface WsResult { t: number; chapters: WsChapter[]; unique: number; words: number; unknown: number; lemmatized: boolean }
+export interface WsResult {
+  t: number; chapters: WsChapter[]; unique: number; words: number; unknown: number; lemmatized: boolean
+  /** Every base form, flat: word, first lesson index, count in the course, known 0/1 (missing in results before v1.47). */
+  lemmas?: (string | number)[]
+}
+
+/** Words met at most [min] times in the whole course left out: numbers per lesson again, and how many were cut. */
+export function without(r: WsResult, min: number): [WsResult, number] {
+  const la = r.lemmas ?? []
+  if (min <= 0 || !la.length) return [r, 0]
+  const keep: { word: string; first: number; count: number; known: boolean }[] = []
+  let all = 0
+  for (let k = 0; k + 3 < la.length; k += 4) {
+    all++
+    const x = { word: String(la[k]), first: Number(la[k + 1]), count: Number(la[k + 2]), known: la[k + 3] === 1 }
+    if (x.count > min) keep.push(x)
+  }
+  const byFirst = new Map<number, typeof keep>()
+  for (const x of keep) { const g = byFirst.get(x.first); if (g) g.push(x); else byFirst.set(x.first, [x]) }
+  let total = 0
+  const chapters = r.chapters.map((c, i) => {
+    const fresh = byFirst.get(i) ?? []
+    total += fresh.length
+    return { ...c, new: fresh.length, total, top: [...fresh].sort((a, b) => b.count - a.count).slice(0, 20).map((x) => x.word) }
+  })
+  return [{ ...r, chapters, unique: keep.length, unknown: keep.filter((x) => !x.known).length }, all - keep.length]
+}
 
 const key = (lang: string, course: number) => `wordstats.${lang}_${course}`
 
@@ -125,6 +151,9 @@ export class WordStatsSession {
     this.progress.value = 'Считаю…'
     const seen = new Set<string>()
     const unknown = new Set<string>()
+    const firstAt = new Map<string, number>()
+    const totals = new Map<string, number>()
+    const shownAll = new Map<string, string>()
     let allWords = 0
     const out: WsChapter[] = []
     lessons.forEach((l, i) => {
@@ -141,12 +170,16 @@ export class WordStatsSession {
         counts.set(k, (counts.get(k) ?? 0) + 1)
       }
       const fresh = [...counts.keys()].filter((w) => !seen.has(w))
-      fresh.forEach((w) => seen.add(w))
+      fresh.forEach((w) => { seen.add(w); firstAt.set(w, i) })
+      counts.forEach((v, w) => totals.set(w, (totals.get(w) ?? 0) + v))
+      shown.forEach((v, w) => { if (!shownAll.has(w) || v === w) shownAll.set(w, v) })
       allWords += words
       const top = [...fresh].sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0)).slice(0, 20).map((w) => shown.get(w) ?? w)
       out.push({ id: l.id, title: l.title, words, new: fresh.length, total: seen.size, top })
     })
     this.fraction.value = 1
-    return { t: Date.now(), chapters: out, unique: seen.size, words: allWords, unknown: unknown.size, lemmatized: !!lem }
+    const lemmas: (string | number)[] = []
+    for (const [w, f] of [...firstAt].sort((a, b) => a[1] - b[1])) lemmas.push(shownAll.get(w) ?? w, f, totals.get(w) ?? 0, unknown.has(w) ? 0 : 1)
+    return { t: Date.now(), chapters: out, unique: seen.size, words: allWords, unknown: unknown.size, lemmatized: !!lem, lemmas }
   }
 }

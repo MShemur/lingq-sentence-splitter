@@ -30,6 +30,8 @@ export const prefs = {
   keepAwake: pref('keepAwake', 'system'),
   /** px between a translation above a word and the word (negative = closer). */
   pinGap: pref('pinGap', '0'),
+  /** "Слова по урокам": words met this many times or less in the whole course are not counted (0 = all). */
+  wsMin: pref('wsMin', '0'),
   /** "Другой ИИ": an OpenAI-compatible service (address, key, main and light model). */
   aiBase: pref('aiBase', 'https://api.deepseek.com'),
   aiKey: pref('aiKey', ''),

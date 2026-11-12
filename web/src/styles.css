@@ -936,3 +936,5 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .ws-details .chip { cursor: default; }
 .ws-course { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; text-align: left; border: none; border-bottom: 1px solid var(--outline-variant); background: none; color: inherit; font: inherit; padding: 12px 4px; cursor: pointer; }
 .ws-done { font-size: 13px; color: var(--primary); }
+.ws-rare { display: flex; flex-direction: column; gap: 4px; }
+.ws-rare input[type=range] { width: 100%; accent-color: var(--primary); }
