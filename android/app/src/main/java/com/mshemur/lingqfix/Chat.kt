@@ -3,6 +3,8 @@
 package com.mshemur.lingqfix
 
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.OutlinedCard
@@ -55,6 +57,22 @@ class ChatSession(
     var sending by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
 
+    /** Microphone: dictation language ("ru" or the lesson language), kept in settings. */
+    var micLang by mutableStateOf(app.prefs.micLang)
+    val lessonLang get() = app.lang
+
+    fun setMic(l: String) { micLang = l; app.prefs.micLang = l }
+
+    /** Dictated text is sent at once (added to what is already typed). */
+    fun dictated(t: String) {
+        AppLog.add("chat", "Надиктовано (${micLang}): ${t.length} симв.")
+        input = (input.trim() + " " + t.trim()).trim()
+        fastNext = true
+        send()
+    }
+
+    fun noRecognizer() = app.say("На телефоне нет распознавания речи (нужно приложение Google)")
+
     fun send() {
         val q = input.trim()
         if (q.isEmpty() || sending) return
@@ -71,12 +89,16 @@ class ChatSession(
         answer()
     }
 
+    /** The next answer comes from the light (fast) model: a dictated question wants a quick reply. */
+    private var fastNext = false
+
     private fun answer() {
         sending = true
+        val fast = fastNext.also { fastNext = false }
         app.scope.launch {
             try {
                 val history = messages.toList()
-                val llm = app.gemini()
+                val llm = if (fast) app.geminiFast() else app.gemini()
                 val a = withContext(Dispatchers.IO) { llm.generate(system, history) }
                 messages.add(Gemini.Msg(false, a, llm.lastReasoning))
             } catch (e: Throwable) {
@@ -172,6 +194,7 @@ fun ChatScreen(c: ChatSession) {
                     c.input, { c.input = it }, Modifier.weight(1f),
                     placeholder = { Text("Спросите о тексте…") }, maxLines = 5, shape = RoundedCornerShape(24.dp),
                 )
+                MicButton(c)
                 FilledIconButton(
                     onClick = { c.send() }, enabled = !c.sending && c.input.isNotBlank(),
                     modifier = Modifier.padding(start = 8.dp).size(48.dp),
@@ -179,6 +202,48 @@ fun ChatScreen(c: ChatSession) {
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить")
                 }
             }
+        }
+    }
+}
+
+/**
+ * Microphone in the chat: tap = Android's speech recognition, the text is sent at once;
+ * long press = choose the language (Russian / the lesson's language). The label under it shows the language.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun MicButton(c: ChatSession) {
+    var pick by androidx.compose.runtime.remember { mutableStateOf(false) }
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+    ) { r ->
+        val t = r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!t.isNullOrBlank()) c.dictated(t)
+    }
+    fun listen() {
+        val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, c.micLang)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, if (c.micLang == "ru") "Говорите по-русски" else "Sprechen Sie (${c.micLang})")
+        try { launcher.launch(i) } catch (e: android.content.ActivityNotFoundException) { c.noRecognizer() }
+    }
+    Box {
+        Column(
+            Modifier.padding(start = 6.dp).size(48.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                .combinedClickable(enabled = !c.sending, onClick = { listen() }, onLongClick = { pick = true }),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(AppIcons.Mic, contentDescription = "Надиктовать", tint = MaterialTheme.colorScheme.primary)
+            Text(c.micLang.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
+        androidx.compose.material3.DropdownMenu(expanded = pick, onDismissRequest = { pick = false }) {
+            listOf("ru" to "Говорить по-русски", c.lessonLang to "Говорить на языке урока (${c.lessonLang.uppercase()})")
+                .distinctBy { it.first }.forEach { (l, name) ->
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(name) },
+                        onClick = { pick = false; c.setMic(l); listen() },
+                    )
+                }
         }
     }
 }

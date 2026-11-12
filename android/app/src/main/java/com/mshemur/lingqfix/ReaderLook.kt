@@ -168,15 +168,34 @@ fun SettingsReading(state: AppState) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Bottom) {
                 Text("Er las das ", color = pageFg, fontSize = 19.sp)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("книгу", color = c.text, fontSize = 11.sp)
                     Text(
-                        "Buch", color = pageFg, fontSize = 19.sp,
+                        "книгу", color = c.text,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = (19 * 0.6).sp, lineHeight = (19 * 0.68).sp),
+                        modifier = Modifier.trPull(19f, state.trGap),
+                    )
+                    Text(
+                        "Buch", color = pageFg,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 19.sp, lineHeight = (19 * 1.35).sp),
                         modifier = Modifier.background(c.bg, RoundedCornerShape(4.dp)),
                     )
                 }
-                Text(" bis zum Ende.", color = pageFg, fontSize = 19.sp)
+                Text(" bis zum Ende.", color = pageFg, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 19.sp, lineHeight = (19 * 1.35).sp))
             }
         }
+
+        Text("Расстояние до перевода над словом", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Slider(
+                value = state.trGap.toFloat(),
+                onValueChange = { v -> val n = (Math.round(v / 10f) * 10).coerceIn(0, 100); if (n != state.trGap) state.applyPrefs { trGap = n } },
+                valueRange = 0f..100f, steps = 9, modifier = Modifier.weight(1f),
+            )
+            Text(if (state.trGap >= 100) "обычное" else "${state.trGap} %", Modifier.width(72.dp).padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
+        }
+        Text(
+            "Меньше — перевод ближе к слову и текст ниже по высоте. Видно на примере выше.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         Text("Экран не гаснет при чтении", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         KEEP_AWAKE.forEach { (k, label) ->

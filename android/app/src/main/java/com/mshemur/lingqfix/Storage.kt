@@ -125,6 +125,14 @@ class Prefs(ctx: Context) {
     var keepAwake: String
         get() = read("keepAwake", "10")
         set(v) = write("keepAwake", v)
+    /** Gap between a word and the translation above it, % of the normal gap (100 = as before, 0 = closest). */
+    var trGap: Int
+        get() = read("trGap", "100").toIntOrNull()?.coerceIn(0, 100) ?: 100
+        set(v) = write("trGap", v.toString())
+    /** Chat microphone: language of the dictation ("ru" or the lesson's language). */
+    var micLang: String
+        get() = read("micLang", "ru")
+        set(v) = write("micLang", v)
     var promptLevel: String
         get() = read("promptLevel", Prompts.LEVEL).ifBlank { Prompts.LEVEL }
         set(v) = p.edit().putString("promptLevel", v).apply()

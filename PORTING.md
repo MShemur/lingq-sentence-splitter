@@ -9,7 +9,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- web v1.44 (user's iPad notes 12.11.2026, do on Android too): 1) the page slider on top is a thin line (3 dp) with a
+
+## Done
+
+- web v1.44 -> android v1.94 (user's iPad notes 12.11.2026, do on Android too): 1) the page slider on top is a thin line (3 dp) with a
   small dot, nothing overlaps it; 2) reader ⋮ "Временно скрыть переводы" / "Показать переводы над словами": word
   highlights stay, translations above words go invisible (space kept); a tap on a translated word shows its translation
   for 5 s, then it fades out (~1 s); a tap on a new word pins it and shows it the same way; 3) Reading settings
@@ -19,9 +22,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   5) AI chat: with an empty input the send button is a microphone: tap = record, tap again = recognise (the chosen
   speech service; Whisper without a language) and send at once, answered by the light / fast model. Web: Reader.tsx,
   session.ts, chat.ts, Chat.tsx, Settings.tsx.
-
-## Done
-
+  Android v1.94: 2–5 done (`Reader.kt` hideTr / peek / markedWords / trPull, `ReaderLook.kt` gap slider 0–100 %, `Chat.kt` MicButton: Android's speech recognition, tap = dictate and send, long press = Russian / lesson language, answer by the fast model). 1 not done on Android: the user likes the Android slider as it is.
 - android v1.93 -> web v1.44: Statistics "Календарь активности" like GitHub's: 53 week columns (Monday on top), scrolls sideways, starts at today; shade by the day's total minutes (0 / <15 / <30 / <60 / 60+, primary at 30/50/75/100 %); month names above; tap a day -> its date, time, words, reading / audio; legend "меньше … больше". Android `Stats.kt` ActivityCalendar. Web: `screens/Stats.tsx` ActivityCalendar.
 - web v1.44: user's iPad notes 12.11.2026 (sync branch feedback/20261112-0330..0449-web.json; web: do them, set status/doneIn/reply in those files, then add a line "To do on Android" for the reader parts):
   1. 033007: the page slider's round thumb is cut off at the top (something overlaps it): show it whole.

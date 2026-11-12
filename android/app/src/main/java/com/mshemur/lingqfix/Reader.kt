@@ -21,6 +21,8 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -319,7 +321,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         val st = sentById[sentId] ?: return
         popup = null
         closePhrase()
-        val sys = Prompts.fill(app.prefs.promptChatWord, "lang" to lang, "target" to target, "word" to word, "sentence" to st.text)
+        val sys = Prompts.fill(app.prefs.promptChatWord, "lang" to lang, "target" to target, "word" to word, "sentence" to st.text) + markedForAi()
         app.go(Screen.Chat(ChatSession(app, "Чат о слове «$word»", sys, "$word\n\n${st.text}", kind = "word")))
     }
 
@@ -772,10 +774,68 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
             ?: withContext(Dispatchers.IO) { app.api.translate(lang, target, word) }
     }
 
+    // --- translations above words hidden for a while (to test oneself) ---
+
+    /** The words stay marked, their translations are invisible; a tap shows one for 5 s. */
+    var hideTr by mutableStateOf(false)
+    /** Translations shown right now while hidden: WordRef.key() or phrase key -> token of that showing. */
+    val peek = mutableStateMapOf<String, Long>()
+
+    fun toggleHideTr() { hideTr = !hideTr; peek.clear(); AppLog.add("reader", if (hideTr) "Переводы скрыты" else "Переводы показаны") }
+
+    private fun reveal(key: String) {
+        val t = System.nanoTime()
+        peek[key] = t
+        app.scope.launch { kotlinx.coroutines.delay(5000); if (peek[key] == t) peek.remove(key) }
+    }
+
+    fun trVisible(key: String) = !hideTr || peek.containsKey(key)
+    /** Settings: gap between a word and its translation, %. */
+    val trGap get() = app.trGap
+
+    /** Words and phrases with a translation in this lesson, in text order, each word once: (text, translation, sentence). */
+    fun markedWords(): List<Triple<String, String, Int>> {
+        val order = HashMap<Int, Int>().also { m -> sentences.forEachIndexed { i, s -> m[s.id] = i } }
+        val out = ArrayList<Pair<Long, Triple<String, String, Int>>>()
+        val seen = HashSet<String>()
+        pins.entries.sortedWith(compareBy({ order[it.key.sent] ?: Int.MAX_VALUE }, { it.key.token })).forEach { (ref, tr) ->
+            if (tr.isBlank() || tr.startsWith("⚠")) return@forEach
+            val w = word(ref).ifEmpty { return@forEach }
+            if (!seen.add(w.lowercase())) return@forEach
+            out += ((order[ref.sent] ?: Int.MAX_VALUE).toLong() * 10_000 + ref.token) to Triple(w, tr, ref.sent)
+        }
+        phrasePins.forEach { (k, tr) ->
+            val p = k.split(':')
+            val sent = p.getOrNull(0)?.toIntOrNull() ?: return@forEach
+            val from = p.getOrNull(1)?.toIntOrNull() ?: return@forEach
+            val to = p.getOrNull(2)?.toIntOrNull() ?: return@forEach
+            if (tr.isBlank() || tr.startsWith("⚠")) return@forEach
+            val toks = sentById[sent]?.tokens ?: return@forEach
+            val text = toks.subList(from.coerceIn(0, toks.size), (to + 1).coerceIn(0, toks.size)).joinToString("") { it.text }.trim()
+            if (text.isEmpty() || !seen.add(text.lowercase())) return@forEach
+            out += ((order[sent] ?: Int.MAX_VALUE).toLong() * 10_000 + from) to Triple(text, tr, sent)
+        }
+        return out.sortedBy { it.first }.map { it.second }
+    }
+
+    /** The marked words for the AI chats ("" when there are none). */
+    private fun markedForAi(): String {
+        val m = markedWords()
+        if (m.isEmpty()) return ""
+        return "\n\nСлова и фразы, которые пользователь отметил в этом уроке (с переводом, который он выбрал или видел):\n" +
+            m.take(300).joinToString("\n") { "- ${it.first} — ${it.second}" }
+    }
+
     /** One tap: translation pinned above the word (tap again removes it). */
     fun tap(ref: WordRef) {
         AppLog.add("reader", "Нажатие «${word(ref)}» (предл. ${ref.sent})")
         focusSent = ref.sent
+        if (hideTr) {
+            // hidden translations: a tap on a marked word shows its translation for 5 s, nothing is removed
+            phraseKeyAt(ref)?.let { reveal(it); return }
+            if (pins.containsKey(ref)) { reveal(ref.key()); return }
+            reveal(ref.key())
+        }
         phraseKeyAt(ref)?.let { phrasePins.remove(it); persist(); return }
         if (pins.containsKey(ref)) { pins.remove(ref); provisional.remove(ref); persist(); return }
         pins[ref] = ""
@@ -887,14 +947,14 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     fun chatText() {
         val text = paragraphs.orEmpty().joinToString("\n\n") { p -> p.joinToString(" ") { it.text } }
-        val sys = Prompts.fill(app.prefs.promptChatText, "lang" to lang, "target" to target, "text" to text)
+        val sys = Prompts.fill(app.prefs.promptChatText, "lang" to lang, "target" to target, "text" to text) + markedForAi()
         app.go(Screen.Chat(ChatSession(app, "Чат о тексте", sys, title, wholeText = true)))
     }
 
     fun chatSentence(id: Int) {
         val s = sentById[id] ?: return
         popup = null
-        val sys = Prompts.fill(app.prefs.promptChatSentence, "lang" to lang, "target" to target, "sentence" to s.text)
+        val sys = Prompts.fill(app.prefs.promptChatSentence, "lang" to lang, "target" to target, "sentence" to s.text) + markedForAi()
         app.go(Screen.Chat(ChatSession(app, "Чат о предложении", sys, s.text)))
     }
 
@@ -1216,6 +1276,8 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
     if (help) ReaderHelp { help = false }
     var delete by remember { mutableStateOf(false) }
     if (delete) LessonDeleteDialog(state, s) { delete = false }
+    var words by remember { mutableStateOf(false) }
+    if (words) MarkedWordsDialog(s) { words = false }
     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
         MenuGroup("Урок")
@@ -1233,10 +1295,20 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
         HorizontalDivider()
         MenuGroup("Текст")
         FontSizeRow(s)
-        if (s.pins.isNotEmpty() || s.phrasePins.isNotEmpty()) DropdownMenuItem(
-            text = { Text("Снять переводы над словами (${s.pins.size + s.phrasePins.size})") },
-            onClick = { s.clearPins(); menu = false },
-        )
+        if (s.pins.isNotEmpty() || s.phrasePins.isNotEmpty()) {
+            DropdownMenuItem(
+                text = { Text("Слова урока (${s.markedWords().size})") },
+                onClick = { menu = false; words = true },
+            )
+            DropdownMenuItem(
+                text = { Text(if (s.hideTr) "Показать переводы над словами" else "Временно скрыть переводы") },
+                onClick = { menu = false; s.toggleHideTr() },
+            )
+            DropdownMenuItem(
+                text = { Text("Снять переводы над словами (${s.pins.size + s.phrasePins.size})") },
+                onClick = { s.clearPins(); menu = false },
+            )
+        }
         DropdownMenuItem(
             text = { Text("Оформление и экран") },
             onClick = { menu = false; state.go(Screen.SettingsReading) },
@@ -1256,6 +1328,45 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
         )
     }
 }
+
+/** Words and phrases of the lesson with a translation: word — translation; a tap goes to its sentence. */
+@Composable
+private fun MarkedWordsDialog(s: ReaderSession, close: () -> Unit) {
+    val list = remember(s.pins.size, s.phrasePins.size) { s.markedWords() }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = close,
+        title = { Text("Слова урока (${list.size})") },
+        text = {
+            if (list.isEmpty()) Text("Пока нет слов с переводом. Нажмите на слово в тексте — его перевод появится над ним и попадёт сюда.")
+            else androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 480.dp)) {
+                items(list.size) { i ->
+                    val (w, tr, sent) = list[i]
+                    Row(
+                        Modifier.fillMaxWidth().clickable { close(); s.jumpTo(sent) }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(w, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                        Text(
+                            tr, Modifier.weight(1f).padding(start = 12.dp),
+                            style = MaterialTheme.typography.bodyMedium, color = LocalHighlight.current.text,
+                        )
+                    }
+                    if (i < list.size - 1) HorizontalDivider()
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = close) { Text("Закрыть") } },
+    )
+}
+
+/** Moves a translation above a word closer to it: [gap] % of the normal gap (100 = unchanged). */
+internal fun Modifier.trPull(fontSp: Float, gap: Int): Modifier = if (gap >= 100) this else this.then(
+    Modifier.layout { m, c ->
+        val p = m.measure(c)
+        val px = ((100 - gap) / 100f * fontSp * 0.45f).sp.roundToPx()
+        layout(p.width, (p.height - px).coerceAtLeast(0)) { p.place(0, px) }
+    },
+)
 
 /** Text size in a menu as one row "Размер текста  A−  18  A+"; the menu stays open for several taps. */
 @Composable
@@ -1728,9 +1839,12 @@ internal fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f
                     Modifier.align(Alignment.Bottom).padding(end = (size * 0.3).dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    val pk = "${sent.id}:${ph.first.first}:${ph.first.last}"
+                    val pa by animateFloatAsState(if (s.trVisible(pk)) 1f else 0f, tween(600), label = "phraseTr")
                     Text(
                         ph.second.ifEmpty { "…" }, style = trStyle, maxLines = 3, textAlign = TextAlign.Center,
-                        color = LocalHighlight.current.text, modifier = Modifier.padding(horizontal = 1.dp),
+                        color = LocalHighlight.current.text,
+                        modifier = Modifier.trPull(size, s.trGap).graphicsLayer { alpha = pa }.padding(horizontal = 1.dp),
                     )
                     FlowRow(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         group.forEachIndexed { n, c ->
@@ -1758,11 +1872,14 @@ private fun ChunkRow(
             val inPhrase = phrase != null && t.index in phrase
             val tr = if (t.isWord && !inPhrase) s.pins[ref] else null
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (tr != null) Text(
-                    tr.ifEmpty { "…" }, style = trStyle, maxLines = 2,
-                    color = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else LocalHighlight.current.text,
-                    modifier = Modifier.padding(horizontal = 1.dp),
-                )
+                if (tr != null) {
+                    val a by animateFloatAsState(if (s.trVisible(ref.key())) 1f else 0f, tween(600), label = "wordTr")
+                    Text(
+                        tr.ifEmpty { "…" }, style = trStyle, maxLines = 2,
+                        color = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else LocalHighlight.current.text,
+                        modifier = Modifier.trPull(textStyle.fontSize.value, s.trGap).graphicsLayer { alpha = a }.padding(horizontal = 1.dp),
+                    )
+                }
                 val pinned = tr != null || inPhrase
                 val hl = LocalHighlight.current.bg
                 if (t.isWord) DisposableEffect(area, ref) { onDispose { s.wordCoords.remove(area to ref) } }

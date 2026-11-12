@@ -232,6 +232,7 @@ class AppState(val ctx: Context) {
     var readerTheme by mutableStateOf(prefs.readerTheme)
     var highlight by mutableStateOf(prefs.highlight)
     var keepAwake by mutableStateOf(prefs.keepAwake)
+    var trGap by mutableStateOf(prefs.trGap)
     /** Time of the last touch (uptime ms, updated at most every few seconds): screen timeout while reading. */
     var lastTouch by mutableStateOf(android.os.SystemClock.uptimeMillis())
 
@@ -245,7 +246,7 @@ class AppState(val ctx: Context) {
         val oldLang = lang
         prefs.block()
         apiKey = prefs.apiKey; lang = prefs.lang; ghToken = prefs.ghToken; trLang = prefs.trLang
-        readerTheme = prefs.readerTheme; highlight = prefs.highlight; keepAwake = prefs.keepAwake
+        readerTheme = prefs.readerTheme; highlight = prefs.highlight; keepAwake = prefs.keepAwake; trGap = prefs.trGap
         if (oldLang != lang) courses = null
     }
 
