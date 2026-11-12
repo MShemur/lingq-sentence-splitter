@@ -7,6 +7,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- android v1.98: "Слова по урокам": slider 0–10 "Не считать слова, которые встретились N раз и реже" (in the whole course; 0 = all; kept in settings). The result now keeps every base form with its first lesson, total count and known flag (JSON "lemmas": flat array word, first, count, known 0/1); the numbers per lesson, unique total, charts and top words are recomputed from it; the summary says how many rare words were cut. Older results: slider disabled, "Пересчитать". Android `WordStats.kt` WsResult.without.
 ## To do on Android
 
 

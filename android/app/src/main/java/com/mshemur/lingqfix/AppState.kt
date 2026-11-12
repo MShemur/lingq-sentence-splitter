@@ -235,6 +235,9 @@ class AppState(val ctx: Context) {
     var highlight by mutableStateOf(prefs.highlight)
     var keepAwake by mutableStateOf(prefs.keepAwake)
     var trGap by mutableStateOf(prefs.trGap)
+    var wsMin by mutableStateOf(prefs.wsMin)
+        private set
+    fun setWsMin(n: Int) { wsMin = n; prefs.wsMin = n }
     /** Time of the last touch (uptime ms, updated at most every few seconds): screen timeout while reading. */
     var lastTouch by mutableStateOf(android.os.SystemClock.uptimeMillis())
 

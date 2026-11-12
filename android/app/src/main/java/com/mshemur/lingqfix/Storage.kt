@@ -129,6 +129,10 @@ class Prefs(ctx: Context) {
     var trGap: Int
         get() = read("trGap", "100").toIntOrNull()?.coerceIn(0, 100) ?: 100
         set(v) = write("trGap", v.toString())
+    /** "Слова по урокам": words met at most this many times in a course are not counted (0 = all). */
+    var wsMin: Int
+        get() = read("wsMin", "0").toIntOrNull()?.coerceIn(0, 10) ?: 0
+        set(v) = write("wsMin", v.toString())
     /** Chat microphone: language of the dictation ("ru" or the lesson's language). */
     var micLang: String
         get() = read("micLang", "ru")

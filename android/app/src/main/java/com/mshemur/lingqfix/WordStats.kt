@@ -114,9 +114,31 @@ class Lemmatizer private constructor(private val forms: HashMap<String, String>,
 /** One lesson (chapter) of the count. */
 class WsChapter(val id: Int, val title: String, val words: Int, val newCount: Int, val total: Int, val top: List<String>)
 
-class WsResult(val t: Long, val chapters: List<WsChapter>, val unique: Int, val words: Int, val unknown: Int, val lemmatized: Boolean) {
+/** One base form of the course: where it first appears (lesson index), how often in all, whether the dictionary knew it. */
+class WsLemma(val word: String, val first: Int, val count: Int, val known: Boolean)
+
+class WsResult(
+    val t: Long, val chapters: List<WsChapter>, val unique: Int, val words: Int, val unknown: Int, val lemmatized: Boolean,
+    /** All base forms (empty in results counted before v1.98: the "rare words" slider needs a recount). */
+    val lemmas: List<WsLemma> = emptyList(),
+) {
+    /** Words met at most [min] times in the whole course left out: numbers per lesson again, and how many were cut. */
+    fun without(min: Int): Pair<WsResult, Int> {
+        if (min <= 0 || lemmas.isEmpty()) return this to 0
+        val keep = lemmas.filter { it.count > min }
+        val byFirst = keep.groupBy { it.first }
+        var total = 0
+        val ch = chapters.mapIndexed { i, c ->
+            val fresh = byFirst[i].orEmpty()
+            total += fresh.size
+            WsChapter(c.id, c.title, c.words, fresh.size, total, fresh.sortedByDescending { it.count }.take(20).map { it.word })
+        }
+        return WsResult(t, ch, keep.size, words, keep.count { !it.known }, lemmatized, keep) to (lemmas.size - keep.size)
+    }
+
     fun toJson(): JSONObject = JSONObject().put("t", t).put("unique", unique).put("words", words).put("unknown", unknown)
         .put("lemmatized", lemmatized)
+        .put("lemmas", JSONArray().also { a -> lemmas.forEach { l -> a.put(l.word).put(l.first).put(l.count).put(if (l.known) 1 else 0) } })
         .put("chapters", JSONArray().also { a ->
             chapters.forEach { c ->
                 a.put(JSONObject().put("id", c.id).put("title", c.title).put("words", c.words).put("new", c.newCount)
@@ -133,7 +155,11 @@ class WsResult(val t: Long, val chapters: List<WsChapter>, val unique: Int, val 
                 WsChapter(c.getInt("id"), c.optString("title"), c.optInt("words"), c.optInt("new"), c.optInt("total"),
                     (0 until top.length()).map { top.getString(it) })
             }
-            return WsResult(o.optLong("t"), ch, o.optInt("unique"), o.optInt("words"), o.optInt("unknown"), o.optBoolean("lemmatized", true))
+            val la = o.optJSONArray("lemmas") ?: JSONArray()
+            val lemmas = (0 until la.length() / 4).map { k ->
+                WsLemma(la.getString(k * 4), la.getInt(k * 4 + 1), la.getInt(k * 4 + 2), la.getInt(k * 4 + 3) == 1)
+            }
+            return WsResult(o.optLong("t"), ch, o.optInt("unique"), o.optInt("words"), o.optInt("unknown"), o.optBoolean("lemmatized", true), lemmas)
         }
     }
 }
@@ -201,6 +227,8 @@ class WordStatsScreenState(val lang: String, val course: Course?) {
         progress = "Считаю…"
         val seen = HashSet<String>()
         val unknown = HashSet<String>()
+        val firstAt = HashMap<String, Int>()
+        val totals = HashMap<String, Int>()
         var allWords = 0
         val out = ArrayList<WsChapter>()
         lessons.forEachIndexed { i, l ->
@@ -215,12 +243,15 @@ class WordStatsScreenState(val lang: String, val course: Course?) {
             }
             val fresh = counts.keys.filter { it !in seen }
             seen += fresh
+            fresh.forEach { firstAt[it] = i }
+            counts.forEach { (k, v) -> totals[k] = (totals[k] ?: 0) + v }
             allWords += words
             val top = fresh.sortedByDescending { counts[it] ?: 0 }.take(20)
             out += WsChapter(l.id, l.title, words, fresh.size, seen.size, top)
         }
         fraction = 1f
-        return WsResult(System.currentTimeMillis(), out, seen.size, allWords, unknown.size, lem != null)
+        val lemmas = firstAt.map { (w, f) -> WsLemma(w, f, totals[w] ?: 0, w !in unknown) }.sortedBy { it.first }
+        return WsResult(System.currentTimeMillis(), out, seen.size, allWords, unknown.size, lem != null, lemmas)
     }
 }
 
@@ -253,11 +284,13 @@ fun WordStatsScreen(state: AppState, s: WordStatsScreenState) {
             }
             return@Column
         }
-        Summary(r)
+        RareSlider(state, r)
+        val (v, cut) = remember(r, state.wsMin) { r.without(state.wsMin) }
+        Summary(v, cut, state.wsMin)
         var picked by remember(r) { mutableStateOf(0) }
-        NewWordsChart(r, picked) { picked = it }
-        ChapterDetails(r, picked)
-        TotalChart(r, picked) { picked = it }
+        NewWordsChart(v, picked) { picked = it }
+        ChapterDetails(v, picked)
+        TotalChart(v, picked) { picked = it }
         OutlinedButton(onClick = { s.start(state) }, enabled = !s.running) { Text("Пересчитать") }
         Text(
             "Урок курса = глава. Новое слово — начальная форма, которой не было в предыдущих уроках. " +
@@ -269,14 +302,43 @@ fun WordStatsScreen(state: AppState, s: WordStatsScreenState) {
     }
 }
 
+/** Slider: words met at most N times in the whole course are not counted (typos, names, one-off words). */
 @Composable
-private fun Summary(r: WsResult) {
+private fun RareSlider(state: AppState, r: WsResult) {
+    Column {
+        Text(
+            if (state.wsMin == 0) "Считаются все слова" else "Не считать слова, которые встретились ${state.wsMin} ${times(state.wsMin)} и реже",
+            style = MaterialTheme.typography.titleSmall,
+        )
+        androidx.compose.material3.Slider(
+            value = state.wsMin.toFloat(),
+            onValueChange = { val n = Math.round(it).coerceIn(0, 10); if (n != state.wsMin) state.setWsMin(n) },
+            valueRange = 0f..10f, steps = 9, enabled = r.lemmas.isNotEmpty(),
+        )
+        if (r.lemmas.isEmpty()) Text(
+            "Чтобы ползунок работал, нажмите «Пересчитать» внизу (этот курс посчитан старой версией).",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+private fun times(n: Int): String {
+    val m10 = n % 10; val m100 = n % 100
+    return if (m10 in 2..4 && m100 !in 12..14) "раза" else "раз"
+}
+
+@Composable
+private fun Summary(r: WsResult, cut: Int, min: Int) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
             val on = MaterialTheme.colorScheme.onPrimaryContainer
             Text("Уникальных слов", style = MaterialTheme.typography.labelLarge, color = on)
             Text(num(r.unique), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold, color = on)
             Text("всего слов в тексте ${num(r.words)} · уроков ${r.chapters.size}", style = MaterialTheme.typography.bodyMedium, color = on)
+            if (cut > 0) Text(
+                "отсечено редких слов (встретились $min ${times(min)} и реже): ${num(cut)}",
+                style = MaterialTheme.typography.bodyMedium, color = on,
+            )
             r.chapters.firstOrNull()?.let {
                 Text("в первом уроке ${num(it.newCount)} новых", style = MaterialTheme.typography.bodyMedium, color = on)
             }
