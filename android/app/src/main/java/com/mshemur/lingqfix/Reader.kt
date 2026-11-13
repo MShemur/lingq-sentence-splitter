@@ -1942,11 +1942,14 @@ internal fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f
                 var j = i
                 while (j < chunks.size && phraseOf(chunks[j]) == ph) j++
                 val group = chunks.subList(i, j)
+                val pk = "${sent.id}:${ph.first.first}:${ph.first.last}"
+                val hlPhrase = LocalHighlight.current.bg
                 Column(
-                    Modifier.align(Alignment.Bottom).padding(end = (size * 0.3).dp),
+                    Modifier.align(Alignment.Bottom).padding(end = (size * 0.3).dp)
+                        // one highlight over the translation and all the words (as for a single word)
+                        .drawBehind { if (s.trVisible(pk)) drawRoundRect(hlPhrase, cornerRadius = CornerRadius(4.dp.toPx())) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    val pk = "${sent.id}:${ph.first.first}:${ph.first.last}"
                     val pa by animateFloatAsState(if (s.trVisible(pk)) 1f else 0f, tween(600), label = "phraseTr")
                     Text(
                         ph.second.ifEmpty { "…" }, style = trStyle, maxLines = 3, textAlign = TextAlign.Center,
@@ -1978,7 +1981,9 @@ private fun ChunkRow(
             val ref = WordRef(sent.id, t.index)
             val inPhrase = phrase != null && t.index in phrase
             val tr = if (t.isWord && !inPhrase) s.pins[ref] else null
-            val pinned = tr != null || inPhrase
+            // a phrase with its translation shown has one highlight over the whole block (drawn by the caller)
+            val block = phrase != null && s.trVisible("${sent.id}:${phrase.first}:${phrase.last}")
+            val pinned = tr != null || (inPhrase && !block)
             val hl = LocalHighlight.current.bg
             if (t.isWord) DisposableEffect(area, ref) { onDispose { s.wordCoords.remove(area to ref) } }
             // the highlight is drawn: dragging a selection or opening the word window only redraws
@@ -1986,7 +1991,7 @@ private fun ChunkRow(
                 val c = when {
                     s.inSelection(ref) -> selBg
                     t.isWord && (pinned || s.popup == ref || s.pairHighlighted(ref)) -> hl
-                    !t.isWord && phrase != null && t.index > phrase.first && t.index < phrase.last -> hl
+                    !t.isWord && !block && phrase != null && t.index > phrase.first && t.index < phrase.last -> hl
                     else -> null
                 }
                 if (c != null) {
