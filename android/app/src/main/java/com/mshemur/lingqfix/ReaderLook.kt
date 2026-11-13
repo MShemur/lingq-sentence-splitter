@@ -9,6 +9,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -211,6 +213,24 @@ fun SettingsReading(state: AppState) {
         }
         Text(
             "Пока урок открыт, экран не погаснет столько времени после последнего касания, даже если в телефоне стоит меньше.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Text("Наушники", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        var nextTr by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(state.prefs.nextKeyTranslate) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Кнопка «вперёд» читает перевод")
+                Text(
+                    if (nextTr) "«Вперёд» на наушниках: пауза, перевод звучащего предложения голосом, дальше слушаем"
+                    else "«Вперёд» на наушниках: на 5 секунд вперёд",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            androidx.compose.material3.Switch(nextTr, { nextTr = it; state.prefs.nextKeyTranslate = it })
+        }
+        Text(
+            "Двойное нажатие «пауза/плей» тоже читает перевод, если наушники передают его телефону (Marshall — нет).",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

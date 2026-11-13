@@ -177,7 +177,8 @@ object ListenTranslate {
 
 /**
  * Headphone play/pause button: one press = play / pause (after a short wait for a second press),
- * two presses = translation of the sentence sounding now ([ListenTranslate]). Other buttons as Media3 does them.
+ * two presses = translation of the sentence sounding now ([ListenTranslate]); "next" = translation too when set.
+ * Other buttons as Media3 does them.
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class HeadsetKeys(private val ctx: Context) : MediaSession.Callback {
@@ -188,6 +189,13 @@ class HeadsetKeys(private val ctx: Context) : MediaSession.Callback {
         @Suppress("DEPRECATION")
         val e = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT) ?: return false
         val code = e.keyCode
+        // "next" on the headphones (Marshall: knob forward) = translation, if so set
+        if (code == KeyEvent.KEYCODE_MEDIA_NEXT && Prefs(ctx).nextKeyTranslate) {
+            if (e.action == KeyEvent.ACTION_DOWN && e.repeatCount == 0) {
+                if (ListenTranslate.speaking) ListenTranslate.stopSpeaking() else ListenTranslate.speakCurrent(ctx)
+            }
+            return true
+        }
         if (code != KeyEvent.KEYCODE_HEADSETHOOK && code != KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE &&
             code != KeyEvent.KEYCODE_MEDIA_PLAY && code != KeyEvent.KEYCODE_MEDIA_PAUSE
         ) return false

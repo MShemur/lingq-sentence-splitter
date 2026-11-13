@@ -151,6 +151,10 @@ class Prefs(ctx: Context) {
     var wsMin: Int
         get() = read("wsMin", "0").toIntOrNull()?.coerceIn(0, 10) ?: 0
         set(v) = write("wsMin", v.toString())
+    /** Headphone "next" button: translation of the sentence sounding now instead of 5 s forward. */
+    var nextKeyTranslate: Boolean
+        get() = read("nextKeyTranslate", "1") == "1"
+        set(v) = write("nextKeyTranslate", if (v) "1" else "0")
     /** Chat microphone: language of the dictation ("ru" or the lesson's language). */
     var micLang: String
         get() = read("micLang", "ru")
