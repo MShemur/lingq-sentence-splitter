@@ -359,8 +359,12 @@ fun SettingsUpdates(state: AppState) {
             supportingContent = { Text(if (state.update != null) "Доступна версия ${state.update?.versionName}" else "Проверяется при каждом запуске") },
         )
         Button(onClick = { state.checkUpdate(quiet = false) }, modifier = Modifier.fillMaxWidth()) { Text("Проверить обновления") }
-        if (state.update != null) Button(onClick = { state.installUpdate() }, modifier = Modifier.fillMaxWidth()) {
-            Text("Установить ${state.update?.versionName}")
+        if (state.update != null) {
+            val p = state.updateProgress
+            Button(onClick = { state.installUpdate() }, enabled = p == null, modifier = Modifier.fillMaxWidth()) {
+                Text(if (p == null) "Установить ${state.update?.versionName}" else "Скачиваю ${state.update?.versionName}… ${(p * 100).toInt()} %")
+            }
+            if (p != null) androidx.compose.material3.LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
         }
         HorizontalDivider()
         SecretField(token, "GitHub-токен", "SatzLoop: токен GitHub") { token = it; state.applyPrefs { ghToken = it } }

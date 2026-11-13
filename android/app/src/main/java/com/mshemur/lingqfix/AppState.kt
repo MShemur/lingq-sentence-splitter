@@ -639,6 +639,8 @@ class AppState(val ctx: Context) {
 
     fun installUpdate() {
         val r = update ?: return
+        if (updateProgress != null) return          // already downloading: a second tap does nothing
+        updateProgress = 0f
         scope.launch {
             try {
                 updateProgress = 0f
