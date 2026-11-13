@@ -1925,7 +1925,24 @@ private fun ChunkRow(
             val ref = WordRef(sent.id, t.index)
             val inPhrase = phrase != null && t.index in phrase
             val tr = if (t.isWord && !inPhrase) s.pins[ref] else null
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val pinned = tr != null || inPhrase
+            val hl = LocalHighlight.current.bg
+            if (t.isWord) DisposableEffect(area, ref) { onDispose { s.wordCoords.remove(area to ref) } }
+            // the highlight is drawn: dragging a selection or opening the word window only redraws
+            val mark = Modifier.drawBehind {
+                val c = when {
+                    s.inSelection(ref) -> selBg
+                    t.isWord && (pinned || s.popup == ref || s.pairHighlighted(ref)) -> hl
+                    !t.isWord && phrase != null && t.index > phrase.first && t.index < phrase.last -> hl
+                    else -> null
+                }
+                if (c != null) {
+                    if (t.isWord) drawRoundRect(c, cornerRadius = CornerRadius(4.dp.toPx())) else drawRect(c)
+                }
+            }
+            // a word with its translation above: one highlight over both (as on the iPad); hidden translations: the word only
+            val withTr = tr != null && s.trVisible(ref.key())
+            Column(if (withTr) mark else Modifier, horizontalAlignment = Alignment.CenterHorizontally) {
                 if (tr != null) {
                     val a by animateFloatAsState(if (s.trVisible(ref.key())) 1f else 0f, tween(600), label = "wordTr")
                     Text(
@@ -1934,24 +1951,10 @@ private fun ChunkRow(
                         modifier = Modifier.trPull(textStyle.fontSize.value, s.trGap).graphicsLayer { alpha = a }.padding(horizontal = 1.dp),
                     )
                 }
-                val pinned = tr != null || inPhrase
-                val hl = LocalHighlight.current.bg
-                if (t.isWord) DisposableEffect(area, ref) { onDispose { s.wordCoords.remove(area to ref) } }
-                // the highlight is drawn: dragging a selection or opening the word window only redraws
-                val mark = Modifier.drawBehind {
-                    val c = when {
-                        s.inSelection(ref) -> selBg
-                        t.isWord && (pinned || s.popup == ref || s.pairHighlighted(ref)) -> hl
-                        !t.isWord && phrase != null && t.index > phrase.first && t.index < phrase.last -> hl
-                        else -> null
-                    }
-                    if (c != null) {
-                        if (t.isWord) drawRoundRect(c, cornerRadius = CornerRadius(4.dp.toPx())) else drawRect(c)
-                    }
-                }
+                val own = if (withTr) Modifier else mark
                 Text(
                     t.text, style = textStyle,
-                    modifier = if (!t.isWord) mark else mark
+                    modifier = if (!t.isWord) own else own
                         .onPlaced { s.wordCoords[area to ref] = it }
                         .pointerInput(ref, area) { wordGestures(s, area, ref, haptic) },
                 )
