@@ -142,11 +142,27 @@ class LingqApi(private val key: String) {
         return out.values.toList()
     }
 
-    /** Machine translation (LingQ's translate service). */
-    fun translate(lang: String, target: String, text: String): String {
-        val body = JSONObject().put("source", lang).put("target", target).put("text", text)
-        val d = JSONObject(call("POST", "$BASE/v2/$lang/translate/", body.toString()))
-        return d.optJSONArray("translations")?.optJSONObject(0)?.optString("translatedText").orEmpty()
+    /** Machine translation (LingQ's translate service; it takes at most 128 characters, longer text goes in pieces). */
+    fun translate(lang: String, target: String, text: String): String =
+        trPieces(text).joinToString(" ") { piece ->
+            val body = JSONObject().put("source", lang).put("target", target).put("text", piece)
+            val d = JSONObject(call("POST", "$BASE/v2/$lang/translate/", body.toString()))
+            d.optJSONArray("translations")?.optJSONObject(0)?.optString("translatedText").orEmpty().trim()
+        }.trim()
+
+    /** Pieces of at most 128 characters: cut after ", " / "; " / ": " / a dash past a third of the piece, else at a space. */
+    private fun trPieces(text: String, max: Int = 128): List<String> {
+        val out = mutableListOf<String>()
+        var rest = text.trim()
+        while (rest.length > max) {
+            val head = rest.substring(0, max)
+            val punct = listOf(", ", "; ", ": ", " – ", " — ", " - ").maxOf { head.lastIndexOf(it).let { i -> if (i < 0) -1 else i + it.length - 1 } }
+            val cut = if (punct > max / 3) punct else head.lastIndexOf(' ').takeIf { it > 0 } ?: max
+            out += rest.substring(0, cut).trim()
+            rest = rest.substring(cut).trim()
+        }
+        if (rest.isNotEmpty()) out += rest
+        return out
     }
 
     /**

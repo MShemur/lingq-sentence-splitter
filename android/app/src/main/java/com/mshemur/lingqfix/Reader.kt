@@ -590,11 +590,11 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         app.say("Перевожу весь урок…")
         app.scope.launch {
             try {
-                ListenTranslate.translateAll(app, lang, lesson.id) { n, all -> trAll = "$n из $all" }
+                val (all, failed) = ListenTranslate.translateAll(app, lang, lesson.id) { n, all -> trAll = "$n из $all" }
                 val saved = withContext(Dispatchers.IO) { trCache.load() }
                 trSaved.putAll(saved)
                 sentences.forEach { st -> saved[st.text]?.let { sentTr[st.id] = it } }
-                app.say("Весь урок переведён")
+                app.say(if (failed == 0) "Весь урок переведён" else "Переведено ${all - failed} из $all; не удалось $failed")
             } catch (e: Throwable) {
                 AppLog.error("reader", "Перевести весь урок", e)
                 app.say("Перевод урока не получился: ${e.message}")

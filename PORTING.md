@@ -16,9 +16,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- web v1.51 (bug found while porting "Перевести весь урок"): LingQ's machine translation (POST /api/v2/{lang}/translate/) refuses text over 128 characters (HTTP 400 "Stelle sicher, dass dieses Feld nicht mehr als 128 Zeichen lang ist"), so a long sentence never got a translation without the AI. Web now cuts the text into pieces of at most 128 characters (after ", " / "; " / ": " / a dash when that is past a third of the piece, else at the last space) and joins the translations with a space. Also "Перевести весь урок" skips a sentence that fails instead of stopping (stops only when the first 3 all fail) and ends with "Переведено X из N; не удалось Y". LingQ answers 429 often with 4 at a time; the client retries. Android `LingqApi.kt` translate. Web `lingq.ts` trPieces / translate, `reader/session.ts` translateAll.
-
 ## Done
+
+- web v1.51 (bug found while porting "Перевести весь урок"): LingQ's machine translation (POST /api/v2/{lang}/translate/) refuses text over 128 characters (HTTP 400 "Stelle sicher, dass dieses Feld nicht mehr als 128 Zeichen lang ist"), so a long sentence never got a translation without the AI. Web now cuts the text into pieces of at most 128 characters (after ", " / "; " / ": " / a dash when that is past a third of the piece, else at the last space) and joins the translations with a space. Also "Перевести весь урок" skips a sentence that fails instead of stopping (stops only when the first 3 all fail) and ends with "Переведено X из N; не удалось Y". LingQ answers 429 often with 4 at a time; the client retries. Android `LingqApi.kt` translate. Web `lingq.ts` trPieces / translate, `reader/session.ts` translateAll.
+  Android v1.111: done (`LingqApi.kt` trPieces, `Listen.kt` translateAll counts failures, reader says "Переведено X из N; не удалось Y").
 
 - android v1.107 -> web v1.51: reader ⋮ "Перевести весь урок": every sentence without a translation is translated ahead (4 at a time,
   the translator from settings), kept with the other sentence translations of the lesson and shown at once; the item

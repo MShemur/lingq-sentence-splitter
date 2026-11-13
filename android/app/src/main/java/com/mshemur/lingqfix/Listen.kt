@@ -155,21 +155,26 @@ object ListenTranslate {
     fun stopSpeaking() { tts?.stop(); done() }
 
     /** Translates every sentence of the lesson ahead (kept in its translation cache, the reader uses it too). */
-    suspend fun translateAll(app: AppState, lang: String, id: Int, onProgress: (Int, Int) -> Unit) {
+    /** Returns (sentences to translate, how many failed). Stops when the first 3 all fail. */
+    suspend fun translateAll(app: AppState, lang: String, id: Int, onProgress: (Int, Int) -> Unit): Pair<Int, Int> {
         segs.remove("${lang}_$id")
         val list = sentences(app, lang, id)
         val cache = TranslationCache(app.ctx, lang, id, app.trLang)
         val saved = HashMap(withContext(Dispatchers.IO) { cache.load() })
         val todo = list.filter { it.lingq == null && saved[it.text] == null }.distinctBy { it.text }
         var n = 0
+        var ok = 0
+        var failed = 0
+        var lastError: Throwable? = null
         val gate = Semaphore(4)
         coroutineScope {
             todo.map { s ->
                 async {
                     gate.withPermit {
-                        val t = runCatching { translate(app, lang, s.text) }.getOrDefault("")
+                        if (failed >= 3 && ok == 0) throw ApiException("перевод не работает: ${lastError?.message}")
+                        val t = runCatching { translate(app, lang, s.text) }.onFailure { lastError = it }.getOrDefault("")
                         val snap = synchronized(saved) {
-                            if (t.isNotBlank()) saved[s.text] = t
+                            if (t.isNotBlank()) { saved[s.text] = t; ok++ } else failed++
                             n++
                             if (n % 20 == 0) HashMap(saved) else null
                         }
@@ -180,7 +185,8 @@ object ListenTranslate {
             }.awaitAll()
         }
         withContext(Dispatchers.IO) { cache.save(HashMap(saved)) }
-        AppLog.add("listen", "Урок $id: переведено заранее ${todo.size} предложений")
+        AppLog.add("listen", "Урок $id: переведено заранее ${todo.size - failed} из ${todo.size}, не удалось $failed")
+        return todo.size to failed
     }
 }
 
