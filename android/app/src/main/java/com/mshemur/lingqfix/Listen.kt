@@ -139,7 +139,8 @@ object ListenTranslate {
 
     private fun done() {
         speaking = false
-        if (resumeAfter) { resumeAfter = false; AudioEngine.play() }
+        // back 5 s, so the sentence is heard again after its translation
+        if (resumeAfter) { resumeAfter = false; AudioEngine.seekBy(-5000); AudioEngine.play() }
     }
 
     /** A single press while reading: stop reading and play on. */

@@ -572,6 +572,28 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         trSaved[s.text] = t
         trCache.save(HashMap(trSaved))
     }
+    /** "Перевести весь урок": "12 из 80" while running, null otherwise. */
+    var trAll by mutableStateOf<String?>(null)
+
+    /** Every sentence translated ahead (kept like the other translations; headphone translation uses them too). */
+    fun translateAll() {
+        if (trAll != null) return
+        trAll = "…"
+        app.say("Перевожу весь урок…")
+        app.scope.launch {
+            try {
+                ListenTranslate.translateAll(app, lang, lesson.id) { n, all -> trAll = "$n из $all" }
+                val saved = withContext(Dispatchers.IO) { trCache.load() }
+                trSaved.putAll(saved)
+                sentences.forEach { st -> saved[st.text]?.let { sentTr[st.id] = it } }
+                app.say("Весь урок переведён")
+            } catch (e: Throwable) {
+                AppLog.error("reader", "Перевести весь урок", e)
+                app.say("Перевод урока не получился: ${e.message}")
+            }
+            trAll = null
+        }
+    }
     private val hintsCache = HashMap<String, List<String>>()
     private val loadingSentences = HashSet<Int>()
     private val sentById = HashMap<Int, Sent>()
@@ -1323,6 +1345,11 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             DropdownMenuItem(
                 text = { Text("Слова урока (${s.markedWords().size})") },
                 onClick = { menu = false; words = true },
+            )
+            DropdownMenuItem(
+                text = { Text(s.trAll?.let { "Перевожу урок: $it" } ?: "Перевести весь урок") },
+                enabled = s.trAll == null,
+                onClick = { menu = false; s.translateAll() },
             )
             DropdownMenuItem(
                 text = { Text(if (s.hideTr) "Показать переводы над словами" else "Временно скрыть переводы") },

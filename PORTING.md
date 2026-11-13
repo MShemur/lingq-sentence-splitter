@@ -7,6 +7,11 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- android v1.107: reader ⋮ "Перевести весь урок": every sentence without a translation is translated ahead (4 at a time,
+  the translator from settings), kept with the other sentence translations of the lesson and shown at once; the item
+  shows "Перевожу урок: 12 из 80" while running. Android `Reader.kt` translateAll, `Listen.kt` ListenTranslate.translateAll.
+  (Headphone buttons reading the translation aloud are Android only.)
+
 ## To do on Android
 
 
