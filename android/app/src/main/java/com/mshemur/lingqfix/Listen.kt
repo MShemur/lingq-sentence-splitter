@@ -34,6 +34,8 @@ object ListenTranslate {
     @Volatile var speaking = false
         private set
     private var resumeAfter = false
+    /** Start of the translated sentence: playing goes on from there (-1 = unknown). */
+    private var resumeAt = -1L
     private val main = Handler(Looper.getMainLooper())
 
     private fun app(ctx: Context): AppState =
@@ -81,6 +83,7 @@ object ListenTranslate {
         val id = key.substringAfter('_').toIntOrNull() ?: return
         val pos = AudioEngine.nowMs()
         resumeAfter = AudioEngine.playing
+        resumeAt = -1L
         AudioEngine.pause()
         speaking = true
         val app = app(ctx)
@@ -92,6 +95,7 @@ object ListenTranslate {
                 var i = list.indexOfLast { it.start <= pos }.coerceAtLeast(0)
                 if (i > 0 && pos - list[i].start < 1500) i--
                 val s = list[i]
+                resumeAt = s.start
                 val cache = TranslationCache(app.ctx, lang, id, app.trLang)
                 val saved = withContext(Dispatchers.IO) { cache.load() }
                 val tr = saved[s.text] ?: s.lingq ?: translate(app, lang, s.text).also { t ->
@@ -139,8 +143,12 @@ object ListenTranslate {
 
     private fun done() {
         speaking = false
-        // back 5 s, so the sentence is heard again after its translation
-        if (resumeAfter) { resumeAfter = false; AudioEngine.seekBy(-5000); AudioEngine.play() }
+        // the translated sentence is heard again from its start (unknown: 5 s back)
+        if (resumeAfter) {
+            resumeAfter = false
+            if (resumeAt >= 0) AudioEngine.seekTo(resumeAt) else AudioEngine.seekBy(-5000)
+            AudioEngine.play()
+        }
     }
 
     /** A single press while reading: stop reading and play on. */
