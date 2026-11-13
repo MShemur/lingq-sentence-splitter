@@ -132,10 +132,28 @@ fun FeedbackScreen(state: AppState) {
                 "делает и отвечает здесь (с номером версии).",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // dictation: Google's voice window (with its own "listening" animation); the words are added to the note
+        var noMic by remember { mutableStateOf(false) }
+        val mic = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+        ) { r ->
+            val t = r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (!t.isNullOrBlank()) text = if (text.isBlank()) t else text.trimEnd() + " " + t
+        }
         OutlinedTextField(
             text, { text = it }, Modifier.fillMaxWidth().heightIn(min = 140.dp),
             placeholder = { Text("Например: в плеере кнопка ⏭ слишком близко к краю") }, enabled = !busy,
+            trailingIcon = {
+                androidx.compose.material3.IconButton(enabled = !busy, onClick = {
+                    val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                        .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "ru")
+                        .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Говорите — текст добавится в отзыв")
+                    try { mic.launch(i) } catch (e: android.content.ActivityNotFoundException) { noMic = true }
+                }) { androidx.compose.material3.Icon(AppIcons.Mic, contentDescription = "Надиктовать") }
+            },
         )
+        if (noMic) Text("На телефоне нет распознавания речи Google", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = withLog, onCheckedChange = { withLog = it }, enabled = !busy)
             Text("Приложить журнал действий (для ошибок)")

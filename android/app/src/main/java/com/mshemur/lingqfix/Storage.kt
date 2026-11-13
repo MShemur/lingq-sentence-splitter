@@ -45,6 +45,24 @@ class ReadingProgress(ctx: Context) {
     }
 }
 
+/** When each course was last opened or read here or on the other device: the course list puts the latest on top. */
+class CourseTouch(ctx: Context) {
+    private val p = ctx.getSharedPreferences("courseTouch", Context.MODE_PRIVATE)
+
+    fun time(lang: String, id: Int): Long = p.getLong("${lang}_$id", 0L)
+
+    fun touch(lang: String, id: Int) { if (id > 0) p.edit().putLong("${lang}_$id", System.currentTimeMillis()).apply() }
+
+    /** For sync: {"de_123": t}. */
+    fun export(): JSONObject = JSONObject().also { o -> p.all.forEach { (k, v) -> if (v is Long) o.put(k, v) } }
+
+    fun import(o: JSONObject) {
+        val e = p.edit()
+        o.keys().forEach { k -> val t = o.optLong(k); if (t > p.getLong(k, 0L)) e.putLong(k, t) }
+        e.apply()
+    }
+}
+
 class Prefs(ctx: Context) {
     private val p = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
     private fun read(k: String, d: String = "") = p.getString(k, d) ?: d

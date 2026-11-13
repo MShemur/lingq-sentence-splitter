@@ -82,6 +82,7 @@ class AppState(val ctx: Context) {
     val backups = Backups(ctx)
     val bookmarks = BookmarkStore(ctx)
     val progress = ReadingProgress(ctx)
+    val courseTouch = CourseTouch(ctx)
     val stats = ReadingStats.get(ctx)
     val sync = SyncService(this)
     /** The app is on the screen (between onResume and onPause). */
@@ -157,7 +158,13 @@ class AppState(val ctx: Context) {
     }
 
     /** Courses of the library and the player: without the archived ones. */
-    fun visibleCourses(): List<Course>? = courses?.filter { it.id !in archived }
+    /** Courses the latest opened first (here, on the other device, or a lesson of it in "continue"); then LingQ's order. */
+    fun visibleCourses(): List<Course>? {
+        val byTitle = HashMap<String, Long>()
+        recent.orEmpty().forEach { l -> if (l.courseTitle.isNotBlank()) byTitle[l.courseTitle] = maxOf(byTitle[l.courseTitle] ?: 0L, l.opened) }
+        return courses?.filter { it.id !in archived }
+            ?.sortedByDescending { maxOf(courseTouch.time(lang, it.id), byTitle[it.title] ?: 0L) }
+    }
     fun archivedCourses(): List<Course> = courses.orEmpty().filter { it.id in archived }
 
     /** A lesson was deleted on LingQ: it leaves the recent / listened lists and the open course lists. */
@@ -210,7 +217,10 @@ class AppState(val ctx: Context) {
     }
     private var dialogShownFor = 0
 
-    fun go(s: Screen) { stack.add(s); AppLog.add("nav", "→ ${screenName(s)}") }
+    fun go(s: Screen) {
+        if (s is Screen.Lessons) courseTouch.touch(s.lang, s.course.id)
+        stack.add(s); AppLog.add("nav", "→ ${screenName(s)}")
+    }
 
     private fun screenName(s: Screen): String = when (s) {
         is Screen.Reader -> "Урок ${s.session.lang}/${s.session.lesson.id} «${s.session.lesson.title.take(60)}»"
@@ -754,6 +764,8 @@ class ImportSession(private val app: AppState) {
     var pdf by mutableStateOf<PdfDoc?>(null)
     var pdfName by mutableStateOf("")
     val pdfPicked = mutableStateListOf<Int>()
+    /** Page that becomes the course cover (0-based; long press on a preview). */
+    var pdfCover by mutableStateOf(0)
 
     fun cancelPdf() {
         val d = pdf ?: return
@@ -769,7 +781,9 @@ class ImportSession(private val app: AppState) {
         pdf = null
         startLoad("Читаю PDF…")
         app.scope.launch {
+            val cv = runCatching { d.coverJpeg(pdfCover) }.getOrNull()
             d.close()
+            if (cv != null) setCover(cv, pdfName)
             try {
                 readPdf(d.uri, pdfName, pages, d.pages)
                 if (app.prefs.autoClean) cleanQuick()
@@ -1023,12 +1037,15 @@ class ImportSession(private val app: AppState) {
                     cancelPdf()
                     val d = withContext(Dispatchers.IO) { PdfDoc(app.ctx, uri) }
                     if (d.pages <= 1) {
+                        val cv = runCatching { d.coverJpeg(0) }.getOrNull()
                         d.close()
+                        if (cv != null) setCover(cv, name.substringBeforeLast('.'))
                         readPdf(uri, name, listOf(0), 1)
                     } else {
                         // more than one page: the user picks which ones (sheet with previews)
                         pdfName = name.substringBeforeLast('.')
                         pdfPicked.clear()
+                        pdfCover = 0
                         pdf = d
                         loading = false; status = ""
                         return@launch

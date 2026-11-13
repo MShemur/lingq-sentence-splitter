@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,7 +64,20 @@ class PdfDoc(ctx: Context, val uri: Uri) {
     val pages = r.pageCount
 
     suspend fun thumb(i: Int, width: Int): Bitmap? = lock.withLock {
-        if (closed) null else withContext(Dispatchers.IO) { renderPage(r, i, width, Bitmap.Config.RGB_565) }
+        // PdfRenderer draws only into ARGB_8888 bitmaps (RGB_565 failed, and the previews stayed empty)
+        if (closed) null else withContext(Dispatchers.IO) { renderPage(r, i, width, Bitmap.Config.ARGB_8888) }
+    }
+
+    /** Page [i] as a JPEG for the course cover. */
+    suspend fun coverJpeg(i: Int): Pair<ByteArray, String>? = lock.withLock {
+        if (closed) null else withContext(Dispatchers.IO) {
+            val bmp = renderPage(r, i.coerceIn(0, pages - 1), 900, Bitmap.Config.ARGB_8888)
+            try {
+                val out = java.io.ByteArrayOutputStream()
+                bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                out.toByteArray() to "image/jpeg"
+            } finally { bmp.recycle() }
+        }
     }
 
     suspend fun close() = lock.withLock {
@@ -167,7 +181,7 @@ fun PdfPagePicker(s: ImportSession, d: PdfDoc) {
         ) {
             Text("Какие страницы взять?", style = MaterialTheme.typography.titleLarge)
             Text(
-                "${s.pdfName} · ${d.pages} стр. Нажмите на страницы или впишите номера. Страницы без текста (сканы) распознаются на телефоне.",
+                "${s.pdfName} · ${d.pages} стр. Нажмите на страницы или впишите номера. Долгое нажатие — сделать страницу обложкой курса. Страницы без текста (сканы) распознаются на телефоне.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedTextField(
@@ -192,7 +206,7 @@ fun PdfPagePicker(s: ImportSession, d: PdfDoc) {
             ) {
                 items(d.pages, key = { it }) { i ->
                     val on = i in s.pdfPicked
-                    PdfThumb(d, i, on) {
+                    PdfThumb(d, i, on, s.pdfCover == i, onLong = { s.pdfCover = i }) {
                         if (on) s.pdfPicked.remove(i) else s.pdfPicked.add(i)
                         syncText()
                     }
@@ -208,12 +222,13 @@ fun PdfPagePicker(s: ImportSession, d: PdfDoc) {
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun PdfThumb(d: PdfDoc, i: Int, picked: Boolean, onClick: () -> Unit) {
+private fun PdfThumb(d: PdfDoc, i: Int, picked: Boolean, cover: Boolean, onLong: () -> Unit, onClick: () -> Unit) {
     val bmp by produceState<Bitmap?>(null, d, i) { value = runCatching { d.thumb(i, 240) }.getOrNull() }
     val shape = RoundedCornerShape(6.dp)
     Column(
-        Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(2.dp),
+        Modifier.clip(RoundedCornerShape(8.dp)).combinedClickable(onLongClick = onLong, onClick = onClick).padding(2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -226,6 +241,12 @@ private fun PdfThumb(d: PdfDoc, i: Int, picked: Boolean, onClick: () -> Unit) {
                 Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
                 contentAlignment = Alignment.Center,
             ) { Text("✓", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelMedium) }
+            if (cover) Text(
+                "обложка",
+                Modifier.align(Alignment.BottomCenter).padding(4.dp)
+                    .background(MaterialTheme.colorScheme.tertiary, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 1.dp),
+                color = MaterialTheme.colorScheme.onTertiary, style = MaterialTheme.typography.labelSmall,
+            )
         }
         Text("${i + 1}", Modifier.padding(top = 2.dp), style = MaterialTheme.typography.labelMedium)
     }

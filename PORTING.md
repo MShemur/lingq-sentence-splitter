@@ -7,6 +7,22 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's iPad notes 13.11.2026 (web only): 1) settings screens, the reading-look sheet (colours, highlight …) and the
+  "Отзыв / задача" screen scroll only when the finger drags the empty strip at the side; a swipe over the controls in the
+  middle does nothing (sliders / chips / text fields seem to catch the touch). Every scrolling screen and sheet must scroll
+  with a swipe anywhere (touch-action: pan-y on the containers, sliders only take horizontal drags). Android is fine.
+  2) a pinned phrase's highlight is lower than a single word's highlight: make the phrase background as tall as a word's.
+  3) mic everywhere it exists (chat, and add one to "Отзыв / задача": dictation appended to the note): while listening
+  show a clear live state in the input line (pulsing mic / "Слушаю…" with a level or dots animation, like Google), now the
+  button just freezes and looks different, so it is not clear if the iPad hears anything.
+- android v1.100 -> web: 1) course list ("Мои курсы") sorted by when the course was last touched, latest on top: opening
+  a course's lesson list marks it (local time per "lang_courseId"), and a course whose lesson is in "Продолжить" counts
+  with that lesson's open time (matched by course title); untouched courses keep LingQ's order. Synced as "courseT":
+  {"de_123": epochMs}, merged by max (please keep this key in the web merge, otherwise the web sync drops it).
+  Android `AppState.visibleCourses`, `Storage.kt` CourseTouch, `Sync.kt`.
+  2) paragraphs with LingQ style "h1".."h6" (editor paragraphs[].style; plain ones are "p") are drawn bold. LingQ keeps no
+  bold / italic inside the text, so that is all the formatting there is. Android `Reader.kt` Sent.heading.
+
 ## To do on Android
 
 

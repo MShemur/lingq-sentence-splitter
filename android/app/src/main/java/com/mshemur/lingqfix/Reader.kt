@@ -157,6 +157,8 @@ class Sent(
     val id: Int, val text: String, val translations: Map<String, String>, val lingqIndex: Int = id + 1,
     /** Where it sounds in the lesson audio, ms (-1 = unknown). */
     val start: Long = -1, val end: Long = -1,
+    /** In a heading paragraph (LingQ style "h1".."h6"): drawn bold. LingQ keeps no bold / italic inside the text. */
+    val heading: Boolean = false,
 ) {
     val tokens: List<Token> = tokenize(text)
     val chunks: List<List<Token>> = chunks(tokens)
@@ -594,6 +596,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         val out = mutableListOf<List<Sent>>()
         for (i in 0 until a.length()) {
             val ss = a.getJSONObject(i).optJSONArray("sentences") ?: continue
+            val heading = a.getJSONObject(i).optString("style").matches(Regex("h[1-6]"))
             val para = mutableListOf<Sent>()
             for (j in 0 until ss.length()) {
                 val s = ss.getJSONObject(j)
@@ -610,7 +613,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 val ts = s.optJSONArray("timestamp")
                 val start = if (ts != null && ts.length() >= 2 && !ts.isNull(0)) (ts.optDouble(0, -1.0) * 1000).toLong() else -1L
                 val end = if (ts != null && ts.length() >= 2 && !ts.isNull(1)) (ts.optDouble(1, -1.0) * 1000).toLong() else -1L
-                val sent = Sent(id, text, tr, s.optInt("index", id + 1), start, end)
+                val sent = Sent(id, text, tr, s.optInt("index", id + 1), start, end, heading)
                 id++
                 sentById[sent.id] = sent
                 para += sent
@@ -1209,7 +1212,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** The edited sentence replaces the old one on screen; its word pins are dropped (the words moved). */
     private fun replaceSentence(old: Sent, text: String, tr: String) {
         val trs = HashMap(old.translations).apply { if (tr.isNotEmpty()) put(target, tr) }
-        val n = Sent(old.id, text, trs, old.lingqIndex, old.start, old.end)
+        val n = Sent(old.id, text, trs, old.lingqIndex, old.start, old.end, old.heading)
         sentById[n.id] = n
         paragraphs = paragraphs?.map { p -> p.map { if (it.id == n.id) n else it } }
         sentences = sentences.map { if (it.id == n.id) n else it }
@@ -1561,7 +1564,10 @@ private class TextMetrics(
     private val chunkGap = px(size * 0.3f)
     private val lineGap = px(2f)
 
-    private fun w(t: String) = widths.getOrPut(t) { m.measure(t, text, maxLines = 1, softWrap = false).size.width }
+    private val bold = text.copy(fontWeight = FontWeight.Bold)
+    private fun w(t: String, heading: Boolean = false) =
+        if (heading) widths.getOrPut("$t") { m.measure(t, bold, maxLines = 1, softWrap = false).size.width }
+        else widths.getOrPut(t) { m.measure(t, text, maxLines = 1, softWrap = false).size.width }
 
     /**
      * FlowRow of sentences (chunks wrap to the next line, lines 2 dp apart) in one pass:
@@ -1575,7 +1581,7 @@ private class TextMetrics(
         var lines = 0
         sents.forEachIndexed { i, sent ->
             for (c in sent.chunks) {
-                val cw = w(c.joinToString("") { it.text }) + chunkGap
+                val cw = w(c.joinToString("") { it.text }, sent.heading) + chunkGap
                 if (lineW > 0 && lineW + cw > width) { total += lineMax; lines++; lineW = 0; lineMax = 0 }
                 lineW += cw; lineMax = maxOf(lineMax, lineH)
             }
@@ -1816,7 +1822,7 @@ internal fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f
             )
             val phr = s.phrasesIn(sent.id)
             val sounding = s.playingSent == sent.id && AudioEngine.key == s.audioKey
-            val ts = if (sounding) textStyle.copy(fontWeight = FontWeight.Bold) else textStyle
+            val ts = if (sounding || sent.heading) textStyle.copy(fontWeight = FontWeight.Bold) else textStyle
             // a chunk belongs to a phrase by its words, or by a dash standing strictly inside it ("Nürnberg – Wiege")
             fun phraseOf(c: List<Token>) = phr.firstOrNull { (r, _) ->
                 c.any { if (it.isWord) it.index in r else it.index > r.first && it.index < r.last }
