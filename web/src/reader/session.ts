@@ -985,6 +985,9 @@ export class ReaderSession {
       // the window may have been closed meanwhile: the words still get their translation
       if (!this.phrasePins.value[key] || this.phrase.value === p) pinned(this.phrase.value === p ? this.phraseBest.value ?? best : best)
       this.persist()
+      // the translation is there: the selection colour goes, the phrase keeps its usual highlight
+      const sl = this.sel.value
+      if (sl && sl.sent === sentId && sl.from === from && sl.to === to) this.sel.value = null
     } catch (e) {
       if (!this.phrasePins.value[key]) drop(this.phrasePins, key)
       if (this.phrase.value === p) this.phraseError.value = errorText(e)
