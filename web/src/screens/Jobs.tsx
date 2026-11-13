@@ -6,6 +6,7 @@ import { ReaderSession } from '../reader/session'
 import { prefs } from '../settings'
 import { sttCost, sttKeyFor, sttModel, sttProvider } from '../importer/stt'
 import { closeJob, bgJobs, type BgJob } from '../importer/jobs'
+import { courseFor, lastPodcastCourse, rememberCourse } from '../importer/podcastSubs'
 import { Chip, IconButton, Sheet } from '../ui'
 import { Icon } from '../icons'
 
@@ -16,13 +17,18 @@ export function EpisodeSheet({ j, onClose }: { j: BgJob; onClose: () => void }) 
   useEffect(() => { void loadCourses() }, [])
   const pod = j.pod
   const list = visibleCourses.value ?? []
-  const same = list.find((c) => c.title.trim().toLowerCase() === (pod?.title ?? '').trim().toLowerCase())
+  // the course used last time for this podcast, else the same-named one, else the course used last for any podcast
+  const feed = pod?.feed ?? ''
+  const byId = (id: number | null) => (id ? list.find((c) => c.id === id) : undefined)
+  const same = byId(courseFor(feed))
+    ?? list.find((c) => c.title.trim().toLowerCase() === (pod?.title ?? '').trim().toLowerCase())
+    ?? byId(lastPodcastCourse())
   const [course, setCourse] = useState<string>(same ? String(same.id) : 'new')
   const [newTitle, setNewTitle] = useState(pod?.title ?? '')
   const [len, setLen] = useState<number | null>(null)
   const hasTr = !!j.ep.transcript, hasText = !hasTr && !!j.ep.textUrl
   const [useTr, setUseTr] = useState(hasTr)
-  const [useText, setUseText] = useState(hasText)
+  const [useText, setUseText] = useState(false)
   const [cover, setCover] = useState(!same)
   useEffect(() => { if (same && course === 'new') setCourse(String(same.id)) }, [same?.id])
   const prov = sttProvider(prefs.sttProvider.value)
@@ -33,6 +39,7 @@ export function EpisodeSheet({ j, onClose }: { j: BgJob; onClose: () => void }) 
   const ok = course !== 'new' || newTitle.trim()
   const go_ = () => {
     const c = course === 'new' ? null : list.find((x) => String(x.id) === course) ?? null
+    if (c) rememberCourse(feed, c.id)
     void j.run({ course: c, newTitle: newTitle.trim(), fromMs: 0, lenMin: len, useTranscript: useTr, useText, cover })
     say('Загружается в фоне — ход виден в библиотеке')
     onClose()

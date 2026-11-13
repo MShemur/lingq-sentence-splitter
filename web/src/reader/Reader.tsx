@@ -555,6 +555,8 @@ interface SentState {
   sel: { from: number; to: number } | null
   phrases: PhrasePin[]
   marked: boolean
+  /** The other part of a split verb whose word is open or pinned: highlighted too. */
+  pair?: Record<string, true>
   sig: string
 }
 
@@ -576,6 +578,8 @@ export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sen
   const peekAll = s.peek.value
   void s.phrasePins.value
   const ids = new Set(sents.map((x) => x.id))
+  const pairOn: Record<string, true> = {}
+  for (const [w, p] of Object.entries(s.pairs.value)) if (ids.has(refSent(p)) && (popup === w || pins[w] !== undefined)) pairOn[p] = true
   const by = new Map<number, { pins: Record<string, string>; prov: Record<string, true> }>()
   for (const [k, v] of Object.entries(pins)) {
     const id = refSent(k)
@@ -597,8 +601,10 @@ export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sen
         const marked = s.isBookmarked(sent.id)
         const pk: Record<string, true> = {}
         for (const k in peekAll) if (refSent(k) === sent.id) pk[k] = true
-        const sig = JSON.stringify([pp, Object.keys(pv), pu, sl, phrases, marked, Object.keys(pk)])
-        return <SentView key={sent.id} s={s} sent={sent} st={{ pins: pp, peek: pk, prov: pv, popup: pu, sel: sl, phrases, marked, sig }} />
+        const pr: Record<string, true> = {}
+        for (const k in pairOn) if (refSent(k) === sent.id) pr[k] = true
+        const sig = JSON.stringify([pp, Object.keys(pv), pu, sl, phrases, marked, Object.keys(pk), Object.keys(pr)])
+        return <SentView key={sent.id} s={s} sent={sent} st={{ pins: pp, peek: pk, prov: pv, popup: pu, sel: sl, phrases, marked, pair: pr, sig }} />
       })}
     </div>
   )
@@ -620,7 +626,7 @@ const SentView = memo(function SentView({ s, sent, st, plain }: { s: ReaderSessi
         }
         const r = wordRef(sent.id, t.index)
         const tr = inPhrase ? undefined : pins[r]
-        const selected = tr !== undefined || popup === r || inPhrase
+        const selected = tr !== undefined || popup === r || inPhrase || !!st.pair?.[r]
         return (
           <span class={'w' + (selected ? ' sel' : '') + (pk ? ' picked' : '')} data-w={r}>
             {tr !== undefined && <span class={'pin' + (prov[r] ? ' prov' : '') + (peek[r] ? ' peek' : '')}>{tr || '…'}</span>}

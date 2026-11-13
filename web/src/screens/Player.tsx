@@ -20,14 +20,28 @@ import { Icon } from '../icons'
 import { Cover, plural } from './Library'
 import { Press } from '../press'
 import { useReadingTimer } from '../stats'
+import { PodcastSession } from '../importer/podcasts'
+import { ImportSession } from '../importer/session'
 
 // --- bottom tabs and the mini player ---
 
-export function MainTabs({ at }: { at: 'courses' | 'player' }) {
+let podTab: PodcastSession | null = null
+
+/** "Подкасты" tab: the subscriptions straight away (one session per language, kept while the app runs). */
+function openPodcastsTab() {
+  const l = lang()
+  if (!podTab || podTab.lang !== l) podTab = new PodcastSession(new ImportSession(), l)
+  switchTab('podcasts', podTab)
+}
+
+export function MainTabs({ at }: { at: 'courses' | 'player' | 'podcasts' }) {
   return (
     <nav class="bottom-nav tabs">
       <button class={at === 'courses' ? 'active' : ''} onClick={() => switchTab('courses')}>
         <span class="nav-ind"><Icon name="library" /></span><span>Библиотека</span>
+      </button>
+      <button class={at === 'podcasts' ? 'active' : ''} onClick={openPodcastsTab}>
+        <span class="nav-ind"><Icon name="podcast" /></span><span>Подкасты</span>
       </button>
       <button class={at === 'player' ? 'active' : ''} onClick={() => switchTab('player')}>
         <span class="nav-ind"><Icon name="headphones" /></span><span>Плеер</span>

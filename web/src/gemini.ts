@@ -11,7 +11,8 @@ const API = 'https://generativelanguage.googleapis.com/v1beta'
 
 /** [reasoning]: the model's thoughts before the answer (only some other AIs send them). */
 export interface Msg { user: boolean; text: string; reasoning?: string }
-export interface WordMeaning { best: string; options: string[]; note: string }
+/** [pair]: the other part of a split separable verb as written in the sentence ('' = none). */
+export interface WordMeaning { best: string; options: string[]; note: string; pair?: string }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -137,7 +138,7 @@ export async function word(prompt: string, lang: string, target: string, w: stri
   try {
     const o = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1))
     const options = Array.isArray(o.options) ? o.options.map(String).filter((x: string) => x.trim()) : []
-    return { best: String(o.best ?? ''), options, note: String(o.note ?? '') }
+    return { best: String(o.best ?? ''), options, note: String(o.note ?? ''), pair: String(o.pair ?? '').trim() }
   } catch {
     return { best: raw.split('\n')[0].slice(0, 60), options: [], note: '' }
   }

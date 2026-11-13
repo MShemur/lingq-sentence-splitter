@@ -7,7 +7,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-- user's notes 13.11.2026 -> android v1.102:
+## To do on Android
+
+
+## Done
+
+- user's notes 13.11.2026 -> android v1.102 -> web v1.50:
   1) (20261113-051920-web) podcast subscriptions are synced: data.json "podcasts": {feedUrl: {title, author, image, seen, t}}
      or {del: true, t} for a removed one; t = when added / removed (ms), per feed the later t wins, "seen" = max; the
      merged list replaces the local one. Existing subscriptions have t = 0. Please keep the key in the web merge.
@@ -20,11 +25,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   3) (android notes, do on web if the web has them) bottom tab "Подкасты" next to Библиотека / Плеер opens the
      subscriptions directly; the podcast "В LingQ" sheet preselects the course used last time for this podcast
      (else same-named course, else the last course used); "Текст подкаста" (text without times) is off by default.
-
-## To do on Android
-
-
-## Done
+  Web v1.50: 1) importer/podcastSubs.ts (subs moved here; t on add, 'podcasts.removed' tombstones; exportSubs / importSubs / mergeSubs), sync.ts key 'podcasts'. Search fix: Apple's search is now asked directly from the browser (it allows CORS); through the /fetch proxy Apple began to answer Cloudflare with an HTML page, which the proxy refuses (HTTP 415) - the proxy stays as fallback. 2) gemini.ts WordMeaning.pair, SEPARABLE asks for 'pair', reader/session.ts pairs + markPair (nearest token), Reader.tsx SentState.pair highlights it while the word is open or pinned. 3) Player.tsx MainTabs: tab 'Подкасты' (root PodcastSession per language, no back button, tabs + mini player under it); Jobs.tsx EpisodeSheet: course remembered per feed (podcastSubs courseFor / rememberCourse), else same title, else last podcast course; 'Текст подкаста' off by default.
 
 - user's iPad note 13.11.2026 (20261113-045025-web) -> android v1.101 -> web v1.49: after a long press over several words the
   selection colour (dark violet) stayed next to the phrase highlight until another word was tapped. Clear the

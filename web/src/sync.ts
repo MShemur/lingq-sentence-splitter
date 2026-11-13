@@ -7,6 +7,7 @@
 // - stats: {"<device>": {"<date>": [seconds, words, listening seconds]}} (old: 2 numbers) — every device writes only its own part;
 // - seen: {"<lang>_<lessonId>": index} — max;
 // - courseT: {"<lang>_<courseId>": ms} — when the course was last opened, max;
+// - podcasts: {feedUrl: {title, author, image, seen, t} | {del: true, t}} — per feed the later t wins, seen = max;
 // - secrets: {v, iter, salt, iv, ct, t} — the keys (LingQ, Gemini, other AI) encrypted with the sync password
 //   (PBKDF2-SHA256 -> AES-256-GCM, tag appended to ct, base64); the later `t` wins. GitHub token is not synced.
 import { signal } from '@preact/signals'
@@ -16,6 +17,7 @@ import { STT_PROVIDERS, setSttKey, sttKey } from './importer/stt'
 import { bookmarkKey, bookmarks, bookmarksDeleted, replaceAllBookmarks, type Bookmark } from './bookmarks'
 import { exportPositions, importPositions } from './progress'
 import { exportCourseT, importCourseT } from './courseTouch'
+import { exportSubs, importSubs, mergeSubs } from './importer/podcastSubs'
 import { exportDays, exportSeen, importStats } from './stats'
 
 const API = 'https://api.github.com/repos/MShemur/lingq-sentence-splitter'
@@ -320,7 +322,7 @@ function exportLocal(): Obj {
   } catch { /* storage blocked */ }
   return {
     v: 1, bookmarks: bm, deleted: { ...bookmarksDeleted }, notes,
-    progress: exportPositions(), stats: { [device]: exportDays() }, seen: exportSeen(), courseT: exportCourseT(),
+    progress: exportPositions(), stats: { [device]: exportDays() }, seen: exportSeen(), courseT: exportCourseT(), podcasts: exportSubs(),
   }
 }
 
@@ -342,6 +344,7 @@ function importLocal(m: Obj) {
   for (const [d, days] of Object.entries(m.stats ?? {})) if (d !== device) others[d] = days
   importStats(others, m.seen ?? {})
   importCourseT(m.courseT ?? {})
+  if (m.podcasts) importSubs(m.podcasts)
 }
 
 // --- merge ---
@@ -378,7 +381,8 @@ function merge(a: Obj, b: Obj): Obj {
   // courseT: max
   const courseT: Obj = {}
   for (const c of [a.courseT ?? {}, b.courseT ?? {}]) for (const [k, v] of Object.entries(c)) courseT[k] = Math.max(courseT[k] ?? 0, Number(v) || 0)
-  return { v: 1, bookmarks: bm, deleted: del, notes, progress, stats, seen, courseT }
+  const podcasts = mergeSubs(a.podcasts, b.podcasts)
+  return { v: 1, bookmarks: bm, deleted: del, notes, progress, stats, seen, courseT, podcasts }
 }
 
 function mergeBy(a: Obj | undefined, b: Obj | undefined, pick: (x: Obj, y: Obj) => Obj): Obj {

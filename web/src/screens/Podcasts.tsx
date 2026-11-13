@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'preact/hooks'
 import { startJob, type BgJob } from '../importer/jobs'
 import { EpisodeSheet } from './Jobs'
-import { back } from '../app'
+import { back, stack } from '../app'
+import { MainTabs, MiniPlayer } from './Player'
 import { isSub, subs, type Podcast, type PodcastSession } from '../importer/podcasts'
 import { ClearX, IconButton, TopBar } from '../ui'
 import { Cover } from './Library'
@@ -24,11 +25,12 @@ function PodcastRow({ p, badge, onClick }: { p: Podcast; badge?: string; onClick
 }
 
 export function PodcastsScreen({ s }: { s: PodcastSession }) {
-  useEffect(() => { s.refreshNew() }, [])
+  useEffect(() => { s.refreshNew() }, [subs.value.length])
   const res = s.results.value
+  const tab = stack.value[0] === s // opened as the bottom tab
   return (
     <div class="screen">
-      <TopBar nav={<IconButton icon="back" label="Назад" onClick={back} />} title="Подкасты" />
+      <TopBar nav={tab ? undefined : <IconButton icon="back" label="Назад" onClick={back} />} title="Подкасты" />
       <div class="screen-body scroll">
         <div class="content page">
           <form class="pod-search" onSubmit={(e) => { e.preventDefault(); void s.search() }}>
@@ -64,6 +66,8 @@ export function PodcastsScreen({ s }: { s: PodcastSession }) {
           )}
         </div>
       </div>
+      {tab && <MiniPlayer />}
+      {tab && <MainTabs at="podcasts" />}
     </div>
   )
 }

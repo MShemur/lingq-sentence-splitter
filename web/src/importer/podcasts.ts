@@ -32,7 +32,18 @@ const COUNTRY: Record<string, string> = { de: 'DE', fr: 'FR', es: 'ES', it: 'IT'
 /** Apple Podcasts catalogue: free, no key. */
 export async function search(term: string, lang: string): Promise<Podcast[]> {
   const q = new URLSearchParams({ media: 'podcast', entity: 'podcast', limit: '40', country: COUNTRY[lang] ?? 'US', term })
-  const d = await (await get(`https://itunes.apple.com/search?${q}`, 'поиск')).json()
+  const url = `https://itunes.apple.com/search?${q}`
+  // Apple allows the browser to ask directly (CORS *); through the site's proxy Apple began to answer Cloudflare with
+  // an HTML page (refused by the proxy, "HTTP 415"), so the proxy is only the fallback
+  let d: any
+  try {
+    const r = await fetch(url)
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    d = await r.json()
+  } catch (e) {
+    log('podcast', `Поиск напрямую ✗ ${(e as Error).message}, через прокси`)
+    d = await (await get(url, 'поиск')).json()
+  }
   return (d?.results ?? []).filter((o: any) => o.feedUrl).map((o: any) => ({
     title: String(o.collectionName ?? ''), author: String(o.artistName ?? ''), feed: String(o.feedUrl),
     image: String(o.artworkUrl600 || o.artworkUrl100 || ''),
@@ -142,24 +153,9 @@ export async function transcript(url: string, type: string): Promise<TSeg[]> {
   return out
 }
 
-// --- subscriptions (this device only) ---
-
-export interface Sub { podcast: Podcast; seen: number }
-
-function loadSubs(): Sub[] {
-  try { const a = JSON.parse(localStorage.getItem('podcasts.subs') ?? '[]'); return Array.isArray(a) ? a : [] } catch { return [] }
-}
-export const subs = signal<Sub[]>(loadSubs())
-function saveSubs(l: Sub[]) {
-  subs.value = l
-  try { localStorage.setItem('podcasts.subs', JSON.stringify(l)) } catch { /* ignore */ }
-}
-export const isSub = (feed: string) => subs.value.some((s) => s.podcast.feed === feed)
-export function addSub(p: Podcast, seen: number) { if (!isSub(p.feed)) saveSubs([...subs.value, { podcast: p, seen }]) }
-export function removeSub(feed: string) { saveSubs(subs.value.filter((s) => s.podcast.feed !== feed)) }
-export function markSeen(feed: string, t: number) {
-  saveSubs(subs.value.map((s) => (s.podcast.feed === feed && t > s.seen ? { ...s, seen: t } : s)))
-}
+// --- subscriptions: podcastSubs.ts (synced with the phone) ---
+import { addSub, isSub, markSeen, removeSub, subs } from './podcastSubs'
+export { addSub, isSub, removeSub, subs, type Sub } from './podcastSubs'
 
 /** File extension of an episode's audio. */
 export function episodeExt(ep: Episode): string {

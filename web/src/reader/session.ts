@@ -87,7 +87,9 @@ const isError = (t: string | undefined) => !t || t.startsWith('⚠')
 const SEPARABLE = '\n\nУчитывай грамматику всего предложения. Если «{word}» — глагол с отделяемой приставкой ' +
   '(или часть составного глагола), а приставка стоит отдельно дальше в предложении (нем. «Er fing gestern an» → anfangen, ' +
   '«Sie kommt morgen zurück» → zurückkommen), переводи глагол вместе с этой приставкой, а в note укажи инфинитив с приставкой. ' +
-  'Если «{word}» — сама отделённая приставка, переводи весь глагол так же.'
+  'Если «{word}» — сама отделённая приставка, переводи весь глагол так же. ' +
+  'Добавь в JSON поле "pair": вторая часть этого разделённого глагола ровно так, как она написана в предложении ' +
+  '(приставка, если «{word}» — глагол; глагол, если «{word}» — приставка); пустая строка, если глагол не разделён.'
 
 /** The sentence in LingQ's paragraphs: by its index, else by the same order as `parse` (non-empty sentences). */
 function findSentence(paras: any[], s: Sent): any | null {
@@ -156,6 +158,23 @@ export class ReaderSession {
 
   /** Word window (double tap). */
   popup = signal<WordRef | null>(null)
+  /** Separable verb split in the sentence: word -> its other part (verb <-> prefix), from the AI's answer. */
+  pairs = signal<Record<WordRef, WordRef>>({})
+
+  /** The nearest word of the sentence spelled like [pair] becomes the other part of [r]'s verb. */
+  private markPair(r: WordRef, pair: string) {
+    const w = pair.trim().toLowerCase()
+    if (!w || w.includes(' ')) return
+    const st = this.sentById.get(refSent(r))
+    if (!st) return
+    const me = refToken(r)
+    let hit: Token | null = null
+    for (const t of st.tokens) {
+      if (!t.isWord || t.index === me || t.text.toLowerCase() !== w) continue
+      if (!hit || Math.abs(t.index - me) < Math.abs(hit.index - me)) hit = t
+    }
+    if (hit) this.pairs.value = { ...this.pairs.value, [r]: ref(st.id, hit.index) }
+  }
   popupHints = signal<string[] | null>(null)
   popupBest = signal<string | null>(null)
   popupError = signal<string | null>(null)
@@ -697,7 +716,7 @@ export class ReaderSession {
     const s = this.sentById.get(refSent(r))!
     const p = gemini.word(prompt.word() + SEPARABLE, this.lang, this.target, this.word(r), s.text)
     this.aiCache.set(r, p)
-    p.catch(() => { if (this.aiCache.get(r) === p) this.aiCache.delete(r) })
+    p.then((m) => this.markPair(r, m.pair ?? ''), () => { if (this.aiCache.get(r) === p) this.aiCache.delete(r) })
     return p
   }
 

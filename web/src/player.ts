@@ -18,13 +18,13 @@ function session(lang: string, l: Lesson) {
 }
 
 /** Bottom tabs of the main screen: Библиотека / Плеер. */
-export function switchTab(k: 'courses' | 'player') {
+export function switchTab(k: 'courses' | 'player' | 'podcasts', root?: Screen) {
   const list = stack.value
   if (list.length === 1 && list[0].k === k) return
-  stack.value = [{ k } as Screen]
+  stack.value = [root ?? ({ k } as Screen)]
   const depth = typeof history.state?.depth === 'number' ? history.state.depth : 0
   if (depth > 0) try { history.go(-depth) } catch { /* ignore */ }
-  log('nav', `Вкладка ${k === 'player' ? 'Плеер' : 'Библиотека'}`)
+  log('nav', `Вкладка ${k === 'player' ? 'Плеер' : k === 'podcasts' ? 'Подкасты' : 'Библиотека'}`)
 }
 
 /** Listen to a lesson in the player tab (starts playing when its audio is known). */
