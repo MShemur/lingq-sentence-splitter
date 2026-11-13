@@ -63,6 +63,8 @@ function chunks(tokens: Token[]): Token[][] {
 export class Sent {
   readonly tokens: Token[]
   readonly chunks: Token[][]
+  /** In a paragraph with LingQ's style h1..h6: drawn bold. */
+  heading = false
   constructor(
     readonly id: number, readonly text: string, readonly translations: Record<string, string>, readonly lingqIndex: number,
     /** Where it sounds in the lesson audio, ms (-1 = unknown). */
@@ -261,6 +263,8 @@ export class ReaderSession {
     const out: Sent[][] = []
     for (const p of a) {
       const para: Sent[] = []
+      // LingQ's paragraph style: "h1".."h6" are headings (drawn bold), plain text is "p"
+      const heading = /^h[1-6]$/i.test(String(p?.style ?? ''))
       for (const s of p?.sentences ?? []) {
         const text = String(s.text ?? '').trim()
         if (!text) continue
@@ -272,6 +276,7 @@ export class ReaderSession {
         const ts = Array.isArray(s.timestamp) ? s.timestamp : null
         const sec = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.round(v * 1000) : -1)
         const sent = new Sent(id, text, tr, typeof s.index === 'number' ? s.index : id + 1, sec(ts?.[0]), sec(ts?.[1]))
+        sent.heading = heading
         id++
         this.sentById.set(sent.id, sent)
         para.push(sent)
@@ -652,6 +657,7 @@ export class ReaderSession {
     const trs = { ...old.translations }
     if (tr) trs[this.target] = tr
     const n = new Sent(old.id, text, trs, old.lingqIndex, old.start, old.end)
+    n.heading = old.heading
     this.sentById.set(n.id, n)
     this.paragraphs.value = this.paragraphs.value?.map((p) => p.map((x) => (x.id === n.id ? n : x))) ?? null
     this.sentences.value = this.sentences.value.map((x) => (x.id === n.id ? n : x))

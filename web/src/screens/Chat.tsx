@@ -5,7 +5,7 @@ import { back } from '../app'
 import { aiName } from '../settings'
 import type { ChatSession } from '../chat'
 import { Icon } from '../icons'
-import { IconButton, Spinner, TopBar } from '../ui'
+import { IconButton, Spinner, TopBar, VoiceBar } from '../ui'
 
 const SUGGESTIONS = {
   text: ['Разбери грамматику', 'Объясни трудные слова', 'Переведи дословно', 'Приведи похожие примеры'],
@@ -53,8 +53,6 @@ export function ChatScreen({ c }: { c: ChatSession }) {
               {m.user ? m.text : <Markdown text={m.text} />}
             </div>
           ))}
-          {c.recording.value && <div class="typing"><span class="rec-dot" /> Говорите… нажмите ещё раз — вопрос уйдёт сразу</div>}
-          {c.hearing.value && <div class="typing"><Spinner size={18} /> Распознаю вопрос…</div>}
           {sending && <div class="typing"><Spinner size={18} /> {aiName()} пишет…</div>}
           {c.error.value && (
             <div class="chat-error">
@@ -66,7 +64,7 @@ export function ChatScreen({ c }: { c: ChatSession }) {
         </div>
       </div>
       <form class="chat-input" onSubmit={(e) => { e.preventDefault(); void c.send() }}>
-        <textarea
+        {c.voice.busy ? <VoiceBar d={c.voice} hint="нажмите ещё раз — вопрос уйдёт" /> : <textarea
           rows={1} placeholder="Спросите о тексте…" value={c.input.value}
           onInput={(e) => {
             const t = e.target as HTMLTextAreaElement
@@ -75,15 +73,15 @@ export function ChatScreen({ c }: { c: ChatSession }) {
             t.style.height = Math.min(t.scrollHeight, 140) + 'px'
           }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void c.send() } }}
-        />
+        />}
         {c.input.value.trim() ? (
           <button class="fab-send" type="submit" aria-label="Отправить" disabled={sending}>
             <Icon name="send" />
           </button>
         ) : (
-          <button class={'fab-send mic' + (c.recording.value ? ' on' : '')} type="button" disabled={sending || c.hearing.value}
-            aria-label={c.recording.value ? 'Отправить голосом' : 'Спросить голосом'} onClick={() => void c.toggleVoice()}>
-            {c.hearing.value ? <Spinner size={20} /> : <Icon name={c.recording.value ? 'send' : 'mic'} />}
+          <button class={'fab-send mic' + (c.voice.recording.value ? ' on' : '')} type="button" disabled={sending || c.voice.hearing.value}
+            aria-label={c.voice.recording.value ? 'Отправить голосом' : 'Спросить голосом'} onClick={() => void c.toggleVoice()}>
+            {c.voice.hearing.value ? <Spinner size={20} /> : <Icon name={c.voice.recording.value ? 'send' : 'mic'} />}
           </button>
         )}
       </form>

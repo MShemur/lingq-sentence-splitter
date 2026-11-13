@@ -7,7 +7,21 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-- user's iPad notes 13.11.2026 (web only): 1) settings screens, the reading-look sheet (colours, highlight …) and the
+## To do on Android
+
+
+## Done
+
+- android v1.100 -> web v1.48: 1) course list ("Мои курсы") sorted by when the course was last touched, latest on top: opening
+  a course's lesson list marks it (local time per "lang_courseId"), and a course whose lesson is in "Продолжить" counts
+  with that lesson's open time (matched by course title); untouched courses keep LingQ's order. Synced as "courseT":
+  {"de_123": epochMs}, merged by max (please keep this key in the web merge, otherwise the web sync drops it).
+  Android `AppState.visibleCourses`, `Storage.kt` CourseTouch, `Sync.kt`.
+  2) paragraphs with LingQ style "h1".."h6" (editor paragraphs[].style; plain ones are "p") are drawn bold. LingQ keeps no
+  bold / italic inside the text, so that is all the formatting there is. Android `Reader.kt` Sent.heading.
+  Web v1.48: courseTouch.ts (courseT, touchCourse on opening a lesson list in app.ts go(), sync export / import / merge by max in sync.ts), app.ts visibleCourses sorted (courseT or the "Продолжить" lesson of the same course title; ties keep LingQ order). Headings: reader/session.ts Sent.heading from paragraph style h1..h6, Reader.tsx class "heading" (words bold, also in sentence mode).
+
+- user's iPad notes 13.11.2026 (web only) -> web v1.48: 1) settings screens, the reading-look sheet (colours, highlight …) and the
   "Отзыв / задача" screen scroll only when the finger drags the empty strip at the side; a swipe over the controls in the
   middle does nothing (sliders / chips / text fields seem to catch the touch). Every scrolling screen and sheet must scroll
   with a swipe anywhere (touch-action: pan-y on the containers, sliders only take horizontal drags). Android is fine.
@@ -15,18 +29,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   3) mic everywhere it exists (chat, and add one to "Отзыв / задача": dictation appended to the note): while listening
   show a clear live state in the input line (pulsing mic / "Слушаю…" with a level or dots animation, like Google), now the
   button just freezes and looks different, so it is not clear if the iPad hears anything.
-- android v1.100 -> web: 1) course list ("Мои курсы") sorted by when the course was last touched, latest on top: opening
-  a course's lesson list marks it (local time per "lang_courseId"), and a course whose lesson is in "Продолжить" counts
-  with that lesson's open time (matched by course title); untouched courses keep LingQ's order. Synced as "courseT":
-  {"de_123": epochMs}, merged by max (please keep this key in the web merge, otherwise the web sync drops it).
-  Android `AppState.visibleCourses`, `Storage.kt` CourseTouch, `Sync.kt`.
-  2) paragraphs with LingQ style "h1".."h6" (editor paragraphs[].style; plain ones are "p") are drawn bold. LingQ keeps no
-  bold / italic inside the text, so that is all the formatting there is. Android `Reader.kt` Sent.heading.
-
-## To do on Android
-
-
-## Done
+  Web v1.48: 1) styles.css: the reader rule '.page { touch-action: none }' also hit every content screen with class 'page' (settings, reading look, feedback, stats) - now only '.pager > .page'; scrolling containers and sliders pan-y. 2) a pinned phrase gets one highlight box over its translation and words (.phrase:has(.w.sel)), as tall as a word with its translation. 3) voice.ts Dictation (recording, level meter via AnalyserNode, recognition), ui.tsx VoiceBar (pulsing dot, 'Слушаю…', 5 level bars, 'Распознаю…') in the chat input line and in 'Отзыв / задача' (new mic button, dictation appended to the note); mic button pulses while recording.
 
 - android v1.98 -> web v1.47: "Слова по урокам": slider 0–10 "Не считать слова, которые встретились N раз и реже" (in the whole course; 0 = all; kept in settings). The result now keeps every base form with its first lesson, total count and known flag (JSON "lemmas": flat array word, first, count, known 0/1); the numbers per lesson, unique total, charts and top words are recomputed from it; the summary says how many rare words were cut. Older results: slider disabled, "Пересчитать". Android `WordStats.kt` WsResult.without.
   Web v1.47: Web: wordstats.ts without(), WsResult.lemmas (same flat layout), pref wsMin, screens/WordStats.tsx RareSlider. Unknown words keep the spelling seen in lemmas (lowercase preferred).

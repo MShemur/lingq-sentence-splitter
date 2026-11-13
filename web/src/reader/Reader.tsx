@@ -528,7 +528,8 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
  * [plain]: the bare text without translations and marks (how pages are laid out).
  */
 function Paragraph({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain?: boolean }) {
-  if (plain) return <div class="para"><SentenceFlow s={s} sents={sents} plain /></div>
+  const cls = 'para' + (sents[0]?.heading ? ' heading' : '')
+  if (plain) return <div class={cls}><SentenceFlow s={s} sents={sents} plain /></div>
   const parts: JSX.Element[] = []
   let run: Sent[] = []
   for (const sent of sents) {
@@ -540,7 +541,7 @@ function Paragraph({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain
     }
   }
   if (run.length) parts.push(<SentenceFlow key="rest" s={s} sents={run} />)
-  return <div class="para">{parts}</div>
+  return <div class={cls}>{parts}</div>
 }
 
 type PhrasePin = { from: number; to: number; text: string }
@@ -902,7 +903,7 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
           <div class="page" key={sent.id}>
             {Math.abs(i - page) <= 2 && (
               <div class="page-inner reader-text" style={{ '--fs': Number(prefs.readerFont.value) * 1.15 + 'px' } as JSX.CSSProperties} {...handlers}>
-                <div class="sm-center">
+                <div class={'sm-center' + (sent.heading ? ' heading' : '')}>
                   <SentenceFlow s={s} sents={[sent]} />
                   <SentenceTranslationPage s={s} id={sent.id} />
                 </div>

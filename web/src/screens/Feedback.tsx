@@ -1,11 +1,13 @@
 // "Отзыв / задача": a note for Claude, saved as feedback/<stamp>-web.json on the sync branch of the repo (the sync
 // token may write there). Claude works on it and writes status / doneIn / reply back into the file; listed here.
 // Port of Android Feedback.kt.
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { back, go, say } from '../app'
 import { log, logError, logText } from '../applog'
 import { prefs } from '../settings'
-import { IconButton, Spinner, TopBar } from '../ui'
+import { Icon } from '../icons'
+import { IconButton, Spinner, TopBar, VoiceBar } from '../ui'
+import { Dictation } from '../voice'
 
 declare const __VERSION__: string
 
@@ -78,6 +80,12 @@ export function FeedbackScreen() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [items, setItems] = useState<Item[] | null>(null)
+  const voice = useRef(new Dictation()).current
+  useEffect(() => () => voice.cancel(), [])
+  const dictate = () => {
+    setErr(null)
+    void voice.toggle((t) => setText((old) => (old.trim() ? old.replace(/\s*$/, ' ') : '') + t), setErr)
+  }
   const reload = () => { setItems(null); list().then(setItems, (e) => { setErr((e as Error).message); setItems([]) }) }
   useEffect(reload, [])
   const noToken = !prefs.ghToken.value.trim()
@@ -100,6 +108,13 @@ export function FeedbackScreen() {
           )}
           <textarea rows={6} value={text} disabled={busy} placeholder="Например: в плеере кнопка ⏭ слишком близко к краю"
             onInput={(e) => setText((e.target as HTMLTextAreaElement).value)} />
+          <div class="fb-voice">
+            <button class={'fab-send mic' + (voice.recording.value ? ' on' : '')} type="button" disabled={busy || voice.hearing.value}
+              aria-label={voice.recording.value ? 'Закончить диктовку' : 'Надиктовать'} onClick={dictate}>
+              {voice.hearing.value ? <Spinner size={20} /> : <Icon name={voice.recording.value ? 'check' : 'mic'} />}
+            </button>
+            {voice.busy ? <VoiceBar d={voice} hint="нажмите ещё раз — текст добавится к заметке" /> : <span class="hint">Надиктовать: текст добавится к заметке</span>}
+          </div>
           <label class="check-row">
             <input type="checkbox" checked={withLog} disabled={busy} onChange={(e) => setWithLog((e.target as HTMLInputElement).checked)} />
             <span>Приложить журнал действий (для ошибок)</span>

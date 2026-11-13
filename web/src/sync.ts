@@ -6,6 +6,7 @@
 // - progress: {"<lang>_<lessonId>": {pos, t, read}} — pos by later `t`, read = max;
 // - stats: {"<device>": {"<date>": [seconds, words, listening seconds]}} (old: 2 numbers) — every device writes only its own part;
 // - seen: {"<lang>_<lessonId>": index} — max;
+// - courseT: {"<lang>_<courseId>": ms} — when the course was last opened, max;
 // - secrets: {v, iter, salt, iv, ct, t} — the keys (LingQ, Gemini, other AI) encrypted with the sync password
 //   (PBKDF2-SHA256 -> AES-256-GCM, tag appended to ct, base64); the later `t` wins. GitHub token is not synced.
 import { signal } from '@preact/signals'
@@ -14,6 +15,7 @@ import { prefs } from './settings'
 import { STT_PROVIDERS, setSttKey, sttKey } from './importer/stt'
 import { bookmarkKey, bookmarks, bookmarksDeleted, replaceAllBookmarks, type Bookmark } from './bookmarks'
 import { exportPositions, importPositions } from './progress'
+import { exportCourseT, importCourseT } from './courseTouch'
 import { exportDays, exportSeen, importStats } from './stats'
 
 const API = 'https://api.github.com/repos/MShemur/lingq-sentence-splitter'
@@ -318,7 +320,7 @@ function exportLocal(): Obj {
   } catch { /* storage blocked */ }
   return {
     v: 1, bookmarks: bm, deleted: { ...bookmarksDeleted }, notes,
-    progress: exportPositions(), stats: { [device]: exportDays() }, seen: exportSeen(),
+    progress: exportPositions(), stats: { [device]: exportDays() }, seen: exportSeen(), courseT: exportCourseT(),
   }
 }
 
@@ -339,6 +341,7 @@ function importLocal(m: Obj) {
   const others: Obj = {}
   for (const [d, days] of Object.entries(m.stats ?? {})) if (d !== device) others[d] = days
   importStats(others, m.seen ?? {})
+  importCourseT(m.courseT ?? {})
 }
 
 // --- merge ---
@@ -372,7 +375,10 @@ function merge(a: Obj, b: Obj): Obj {
   // seen: max
   const seen: Obj = {}
   for (const s of [a.seen ?? {}, b.seen ?? {}]) for (const [k, v] of Object.entries(s)) seen[k] = Math.max(seen[k] ?? -1, Number(v))
-  return { v: 1, bookmarks: bm, deleted: del, notes, progress, stats, seen }
+  // courseT: max
+  const courseT: Obj = {}
+  for (const c of [a.courseT ?? {}, b.courseT ?? {}]) for (const [k, v] of Object.entries(c)) courseT[k] = Math.max(courseT[k] ?? 0, Number(v) || 0)
+  return { v: 1, bookmarks: bm, deleted: del, notes, progress, stats, seen, courseT }
 }
 
 function mergeBy(a: Obj | undefined, b: Obj | undefined, pick: (x: Obj, y: Obj) => Obj): Obj {

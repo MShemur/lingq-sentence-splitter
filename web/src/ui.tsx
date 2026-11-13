@@ -2,6 +2,7 @@
 import type { ComponentChildren, JSX } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import { Icon, type IconName } from './icons'
+import type { Dictation } from './voice'
 
 export function IconButton(p: { icon: IconName; label: string; onClick: () => void; size?: number; class?: string; disabled?: boolean }) {
   return (
@@ -186,5 +187,20 @@ export function TextField(p: {
       </div>
       {hint && <span class="field-hint">{hint}</span>}
     </label>
+  )
+}
+
+/** Live state of a dictation in the input line: pulsing dot, "Слушаю…" and bars that follow the loudness. */
+export function VoiceBar({ d, hint }: { d: Dictation; hint?: string }) {
+  if (d.hearing.value) return <div class="voice-bar"><Spinner size={18} /><span>Распознаю…</span></div>
+  if (!d.recording.value) return null
+  const l = d.level.value
+  return (
+    <div class="voice-bar on" role="status">
+      <span class="rec-dot" />
+      <span>Слушаю…</span>
+      <span class="vb-bars">{[0.5, 0.8, 1, 0.8, 0.5].map((k, i) => <i key={i} style={{ height: `${4 + Math.round(l * k * 20)}px` }} />)}</span>
+      {hint && <span class="vb-hint">{hint}</span>}
+    </div>
   )
 }

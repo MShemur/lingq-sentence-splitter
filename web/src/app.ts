@@ -9,6 +9,7 @@ import type { ImportSession } from './importer/session'
 import type { PodcastSession } from './importer/podcasts'
 import type { WordStatsSession } from './wordstats'
 import { positions } from './progress'
+import { courseT, touchCourse } from './courseTouch'
 import { log, logError } from './applog'
 import { listenHooks, type Track } from './audio'
 
@@ -78,6 +79,7 @@ function screenName(s: Screen): string {
 export function go(s: Screen) {
   log('nav', `→ ${screenName(s)}`)
   stack.value = [...stack.value, s]
+  if (s instanceof LessonsScreen) touchCourse(s.lang, s.course.id)
   try { history.pushState({ depth: stack.value.length - 1 }, '') } catch { /* ignore */ }
 }
 
@@ -148,8 +150,19 @@ function saveArchive(v: Record<string, Course[]>) {
   try { localStorage.setItem('courses.archive', JSON.stringify(v)) } catch { /* ignore */ }
 }
 export const archivedIds = computed(() => new Set((archive.value[lang()] ?? []).map((c) => c.id)))
-/** Courses shown in the library and the player (archived ones left out). */
-export const visibleCourses = computed(() => courses.value?.filter((c) => !archivedIds.value.has(c.id)) ?? null)
+/**
+ * Courses shown in the library and the player (archived ones left out), the one opened last on top: its lesson list
+ * opened here or on the phone, or its lesson in "Продолжить" (by course title). Untouched courses keep LingQ's order.
+ */
+export const visibleCourses = computed(() => {
+  const list = courses.value?.filter((c) => !archivedIds.value.has(c.id))
+  if (!list) return null
+  const l = lang(), ct = courseT.value
+  const byTitle = new Map<string, number>()
+  for (const x of recent.value ?? []) if (x.courseTitle) byTitle.set(x.courseTitle, Math.max(byTitle.get(x.courseTitle) ?? 0, x.opened ?? 0))
+  const t = (c: Course) => Math.max(ct[`${l}_${c.id}`] ?? 0, byTitle.get(c.title) ?? 0)
+  return list.map((c, i) => [c, t(c), i] as const).sort((a, b) => b[1] - a[1] || a[2] - b[2]).map((x) => x[0])
+})
 
 export function archiveCourse(l: string, c: Course) {
   saveArchive({ ...archive.value, [l]: [{ id: c.id, title: c.title, imageUrl: c.imageUrl }, ...(archive.value[l] ?? []).filter((x) => x.id !== c.id)] })

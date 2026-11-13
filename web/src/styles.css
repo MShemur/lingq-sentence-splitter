@@ -302,7 +302,7 @@ div.list-item { cursor: default; }
   overscroll-behavior: contain; scrollbar-width: none;
 }
 .pager::-webkit-scrollbar { display: none; }
-.page { flex: 0 0 100%; width: 100%; overflow-y: auto; touch-action: none; }
+.pager > .page { flex: 0 0 100%; width: 100%; overflow-y: auto; touch-action: none; }
 .page-inner { min-height: 100%; display: flex; flex-direction: column; justify-content: center; padding-top: 24px; padding-bottom: 24px; }
 /* sentence mode: sentence and translation in the middle of the page */
 .sm-center { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
@@ -938,3 +938,24 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .ws-done { font-size: 13px; color: var(--primary); }
 .ws-rare { display: flex; flex-direction: column; gap: 4px; }
 .ws-rare input[type=range] { width: 100%; accent-color: var(--primary); }
+/* iPad: a vertical swipe over a control scrolls the screen; sliders only take sideways drags */
+.screen-body.scroll, .sheet, .dialog-body { touch-action: pan-y; }
+.screen-body.scroll input[type=range], .sheet input[type=range] { touch-action: pan-y; }
+/* a pinned phrase is highlighted as one box with its translation, as tall as a word with its translation */
+.phrase:has(.w.sel) { background: var(--green-bg); border-radius: 4px; }
+.phrase .w.sel:not(.picked), .phrase .punct.sel { background: none; }
+/* dictation: live state in the input line */
+.voice-bar {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 18px;
+  border-radius: 24px; background: var(--surface); border: 1px solid var(--outline); color: var(--on-surface); font-size: 15px;
+}
+.voice-bar.on { border-color: var(--error); }
+.vb-bars { display: inline-flex; align-items: center; gap: 3px; height: 24px; }
+.vb-bars i { display: block; width: 4px; min-height: 4px; border-radius: 2px; background: var(--error); transition: height 0.08s linear; }
+.vb-hint { font-size: 12px; color: var(--outline); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-voice { display: flex; align-items: center; gap: 10px; }
+.fb-voice .hint { margin: 0; }
+.fab-send.mic.on { animation: mic-pulse 1.2s ease-in-out infinite; }
+@keyframes mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--error) 45%, transparent); } 50% { box-shadow: 0 0 0 8px transparent; } }
+/* LingQ heading paragraphs (h1..h6): the words bold, translations as usual */
+.heading .wt, .heading .punct { font-weight: 700; }
