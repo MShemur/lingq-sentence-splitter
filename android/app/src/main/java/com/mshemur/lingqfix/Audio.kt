@@ -166,6 +166,13 @@ object AudioEngine {
         val c = ctx.applicationContext
         appCtx = c
         val p = ExoPlayer.Builder(c)
+            // MP3 without a seek index: length and seeking from the bit rate, otherwise the lock screen /
+            // notification get no length and show no seek bar
+            .setMediaSourceFactory(
+                androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+                    c, androidx.media3.extractor.DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true),
+                ),
+            )
             // loops jump back: keep the last 15 minutes in memory instead of downloading them again
             .setLoadControl(DefaultLoadControl.Builder().setBackBuffer(15 * 60_000, true).build())
             .setAudioAttributes(
@@ -395,6 +402,7 @@ object AudioEngine {
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 private class SkipBy5(p: Player) : androidx.media3.common.ForwardingPlayer(p) {
     private val extra = intArrayOf(
+        Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,          // seek bar on the lock screen / in the notification
         Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_PREVIOUS,
         Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
     )
