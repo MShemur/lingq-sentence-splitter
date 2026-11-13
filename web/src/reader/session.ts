@@ -83,6 +83,14 @@ const refToken = (r: WordRef) => Number(r.split(':')[1])
 
 const isError = (t: string | undefined) => !t || t.startsWith('⚠')
 
+/** Added to the chat about the text: the AI may mark words in the lesson itself (port of Android MARK_HELP). */
+const MARK_HELP = '\n\nТы можешь отмечать слова и фразы прямо в тексте урока — над ними появится перевод, ' +
+  'как будто пользователь отметил их сам. Делай это, когда пользователь просит выделить, отметить, подписать или ' +
+  'показать перевод слов в тексте (например «отметь все глаголы», «подпиши трудные слова»). Для этого в конце ответа ' +
+  'добавь отдельную строку: [[отметить: слово = перевод; другое слово = перевод; фраза из слов подряд = перевод]]. ' +
+  'Пиши слова ровно так, как они написаны в тексте, перевод — коротко, по смыслу в этом тексте. ' +
+  'Снять отметки: [[снять: слово; слово]]. Не пиши такие строки, если пользователь об этом не просил.'
+
 /** Added to the word prompt: German-style verbs whose prefix stands apart ("fing … an"). */
 const SEPARABLE = '\n\nУчитывай грамматику всего предложения. Если «{word}» — глагол с отделяемой приставкой ' +
   '(или часть составного глагола), а приставка стоит отдельно дальше в предложении (нем. «Er fing gestern an» → anfangen, ' +
@@ -1072,8 +1080,57 @@ export class ReaderSession {
     const marked = this.pinnedList()
     const sys = fill(prompt.chatText(), { lang: this.lang, target: this.target, text }) + (marked.length
       ? `\n\nСлова, которые ученик отметил в этом уроке (слово — перевод), учитывай их в ответах:\n${marked.map((m) => `- ${m.word} — ${m.tr}`).join('\n')}`
-      : '')
-    go({ k: 'chat', c: new ChatSession('Чат о тексте', sys, this.title.value, 'text') })
+      : '') + MARK_HELP
+    go({ k: 'chat', c: new ChatSession('Чат о тексте', sys, this.title.value, 'text', (m, items) => this.markFromAi(m, items)) })
+  }
+
+  /**
+   * From the chat: words / phrases (as written in the text) get their translation above them, every place they occur
+   * (at most 50 each), like a tap by hand; [mark] false removes them. A phrase = words one after another.
+   */
+  markFromAi(mark: boolean, items: [string, string][]): string {
+    let n = 0
+    const missing: string[] = []
+    const pins = { ...this.pins.value }
+    const phr = { ...this.phrasePins.value }
+    const later: WordRef[] = []
+    for (const [w, tr] of items) {
+      const want = w.split(/[^\p{L}\p{N}'’-]+/u).filter(Boolean).map((x) => x.toLowerCase())
+      if (!want.length) continue
+      let hit = 0
+      for (const st of this.sentences.value) {
+        if (hit >= 50) break
+        const words = st.tokens.filter((t) => t.isWord)
+        let i = 0
+        while (i + want.length <= words.length && hit < 50) {
+          if (want.every((x, k) => words[i + k].text.toLowerCase() === x)) {
+            hit++
+            if (want.length === 1) {
+              const r = ref(st.id, words[i].index)
+              if (!mark) delete pins[r]
+              else if (tr) pins[r] = tr
+              else if (!pins[r]) { pins[r] = ''; later.push(r) }
+            } else {
+              const key = `${st.id}:${words[i].index}:${words[i + want.length - 1].index}`
+              if (mark) phr[key] = tr || phr[key] || ''
+              else delete phr[key]
+            }
+            i += want.length
+          } else i++
+        }
+      }
+      if (hit) n++; else missing.push(w)
+    }
+    this.pins.value = pins
+    this.phrasePins.value = phr
+    this.persist()
+    // no translation given: the reader's own, as after a tap
+    for (const r of later) {
+      void this.hints(this.word(r)).catch(() => [] as string[]).then((hs) => this.contextual(r, hs))
+        .then((t) => { if (r in this.pins.value) put(this.pins, r, t) }, () => { if (r in this.pins.value) put(this.pins, r, '⚠') })
+        .then(() => this.persist())
+    }
+    return `${mark ? 'Отмечено в тексте' : 'Снято'}: ${n}` + (missing.length ? ` · не нашёл в тексте: ${missing.slice(0, 5).join(', ')}` : '')
   }
 
   /** "Спросить" in the word / phrase window: the chat explains that word (or words) in its sentence. */
