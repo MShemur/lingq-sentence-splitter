@@ -58,7 +58,8 @@ object Prompts {
         v.fold(p) { acc, (k, value) -> acc.replace("{$k}", value) }
 }
 
-class WordMeaning(val best: String, val options: List<String>, val note: String)
+/** [pair] = the other part of a split separable verb as written in the sentence ("" = none). */
+class WordMeaning(val best: String, val options: List<String>, val note: String, val pair: String = "")
 
 /** Google Gemini API (key from aistudio.google.com/apikey). Blocking: call from Dispatchers.IO. */
 class Gemini(private val key: String, private val model: String) : Llm() {

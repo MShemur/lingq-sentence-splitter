@@ -203,14 +203,21 @@ fun EpisodeSheet(state: AppState, j: BgJob, onClose: () -> Unit) {
     LaunchedEffect(Unit) { state.loadCourses() }
     val list = state.visibleCourses().orEmpty()
     val podTitle = j.pod?.title.orEmpty()
-    val same = list.firstOrNull { it.title.trim().equals(podTitle.trim(), ignoreCase = true) }
+    // the course chosen last time for this podcast, else one named like the podcast, else the last one used at all
+    val ui = remember { state.ctx.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE) }
+    val podKey = "podTo." + podTitle.trim().lowercase()
+    val lastId = ui.getInt(podKey, ui.getInt("podTo", 0))
+    val same = list.firstOrNull { it.id == ui.getInt(podKey, 0) }
+        ?: list.firstOrNull { it.title.trim().equals(podTitle.trim(), ignoreCase = true) }
+        ?: list.firstOrNull { it.id == lastId }
     var course by remember(same?.id) { mutableStateOf(same) }
     var newTitle by remember { mutableStateOf(podTitle) }
     var len by remember { mutableStateOf<Int?>(null) }
     val hasTr = j.ep.transcript.isNotBlank()
     val hasText = !hasTr && j.ep.textUrl.isNotBlank()
     var useTr by remember { mutableStateOf(hasTr) }
-    var useText by remember { mutableStateOf(hasText) }
+    // the podcast's own text has no times: off unless switched on (recognition gives text and times)
+    var useText by remember { mutableStateOf(false) }
     var cover by remember(same?.id) { mutableStateOf(same == null) }
     var pickCourse by remember { mutableStateOf(false) }
     val prov = sttProvider(state.prefs.sttProvider)
@@ -285,6 +292,7 @@ fun EpisodeSheet(state: AppState, j: BgJob, onClose: () -> Unit) {
             }
             Button(
                 onClick = {
+                    course?.let { c -> ui.edit().putInt(podKey, c.id).putInt("podTo", c.id).apply() }
                     j.start(JobTarget(course, newTitle.trim(), len, useTr, useText, cover))
                     state.say("Загружается в фоне — ход виден в библиотеке")
                     onClose()

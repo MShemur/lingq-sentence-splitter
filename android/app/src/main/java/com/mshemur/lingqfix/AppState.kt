@@ -317,6 +317,10 @@ class AppState(val ctx: Context) {
     var player by mutableStateOf<ReaderSession?>(null)
 
     /** Bottom tabs of the main screen: Библиотека / Плеер. */
+    /** The "Подкасты" tab keeps its search and list while switching tabs. */
+    private var podTab: PodcastSession? = null
+    fun podcastTab(): PodcastSession = podTab ?: PodcastSession(this, ImportSession(this)).also { podTab = it }
+
     fun switchTab(s: Screen) {
         if (stack.size == 1 && stack[0] == s) return
         stack.clear(); stack.add(s)

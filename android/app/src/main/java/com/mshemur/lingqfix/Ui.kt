@@ -174,6 +174,7 @@ fun App(state: AppState) {
                     is Screen.Reader -> ReaderBottomBar(screen.session)
                     Screen.Player -> MainTabs(state, screen)
                     Screen.ReaderCourses -> Column { MiniPlayer(state); MainTabs(state, screen) }
+                    is Screen.Podcasts -> if (state.stack.size == 1) Column { MiniPlayer(state); MainTabs(state, screen) } else MiniPlayer(state)
                     is Screen.Chat, Screen.Home, is Screen.Import -> {}
                     else -> MiniPlayer(state)
                 }
@@ -285,7 +286,7 @@ fun App(state: AppState) {
       }
 }
 
-/** Bottom tabs of the main screen, as in LingQ: library and player. */
+/** Bottom tabs of the main screen: library, player, podcasts (subscriptions; an episode goes to LingQ from there). */
 @Composable
 private fun MainTabs(state: AppState, screen: Screen) {
     NavigationBar {
@@ -296,6 +297,11 @@ private fun MainTabs(state: AppState, screen: Screen) {
         NavigationBarItem(
             selected = screen == Screen.Player, onClick = { state.switchTab(Screen.Player) },
             icon = { Icon(AppIcons.Headphones, contentDescription = null) }, label = { Text("Плеер") },
+        )
+        NavigationBarItem(
+            selected = screen is Screen.Podcasts && state.stack.size == 1,
+            onClick = { if (!(screen is Screen.Podcasts && state.stack.size == 1)) state.switchTab(Screen.Podcasts(state.podcastTab())) },
+            icon = { Icon(AppIcons.Podcasts, contentDescription = null) }, label = { Text("Подкасты") },
         )
     }
 }

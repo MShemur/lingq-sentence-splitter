@@ -7,6 +7,20 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's notes 13.11.2026 -> android v1.102:
+  1) (20261113-051920-web) podcast subscriptions are synced: data.json "podcasts": {feedUrl: {title, author, image, seen, t}}
+     or {del: true, t} for a removed one; t = when added / removed (ms), per feed the later t wins, "seen" = max; the
+     merged list replaces the local one. Existing subscriptions have t = 0. Please keep the key in the web merge.
+     Android `Podcasts.kt` PodcastSubs.export/import, `Sync.kt`. Also (web only): podcast search on the iPad stopped
+     working - please check.
+  2) (20261113-053320-web) separable verbs: the AI word prompt (appended part, not the user's prompt) also asks for
+     "pair": the other part of the split verb as written in the sentence (prefix for the verb, verb for the prefix),
+     "" if not split. The reader highlights that word too while the word's window is open or the word is pinned
+     (nearest token with that text in the sentence). Android `Reader.kt` SEPARABLE, markPair, pairHighlighted.
+  3) (android notes, do on web if the web has them) bottom tab "Подкасты" next to Библиотека / Плеер opens the
+     subscriptions directly; the podcast "В LingQ" sheet preselects the course used last time for this podcast
+     (else same-named course, else the last course used); "Текст подкаста" (text without times) is off by default.
+
 ## To do on Android
 
 

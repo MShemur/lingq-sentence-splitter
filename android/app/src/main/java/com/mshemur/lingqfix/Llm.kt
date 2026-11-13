@@ -33,7 +33,7 @@ abstract class Llm {
         val o = runCatching { JSONObject(raw.substringAfter("{", "").let { "{$it" }.substringBeforeLast("}") + "}") }
             .getOrElse { return WordMeaning(raw.lineSequence().first().take(60), emptyList(), "") }
         val opts = o.optJSONArray("options")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
-        return WordMeaning(o.optString("best"), opts.filter { it.isNotBlank() }, o.optString("note"))
+        return WordMeaning(o.optString("best"), opts.filter { it.isNotBlank() }, o.optString("note"), o.optString("pair").trim())
     }
 
     fun retranslate(prompt: String, lang: String, target: String, sentence: String, current: String): String =

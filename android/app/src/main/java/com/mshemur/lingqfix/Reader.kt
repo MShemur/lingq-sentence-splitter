@@ -206,7 +206,9 @@ class Sent(
 private const val SEPARABLE = "\n\nУчитывай грамматику всего предложения. Если «{word}» — глагол с отделяемой приставкой " +
     "(или часть составного глагола), а приставка стоит отдельно дальше в предложении (нем. «Er fing gestern an» → anfangen, " +
     "«Sie kommt morgen zurück» → zurückkommen), переводи глагол вместе с этой приставкой, а в note укажи инфинитив с приставкой. " +
-    "Если «{word}» — сама отделённая приставка, переводи весь глагол так же."
+    "Если «{word}» — сама отделённая приставка, переводи весь глагол так же. " +
+    "Добавь в JSON поле \"pair\": вторая часть этого разделённого глагола ровно так, как она написана в предложении " +
+    "(приставка, если «{word}» — глагол; глагол, если «{word}» — приставка); пустая строка, если глагол не разделён."
 
 /** Several words of one sentence selected together: tokens [from]..[to]. */
 data class Phrase(val sent: Int, val from: Int, val to: Int, val text: String)
@@ -532,6 +534,20 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** Translations pinned above words ("" while loading); kept for this lesson. */
     val pins = mutableStateMapOf<WordRef, String>()
+    /** Separable verb split in the sentence: word -> its other part (verb <-> prefix), from the AI's answer. */
+    val pairs = mutableStateMapOf<WordRef, WordRef>()
+
+    /** The other part of a split verb is highlighted with the word while its window is open or the word is pinned. */
+    fun pairHighlighted(ref: WordRef): Boolean = pairs.entries.any { (w, p) -> p == ref && (popup == w || pins.containsKey(w)) }
+
+    private fun markPair(ref: WordRef, pair: String) {
+        val p = pair.trim().lowercase()
+        if (p.isEmpty() || p.contains(' ')) return
+        val toks = sentById[ref.sent]?.tokens ?: return
+        val hit = toks.filter { it.isWord && it.index != ref.token && it.text.lowercase() == p }
+            .minByOrNull { kotlin.math.abs(it.index - ref.token) } ?: return
+        pairs[ref] = WordRef(ref.sent, hit.index)
+    }
     /** Meaning chosen for a word (lower case) in this lesson. */
     val chosen = mutableStateMapOf<String, String>()
 
@@ -741,6 +757,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
             val s = sentById.getValue(ref.sent)
             val m = withContext(Dispatchers.IO) { app.geminiFast().word(app.prefs.promptWord + SEPARABLE, lang, target, word(ref), s.text) }
             aiCache[ref] = m
+            markPair(ref, m.pair)
             d.complete(m)
             return m
         } catch (e: Throwable) {
@@ -1897,7 +1914,7 @@ private fun ChunkRow(
                 val mark = Modifier.drawBehind {
                     val c = when {
                         s.inSelection(ref) -> selBg
-                        t.isWord && (pinned || s.popup == ref) -> hl
+                        t.isWord && (pinned || s.popup == ref || s.pairHighlighted(ref)) -> hl
                         !t.isWord && phrase != null && t.index > phrase.first && t.index < phrase.last -> hl
                         else -> null
                     }

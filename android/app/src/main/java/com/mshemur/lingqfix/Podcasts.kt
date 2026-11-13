@@ -323,16 +323,20 @@ object PodcastApi {
     }
 }
 
-/** Subscribed podcasts and when each was last looked at (newer episodes are "new"). */
+/**
+ * Subscribed podcasts and when each was last looked at (newer episodes are "new").
+ * Synced with the iPad as "podcasts": {feed: {title, author, image, seen, t}} or {del: true, t} for a removed one;
+ * t = when it was added / removed, the later change wins.
+ */
 class PodcastSubs(ctx: Context) {
     private val p = ctx.getSharedPreferences("podcasts", Context.MODE_PRIVATE)
 
-    class Sub(val podcast: Podcast, val seen: Long)
+    class Sub(val podcast: Podcast, val seen: Long, val t: Long = 0L)
 
     fun list(): List<Sub> = runCatching {
         val a = JSONArray(p.getString("subs", "[]"))
         (0 until a.length()).map { a.getJSONObject(it) }.map {
-            Sub(Podcast(it.optString("title"), it.optString("author"), it.optString("feed"), it.optString("image")), it.optLong("seen"))
+            Sub(Podcast(it.optString("title"), it.optString("author"), it.optString("feed"), it.optString("image")), it.optLong("seen"), it.optLong("t"))
         }
     }.getOrDefault(emptyList())
 
@@ -340,15 +344,55 @@ class PodcastSubs(ctx: Context) {
         val a = JSONArray()
         l.forEach { s ->
             a.put(JSONObject().put("title", s.podcast.title).put("author", s.podcast.author).put("feed", s.podcast.feed)
-                .put("image", s.podcast.image).put("seen", s.seen))
+                .put("image", s.podcast.image).put("seen", s.seen).put("t", s.t))
         }
         p.edit().putString("subs", a.toString()).apply()
     }
 
+    /** Removed feeds: feed -> when. */
+    private fun removed(): JSONObject = runCatching { JSONObject(p.getString("removed", "{}")!!) }.getOrDefault(JSONObject())
+
     fun has(feed: String) = list().any { it.podcast.feed == feed }
-    fun add(pod: Podcast, seen: Long) { if (!has(pod.feed)) save(list() + Sub(pod, seen)) }
-    fun remove(feed: String) = save(list().filter { it.podcast.feed != feed })
-    fun seen(feed: String, t: Long) = save(list().map { if (it.podcast.feed == feed && t > it.seen) Sub(it.podcast, t) else it })
+    fun add(pod: Podcast, seen: Long) {
+        if (has(pod.feed)) return
+        p.edit().putString("removed", removed().apply { remove(pod.feed) }.toString()).apply()
+        save(list() + Sub(pod, seen, System.currentTimeMillis()))
+    }
+    fun remove(feed: String) {
+        p.edit().putString("removed", removed().put(feed, System.currentTimeMillis()).toString()).apply()
+        save(list().filter { it.podcast.feed != feed })
+    }
+    fun seen(feed: String, t: Long) = save(list().map { if (it.podcast.feed == feed && t > it.seen) Sub(it.podcast, t, it.t) else it })
+
+    fun export(): JSONObject {
+        val o = JSONObject()
+        list().forEach { s ->
+            o.put(s.podcast.feed, JSONObject().put("title", s.podcast.title).put("author", s.podcast.author)
+                .put("image", s.podcast.image).put("seen", s.seen).put("t", s.t))
+        }
+        val r = removed()
+        r.keys().forEach { f -> if (!o.has(f)) o.put(f, JSONObject().put("del", true).put("t", r.optLong(f))) }
+        return o
+    }
+
+    /** The merged list from sync replaces the local one (local order first, new ones at the end). */
+    fun import(o: JSONObject) {
+        val mine = list().associateBy { it.podcast.feed }
+        val out = mutableListOf<Sub>()
+        val r = JSONObject()
+        val keys = o.keys().asSequence().toList().sortedBy { f -> mine.keys.indexOf(f).let { if (it < 0) Int.MAX_VALUE else it } }
+        keys.forEach { f ->
+            val x = o.getJSONObject(f)
+            if (x.optBoolean("del")) { r.put(f, x.optLong("t")); return@forEach }
+            val m = mine[f]
+            out += Sub(
+                Podcast(x.optString("title").ifBlank { m?.podcast?.title.orEmpty() }, x.optString("author"), f, x.optString("image")),
+                maxOf(x.optLong("seen"), m?.seen ?: 0L), x.optLong("t"),
+            )
+        }
+        save(out)
+        p.edit().putString("removed", r.toString()).apply()
+    }
 }
 
 class PodcastSession(val app: AppState, private val imp: ImportSession) {
@@ -431,7 +475,7 @@ class PodcastSession(val app: AppState, private val imp: ImportSession) {
         }
     }
 
-    private fun reloadSubs() { subs.clear(); subs.addAll(subsStore.list()) }
+    fun reloadSubs() { subs.clear(); subs.addAll(subsStore.list()) }
 
     fun toggleSub() {
         val p = podcast ?: return
@@ -519,7 +563,7 @@ private fun PodcastRow(p: Podcast, badge: String?, onClick: () -> Unit) {
 /** Search, subscriptions, suggestions. */
 @Composable
 fun PodcastsScreen(state: AppState, s: PodcastSession) {
-    LaunchedEffect(Unit) { s.refreshNew() }
+    LaunchedEffect(Unit) { s.reloadSubs(); s.refreshNew() }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

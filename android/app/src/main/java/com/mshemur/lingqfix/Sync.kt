@@ -306,6 +306,7 @@ class SyncService(private val app: AppState) {
         o.put("notes", notes)
         o.put("progress", app.progress.export())
         o.put("courseT", app.courseTouch.export())
+        o.put("podcasts", PodcastSubs(ctx).export())
         o.put("stats", JSONObject().put(device, app.stats.exportDays()))
         o.put("seen", app.stats.exportSeen())
         return o
@@ -330,6 +331,7 @@ class SyncService(private val app: AppState) {
         }
         m.optJSONObject("progress")?.let { app.progress.import(it) }
         m.optJSONObject("courseT")?.let { app.courseTouch.import(it) }
+        m.optJSONObject("podcasts")?.let { PodcastSubs(ctx).import(it) }
         m.optJSONObject("stats")?.let { s ->
             val others = JSONObject()
             s.keys().forEach { d -> if (d != device) others.put(d, s.getJSONObject(d)) }
@@ -377,6 +379,12 @@ class SyncService(private val app: AppState) {
             c?.keys()?.forEach { k -> ct.put(k, maxOf(ct.optLong(k, 0L), c.optLong(k))) }
         }
         out.put("courseT", ct)
+        // podcasts: per feed the later add / remove wins; "seen" = max
+        out.put("podcasts", mergeBy(a.optJSONObject("podcasts"), b.optJSONObject("podcasts")) { x, y ->
+            val newer = if (y.optLong("t") > x.optLong("t")) y else x
+            if (newer.optBoolean("del")) newer
+            else JSONObject(newer.toString()).put("seen", maxOf(x.optLong("seen"), y.optLong("seen")))
+        })
         // stats: one part per device, each device's own part is the freshest on that device
         val st = JSONObject()
         listOf(b.optJSONObject("stats"), a.optJSONObject("stats")).forEach { s -> s?.keys()?.forEach { d -> st.put(d, s.getJSONObject(d)) } }
