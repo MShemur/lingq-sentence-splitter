@@ -7,6 +7,11 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's iPad note 13.11.2026 (20261113-045025-web) -> android v1.101: after a long press over several words the
+  selection colour (dark violet) stayed next to the phrase highlight until another word was tapped. Clear the
+  selection as soon as the phrase translation has come (only if the selection is still that phrase); the phrase then
+  keeps the usual highlight. Android `Reader.kt` openPhrase (end of the request).
+
 ## To do on Android
 
 
