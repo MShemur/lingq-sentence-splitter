@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     companion object {
         /** One per process: a re-created activity keeps the state (and the running background jobs). */
-        private var shared: AppState? = null
+        internal var shared: AppState? = null
     }
     private lateinit var state: AppState
 

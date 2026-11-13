@@ -250,7 +250,7 @@ private class LessonNotes(ctx: Context, lang: String, id: Int) {
  * Machine / AI sentence translations of a lesson kept on the phone (not synced: it would bloat the sync file),
  * sentence text -> translation, so a lesson opened again does not ask for them again.
  */
-private class TranslationCache(ctx: Context, lang: String, id: Int, target: String) {
+internal class TranslationCache(ctx: Context, lang: String, id: Int, target: String) {
     private val file = File(File(ctx.filesDir, "trcache").apply { mkdirs() }, "${lang}_${id}_$target.json")
 
     fun load(): Map<String, String> = runCatching {

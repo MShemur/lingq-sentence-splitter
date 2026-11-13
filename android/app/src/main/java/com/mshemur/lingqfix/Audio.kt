@@ -290,6 +290,8 @@ object AudioEngine {
     fun play() { val p = player ?: return; if (p.playbackState == Player.STATE_ENDED) p.seekTo(0); waitingGap = false; p.play() }
     fun pause() { waitingGap = false; main.removeCallbacks(resume); player?.pause() }
     fun toggle() { if (playing || waitingGap) pause() else play() }
+    /** Where the audio is now, ms (main thread). */
+    fun nowMs(): Long = player?.currentPosition ?: position
 
     fun seekTo(ms: Long) {
         val p = player ?: return
@@ -444,7 +446,8 @@ class PlaybackService : MediaSessionService() {
             this, 0, Intent(this, MainActivity::class.java).setAction(ACTION_PLAYER).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(this, SkipBy5(AudioEngine.get(this))).setSessionActivity(open).build()
+        session = MediaSession.Builder(this, SkipBy5(AudioEngine.get(this))).setSessionActivity(open)
+            .setCallback(HeadsetKeys(this)).build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session

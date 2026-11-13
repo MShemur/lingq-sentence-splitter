@@ -57,6 +57,8 @@ import java.io.File
 class JobTarget(
     val course: Course?, val newTitle: String, val lenMin: Int?,
     val useTranscript: Boolean, val useText: Boolean, val cover: Boolean,
+    /** Translate every sentence ahead (for the translation on a double press of the headphone button). */
+    val translateAll: Boolean = false,
 )
 
 /**
@@ -172,6 +174,12 @@ class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?, resto
             val bad = imp.log.filter { it.startsWith("❌") }
             lessons = imp.uploaded.toList()
             if (lessons.isEmpty()) throw ApiException(bad.firstOrNull()?.removePrefix("❌")?.trim() ?: "урок не загрузился")
+            if (t.translateAll) for (l in lessons) {
+                step("Перевожу предложения…")
+                runCatching {
+                    ListenTranslate.translateAll(app, lang, l.id) { n, all -> status = "Перевожу предложения: $n из $all"; progress = n.toFloat() / maxOf(1, all) }
+                }.onFailure { AppLog.error("podcast", "Перевод всех предложений", it) }
+            }
             done = true; progress = 1f
             status = "Готово: урок в курсе «${imp.course?.title ?: t.newTitle}»" + (if (bad.isNotEmpty()) " · ошибок: ${bad.size}" else "") +
                 (imp.textNote?.let { " · $it" } ?: if (t.useTranscript && g.tr != null) " · готовая расшифровка подкаста" else "")
@@ -220,6 +228,7 @@ fun EpisodeSheet(state: AppState, j: BgJob, onClose: () -> Unit) {
     var useText by remember { mutableStateOf(false) }
     var cover by remember(same?.id) { mutableStateOf(same == null) }
     var pickCourse by remember { mutableStateOf(false) }
+    var trAll by remember { mutableStateOf(ui.getBoolean("podTrAll", false)) }
     val prov = sttProvider(state.prefs.sttProvider)
     val needKey = !(hasTr && useTr) && sttKeyFor(state.prefs, prov).isBlank()
     val min = len?.toDouble() ?: (if (j.ep.duration > 0) j.ep.duration / 60.0 else 0.0)
@@ -281,6 +290,13 @@ fun EpisodeSheet(state: AppState, j: BgJob, onClose: () -> Unit) {
                 }
                 Switch(useText, { useText = it })
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Перевести все предложения сразу")
+                    Hint("Двойное нажатие кнопки на наушниках читает перевод звучащего предложения — без задержки")
+                }
+                Switch(trAll, { trAll = it })
+            }
             if (!j.pod?.image.isNullOrBlank()) Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(cover, { cover = it })
                 Text("Обложка подкаста для курса")
@@ -293,7 +309,8 @@ fun EpisodeSheet(state: AppState, j: BgJob, onClose: () -> Unit) {
             Button(
                 onClick = {
                     course?.let { c -> ui.edit().putInt(podKey, c.id).putInt("podTo", c.id).apply() }
-                    j.start(JobTarget(course, newTitle.trim(), len, useTr, useText, cover))
+                    ui.edit().putBoolean("podTrAll", trAll).apply()
+                    j.start(JobTarget(course, newTitle.trim(), len, useTr, useText, cover, trAll))
                     state.say("Загружается в фоне — ход виден в библиотеке")
                     onClose()
                 },
