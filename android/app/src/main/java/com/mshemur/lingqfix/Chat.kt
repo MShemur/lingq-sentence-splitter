@@ -51,6 +51,12 @@ class ChatSession(
     val wholeText: Boolean = false,
     /** "text", "sentence" or "word": card label and suggestions. */
     val kind: String = if (wholeText) "text" else "sentence",
+    /**
+     * The AI may mark words of the lesson (translation above them, as by hand): its "[[отметить: …]]" /
+     * "[[снять: …]]" lines go here (mark, list of word / phrase to translation; "" when removing) and are taken
+     * out of the shown answer. Returns what was done, shown under the answer.
+     */
+    private val onMark: ((Boolean, List<Pair<String, String>>) -> String)? = null,
 ) {
     val messages = mutableStateListOf<Gemini.Msg>()
     var input by mutableStateOf("")
@@ -92,6 +98,23 @@ class ChatSession(
     /** The next answer comes from the light (fast) model: a dictated question wants a quick reply. */
     private var fastNext = false
 
+    private fun applyMarks(a: String): String {
+        val f = onMark ?: return a
+        val re = Regex("""\[\[\s*(отметить|снять)\s*:(.*?)]]""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+        val done = mutableListOf<String>()
+        re.findAll(a).forEach { m ->
+            val mark = m.groupValues[1].lowercase() == "отметить"
+            val items = m.groupValues[2].split(';', '\n').map { it.trim() }.filter { it.isNotEmpty() }.map { x ->
+                val w = x.substringBefore('=').trim().trim('«', '»', '"', '\'')
+                w to (if (x.contains('=')) x.substringAfter('=').trim() else "")
+            }.filter { it.first.isNotEmpty() }
+            if (items.isNotEmpty()) done += f(mark, items)
+        }
+        if (done.isEmpty()) return a
+        AppLog.add("chat", "ИИ: " + done.joinToString("; "))
+        return re.replace(a, "").trimEnd() + "\n\n✓ " + done.joinToString("\n✓ ")
+    }
+
     private fun answer() {
         sending = true
         val fast = fastNext.also { fastNext = false }
@@ -100,7 +123,7 @@ class ChatSession(
                 val history = messages.toList()
                 val llm = if (fast) app.geminiFast() else app.gemini()
                 val a = withContext(Dispatchers.IO) { llm.generate(system, history) }
-                messages.add(Gemini.Msg(false, a, llm.lastReasoning))
+                messages.add(Gemini.Msg(false, applyMarks(a), llm.lastReasoning))
             } catch (e: Throwable) {
                 error = e.message ?: e.toString()
                 app.geminiFailed(e) { retry() }

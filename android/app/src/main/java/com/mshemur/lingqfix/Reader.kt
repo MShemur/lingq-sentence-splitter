@@ -210,6 +210,14 @@ private const val SEPARABLE = "\n\nУчитывай грамматику все�
     "Добавь в JSON поле \"pair\": вторая часть этого разделённого глагола ровно так, как она написана в предложении " +
     "(приставка, если «{word}» — глагол; глагол, если «{word}» — приставка); пустая строка, если глагол не разделён."
 
+/** For the chat about the text: how the AI marks words in the lesson (see [ChatSession] onMark). */
+private const val MARK_HELP = "\n\nТы можешь отмечать слова и фразы прямо в тексте урока — над ними появится перевод, " +
+    "как будто пользователь отметил их сам. Делай это, когда пользователь просит выделить, отметить, подписать или " +
+    "показать перевод слов в тексте (например «отметь все глаголы», «подпиши трудные слова»). Для этого в конце ответа " +
+    "добавь отдельную строку: [[отметить: слово = перевод; другое слово = перевод; фраза из слов подряд = перевод]]. " +
+    "Пиши слова ровно так, как они написаны в тексте, перевод — коротко, по смыслу в этом тексте. " +
+    "Снять отметки: [[снять: слово; слово]]. Не пиши такие строки, если пользователь об этом не просил."
+
 /** Several words of one sentence selected together: tokens [from]..[to]. */
 data class Phrase(val sent: Int, val from: Int, val to: Int, val text: String)
 
@@ -993,8 +1001,53 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     fun chatText() {
         val text = paragraphs.orEmpty().joinToString("\n\n") { p -> p.joinToString(" ") { it.text } }
-        val sys = Prompts.fill(app.prefs.promptChatText, "lang" to lang, "target" to target, "text" to text) + markedForAi()
-        app.go(Screen.Chat(ChatSession(app, "Чат о тексте", sys, title, wholeText = true)))
+        val sys = Prompts.fill(app.prefs.promptChatText, "lang" to lang, "target" to target, "text" to text) + markedForAi() + MARK_HELP
+        app.go(Screen.Chat(ChatSession(app, "Чат о тексте", sys, title, wholeText = true, onMark = ::markFromAi)))
+    }
+
+    /**
+     * From the chat: words / phrases (as written in the text) get their translation above them, every place they
+     * occur (at most 50 each), like a tap by hand; [mark] false removes them. A phrase = words one after another.
+     */
+    fun markFromAi(mark: Boolean, items: List<Pair<String, String>>): String {
+        var n = 0
+        val missing = mutableListOf<String>()
+        for ((w, tr) in items) {
+            val want = w.split(NON_WORD).filter { it.isNotEmpty() }.map { it.lowercase() }
+            if (want.isEmpty()) continue
+            var hit = 0
+            for (st in sentences) {
+                if (hit >= 50) break
+                val words = st.tokens.filter { it.isWord }
+                var i = 0
+                while (i + want.size <= words.size && hit < 50) {
+                    if (want.indices.all { words[i + it].text.lowercase() == want[it] }) {
+                        hit++
+                        if (want.size == 1) {
+                            val ref = WordRef(st.id, words[i].index)
+                            if (!mark) pins.remove(ref)
+                            else if (tr.isNotEmpty()) pins[ref] = tr
+                            else if (pins[ref].isNullOrEmpty()) {
+                                // no translation given: the reader's own, as after a tap
+                                pins[ref] = ""
+                                app.scope.launch {
+                                    pins[ref] = try { contextual(ref, hints(word(ref))) } catch (e: Throwable) { "⚠" }
+                                    persist()
+                                }
+                            }
+                        } else {
+                            val key = phraseKey(st.id, words[i].index, words[i + want.size - 1].index)
+                            if (mark) phrasePins[key] = tr.ifEmpty { phrasePins[key].orEmpty() } else phrasePins.remove(key)
+                        }
+                        i += want.size
+                    } else i++
+                }
+            }
+            if (hit == 0) missing += w else n++
+        }
+        persist()
+        val what = if (mark) "Отмечено в тексте" else "Снято"
+        return "$what: $n" + if (missing.isNotEmpty()) " · не нашёл в тексте: ${missing.take(5).joinToString(", ")}" else ""
     }
 
     fun chatSentence(id: Int) {

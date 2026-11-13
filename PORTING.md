@@ -7,6 +7,13 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- android v1.110: the chat about the text can mark words in the lesson. Its system prompt gets MARK_HELP (Android
+  `Reader.kt`): on request the AI ends its answer with a line "[[отметить: слово = перевод; фраза подряд = перевод]]"
+  or "[[снять: слово; слово]]". The app takes these lines out of the shown answer, pins the words / phrases (every place
+  in the lesson, at most 50 per item, matched case-blind by words; a phrase = consecutive words) with that translation,
+  or the reader's own when none is given. It adds "✓ Отмечено в тексте: N · не нашёл в тексте: …" under the answer.
+  Android `Chat.kt` applyMarks, `Reader.kt` markFromAi.
+
 ## To do on Android
 
 - web v1.51 (bug found while porting "Перевести весь урок"): LingQ's machine translation (POST /api/v2/{lang}/translate/) refuses text over 128 characters (HTTP 400 "Stelle sicher, dass dieses Feld nicht mehr als 128 Zeichen lang ist"), so a long sentence never got a translation without the AI. Web now cuts the text into pieces of at most 128 characters (after ", " / "; " / ": " / a dash when that is past a third of the piece, else at the last space) and joins the translations with a space. Also "Перевести весь урок" skips a sentence that fails instead of stopping (stops only when the first 3 all fail) and ends with "Переведено X из N; не удалось Y". LingQ answers 429 often with 4 at a time; the client retries. Android `LingqApi.kt` translate. Web `lingq.ts` trPieces / translate, `reader/session.ts` translateAll.
