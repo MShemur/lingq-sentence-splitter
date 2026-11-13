@@ -253,6 +253,9 @@ function ReaderActions({ s }: { s: ReaderSession }) {
             <MenuItem onClick={() => s.changeFont(+2)}>Шрифт крупнее&nbsp; A+</MenuItem>
             <MenuItem onClick={() => s.changeFont(-2)}>Шрифт мельче&nbsp; A−</MenuItem>
             <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
+            <MenuItem icon="translate" onClick={() => { close(); void s.translateAll() }}>
+              {s.trAll.value != null ? `Перевожу урок: ${s.trAll.value}` : 'Перевести весь урок'}
+            </MenuItem>
             {pinCount > 0 && <MenuItem icon="list" onClick={() => { close(); s.wordsOpen.value = true }}>Слова с переводом ({pinCount})</MenuItem>}
             {(pinCount > 0 || s.pinsHidden.value) && (
               <MenuItem icon="translate" onClick={() => { close(); s.pinsHidden.value = !s.pinsHidden.value; s.peek.value = {} }}>

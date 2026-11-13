@@ -7,15 +7,17 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-- android v1.107: reader ⋮ "Перевести весь урок": every sentence without a translation is translated ahead (4 at a time,
+## To do on Android
+
+- web v1.51 (bug found while porting "Перевести весь урок"): LingQ's machine translation (POST /api/v2/{lang}/translate/) refuses text over 128 characters (HTTP 400 "Stelle sicher, dass dieses Feld nicht mehr als 128 Zeichen lang ist"), so a long sentence never got a translation without the AI. Web now cuts the text into pieces of at most 128 characters (after ", " / "; " / ": " / a dash when that is past a third of the piece, else at the last space) and joins the translations with a space. Also "Перевести весь урок" skips a sentence that fails instead of stopping (stops only when the first 3 all fail) and ends with "Переведено X из N; не удалось Y". LingQ answers 429 often with 4 at a time; the client retries. Android `LingqApi.kt` translate. Web `lingq.ts` trPieces / translate, `reader/session.ts` translateAll.
+
+## Done
+
+- android v1.107 -> web v1.51: reader ⋮ "Перевести весь урок": every sentence without a translation is translated ahead (4 at a time,
   the translator from settings), kept with the other sentence translations of the lesson and shown at once; the item
   shows "Перевожу урок: 12 из 80" while running. Android `Reader.kt` translateAll, `Listen.kt` ListenTranslate.translateAll.
   (Headphone buttons reading the translation aloud are Android only.)
-
-## To do on Android
-
-
-## Done
+  Web v1.51: reader/session.ts translateAll() + trAll signal (4 workers, sentences without a LingQ or saved translation, kept via sentenceTranslation/keepTr), Reader.tsx menu item 'Перевести весь урок' / 'Перевожу урок: N из M'. Tested on a 442-sentence lesson without AI (LingQ machine translation): 441 translated in about 11 min, 1 failed on LingQ's 429. Found and fixed: LingQ translate takes at most 128 characters (see To do on Android).
 
 - user's notes 13.11.2026 -> android v1.102 -> web v1.50:
   1) (20261113-051920-web) podcast subscriptions are synced: data.json "podcasts": {feedUrl: {title, author, image, seen, t}}

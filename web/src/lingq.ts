@@ -236,9 +236,32 @@ export async function hints(lang: string, term: string, locale: string): Promise
 }
 
 /** Machine translation (LingQ's translate service). */
+/** LingQ's machine translation takes at most 128 characters ("HTTP 400 … nicht mehr als 128 Zeichen"). */
+const TR_MAX = 128
+
+/** [text] cut into pieces of at most TR_MAX characters: after a comma / semicolon / colon / dash, else at a space. */
+function trPieces(text: string): string[] {
+  const out: string[] = []
+  let rest = text.trim()
+  while (rest.length > TR_MAX) {
+    const w = rest.slice(0, TR_MAX + 1)
+    let cut = Math.max(...[', ', '; ', ': ', ' – ', ' — ', ' - '].map((m) => { const i = w.lastIndexOf(m); return i < 0 ? -1 : i + m.length - 1 }))
+    if (cut < TR_MAX / 3) cut = w.lastIndexOf(' ')
+    if (cut <= 0) cut = TR_MAX
+    out.push(rest.slice(0, cut).trim())
+    rest = rest.slice(cut).trim()
+  }
+  if (rest) out.push(rest)
+  return out
+}
+
 export async function translate(lang: string, target: string, text: string): Promise<string> {
-  const d = await call('POST', `/api/v2/${lang}/translate/`, { source: lang, target, text })
-  return d?.translations?.[0]?.translatedText ?? ''
+  const out: string[] = []
+  for (const piece of trPieces(text)) {
+    const d = await call('POST', `/api/v2/${lang}/translate/`, { source: lang, target, text: piece })
+    out.push(String(d?.translations?.[0]?.translatedText ?? '').trim())
+  }
+  return out.filter(Boolean).join(' ')
 }
 
 /**

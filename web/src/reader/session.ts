@@ -409,6 +409,39 @@ export class ReaderSession {
     return t
   }
 
+  /** "Перевести весь урок": "12 из 80" while running, null otherwise. */
+  trAll = signal<string | null>(null)
+
+  /** Every sentence without a translation is translated ahead, 4 at a time (kept with the lesson's other translations). */
+  async translateAll() {
+    if (this.trAll.value != null) return
+    const todo = this.sentences.value.filter((s) => isError(this.sentTr.value[s.id]) && s.translations[this.target] == null)
+    if (!todo.length) { say('Все предложения уже переведены'); return }
+    const n = todo.length
+    let next = 0, done = 0, failed = 0
+    let err: unknown = null
+    // a sentence that fails is skipped; only when the first ones all fail (no key, no network) the rest is not tried
+    this.trAll.value = `0 из ${n}`
+    say('Перевожу весь урок…')
+    const worker = async () => {
+      while (next < n && !(failed >= 3 && failed === done)) {
+        const s = todo[next++]
+        if (this.loadingSentences.has(s.id)) { done++; continue }
+        this.loadingSentences.add(s.id)
+        try { await this.sentenceTranslation(s.id) } catch (e) { failed++; err ??= e } finally {
+          this.loadingSentences.delete(s.id)
+          done++
+          this.trAll.value = `${done} из ${n}`
+        }
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()])
+    this.trAll.value = null
+    if (!err) say('Весь урок переведён')
+    else if (failed >= done || failed === n) say(`Перевод урока не получился: ${errorText(err)}`)
+    else say(`Переведено ${n - failed} из ${n}; не удалось ${failed}: ${errorText(err)}`)
+  }
+
   ensureSentence(id: number) {
     if (this.sentTr.value[id] || this.loadingSentences.has(id)) return
     this.loadingSentences.add(id)
