@@ -463,7 +463,11 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 if (phrasePins[key].isNullOrEmpty()) phrasePins.remove(key)
                 app.geminiFailed(e, fast = true) { if (phrase == p) openPhrase(sent, from, to) }
             }
-            if (phrase == p) phraseLoading = false
+            if (phrase == p) {
+                phraseLoading = false
+                // the translation is there: the selection colour goes, the phrase keeps the usual highlight
+                if (selSent == sent && selFrom == from && selTo == to) clearSelection()
+            }
         }
     }
 
