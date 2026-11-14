@@ -173,6 +173,14 @@ class Prefs(ctx: Context) {
     var autoClean: Boolean
         get() = read("autoClean", "1") == "1"
         set(v) = write("autoClean", if (v) "1" else "0")
+    /** Import: cleaning right after text comes in: "off", "quick" (rules) or "ai". */
+    var autoCleanMode: String
+        get() = read("autoCleanMode", if (autoClean) "quick" else "off")
+        set(v) = write("autoCleanMode", v)
+    /** Import: long texts are cut into lessons of this many words. */
+    var splitWords: String
+        get() = read("splitWords", "6000")
+        set(v) = write("splitWords", v)
     var promptChatWord: String
         get() = read("promptChatWord", Prompts.CHAT_WORD).ifBlank { Prompts.CHAT_WORD }
         set(v) = p.edit().putString("promptChatWord", v).apply()

@@ -7,6 +7,13 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's notes 14.11.2026 -> android v1.113: 1) (20261114-073629-web) long texts are cut by 6000 words by default (it was
+  3000; the value is kept in settings, at most LingQ's 6000); 2) a lesson opened from the finished import screen: "back"
+  leads to the library (the stack becomes library -> lesson), not to the import screen; 3) (android note, do on web too)
+  cleaning right after text comes in (paste, file, PDF, photos, recognition) is now a choice "Нет / Быстро / С ИИ"
+  (chips in the cleaning card, kept in settings), photos were not cleaned at all before. Android `AppState.kt`
+  ImportSession.autoClean, openImported; `Ui.kt` import screen.
+
 ## To do on Android
 
 ## Done

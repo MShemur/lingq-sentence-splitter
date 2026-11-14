@@ -236,6 +236,13 @@ class AppState(val ctx: Context) {
         } else go(Screen.Reader(ReaderSession(this, b.lang, Lesson(b.lessonId, b.lessonTitle), startSent = b.sent)))
     }
     fun toRoot() { while (stack.size > 1) stack.removeAt(stack.lastIndex) }
+
+    /** A lesson opened after the import: "back" leads to the library, not to the import screen. */
+    fun openImported(l: Lesson) {
+        stack.clear(); stack.add(Screen.ReaderCourses)
+        loadCourses(force = true)
+        go(Screen.Reader(ReaderSession(this, lang, l)))
+    }
     fun back(): Boolean = if (stack.size > 1) {
         stack.removeAt(stack.lastIndex); AppLog.add("nav", "← ${screenName(stack.last())}"); true
     } else false
@@ -744,7 +751,7 @@ class ImportSession(private val app: AppState) {
     var autoFix by mutableStateOf(true)
     /** The AI sets the level of each uploaded lesson (remembered). */
     var autoLevel by mutableStateOf(app.prefs.autoLevel)
-    var splitWords by mutableStateOf("3000")
+    var splitWords by mutableStateOf(app.prefs.splitWords)
     var running by mutableStateOf(false)
     var finished by mutableStateOf(false)
     var progress by mutableFloatStateOf(0f)
@@ -792,7 +799,7 @@ class ImportSession(private val app: AppState) {
             if (cv != null) setCover(cv, pdfName)
             try {
                 readPdf(d.uri, pdfName, pages, d.pages)
-                if (app.prefs.autoClean) cleanQuick()
+                autoClean()
             } catch (e: Throwable) {
                 AppLog.error("import", "PDF", e)
                 error = "Не удалось прочитать PDF: ${e.message}"
@@ -908,7 +915,7 @@ class ImportSession(private val app: AppState) {
                 audioUri = uri; audioName = if (whole) pk.name else "$title.${name.substringAfterLast('.')}"
                 audioWords = t.words
                 if (t.text.isBlank()) error = "В аудио не нашлось речи"
-                else if (p.autoClean) cleanQuick()
+                else autoClean()
             } catch (e: Throwable) {
                 AppLog.error("stt", "Распознавание", e)
                 error = "Не удалось распознать: ${e.message}"
@@ -948,7 +955,7 @@ class ImportSession(private val app: AppState) {
     fun paste(text: String) {
         startLoad(""); loading = false
         setSingle(pasteTitle, text)
-        if (app.prefs.autoClean && text.isNotBlank()) cleanQuick()
+        if (text.isNotBlank()) autoClean()
     }
 
     /** Photos of pages (gallery or camera): recognised on the phone; [append] adds them to the text. */
@@ -965,7 +972,7 @@ class ImportSession(private val app: AppState) {
                 val (text, _) = TextCleaner.clean(parts.joinToString("\n\n"))
                 if (keep) pasteText = pasteText.trimEnd() + "\n\n" + text
                 else setSingle("Фото " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date()), text)
-                if (text.isBlank()) error = "На фото не нашлось текста"
+                if (text.isBlank()) error = "На фото не нашлось текста" else autoClean()
             } catch (e: Throwable) {
                 error = "Не удалось распознать: ${e.message}"
             }
@@ -994,6 +1001,14 @@ class ImportSession(private val app: AppState) {
     private fun targets(): List<Pair<String, (String) -> Unit>> =
         if (pasteMode) listOf(pasteText to { v: String -> pasteText = v })
         else items.filter { it.selected }.map { item -> item.text to { v: String -> item.text = v } }
+
+    /** Right after text comes in (paste, file, PDF, photos, recognition): the cleaning chosen in the import screen. */
+    fun autoClean() {
+        when (app.prefs.autoCleanMode) {
+            "quick" -> cleanQuick()
+            "ai" -> if (app.useGemini) cleanAi() else cleanQuick()
+        }
+    }
 
     /** Quick clean on the phone (rules, no AI). */
     fun cleanQuick() {
@@ -1067,7 +1082,7 @@ class ImportSession(private val app: AppState) {
                         items.addAll(texts.map { ImportItem(it.title.ifBlank { n }, it.text, countWords(it.text) >= 100) })
                     }
                 }
-                if (app.prefs.autoClean) cleanQuick()
+                autoClean()
             } catch (e: Throwable) {
                 error = "Не удалось прочитать файл: ${e.message}"
             }
@@ -1099,7 +1114,7 @@ class ImportSession(private val app: AppState) {
             rest = parts.drop(1).joinToString("\n\n")
             title to parts.firstOrNull().orEmpty()
         } else {
-            val max = minOf(splitWords.toIntOrNull()?.takeIf { it > 0 } ?: (LINGQ_MAX_WORDS - 500), LINGQ_MAX_WORDS - 500)
+            val max = minOf(splitWords.toIntOrNull()?.takeIf { it > 0 } ?: LINGQ_MAX_WORDS, LINGQ_MAX_WORDS)
             selected().flatMap { (title, text) ->
                 val parts = Sources.splitLong(text, max)
                 if (parts.size == 1) listOf(title to parts[0]) else parts.mapIndexed { i, p -> "$title (${i + 1})" to p }

@@ -628,7 +628,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
         camera.launch(u)
     }
     var courseMenu by remember { mutableStateOf(false) }
-    var autoClean by remember { mutableStateOf(state.prefs.autoClean) }
+    var autoClean by remember { mutableStateOf(state.prefs.autoCleanMode) }
     LaunchedEffect(state.lang) { state.loadCourses() }
     s.pdf?.let { PdfPagePicker(s, it) }
     s.audioPick?.let { AudioPartPicker(s, it) }
@@ -760,12 +760,17 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 if (s.cleaning) LinearProgressIndicator(progress = { s.cleanProgress }, modifier = Modifier.fillMaxWidth())
                 s.cleanNote?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer) }
                 if (s.canUndo && !s.cleaning) TextButton(onClick = { s.undoClean() }) { Text("Вернуть как было") }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(checked = autoClean, onCheckedChange = { v -> autoClean = v; state.applyPrefs { this.autoClean = v } })
-                    Text(
-                        "Быстро чистить сразу при вставке", Modifier.padding(start = 12.dp),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
+                Text(
+                    "Чистить сразу при вставке (и фото, файлах, PDF):",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("off" to "Нет", "quick" to "Быстро", "ai" to "С ИИ").forEach { (k, t) ->
+                        androidx.compose.material3.FilterChip(
+                            autoClean == k, onClick = { autoClean = k; state.prefs.autoCleanMode = k }, label = { Text(t) },
+                            enabled = k != "ai" || state.useGemini,
+                        )
+                    }
                 }
             }
         }
@@ -829,7 +834,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             ) else Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Делить длинные тексты по", Modifier.weight(1f))
                 OutlinedTextField(
-                    s.splitWords, { v -> s.splitWords = v.filter { it.isDigit() } }, Modifier.width(96.dp),
+                    s.splitWords, { v -> s.splitWords = v.filter { it.isDigit() }; state.prefs.splitWords = s.splitWords }, Modifier.width(96.dp),
                     singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 )
                 Text("  слов")
@@ -855,13 +860,13 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             )
             val ls = s.uploaded.toList()
             if (ls.size == 1) Button(
-                onClick = { state.go(Screen.Reader(ReaderSession(state, state.lang, ls[0]))) }, Modifier.fillMaxWidth(),
+                onClick = { state.openImported(ls[0]) }, Modifier.fillMaxWidth(),
             ) { Text("Открыть урок") }
             else ls.forEach { l ->
                 ListItem(
                     headlineContent = { Text(l.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                     trailingContent = { Icon(AppIcons.Book, contentDescription = null) },
-                    modifier = Modifier.clickable { state.go(Screen.Reader(ReaderSession(state, state.lang, l))) },
+                    modifier = Modifier.clickable { state.openImported(l) },
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
