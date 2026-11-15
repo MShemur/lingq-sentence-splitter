@@ -7,6 +7,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's notes 14-15.11.2026 -> android v1.114: 1) import cleaning card: the two buttons Быстро / С ИИ and the separate auto chips are one row of chips Нет / Быстро / С ИИ; tapping a chip saves the choice AND cleans the current text now (again on a second tap); while the AI cleans: spinner + "ИИ чистит текст… N %" + progress bar, text field disabled with label "Текст — ИИ чистит…". 2) import remembers the course chosen last (ui pref importTo.<lang>, also set when a new course is created there). 3) reader ⋮ "Обработать текст с ИИ" (with a confirmation dialog): lesson text from the editor paragraphs, quick clean, then the AI clean prompt piece by piece ("ИИ обрабатывает текст: 2 из 5"), rebuilt into paragraphs/sentences (own split); a sentence whose text is unchanged keeps its old object (translation, timestamp), new ones get empty translations and null timestamp; backup first, Fixer after, PATCH paragraphs, reload. Android Ui.kt import card, Reader.kt cleanWithAi.
+
 ## To do on Android
 
 ## Done
