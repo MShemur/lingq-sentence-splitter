@@ -174,7 +174,7 @@ const val LINGQ_MAX_WORDS = 6000
 
 /** Sentences of a paragraph (LingQ's own split is not available for text added later; the fixer merges after it). */
 fun splitSentences(p: String): List<String> =
-    Regex("[^.!?…]+(?:[.!?…]+[\"»“”')\\]]*|$)\\s*").findAll(p).map { it.value.trim() }.filter { it.isNotEmpty() }.toList()
+    Regex("[^.!?…]+(?:[.!?…]+[\"«»“”')\\]]*|$)\\s*").findAll(p).map { it.value.trim() }.filter { it.isNotEmpty() }.toList()
 
 /**
  * Audio files the app keeps on the phone: downloaded podcast episodes, cut parts for recognition and import.

@@ -116,7 +116,8 @@ def should_merge(prev, nxt):
         return False
     if ends_with_abbreviation(p, n):
         return True
-    if n[0] in ")]»,;:*" or n[0].islower():      # next one can't start a sentence
+    opens_quote = n[0] == "»" and len(n) > 1 and n[1].isupper()   # German »Direkte Rede« starts a sentence
+    if not opens_quote and (n[0] in ")]»,;:*" or n[0].islower()):      # next one can't start a sentence
         return True
     if p.endswith(("?", "!")) and p.count("(") > p.count(")"):   # "(?" split inside brackets
         return True

@@ -1034,7 +1034,7 @@ class ImportSession(private val app: AppState) {
                         done++; cleanProgress = done.toFloat() / total
                         r.ifBlank { piece }
                     }
-                    set(out.joinToString("\n\n"))
+                    set(TextCleaner.spaceQuotes(out.joinToString("\n\n")))
                 }
                 cleanNote = "ИИ почистил текст. Пролистайте и проверьте; если что-то пропало — «Вернуть как было»."
             } catch (e: Throwable) {

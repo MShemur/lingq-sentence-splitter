@@ -7,6 +7,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's iPad notes 15.11.2026 (20261115-105200-web, 20261115-105820-web) -> android v1.120: German direct speech "Hochschule. »Alle hören … sparen«, sagt Schleiff. »Die …" stayed ONE sentence. Causes: 1) the fixer (should_merge) merged every next sentence starting with », as if » were a closing quote; now a sentence starting with » followed by an uppercase letter is NOT merged (French "» il" still is); same in lingq_fix_splits.py. 2) the AI cleaning glues ".»Alle" again: the quote spacing of quick clean (now TextCleaner.spaceQuotes) also runs on the AI output (import "С ИИ" and reader "Обработать текст с ИИ"). 3) own sentence split (splitSentences): « counts as a closing mark after . ! ?. Close both notes with doneIn "android v1.120, web v1.N".
+
 ## To do on Android
 
 

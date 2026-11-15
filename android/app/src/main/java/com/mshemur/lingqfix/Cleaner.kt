@@ -106,12 +106,17 @@ object TextCleaner {
             if (wraps) { sb.append(' '); joined++ } else sb.append('\n')
         }
         t = sb.toString().replace(Regex("\n{3,}"), "\n\n").trim()
-        // a sentence end glued to a quote and the next sentence ("Hochschule.»Alle", "werden.«Angst"): LingQ does
-        // not split there, so a space goes in (German quotes: » „ open, « “ ” close)
-        t = t.replace(Regex("([.!?…])([»„])(?=\\p{Lu})"), "$1 $2")
-            .replace(Regex("([.!?…][«“”\"])(?=\\p{Lu})"), "$1 ")
+        t = spaceQuotes(t)
         return t to CleanReport(removed, hyph, joined, marks)
     }
+
+    /**
+     * A sentence end glued to a quote and the next sentence ("Hochschule.»Alle", "werden.«Angst"): LingQ does not
+     * split there, so a space goes in (German quotes: » „ open, « “ ” close). Also run on the AI's output.
+     */
+    fun spaceQuotes(s: String): String =
+        s.replace(Regex("([.!?…])([»„])(?=\\p{Lu})"), "$1 $2")
+            .replace(Regex("([.!?…][«“”\"])(?=\\p{Lu})"), "$1 ")
 
     /** Splits a long text into pieces of about [maxWords] words at paragraph boundaries (for AI cleaning). */
     fun chunks(text: String, maxWords: Int = 1800): List<String> = Sources.splitLong(text, maxWords)

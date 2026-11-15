@@ -67,7 +67,9 @@ object Fixer {
         val n = nxt.trimStart()
         if (n.isEmpty()) return false
         if (endsWithAbbreviation(p, n)) return true
-        if (n[0] in ")]»,;:*" || n[0].isLowerCase()) return true     // can't start a sentence
+        // German »Direkte Rede« opens with »: "»Alle hören…" starts a sentence (French "» il" closes one)
+        val opensQuote = n[0] == '»' && n.length > 1 && n[1].isUpperCase()
+        if (!opensQuote && (n[0] in ")]»,;:*" || n[0].isLowerCase())) return true     // can't start a sentence
         if ((p.endsWith("?") || p.endsWith("!")) && p.count { it == '(' } > p.count { it == ')' }) return true
         return false
     }

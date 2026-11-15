@@ -626,7 +626,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     val cleaned = pieces.mapIndexed { i, piece ->
                         aiClean = "${i + 1} из ${pieces.size}"
                         app.geminiFast().clean(app.prefs.promptClean, lang, piece).ifBlank { piece }
-                    }.joinToString("\n\n")
+                    }.joinToString("\n\n").let(TextCleaner::spaceQuotes)
                     val out = JSONArray()
                     var idx = 0
                     for (pt in cleaned.split(Regex("\\n\\s*\\n"))) {
