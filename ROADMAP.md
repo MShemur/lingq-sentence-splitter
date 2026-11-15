@@ -1,7 +1,7 @@
 # План улучшений SatzLoop
 
 Общий план для Android и веб-версии (iPad). Очередь переноса функций между платформами ведётся в `PORTING.md`.
-Обновлено: 11.11.2026 (Android v1.86, web v1.60).
+Обновлено: 11.11.2026 (Android v1.86, web v1.61).
 
 ## Не делаем (решено)
 
@@ -104,6 +104,7 @@ v1.N, optional log; list: both devices, status / doneIn / reply); entries in Set
 - ✅ web v1.58: предложения снова не режутся между страницами (кроме выше страницы); «## Заголовок» после чистки ИИ становится жирным заголовком.
 - ✅ web v1.59: по ширине не растягиваются строки с большим запасом места; быстрая очистка склеивает текст «через строку» и ставит пробел в «Hochschule.»Alle».
 German direct speech (»Alle …«) split into sentences, also after AI cleaning (android v1.120, web v1.60)
+Book mode (Книжный режим) and 'Без цвета' word highlight (android v1.121, web v1.61; iPad landscape: two pages)
 
 ## Оптимизация по обзору кода (10.11.2026)
 

@@ -74,8 +74,12 @@ export const FACES: [string, string, string][] = [
   ['Georgia', 'С засечками', 'Georgia, "Times New Roman", serif'],
 ]
 
-export function readerStyle(): JSX.CSSProperties {
-  const t = themeOf(prefs.readerTheme.value)
+/** Book mode with "Как в системе": paper colours (as Android v1.121). */
+const PAPER: ReaderTheme = { key: 'paper', name: 'Бумага', bg: '#F6EFE0', fg: '#33291F', dark: false }
+const PAPER_DARK: ReaderTheme = { key: 'paperDark', name: 'Бумага ночью', bg: '#1E1B17', fg: '#DCD3C3', dark: true }
+
+export function readerStyle(book = false): JSX.CSSProperties {
+  const t = themeOf(prefs.readerTheme.value) ?? (book ? (systemDark.value ? PAPER_DARK : PAPER) : undefined)
   const hl = highlightColors(prefs.highlight.value, darkPage())
   const out: Record<string, string> = { '--green': hl.text, '--green-bg': hl.bg, '--pin-gap': (Number(prefs.pinGap.value) || 0) + 'px' }
   const face = FACES.find((f) => f[0] === prefs.readerFace.value)

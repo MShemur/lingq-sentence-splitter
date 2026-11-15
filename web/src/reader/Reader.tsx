@@ -36,23 +36,27 @@ const narrow = signal(narrowQuery.matches)
 narrowQuery.addEventListener?.('change', (e) => { narrow.value = e.matches })
 
 /** The word window is docked at the right (not on a phone: the text would get too narrow). */
-const docked = () => prefs.dockPanel.value === '1' && !narrow.value
+const docked = () => prefs.dockPanel.value === '1' && !narrow.value && !isBook()
+
+/** Book mode ("Книжный режим"): full screen text, swipe only, word menu on a double tap. */
+const isBook = () => prefs.readerBook.value === '1'
 
 /**
  * Page turning by swipe, done here instead of the browser's own scrolling: on the iPad the browser would take
  * the touch over as soon as the finger moves, which breaks long press + drag over words (selection).
  * Horizontal drag moves the pages and snaps to one; vertical drag scrolls a page that does not fit.
  */
-function useSwipe(pager: { current: HTMLDivElement | null }) {
+function useSwipe(pager: { current: HTMLDivElement | null }, onTap?: (e: PointerEvent) => void) {
   const st = useRef<{
     id: number; x: number; y: number; t: number; left: number; top: number; lastX: number
     scroller: HTMLElement | null; axis: '' | 'x' | 'y'
   } | null>(null)
-  const end = () => {
+  const end = (e?: PointerEvent) => {
     const g = st.current
     st.current = null
     dragging = false
     const el = pager.current
+    if (g && !g.axis && e && onTap && performance.now() - g.t < 450) onTap(e)
     if (!g || g.axis !== 'x' || !el || !el.clientWidth) return
     const dx = g.lastX - g.x
     const v = dx / Math.max(1, performance.now() - g.t)
@@ -92,8 +96,8 @@ function useSwipe(pager: { current: HTMLDivElement | null }) {
       if (g.axis === 'x') el.scrollLeft = g.left - dx
       else if (g.scroller) g.scroller.scrollTop = g.top - dy
     },
-    onPointerUp: end,
-    onPointerCancel: end,
+    onPointerUp: (e: PointerEvent) => end(e),
+    onPointerCancel: () => end(),
     onPointerLeave: (e: PointerEvent) => { if (e.pointerType === 'mouse') end() },
   }
 }
@@ -156,13 +160,15 @@ function useWordPress(s: ReaderSession) {
   const press = useMemo(() => new Press<WordRef>({
     // docked word panel: a tap also shows the word there
     tap: (r) => { s.tap(r); if (docked()) { s.closePhrase(); void s.openPopup(r) } },
-    double: (r) => { void s.openPopup(r) },
-    long: (r) => { selecting = true; s.selectStart(r, true) },
+    // book mode: a double tap opens the word menu, a long press does nothing
+    double: (r) => { if (isBook()) s.bookMenu.value = r; else void s.openPopup(r) },
+    long: (r) => { if (isBook()) return; selecting = true; s.selectStart(r, true) },
     longMove: (e) => {
+      if (isBook()) return
       const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('[data-w]') as HTMLElement | null
       if (el) s.selectTo(el.dataset.w!)
     },
-    longEnd: () => { selecting = false; s.selectEnd() },
+    longEnd: () => { if (isBook()) return; selecting = false; s.selectEnd() },
   }), [s])
   const target = (e: Event) => (e.target as Element | null)?.closest?.('[data-w]') as HTMLElement | null
   return {
@@ -185,8 +191,10 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
   useKeepAwake(active)
   const rootRef = useRef<HTMLDivElement>(null)
   useLooseJustify(rootRef, prefs.readerJustify.value === '1')
+  const book = isBook()
   return (
-    <div ref={rootRef} class={'screen reader' + (s.pinsHidden.value ? ' pins-hidden' : '') + (prefs.readerJustify.value === '1' ? ' justify' : '')} style={readerStyle()}>
+    <div ref={rootRef} class={'screen reader' + (s.pinsHidden.value ? ' pins-hidden' : '') + (prefs.readerJustify.value === '1' ? ' justify' : '')
+      + (book ? ' book' : '') + (book && s.bookBar.value ? ' book-bar' : '') + (prefs.wordBg.value === '0' ? ' nobg' : '')} style={readerStyle(book)}>
       <TopBar
         center
         nav={<IconButton icon="close" label="Закрыть урок" onClick={back} />}
@@ -199,13 +207,18 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
         </div>
         {docked() && <DockedPanel s={s} />}
       </div>
-      <nav class="bottom-nav">
+      {!book && <nav class="bottom-nav">
         <button onClick={() => s.openSentenceMode()}><span class="nav-ind"><Icon name="list" /></span><span>По предложениям</span></button>
         <button class={s.allSentences.value ? 'active' : ''} onClick={() => { s.allSentences.value = !s.allSentences.value }}>
           <span class="nav-ind"><Icon name="translate" /></span><span>Переводы</span>
         </button>
         <button onClick={() => s.chatText()}><span class="nav-ind"><Icon name="chat" /></span><span>Чат</span></button>
-      </nav>
+      </nav>}
+      {book && s.bookMenu.value && (
+        <WordMenuAt r={s.bookMenu.value} box=".text-pager" onClose={() => { s.bookMenu.value = null }}>
+          {(close) => <BookMenuItems s={s} r={s.bookMenu.value!} close={close} />}
+        </WordMenuAt>
+      )}
       <SentenceOverlay s={s} />
       {!docked() && s.popup.value && <WordSheet s={s} r={s.popup.value} />}
       {!docked() && s.phrase.value && <PhraseSheet s={s} />}
@@ -267,6 +280,10 @@ function ReaderActions({ s }: { s: ReaderSession }) {
             <div class="menu-group">Вид</div>
             <MenuItem onClick={() => s.changeFont(+2)}>Шрифт крупнее&nbsp; A+</MenuItem>
             <MenuItem onClick={() => s.changeFont(-2)}>Шрифт мельче&nbsp; A−</MenuItem>
+            <MenuItem icon={isBook() ? 'check' : undefined} onClick={() => {
+              close(); s.bookBar.value = false; s.bookMenu.value = null
+              prefs.readerBook.value = isBook() ? '0' : '1'
+            }}>Книжный режим</MenuItem>
             <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
             <MenuItem icon="translate" onClick={() => { close(); void s.translateAll() }}>
               {s.trAll.value != null ? `Перевожу урок: ${s.trAll.value}` : 'Перевести весь урок'}
@@ -348,12 +365,12 @@ function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, 
  * a sentence boundary; a sentence goes whole to the next page (the user's choice, web v1.58), only one taller than a
  * whole page is split at a line inside it.
  */
-function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number, cache: MeasureCache, prefix: string): Block[][] {
+function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number, cache: MeasureCache, prefix: string, gap = PARA_GAP): Block[][] {
   const whole = measureCached(box, s, cache, prefix, paras.map((p) => ({ sents: p })))
   const pages: Block[][] = []
   let cur: Block[] = []
   let used = 0
-  const need = (x: number) => (cur.length ? PARA_GAP : 0) + x
+  const need = (x: number) => (cur.length ? gap : 0) + x
   const flush = () => { if (cur.length) pages.push(cur); cur = []; used = 0 }
   paras.forEach((para, pi) => {
     let from = 0
@@ -448,8 +465,13 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   /** When pages were last rebuilt (scroll events right after it come from the layout, not the reader). */
   const rebuilt = useRef(0)
 
+  const book = isBook()
+  /** Pages per screen: book mode in landscape on a big screen shows two side by side (a spread). */
+  const per = book && size.w > size.h && size.w >= 900 ? 2 : 1
+  const spreadOf = (i: number) => Math.floor(i / per)
+
   // what changes the layout of the bare text (translations do not: the page scrolls instead)
-  const deps = [paras, prefs.readerFont.value, size.w, size.h]
+  const deps = [paras, prefs.readerFont.value, size.w, size.h, per, book]
 
   useEffect(() => {
     const el = pager.current
@@ -463,8 +485,9 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   const scrollTo = (i: number, smooth: boolean) => {
     const el = pager.current
     if (!el || !el.clientWidth) return
-    if (smooth) glide(el, i * el.clientWidth)
-    else { stopGlide(el); el.scrollLeft = i * el.clientWidth }
+    const x = spreadOf(i) * el.clientWidth
+    if (smooth) glide(el, x)
+    else { stopGlide(el); el.scrollLeft = x }
   }
 
   useLayoutEffect(() => {
@@ -472,7 +495,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     if (!box || !size.h) return
     const cs = getComputedStyle(box)
     const h = size.h - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
-    const next = paginate(box, s, paras, h, cache.current, `${size.w}|${prefs.readerFont.value}|`)
+    const next = paginate(box, s, paras, h, cache.current, `${size.w}|${prefs.readerFont.value}|${per}|${book ? 'b' : ''}|`, book ? 0 : PARA_GAP)
     // the same text stays on screen when pages are rebuilt. The anchor is the sentence the reader got to and is NOT
     // moved to the first sentence of the new page: that crept back a little with every rebuild (font A+ / A−, the
     // window resized when switching apps) until the reading position was back at the start.
@@ -492,21 +515,23 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   useLayoutEffect(() => {
     if (!pages.length) return
     const el = pager.current
-    if (el && el.clientWidth && !scrolling.current && Math.abs(el.scrollLeft - cur * el.clientWidth) > 1) scrollTo(cur, false)
+    if (el && el.clientWidth && !scrolling.current && Math.abs(el.scrollLeft - spreadOf(cur) * el.clientWidth) > 1) scrollTo(cur, false)
     if (s.textAnchor == null && pages[cur]) s.textAnchor = pages[cur][0]?.sents[0]?.id ?? null
   }, [pages, cur])
 
   // publish progress and what is on screen
   useLayoutEffect(() => {
     if (!pages.length) return
-    const p = pages[cur] ?? []
+    const first = spreadOf(cur) * per
+    const p = pages.slice(first, first + per).flat()
+    const last = Math.min(pages.length, first + per)
     s.visibleSents = new Set(p.flatMap((b) => b.sents.map((x) => x.id)))
-    s.textProgress.value = (cur + 1) / pages.length
-    s.pageLabel.value = `${cur + 1} / ${pages.length}`
+    s.textProgress.value = last / pages.length
+    s.pageLabel.value = `${last > first + 1 ? `${first + 1}–${last}` : first + 1} / ${pages.length}`
     s.pageCount.value = pages.length
     const ids = p.flatMap((b) => b.sents.map((x) => x.id))
     if (ids.length) s.savePos(ids[0], ids[ids.length - 1])
-  }, [pages, cur])
+  }, [pages, cur, per])
 
   // bookmark "go to source"
   const jump = s.jump.value
@@ -534,16 +559,16 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     const el = pager.current
     if (!el || !el.clientWidth || dragging || glides.has(el)) return
     const i = s.textPage.value
-    if (Math.abs(el.scrollLeft - i * el.clientWidth) > 1) scrollTo(i, false)
+    if (Math.abs(el.scrollLeft - spreadOf(i) * el.clientWidth) > 1) scrollTo(i, false)
   }
 
   /** Turns [d] pages, counting from the page being turned to, so quick presses do not skip pages. */
   const turn = (d: number) => {
     const el = pager.current
     if (!el || !el.clientWidth) return
-    const at = Math.round(el.scrollLeft / el.clientWidth)
+    const at = Math.round(el.scrollLeft / el.clientWidth) * per
     const from = turnTo.current != null && scrolling.current ? turnTo.current : at
-    const i = Math.max(0, Math.min(pages.length - 1, from + d))
+    const i = spreadOf(Math.max(0, Math.min(pages.length - 1, from + d * per))) * per
     turnTo.current = i
     // the animation starts on the next frame: a second quick press must already count from [i]
     scrolling.current = true
@@ -551,7 +576,12 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null; settle() }, 150)
     scrollTo(i, true)
   }
-  const swipe = useSwipe(pager)
+  // book mode: a tap in the middle of the page (not on a word) shows / hides the top bar over the text
+  const swipe = useSwipe(pager, (e) => {
+    if (!isBook() || (e.target as Element | null)?.closest?.('[data-w], .sent-tr, button')) return
+    const x = e.clientX / window.innerWidth, y = e.clientY / window.innerHeight
+    if (x >= 0.2 && x <= 0.8 && y >= 0.15 && y <= 0.85) s.bookBar.value = !s.bookBar.value
+  })
 
   // arrow keys turn pages (iPad keyboard)
   useEffect(() => {
@@ -579,30 +609,37 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     scrolling.current = true
     clearTimeout(scrollEnd.current)
     scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null; settle() }, 150)
-    const i = Math.round(el.scrollLeft / el.clientWidth)
-    if (i !== s.textPage.value && i >= 0 && i < pages.length) {
+    const i = Math.round(el.scrollLeft / el.clientWidth) * per
+    if (spreadOf(i) !== spreadOf(s.textPage.value) && i >= 0 && i < pages.length) {
       s.textPage.value = i
       s.textAnchor = pages[i][0]?.sents[0]?.id ?? null
     }
   }
 
   const fs = { '--fs': prefs.readerFont.value + 'px' } as JSX.CSSProperties
+  const pageText = (i: number) => {
+    const p = pages[i]
+    if (!p) return <div class="reader-text page-text" key={i} style={fs} />
+    return (
+      <div class="reader-text page-text" key={i} style={fs} {...handlers}>
+        {p.map((b) => <Paragraph key={b.para + ':' + b.sents[0].id + ':' + (b.start ?? 0)} s={s} sents={b.sents} start={b.start} end={b.end}
+          cut={b.end != null || b !== p[p.length - 1] ? false : b.sents[b.sents.length - 1] !== paras[b.para][paras[b.para].length - 1]} />)}
+      </div>
+    )
+  }
   return (
     <>
-      <div class="reader-text measurer" ref={measurer} style={fs} aria-hidden="true" />
+      <div class={'reader-text measurer' + (per === 2 ? ' half' : '')} ref={measurer} style={fs} aria-hidden="true" />
       <div class="pager text-pager" ref={pager} onScroll={onScroll} {...swipe}>
-        {pages.map((p, i) => (
-          <div class="page" key={i}>
-            {Math.abs(i - cur) <= 1 && (
-              <div class="reader-text page-text" style={fs} {...handlers}>
-                {p.map((b) => <Paragraph key={b.para + ':' + b.sents[0].id + ':' + (b.start ?? 0)} s={s} sents={b.sents} start={b.start} end={b.end}
-                  cut={b.end != null || b !== p[p.length - 1] ? false : b.sents[b.sents.length - 1] !== paras[b.para][paras[b.para].length - 1]} />)}
-              </div>
-            )}
+        {Array.from({ length: Math.ceil(pages.length / per) }, (_, si) => (
+          <div class="page" key={si}>
+            {Math.abs(si - spreadOf(cur)) <= 1 && (per === 2 ? (
+              <div class="spread">{[0, 1].map((k) => pageText(si * 2 + k))}</div>
+            ) : pageText(si))}
           </div>
         ))}
       </div>
-      <TurnButtons at={cur} count={pages.length} turn={turn} />
+      {!book && <TurnButtons at={cur} count={pages.length} turn={turn} />}
     </>
   )
 }
@@ -814,6 +851,24 @@ export function WordMenuAt({ r, box, onClose, children }: {
       <style>{`.word-menu { position: fixed; left: ${left}px; top: ${topPx}px; right: auto; }`}</style>
       {children(onClose)}
     </Menu>
+  )
+}
+
+/** Book mode word menu (double tap): the word window first, then what the long press and the buttons do elsewhere. */
+function BookMenuItems({ s, r, close }: { s: ReaderSession; r: WordRef; close: () => void }) {
+  const id = refSent(r)
+  const marked = s.isBookmarked(id)
+  return (
+    <>
+      <MenuItem icon="translate" onClick={() => { close(); void s.openPopup(r) }}>Перевод слова</MenuItem>
+      <MenuItem icon="chat" onClick={() => { close(); s.toggleSentence(id) }}>
+        {s.sentenceShown(id) ? 'Скрыть перевод предложения' : 'Перевод предложения'}
+      </MenuItem>
+      <MenuItem icon={marked ? 'bookmark' : 'bookmarkBorder'} onClick={() => { close(); s.toggleBookmark(id) }}>
+        {marked ? 'Убрать закладку' : 'Закладка на предложение'}
+      </MenuItem>
+      <MenuItem icon="chat" onClick={() => { close(); s.chatSentence(id) }}>Чат о предложении</MenuItem>
+    </>
   )
 }
 

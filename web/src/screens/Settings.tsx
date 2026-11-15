@@ -302,8 +302,13 @@ export function SettingsReading() {
           )
         })}
       </div>
+      <div class="chips">
+        {[['1', 'Слово на цветном фоне'], ['0', 'Без цвета: цветной только перевод над словом']].map(([v, label]) => (
+          <Chip key={v} label={label} selected={(prefs.wordBg.value || '1') === v} onClick={() => { prefs.wordBg.value = v }} />
+        ))}
+      </div>
       <div class="hl-preview" style={page}>
-        Er las das <span class="hl-word"><span style={{ color: c.text }}>книгу</span><span style={{ background: c.bg }}>Buch</span></span> bis zum Ende.
+        Er las das <span class="hl-word"><span style={{ color: c.text }}>книгу</span><span style={{ background: prefs.wordBg.value === '0' ? 'none' : c.bg }}>Buch</span></span> bis zum Ende.
       </div>
       <h3 class="section-title">Шрифт текста</h3>
       <div class="chips">
@@ -317,6 +322,15 @@ export function SettingsReading() {
           <Chip key={v} label={label} selected={(prefs.readerJustify.value || '0') === v} onClick={() => { prefs.readerJustify.value = v }} />
         ))}
       </div>
+      <h3 class="section-title">Книжный режим</h3>
+      <div class="chips">
+        {[['0', 'Выключен'], ['1', 'Включён']].map(([v, label]) => (
+          <Chip key={v} label={label} selected={(prefs.readerBook.value || '0') === v} onClick={() => { prefs.readerBook.value = v }} />
+        ))}
+      </div>
+      <p class="hint">Текст на весь экран, без панелей и кнопок; страницы листаются свайпом, в альбомной ориентации — две
+        рядом. Тап по середине страницы показывает верхнюю панель (там ⋮ → «Книжный режим» выключает его), двойной тап по
+        слову — меню слова. Абзацы — отступом первой строки, перевод над словом не раздвигает строки.</p>
       <h3 class="section-title">Перевод над словом</h3>
       <p class="hint">Расстояние между переводом и словом под ним.</p>
       <div class="chips">

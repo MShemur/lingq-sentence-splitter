@@ -147,6 +147,10 @@ export class ReaderSession {
   textProgress = signal(0)
   menuOpen = signal(false)
   bookmarksOpen = signal(false)
+  /** Book mode: the top bar shown over the text (a tap in the middle of the page). */
+  bookBar = signal(false)
+  /** Book mode: the word menu (double tap on a word). */
+  bookMenu = signal<WordRef | null>(null)
 
   /** Sentence translations, and the sentences whose translation is shown. */
   sentTr = signal<Record<number, string>>({})

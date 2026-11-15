@@ -34,6 +34,10 @@ export const prefs = {
   readerFace: pref('readerFace', ''),
   /** '1': the reading text justified (both edges straight). */
   readerJustify: pref('readerJustify', '0'),
+  /** '1': book mode (full screen, no bars, swipe only, paragraphs by indent, two pages in landscape). */
+  readerBook: pref('readerBook', '0'),
+  /** '1': a word with a translation gets the highlight background; '0': none, only the translation is coloured. */
+  wordBg: pref('wordBg', '1'),
   /** "Слова по урокам": words met this many times or less in the whole course are not counted (0 = all). */
   wsMin: pref('wsMin', '0'),
   /** "Другой ИИ": an OpenAI-compatible service (address, key, main and light model). */
