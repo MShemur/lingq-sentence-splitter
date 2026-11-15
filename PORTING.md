@@ -7,6 +7,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's iPad notes 15.11.2026 -> android v1.116: 1) (20261115-070016-web) NO automatic cleaning any more after paste / file / PDF / recognition, on both platforms: the import card has two buttons Быстро / С ИИ that clean only on a tap (Android dropped the Нет/Быстро/С ИИ auto chips; prefs autoCleanMode unused). "Загрузить урок" is disabled while cleaning ("Дождитесь конца очистки"). On web the AI cleaning also broke off at 30 % after leaving the import screen and coming back - keep it running / don't restart it. Also web only: add the font "Avenir Next" to the reading look (iOS system font). 2) (20261115-070546-web) the result messages of "Перевести весь урок" and "Обработать текст с ИИ" (also failures) stay on screen until closed with ✕ (Android sayLong: snackbar Indefinite + dismiss action). 3) (20261115-062507-web) the user allows creating test lessons in LingQ without asking - go ahead with the asterisk test for 20261115-055640-web; close 062507 yourself. Close the two notes above with doneIn "android v1.116, web v1.N".
+
 ## To do on Android
 
 ## Done
