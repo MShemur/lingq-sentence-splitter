@@ -78,7 +78,8 @@ export class ImportSession {
   newCourseTitle = signal('')
   autoFix = signal(true)
   /** The AI sets the level (A1–C2) of every new lesson; remembered. */
-  splitWords = signal('3000')
+  /** Kept in settings (pref splitWords). */
+  splitWords = prefs.splitWords
   running = signal(false)
   finished = signal(false)
   progress = signal(0)
@@ -114,7 +115,7 @@ export class ImportSession {
   paste(text: string) {
     this.startLoad(''); this.loading.value = false
     this.setSingle(this.pasteTitle.value, text)
-    if (prefs.autoClean.value === '1' && text.trim()) this.cleanQuick()
+    if (text.trim()) void this.autoClean()
   }
 
   /** An empty field to type or paste into (when the clipboard cannot be read). */
@@ -134,7 +135,7 @@ export class ImportSession {
         // short EPUB parts (cover, title page, imprint) are not preselected
         this.items.value = texts.map((t) => new ImportItem(t.title || name, t.text, countWords(t.text) >= 100))
       }
-      if (prefs.autoClean.value === '1') this.cleanQuick()
+      void this.autoClean()
     } catch (e) {
       this.error.value = `Не удалось прочитать файл: ${(e as Error).message}`
     }
@@ -160,7 +161,7 @@ export class ImportSession {
       const all = list.length === pdf.pages
       this.setSingle(all ? name : `${name}, стр. ${pagesLabel(list)}`, text)
       if (scans.length) say(`${scans.length === 1 ? 'Страница' : 'Страницы'} ${pagesLabel(scans)} — скан, без текста: пропущено`)
-      if (prefs.autoClean.value === '1') this.cleanQuick()
+      void this.autoClean()
     } catch (e) {
       this.error.value = `Не удалось прочитать PDF: ${(e as Error).message}`
     } finally { pdf.close() }
@@ -252,7 +253,7 @@ export class ImportSession {
       this.audioName.value = whole ? pk.name : `${title}.${name.split('.').pop()}`
       this.audioWords = t.words
       if (!t.text.trim()) this.error.value = 'В аудио не нашлось речи'
-      else if (prefs.autoClean.value === '1') this.cleanQuick()
+      else await this.autoClean() // a background job uploads right after: wait for the AI
     } catch (e) {
       log('stt', `Распознавание ✗ ${(e as Error).message}`)
       this.error.value = `Не удалось распознать: ${(e as Error).message}`
@@ -296,6 +297,13 @@ export class ImportSession {
   private targets(): [string, (v: string) => void][] {
     if (this.pasteMode.value) return [[this.pasteText.value, (v) => { this.pasteText.value = v }]]
     return this.items.value.filter((i) => i.selected.value).map((i) => [i.text.value, (v: string) => { i.text.value = v }])
+  }
+
+  /** Right after text came in: the cleaning chosen in settings ("Нет / Быстро / С ИИ"). */
+  async autoClean() {
+    const v = prefs.autoClean.value
+    if (v === '2' && useGemini()) await this.cleanAi()
+    else if (v === '1' || v === '2') this.cleanQuick()
   }
 
   /** Quick clean on the device (rules, no AI). */
@@ -353,7 +361,7 @@ export class ImportSession {
     const audio = this.pasteMode.value ? this.audio.value : null
     const audioFile = this.audioName.value.replace(/[^\p{L}\p{N}._ -]/gu, '_')
     // books and files: parts of the chosen size, never above LingQ's own limit (its parts would not be fixed)
-    const max = Math.min(Number(this.splitWords.value) || LINGQ_MAX_WORDS - 500, LINGQ_MAX_WORDS - 500)
+    const max = Math.min(Number(this.splitWords.value) || LINGQ_MAX_WORDS, LINGQ_MAX_WORDS)
     let jobs: Job[]
     if (audio) {
       // audio (podcast, recording): one lesson, however long; what does not fit into one import is added afterwards

@@ -1,10 +1,10 @@
 // "Загрузка в LingQ": text from the clipboard or a file (TXT, MD, EPUB, PDF), cleaning, upload to a course with the
 // sentence split fixed right away; and the backups of lessons before a fix. Port of Android ImportScreen / BackupsScreen.
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { back, courses, coursesError, go, LessonsScreen, loadCourses, say } from '../app'
+import { back, backTo, courses, coursesError, go, LessonsScreen, loadCourses, say, stack, type Screen } from '../app'
 import { prefs, useGemini } from '../settings'
 import { Icon, type IconName } from '../icons'
-import { Dialog, IconButton, ListItem, Loading, TopBar } from '../ui'
+import { Chip, Dialog, IconButton, ListItem, Loading, TopBar } from '../ui'
 import type { ImportSession } from '../importer/session'
 import { countWords } from '../importer/cleaner'
 import { wordsText } from '../stats'
@@ -25,6 +25,12 @@ function SourceTile({ icon, label, onClick, disabled }: { icon: IconName; label:
 }
 
 const wordsLabel = wordsText
+
+/** A lesson opened from the finished import: "back" leads to the library, not to the import screen. */
+function openImported(sc: Screen) {
+  const root = stack.value[0]
+  void backTo((x) => x === root).then(() => go(sc))
+}
 
 export function ImportScreen({ s }: { s: ImportSession }) {
   const file = useRef<HTMLInputElement>(null)
@@ -137,11 +143,12 @@ export function ImportScreen({ s }: { s: ImportSession }) {
               {s.cleaning.value && <div class="bar-progress"><div style={{ width: s.cleanProgress.value * 100 + '%' }} /></div>}
               {s.cleanNote.value && <p>{s.cleanNote.value}</p>}
               {s.canUndo.value && !s.cleaning.value && <button class="btn text" onClick={() => s.undoClean()}>Вернуть как было</button>}
-              <label class="switch-row">
-                <input type="checkbox" class="switch" checked={prefs.autoClean.value === '1'}
-                  onChange={(e) => { prefs.autoClean.value = (e.target as HTMLInputElement).checked ? '1' : '0' }} />
-                <span>Быстро чистить сразу при вставке</span>
-              </label>
+              <div class="small">Сразу, как текст пришёл (вставка, файл, PDF, распознавание):</div>
+              <div class="chip-row">
+                {([['0', 'Нет'], ['1', 'Быстро'], ['2', 'С ИИ']] as const).map(([v, l]) => (
+                  <Chip key={v} label={l} selected={prefs.autoClean.value === v} onClick={() => { prefs.autoClean.value = v }} />
+                ))}
+              </div>
             </div>
           )}
 
@@ -177,7 +184,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
               {!(s.pasteMode.value && s.audio.value) && <div class="row split-row">
                 <span class="grow">Делить длинные тексты по</span>
                 <input class="num" inputMode="numeric" value={s.splitWords.value}
-                  onInput={(e) => { s.splitWords.value = (e.target as HTMLInputElement).value.replace(/\D/g, '') }} />
+                  onInput={(e) => { const v = (e.target as HTMLInputElement).value.replace(/\D/g, ''); s.splitWords.value = Number(v) > 6000 ? '6000' : v }} />
                 <span>слов</span>
               </div>}
               {!s.finished.value && <button class="btn filled wide" onClick={() => void s.run()}
@@ -199,10 +206,10 @@ export function ImportScreen({ s }: { s: ImportSession }) {
               <hr />
               <p>Готово ✅{fixedCount > 0 ? ` Разбивка на предложения поправлена (${fixedCount}).` : ''}{s.textNote.value ? ` ${s.textNote.value}` : ''}</p>
               {s.uploaded.value.length === 1 ? (
-                <button class="btn filled wide" onClick={() => go({ k: 'reader', s: new ReaderSession(s.lang, s.uploaded.value[0]) })}>Открыть урок</button>
+                <button class="btn filled wide" onClick={() => openImported({ k: 'reader', s: new ReaderSession(s.lang, s.uploaded.value[0]) })}>Открыть урок</button>
               ) : s.uploaded.value.map((l) => (
                 <ListItem key={l.id} headline={l.title} trailing={<Icon name="chevron" />}
-                  onClick={() => go({ k: 'reader', s: new ReaderSession(s.lang, l) })} />
+                  onClick={() => openImported({ k: 'reader', s: new ReaderSession(s.lang, l) })} />
               ))}
               <div class="row">
                 {s.course.value && (

@@ -52,7 +52,10 @@ export const prefs = {
   promptClean: pref('promptClean', Prompts.CLEAN),
   promptLevel: pref('promptLevel', Prompts.LEVEL),
   /** Import: quick clean right after pasting / opening a file. */
+  /** Cleaning right after text comes in: '0' none, '1' quick (rules), '2' with AI (quick when no AI is set up). */
   autoClean: pref('autoClean', '1'),
+  /** Long texts are cut into lessons of this many words (at most LingQ's 6000). */
+  splitWords: pref('splitWords', '6000'),
   readerFont: pref('readerFont', '20'),
   /** '1': the word window is docked at the right of the reader and always shown. */
   dockPanel: pref('dockPanel', '0'),
