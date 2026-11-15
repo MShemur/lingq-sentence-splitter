@@ -633,8 +633,11 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
     s.pdf?.let { PdfPagePicker(s, it) }
     s.audioPick?.let { AudioPartPicker(s, it) }
     val courses = state.courses.orEmpty()
+    val ui = remember { ctx.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE) }
     LaunchedEffect(state.courses) {
-        if (s.course == null) s.course = courses.firstOrNull()
+        // the course chosen last time (per language), else the most recent one
+        if (s.course == null) s.course = ui.getInt("importTo." + state.lang, 0).let { id -> courses.firstOrNull { it.id == id } }
+            ?: courses.firstOrNull()
         if (state.courses?.isEmpty() == true) s.newCourse = true   // no courses yet: offer to create one
     }
 
@@ -690,7 +693,8 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             }
             OutlinedTextField(
                 s.pasteText, { s.pasteText = it }, Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 420.dp),
-                label = { Text("Текст") }, shape = RoundedCornerShape(12.dp),
+                label = { Text(if (s.cleaning) "Текст — ИИ чистит…" else "Текст") }, shape = RoundedCornerShape(12.dp),
+                enabled = !s.cleaning,
                 textStyle = MaterialTheme.typography.bodyMedium,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -743,35 +747,37 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                         "Сам текст не переписывается.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = { s.cleanQuick() }, enabled = !s.cleaning && !s.running) {
-                        Icon(AppIcons.Cleaning, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("Быстро", Modifier.padding(start = 8.dp))
-                    }
-                    Button(onClick = { s.cleanAi() }, enabled = !s.cleaning && !s.running && state.useGemini) {
-                        Icon(AppIcons.AutoFix, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("С ИИ", Modifier.padding(start = 8.dp))
-                    }
-                }
-                if (!state.useGemini) Text(
-                    "Чистка с ИИ: включите Gemini или другой ИИ в Настройки → Перевод.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                if (s.cleaning) LinearProgressIndicator(progress = { s.cleanProgress }, modifier = Modifier.fillMaxWidth())
-                s.cleanNote?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer) }
-                if (s.canUndo && !s.cleaning) TextButton(onClick = { s.undoClean() }) { Text("Вернуть как было") }
-                Text(
-                    "Чистить сразу при вставке (и фото, файлах, PDF):",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
+                // one choice: it cleans the text now and is remembered for the next paste / file / PDF / photos
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("off" to "Нет", "quick" to "Быстро", "ai" to "С ИИ").forEach { (k, t) ->
                         androidx.compose.material3.FilterChip(
-                            autoClean == k, onClick = { autoClean = k; state.prefs.autoCleanMode = k }, label = { Text(t) },
-                            enabled = k != "ai" || state.useGemini,
+                            autoClean == k,
+                            onClick = {
+                                autoClean = k; state.prefs.autoCleanMode = k
+                                when (k) { "quick" -> s.cleanQuick(); "ai" -> s.cleanAi() }
+                            },
+                            label = { Text(t) },
+                            enabled = !s.cleaning && !s.running && (k != "ai" || state.useGemini),
                         )
                     }
                 }
+                Text(
+                    if (!state.useGemini) "«С ИИ»: включите Gemini или другой ИИ в Настройки → Перевод."
+                    else "Выбор запоминается и срабатывает сам при вставке, для файлов, PDF и фото. Нажмите ещё раз — почистит снова.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                if (s.cleaning) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Text(
+                            "ИИ чистит текст… ${(s.cleanProgress * 100).toInt()} %", Modifier.padding(start = 10.dp),
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    LinearProgressIndicator(progress = { s.cleanProgress }, modifier = Modifier.fillMaxWidth())
+                }
+                s.cleanNote?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer) }
+                if (s.canUndo && !s.cleaning) TextButton(onClick = { s.undoClean() }) { Text("Вернуть как было") }
             }
         }
 
@@ -795,7 +801,10 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                     })
                     HorizontalDivider()
                     courses.forEach { c ->
-                        DropdownMenuItem(text = { Text(c.title) }, onClick = { s.course = c; s.newCourse = false; courseMenu = false })
+                        DropdownMenuItem(text = { Text(c.title) }, onClick = {
+                            s.course = c; s.newCourse = false; courseMenu = false
+                            ui.edit().putInt("importTo." + state.lang, c.id).apply()
+                        })
                     }
                 }
             }

@@ -580,6 +580,86 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         trSaved[s.text] = t
         trCache.save(HashMap(trSaved))
     }
+    /** "Обработать текст с ИИ": "2 из 5" while running, null otherwise; [askAiClean] shows the confirmation. */
+    var aiClean by mutableStateOf<String?>(null)
+    var askAiClean by mutableStateOf(false)
+
+    /**
+     * The lesson's text cleaned by the AI like at the import (page numbers, headers, footnotes, broken lines) and
+     * written back to LingQ: backup on the phone first; sentences that stay the same keep their translation and audio
+     * time; then the sentence split is fixed as after an import and the lesson is read again.
+     */
+    fun cleanWithAi() {
+        if (!app.useGemini) return app.say("Для обработки с ИИ включите ИИ: Настройки → Перевод")
+        if (aiClean != null) return
+        aiClean = "…"
+        AppLog.add("reader", "Урок ${lesson.id}: обработка текста с ИИ")
+        app.scope.launch {
+            try {
+                val (before, after) = withContext(Dispatchers.IO) {
+                    val paras = app.api.editor(lang, lesson.id)
+                    val old = HashMap<String, JSONObject>()
+                    var tmpl: JSONObject? = null
+                    var pTmpl: JSONObject? = null
+                    var count = 0
+                    val parts = mutableListOf<String>()
+                    for (i in 0 until paras.length()) {
+                        val p = paras.getJSONObject(i)
+                        val ss = p.optJSONArray("sentences") ?: continue
+                        val texts = mutableListOf<String>()
+                        for (j in 0 until ss.length()) {
+                            val o = ss.getJSONObject(j)
+                            val t = o.optString("text").trim()
+                            if (t.isEmpty()) continue
+                            if (tmpl == null) { tmpl = o; pTmpl = p }
+                            old.putIfAbsent(t, o)
+                            texts += t
+                            count++
+                        }
+                        if (texts.isNotEmpty()) parts += texts.joinToString(" ")
+                    }
+                    val t0 = tmpl ?: throw ApiException("урок пустой")
+                    val src = TextCleaner.clean(parts.joinToString("\n\n")).first
+                    val pieces = TextCleaner.chunks(src)
+                    val cleaned = pieces.mapIndexed { i, piece ->
+                        aiClean = "${i + 1} из ${pieces.size}"
+                        app.geminiFast().clean(app.prefs.promptClean, lang, piece).ifBlank { piece }
+                    }.joinToString("\n\n")
+                    val out = JSONArray()
+                    var idx = 0
+                    for (pt in cleaned.split(Regex("\\n\\s*\\n"))) {
+                        val ss = splitSentences(pt.trim())
+                        if (ss.isEmpty()) continue
+                        val p = JSONObject(pTmpl.toString())
+                        if (p.has("style")) p.put("style", "p")
+                        val arr = JSONArray()
+                        ss.forEach { t ->
+                            val o = old[t]?.let { JSONObject(it.toString()) } ?: JSONObject(t0.toString())
+                                .put("text", t).put("cleanText", t)
+                                .put("translations", JSONArray()).put("phrases", JSONArray()).put("notes", JSONArray())
+                                .also { if (it.has("timestamp")) it.put("timestamp", JSONObject.NULL) }
+                            arr.put(o.put("index", ++idx))
+                        }
+                        p.put("sentences", arr)
+                        out.put(p)
+                    }
+                    if (idx == 0) throw ApiException("ИИ вернул пустой текст, урок не изменён")
+                    app.backups.save(lang, Lesson(lesson.id, title), JSONArray(paras.toString()))
+                    Fixer.fix(out)
+                    app.api.saveParagraphs(lang, lesson.id, out)
+                    count to idx
+                }
+                AppLog.add("reader", "Урок ${lesson.id}: ИИ обработал текст, было $before предложений, стало $after")
+                app.say("Текст обработан: было $before предложений, стало $after. Копия старого — в резервных копиях")
+                load()
+            } catch (e: Throwable) {
+                AppLog.error("reader", "Обработать текст с ИИ", e)
+                app.say("Обработка не получилась: ${e.message}")
+            }
+            aiClean = null
+        }
+    }
+
     /** "Перевести весь урок": "12 из 80" while running, null otherwise. */
     var trAll by mutableStateOf<String?>(null)
 
@@ -1391,6 +1471,12 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             enabled = !s.levelBusy,
             onClick = { menu = false; s.detectLevel() },
         )
+        DropdownMenuItem(
+            text = { Text(s.aiClean?.let { "ИИ обрабатывает текст: $it" } ?: "Обработать текст с ИИ") },
+            leadingIcon = { Icon(AppIcons.AutoFix, contentDescription = null) },
+            enabled = s.aiClean == null,
+            onClick = { menu = false; s.askAiClean = true },
+        )
         HorizontalDivider()
         MenuGroup("Текст")
         FontSizeRow(s)
@@ -1610,6 +1696,20 @@ fun ReaderProgress(s: ReaderSession) {
 fun ReaderScreen(s: ReaderSession) {
     LaunchedEffect(s) { if (s.paragraphs == null) s.load() }
     SentenceEditDialog(s)
+    if (s.askAiClean) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { s.askAiClean = false },
+        icon = { Icon(AppIcons.AutoFix, contentDescription = null) },
+        title = { Text("Обработать текст с ИИ?") },
+        text = {
+            Text(
+                "ИИ почистит текст урока, как при импорте: уберёт номера страниц, колонтитулы, сноски и мусор, " +
+                    "склеит разорванные строки. Урок на LingQ перезапишется. Неизменённые предложения сохранят перевод " +
+                    "и время аудио, у изменённых их не будет. Копия старого урока останется на телефоне (резервные копии).",
+            )
+        },
+        confirmButton = { TextButton(onClick = { s.askAiClean = false; s.cleanWithAi() }) { Text("Обработать") } },
+        dismissButton = { TextButton(onClick = { s.askAiClean = false }) { Text("Отмена") } },
+    )
     s.levelResult?.let { (lvl, why) ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { s.levelResult = null },

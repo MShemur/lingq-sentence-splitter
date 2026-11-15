@@ -1135,6 +1135,8 @@ class ImportSession(private val app: AppState) {
                     log[log.lastIndex] = "✅ Курс «${created.title}» создан"
                     app.courses = listOf(created) + app.courses.orEmpty()
                     course = created
+                    app.ctx.getSharedPreferences("ui", android.content.Context.MODE_PRIVATE).edit()
+                        .putInt("importTo.$lang", created.id).apply()
                     newCourse = false
                     created
                 } else c0!!.also { ex ->
