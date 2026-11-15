@@ -248,6 +248,14 @@ class AppState(val ctx: Context) {
     } else false
     fun say(msg: String) { AppLog.add("msg", msg); scope.launch { snackbar.showSnackbar(msg) } }
 
+    /** A result to read at leisure: stays until closed with its ✕. */
+    fun sayLong(msg: String) {
+        AppLog.add("msg", msg)
+        scope.launch {
+            snackbar.showSnackbar(msg, withDismissAction = true, duration = androidx.compose.material3.SnackbarDuration.Indefinite)
+        }
+    }
+
     var readerTheme by mutableStateOf(prefs.readerTheme)
     var highlight by mutableStateOf(prefs.highlight)
     var keepAwake by mutableStateOf(prefs.keepAwake)
@@ -799,7 +807,6 @@ class ImportSession(private val app: AppState) {
             if (cv != null) setCover(cv, pdfName)
             try {
                 readPdf(d.uri, pdfName, pages, d.pages)
-                autoClean()
             } catch (e: Throwable) {
                 AppLog.error("import", "PDF", e)
                 error = "Не удалось прочитать PDF: ${e.message}"
@@ -915,7 +922,6 @@ class ImportSession(private val app: AppState) {
                 audioUri = uri; audioName = if (whole) pk.name else "$title.${name.substringAfterLast('.')}"
                 audioWords = t.words
                 if (t.text.isBlank()) error = "В аудио не нашлось речи"
-                else autoClean()
             } catch (e: Throwable) {
                 AppLog.error("stt", "Распознавание", e)
                 error = "Не удалось распознать: ${e.message}"
@@ -955,7 +961,6 @@ class ImportSession(private val app: AppState) {
     fun paste(text: String) {
         startLoad(""); loading = false
         setSingle(pasteTitle, text)
-        if (text.isNotBlank()) autoClean()
     }
 
     /** Photos of pages (gallery or camera): recognised on the phone; [append] adds them to the text. */
@@ -972,7 +977,7 @@ class ImportSession(private val app: AppState) {
                 val (text, _) = TextCleaner.clean(parts.joinToString("\n\n"))
                 if (keep) pasteText = pasteText.trimEnd() + "\n\n" + text
                 else setSingle("Фото " + java.text.SimpleDateFormat("dd.MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date()), text)
-                if (text.isBlank()) error = "На фото не нашлось текста" else autoClean()
+                if (text.isBlank()) error = "На фото не нашлось текста"
             } catch (e: Throwable) {
                 error = "Не удалось распознать: ${e.message}"
             }
@@ -1001,14 +1006,6 @@ class ImportSession(private val app: AppState) {
     private fun targets(): List<Pair<String, (String) -> Unit>> =
         if (pasteMode) listOf(pasteText to { v: String -> pasteText = v })
         else items.filter { it.selected }.map { item -> item.text to { v: String -> item.text = v } }
-
-    /** Right after text comes in (paste, file, PDF, photos, recognition): the cleaning chosen in the import screen. */
-    fun autoClean() {
-        when (app.prefs.autoCleanMode) {
-            "quick" -> cleanQuick()
-            "ai" -> if (app.useGemini) cleanAi() else cleanQuick()
-        }
-    }
 
     /** Quick clean on the phone (rules, no AI). */
     fun cleanQuick() {
@@ -1082,7 +1079,6 @@ class ImportSession(private val app: AppState) {
                         items.addAll(texts.map { ImportItem(it.title.ifBlank { n }, it.text, countWords(it.text) >= 100) })
                     }
                 }
-                autoClean()
             } catch (e: Throwable) {
                 error = "Не удалось прочитать файл: ${e.message}"
             }

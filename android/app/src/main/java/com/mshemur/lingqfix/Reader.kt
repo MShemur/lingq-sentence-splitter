@@ -665,15 +665,15 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 }
                 if (copyId > 0) {
                     AppLog.add("reader", "Урок ${lesson.id}: обработанный текст — новый урок $copyId")
-                    app.say("LingQ не дал перезаписать урок — сделан новый урок «$title (исправлено)» в том же курсе")
+                    app.sayLong("LingQ не дал перезаписать урок — сделан новый урок «$title (исправлено)» в том же курсе")
                 } else {
                     AppLog.add("reader", "Урок ${lesson.id}: ИИ обработал текст, было $before предложений, стало $after")
-                    app.say("Текст обработан: было $before предложений, стало $after. Копия старого — в резервных копиях")
+                    app.sayLong("Текст обработан: было $before предложений, стало $after. Копия старого — в резервных копиях")
                     load()
                 }
             } catch (e: Throwable) {
                 AppLog.error("reader", "Обработать текст с ИИ", e)
-                app.say("Обработка не получилась: ${e.message}")
+                app.sayLong("Обработка не получилась: ${e.message}")
             }
             aiClean = null
         }
@@ -693,10 +693,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 val saved = withContext(Dispatchers.IO) { trCache.load() }
                 trSaved.putAll(saved)
                 sentences.forEach { st -> saved[st.text]?.let { sentTr[st.id] = it } }
-                app.say(if (failed == 0) "Весь урок переведён" else "Переведено ${all - failed} из $all; не удалось $failed")
+                app.sayLong(if (failed == 0) "Весь урок переведён" else "Переведено ${all - failed} из $all; не удалось $failed")
             } catch (e: Throwable) {
                 AppLog.error("reader", "Перевести весь урок", e)
-                app.say("Перевод урока не получился: ${e.message}")
+                app.sayLong("Перевод урока не получился: ${e.message}")
             }
             trAll = null
         }

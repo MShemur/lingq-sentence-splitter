@@ -628,7 +628,6 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
         camera.launch(u)
     }
     var courseMenu by remember { mutableStateOf(false) }
-    var autoClean by remember { mutableStateOf(state.prefs.autoCleanMode) }
     LaunchedEffect(state.lang) { state.loadCourses() }
     s.pdf?.let { PdfPagePicker(s, it) }
     s.audioPick?.let { AudioPartPicker(s, it) }
@@ -747,23 +746,19 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                         "Сам текст не переписывается.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
-                // one choice: it cleans the text now and is remembered for the next paste / file / PDF / photos
+                // cleaning only on a tap (the user's choice 15.11: nothing runs by itself after paste / file / photos)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("off" to "Нет", "quick" to "Быстро", "ai" to "С ИИ").forEach { (k, t) ->
-                        androidx.compose.material3.FilterChip(
-                            autoClean == k,
-                            onClick = {
-                                autoClean = k; state.prefs.autoCleanMode = k
-                                when (k) { "quick" -> s.cleanQuick(); "ai" -> s.cleanAi() }
-                            },
-                            label = { Text(t) },
-                            enabled = !s.cleaning && !s.running && (k != "ai" || state.useGemini),
-                        )
+                    FilledTonalButton(onClick = { s.cleanQuick() }, enabled = !s.cleaning && !s.running) {
+                        Icon(AppIcons.Cleaning, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("Быстро", Modifier.padding(start = 8.dp))
+                    }
+                    Button(onClick = { s.cleanAi() }, enabled = !s.cleaning && !s.running && state.useGemini) {
+                        Icon(AppIcons.AutoFix, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("С ИИ", Modifier.padding(start = 8.dp))
                     }
                 }
-                Text(
-                    if (!state.useGemini) "«С ИИ»: включите Gemini или другой ИИ в Настройки → Перевод."
-                    else "Выбор запоминается и срабатывает сам при вставке, для файлов, PDF и фото. Нажмите ещё раз — почистит снова.",
+                if (!state.useGemini) Text(
+                    "«С ИИ»: включите Gemini или другой ИИ в Настройки → Перевод.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 if (s.cleaning) {
@@ -850,9 +845,9 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             }
             val n = s.selectedCount()
             if (!s.finished) Button(
-                onClick = { s.run() }, enabled = !s.running && n > 0 && (if (s.newCourse) s.newCourseTitle.isNotBlank() else s.course != null),
+                onClick = { s.run() }, enabled = !s.running && !s.cleaning && n > 0 && (if (s.newCourse) s.newCourseTitle.isNotBlank() else s.course != null),
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (n == 1) "Загрузить урок" else "Загрузить уроков: $n") }
+            ) { Text(if (s.cleaning) "Дождитесь конца очистки" else if (n == 1) "Загрузить урок" else "Загрузить уроков: $n") }
         }
 
         if (s.running || s.log.isNotEmpty()) {
