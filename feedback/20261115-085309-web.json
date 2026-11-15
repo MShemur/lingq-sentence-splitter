@@ -3,7 +3,7 @@
   "device": "web",
   "version": "web v1.58",
   "text": "Неправильно поделило на предложения \nВот это одно предложением стало. Но тут очевидно из несколь должно быть\nNatürlich ist an seiner Uni wegen dieses Plans die Stimmung\n\nschlecht, vor allem unter den jüngeren Mitgliedern der\n\nHochschule.»Alle hören landauf, landab nur: Sparen, sparen,\n\nsparen«, sagt Schleiff.»Die Bereitschaft, sich\n\nweiterzuentwickeln, ist daher - verständlicherweise - geradezu\n\nsynaptisch blockiert durch die Angst, das eigene Fach könnte\n\nauf den Prüfstand geraten oder gar infrage gestellt werden.«\n\nAngst und Überforderung: Die meisten gäben es nicht zu, sagt\n\nSchleiff, die professorale Würde verbiete es gewissermaßen,\n\ndoch genau so sehe die Gefühlslage der deutschen Universität\n\nderzeit aus.",
-  "status": "done",
+  "status": "work",
   "doneIn": "android v1.119, web v1.59",
   "reply": "Быстрая очистка: текст «через строку» (пустая строка после каждой) теперь склеивается в обычные абзацы, а в «Hochschule.»Alle» ставится пробел — LingQ разделит предложения правильно."
 }
