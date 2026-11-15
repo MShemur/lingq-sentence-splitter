@@ -55,7 +55,15 @@ jobs:
       - name: Build APK
         env:
           SIGNING_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-        run: gradle -p android assembleRelease --no-daemon --stacktrace -PversionCode=$VERSION_CODE -PversionName=$VERSION_NAME
+        # compile / lint errors also go to the run's annotations (readable without a login)
+        run: |
+          set +e
+          gradle -p android assembleRelease --no-daemon --stacktrace -PversionCode=$VERSION_CODE -PversionName=$VERSION_NAME 2>&1 | tee build.log
+          st=${PIPESTATUS[0]}
+          if [ $st -ne 0 ]; then
+            grep -E "^e: |Error:|error:|What went wrong" -A3 build.log | grep -v "^\s*at " | head -30 | while IFS= read -r l; do echo "::error::$l"; done
+          fi
+          exit $st
 
       - name: Rename
         run: cp android/app/build/outputs/apk/release/app-release.apk "lingq-fix-$VERSION_NAME.apk"
