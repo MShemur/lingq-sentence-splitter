@@ -1283,8 +1283,10 @@ class ImportSession(private val app: AppState) {
         for (attempt in 0 until 3) {
             val paras = app.api.editor(lang, id)
             val fixed = JSONArray(paras.toString())
+            val heads = if (attempt == 0) markdownHeadings(fixed) else 0   // "## Title" from the AI cleaning
             val changes = Fixer.fix(fixed)
-            if (changes.isEmpty()) break          // nothing (left) to fix
+            if (heads > 0) AppLog.add("import", "Урок $id: заголовков из «#»: $heads")
+            if (changes.isEmpty() && heads == 0) break          // nothing (left) to fix
             if (result == null) app.backups.save(lang, Lesson(id, title), paras)
             app.api.saveParagraphs(lang, id, fixed)
             if (result == null) result = LessonFix(Lesson(id, title), paras, fixed, changes)

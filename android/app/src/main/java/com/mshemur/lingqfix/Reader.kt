@@ -647,6 +647,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                         out.put(p)
                     }
                     if (idx == 0) throw ApiException("ИИ вернул пустой текст, урок не изменён")
+                    markdownHeadings(out)
                     app.backups.save(lang, Lesson(lesson.id, title), JSONArray(paras.toString()))
                     Fixer.fix(out)
                     try {
@@ -1838,7 +1839,10 @@ private class TextMetrics(
     }
 }
 
-/** Pages from the bare text, each filled to the bottom: a paragraph is split between pages at a line. */
+/**
+ * Pages from the bare text: a paragraph is split between pages at a sentence boundary; only a sentence taller
+ * than a page is split at a line.
+ */
 private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: Int, gap: Int): List<List<Block>> {
     val pages = mutableListOf<List<Block>>()
     var cur = mutableListOf<Block>()
@@ -1872,6 +1876,17 @@ private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: I
             }
             val sent = para[from + bj]
             val end = (if (bj == 0) fromChunk else 0) + bc + 1              // chunks of that sentence on this page
+            if (end < sent.chunks.size) {
+                // a sentence is not cut (the user's wish): it goes to the next page whole, unless it alone is taller
+                // than a page
+                if (bj > 0) {
+                    used += need(cb[bj - 1].last())
+                    cur += Block(para.subList(from, from + bj), fromChunk)
+                    from += bj; fromChunk = 0
+                    flush(); continue
+                }
+                if (cur.isNotEmpty()) { flush(); continue }
+            }
             used += need(bh)
             if (end >= sent.chunks.size) {
                 cur += Block(para.subList(from, from + bj + 1), fromChunk)

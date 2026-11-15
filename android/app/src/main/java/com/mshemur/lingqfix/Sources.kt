@@ -205,3 +205,44 @@ object AudioCache {
         if (old.isNotEmpty()) AppLog.add("app", "Кэш аудио: удалено старых файлов ${old.size}")
     }
 }
+
+/**
+ * Markdown headings in LingQ paragraphs ("## Einleitung", e.g. from the AI cleaning): a sentence starting with
+ * #..###### loses the marks and becomes its own paragraph with LingQ style "h1".."h6" (the reader draws it bold).
+ * Paragraph indexes are renumbered. Returns the number of headings made.
+ */
+fun markdownHeadings(paras: org.json.JSONArray): Int {
+    val mark = Regex("^(#{1,6})\\s*")
+    var n = 0
+    val out = org.json.JSONArray()
+    for (i in 0 until paras.length()) {
+        val p = paras.getJSONObject(i)
+        val ss = p.optJSONArray("sentences")
+        if (ss == null) { out.put(p); continue }
+        var run = org.json.JSONArray()
+        fun flush(style: String? = null) {
+            if (run.length() == 0) return
+            val q = org.json.JSONObject(p.toString()).put("sentences", run)
+            if (style != null) q.put("style", style)
+            out.put(q)
+            run = org.json.JSONArray()
+        }
+        for (j in 0 until ss.length()) {
+            val o = ss.getJSONObject(j)
+            val m = mark.find(o.optString("text"))
+            if (m == null) { run.put(o); continue }
+            val t = o.optString("text").substring(m.range.last + 1).trim()
+            if (t.isEmpty()) continue
+            flush()
+            o.put("text", t).put("cleanText", t)
+            run.put(o)
+            flush("h" + m.groupValues[1].length)
+            n++
+        }
+        flush()
+    }
+    if (n == 0) return 0
+    while (paras.length() > 0) paras.remove(paras.length() - 1)
+    for (i in 0 until out.length()) paras.put(out.getJSONObject(i).put("index", i + 1))
+    return n
+}
