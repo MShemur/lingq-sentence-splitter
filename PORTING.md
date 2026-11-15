@@ -7,6 +7,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's iPad notes 15.11.2026 -> android v1.118: 1) (20261115-073825-web) pages must NOT cut a sentence after all (undo that part of web v1.57): a sentence that does not fit goes whole to the next page; only a sentence taller than a whole page is split at a line. Justify stays. Android paginate: when the last fitting chunk is not a sentence end -> take the whole sentences before it, or flush the page if none. 2) (20261115-074504-web) "##Einleitung" came out of the AI cleaning as text: a sentence starting with #..###### loses the marks and becomes its own paragraph with style "hN" (drawn bold), paragraphs renumbered - applied after import (fixImported, before the Fixer) and in "Обработать текст с ИИ" before saving. Android Sources.kt markdownHeadings(paras). Close both notes with doneIn "android v1.118, web v1.N".
+
 ## To do on Android
 
 
