@@ -13,7 +13,7 @@ import { positionOf, savePosition } from '../progress'
 import { loadTr, rememberTr, trKey } from '../trcache'
 import { countRead } from '../stats'
 import { saveBackup } from '../importer/backups'
-import { chunks as textChunks, cleanText, markdownHeadings, splitSentences } from '../importer/cleaner'
+import { chunks as textChunks, cleanText, markdownHeadings, spaceQuotes, splitSentences } from '../importer/cleaner'
 import { fix } from '../importer/fixer'
 import { log, logError } from '../applog'
 import * as audio from '../audio'
@@ -459,7 +459,7 @@ export class ReaderSession {
       }
       const out: any[] = []
       let idx = 0
-      for (const pt of cleaned.join('\n\n').split(/\n\s*\n/)) {
+      for (const pt of spaceQuotes(cleaned.join('\n\n')).split(/\n\s*\n/)) {
         const ss = splitSentences(pt.trim())
         if (!ss.length) continue
         const p = structuredClone(pTmpl)

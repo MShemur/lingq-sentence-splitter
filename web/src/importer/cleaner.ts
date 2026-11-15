@@ -101,7 +101,7 @@ export function cleanText(src: string): [string, CleanReport] {
   t = out.replace(/\n{3,}/g, '\n\n').trim()
   // a sentence end glued to a quote and the next sentence ("Hochschule.»Alle", "werden.«Angst"): LingQ does not
   // split there, so a space goes in (German quotes: » „ open, « “ ” close)
-  t = t.replace(/([.!?…])([»„])(?=\p{Lu})/gu, '$1 $2').replace(/([.!?…][«“”"])(?=\p{Lu})/gu, '$1 ')
+  t = spaceQuotes(t)
   return [t, { removedLines: removed, joinedHyphens: hyph, joinedLines: joined, removedMarks: marks }]
 }
 
@@ -131,7 +131,7 @@ export const LINGQ_MAX_WORDS = 6000
 
 /** Sentences of a paragraph (LingQ's own split is not available for text added later; the fixer merges after it). */
 export function splitSentences(p: string): string[] {
-  return (p.match(/[^.!?…]+(?:[.!?…]+["»“”')\]]*|$)\s*/g) ?? []).map((x) => x.trim()).filter(Boolean)
+  return (p.match(/[^.!?…]+(?:[.!?…]+["»«“”')\]]*|$)\s*/g) ?? []).map((x) => x.trim()).filter(Boolean)
 }
 
 /** Pieces of ~1800 words for AI cleaning. */
@@ -174,4 +174,13 @@ export function markdownHeadings(paras: any[]): number {
   paras.length = 0
   out.forEach((q, i) => paras.push({ ...q, index: i + 1 }))
   return n
+}
+
+/**
+ * A sentence end glued to a quote and the next sentence ("Hochschule.»Alle", "werden.«Angst"): LingQ does not split
+ * there, so a space goes in (German quotes: » „ open, « “ ” close). Used by the quick clean and on the AI cleaning's
+ * output. Port of Android TextCleaner.spaceQuotes.
+ */
+export function spaceQuotes(t: string): string {
+  return t.replace(/([.!?…])([»„])(?=\p{Lu})/gu, '$1 $2').replace(/([.!?…][«“”"])(?=\p{Lu})/gu, '$1 ')
 }

@@ -6,7 +6,7 @@ import type { Course, Lesson } from '../lingq'
 import * as gemini from '../gemini'
 import { courses, geminiFailed, say } from '../app'
 import { lang, prefs, prompt, useGemini } from '../settings'
-import { addReports, chunks, cleanText, countWords, EMPTY_REPORT, LINGQ_MAX_WORDS, markdownHeadings, reportText, splitLong, splitSentences } from './cleaner'
+import { addReports, chunks, cleanText, countWords, EMPTY_REPORT, LINGQ_MAX_WORDS, markdownHeadings, reportText, spaceQuotes, splitLong, splitSentences } from './cleaner'
 import { fix, type Change } from './fixer'
 import { readFile } from './sources'
 import { pagesLabel, type PdfDoc } from './pdf'
@@ -358,7 +358,7 @@ export class ImportSession {
           done++; this.cleanProgress.value = done / total
           out.push(r || piece)
         }
-        set(out.join('\n\n'))
+        set(spaceQuotes(out.join('\n\n')))
       }
       this.cleanNote.value = 'ИИ почистил текст. Пролистайте и проверьте; если что-то пропало — «Вернуть как было».'
     } catch (e) {

@@ -61,7 +61,10 @@ export function shouldMerge(prev: string, nxt: string): boolean {
   const n = nxt.trimStart()
   if (!n) return false
   if (endsWithAbbreviation(p, n)) return true
-  if (')]»,;:*'.includes(n[0]) || isLower(n[0])) return true // can't start a sentence
+  // German direct speech opens with » ("Hochschule. »Alle …"): » + an uppercase letter starts a sentence;
+  // otherwise (French "» il …") it closes the previous one
+  const opensSpeech = n[0] === '»' && /^»\s*\p{Lu}/u.test(n)
+  if ((')]»,;:*'.includes(n[0]) && !opensSpeech) || isLower(n[0])) return true // can't start a sentence
   if ((p.endsWith('?') || p.endsWith('!')) && count(p, '(') > count(p, ')')) return true
   return false
 }
