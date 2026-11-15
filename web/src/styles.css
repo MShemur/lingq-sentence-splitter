@@ -960,3 +960,7 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 @keyframes mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--error) 45%, transparent); } 50% { box-shadow: 0 0 0 8px transparent; } }
 /* LingQ heading paragraphs (h1..h6): the words bold, translations as usual */
 .heading .wt, .heading .punct { font-weight: 700; }
+/* reading font chosen in "Оформление" */
+.reader-text { font-family: var(--reader-face, inherit); }
+.snackbar.sticky { display: flex; align-items: center; gap: 8px; padding-right: 4px; }
+.snackbar-x { background: none; border: 0; color: inherit; font-size: 18px; line-height: 1; padding: 6px 10px; cursor: pointer; opacity: 0.8; }

@@ -109,7 +109,7 @@ export function back() {
 
 // --- snackbar ---
 
-export const toast = signal<{ text: string; id: number } | null>(null)
+export const toast = signal<{ text: string; id: number; sticky?: boolean } | null>(null)
 let toastTimer = 0
 export function say(text: string) {
   log('msg', text)
@@ -117,6 +117,13 @@ export function say(text: string) {
   toast.value = { text, id }
   clearTimeout(toastTimer)
   toastTimer = window.setTimeout(() => { if (toast.value?.id === id) toast.value = null }, 3500)
+}
+
+/** A result to read: stays on screen until closed with ✕. */
+export function sayLong(text: string) {
+  log('msg', text)
+  clearTimeout(toastTimer)
+  toast.value = { text, id: Date.now(), sticky: true }
 }
 
 // --- library ---

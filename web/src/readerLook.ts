@@ -67,10 +67,19 @@ const ACCENT_DARK = {
 }
 
 /** CSS variables for the reader screen: page colours (surfaces mixed from them) and the highlight colour. */
+/** Reading fonts: pref value, label, CSS font-family ('' = the app's). Avenir Next is built into iOS / macOS. */
+export const FACES: [string, string, string][] = [
+  ['', 'Обычный', ''],
+  ['Avenir Next', 'Avenir Next', '"Avenir Next", Avenir, "Segoe UI", Roboto, sans-serif'],
+  ['Georgia', 'С засечками', 'Georgia, "Times New Roman", serif'],
+]
+
 export function readerStyle(): JSX.CSSProperties {
   const t = themeOf(prefs.readerTheme.value)
   const hl = highlightColors(prefs.highlight.value, darkPage())
   const out: Record<string, string> = { '--green': hl.text, '--green-bg': hl.bg, '--pin-gap': (Number(prefs.pinGap.value) || 0) + 'px' }
+  const face = FACES.find((f) => f[0] === prefs.readerFace.value)
+  if (face?.[2]) out['--reader-face'] = face[2]
   if (t) {
     const mix = (f: number) => `color-mix(in srgb, ${t.fg} ${f * 100}%, ${t.bg})`
     Object.assign(out, t.dark ? ACCENT_DARK : ACCENT_LIGHT, {

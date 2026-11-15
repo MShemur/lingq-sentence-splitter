@@ -36,6 +36,32 @@ export interface LessonFix { id: number; title: string; changes: Change[] }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** Until the page is on screen again (the iPad pauses a page in the background and its requests fail). */
+const visible = () => document.visibilityState === 'visible' ? Promise.resolve()
+  : new Promise<void>((r) => document.addEventListener('visibilitychange', function f() {
+    if (document.visibilityState === 'visible') { document.removeEventListener('visibilitychange', f); r() }
+  }))
+
+/** One AI clean request, tried up to 3 times (it broke off at 30 % when the iPad left the page). */
+async function cleanPieceRetry(lang: string, piece: string): Promise<string> {
+  for (let a = 0; ; a++) {
+    try { return await gemini.cleanPiece(prompt.clean(), lang, piece) } catch (e) {
+      if (a >= 2) throw e
+      log('import', `Чистка ИИ: кусок не прошёл (${(e as Error).message}), ещё раз`)
+      await visible(); await sleep(2000)
+    }
+  }
+}
+
+/** The import screen keeps its session: leaving it while text is there (or the AI is cleaning) and coming back
+ * shows the same text and the same running cleaning. */
+let lastImport: ImportSession | null = null
+export function importSession(): ImportSession {
+  const s = lastImport
+  if (s && (s.cleaning.value || s.running.value || (!s.finished.value && (s.pasteText.value.trim() || s.items.value.length)))) return s
+  return (lastImport = new ImportSession())
+}
+
 /** The course the import used last ("importTo.<lang>", as Android). */
 export function lastImportCourse(lang: string): number | null {
   try { return Number(localStorage.getItem(`importTo.${lang}`)) || null } catch { return null }
@@ -127,7 +153,6 @@ export class ImportSession {
   paste(text: string) {
     this.startLoad(''); this.loading.value = false
     this.setSingle(this.pasteTitle.value, text)
-    if (text.trim()) void this.autoClean()
   }
 
   /** An empty field to type or paste into (when the clipboard cannot be read). */
@@ -147,7 +172,6 @@ export class ImportSession {
         // short EPUB parts (cover, title page, imprint) are not preselected
         this.items.value = texts.map((t) => new ImportItem(t.title || name, t.text, countWords(t.text) >= 100))
       }
-      void this.autoClean()
     } catch (e) {
       this.error.value = `Не удалось прочитать файл: ${(e as Error).message}`
     }
@@ -173,7 +197,6 @@ export class ImportSession {
       const all = list.length === pdf.pages
       this.setSingle(all ? name : `${name}, стр. ${pagesLabel(list)}`, text)
       if (scans.length) say(`${scans.length === 1 ? 'Страница' : 'Страницы'} ${pagesLabel(scans)} — скан, без текста: пропущено`)
-      void this.autoClean()
     } catch (e) {
       this.error.value = `Не удалось прочитать PDF: ${(e as Error).message}`
     } finally { pdf.close() }
@@ -265,7 +288,6 @@ export class ImportSession {
       this.audioName.value = whole ? pk.name : `${title}.${name.split('.').pop()}`
       this.audioWords = t.words
       if (!t.text.trim()) this.error.value = 'В аудио не нашлось речи'
-      else await this.autoClean() // a background job uploads right after: wait for the AI
     } catch (e) {
       log('stt', `Распознавание ✗ ${(e as Error).message}`)
       this.error.value = `Не удалось распознать: ${(e as Error).message}`
@@ -311,13 +333,6 @@ export class ImportSession {
     return this.items.value.filter((i) => i.selected.value).map((i) => [i.text.value, (v: string) => { i.text.value = v }])
   }
 
-  /** Right after text came in: the cleaning chosen in settings ("Нет / Быстро / С ИИ"). */
-  async autoClean() {
-    const v = prefs.autoClean.value
-    if (v === '2' && useGemini()) await this.cleanAi()
-    else if (v === '1' || v === '2') this.cleanQuick()
-  }
-
   /** Quick clean on the device (rules, no AI). */
   cleanQuick() {
     if (!this.before) this.snapshot()
@@ -339,7 +354,7 @@ export class ImportSession {
       for (const [t, set] of jobs) {
         const out: string[] = []
         for (const piece of chunks(t)) {
-          const r = await gemini.cleanPiece(prompt.clean(), this.lang, piece)
+          const r = await cleanPieceRetry(this.lang, piece)
           done++; this.cleanProgress.value = done / total
           out.push(r || piece)
         }

@@ -30,6 +30,8 @@ export const prefs = {
   keepAwake: pref('keepAwake', 'system'),
   /** px between a translation above a word and the word (negative = closer). */
   pinGap: pref('pinGap', '0'),
+  /** Reading font: '' = system, else a font family name ("Avenir Next"). */
+  readerFace: pref('readerFace', ''),
   /** "Слова по урокам": words met this many times or less in the whole course are not counted (0 = all). */
   wsMin: pref('wsMin', '0'),
   /** "Другой ИИ": an OpenAI-compatible service (address, key, main and light model). */
@@ -52,8 +54,6 @@ export const prefs = {
   promptClean: pref('promptClean', Prompts.CLEAN),
   promptLevel: pref('promptLevel', Prompts.LEVEL),
   /** Import: quick clean right after pasting / opening a file. */
-  /** Cleaning right after text comes in: '0' none, '1' quick (rules), '2' with AI (quick when no AI is set up). */
-  autoClean: pref('autoClean', '1'),
   /** Long texts are cut into lessons of this many words (at most LingQ's 6000). */
   splitWords: pref('splitWords', '6000'),
   readerFont: pref('readerFont', '20'),

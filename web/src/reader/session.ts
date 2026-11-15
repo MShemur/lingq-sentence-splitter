@@ -6,7 +6,7 @@ import * as gemini from '../gemini'
 import type { WordMeaning } from '../gemini'
 import { prefs, prompt, trLang, useGemini } from '../settings'
 import { fill } from '../prompts'
-import { go, say, stack, errorText, geminiFailed, lessonOpened } from '../app'
+import { go, say, sayLong, stack, errorText, geminiFailed, lessonOpened } from '../app'
 import { ChatSession } from '../chat'
 import { hasBookmark, toggleBookmark as toggleBm, type Bookmark } from '../bookmarks'
 import { positionOf, savePosition } from '../progress'
@@ -488,15 +488,15 @@ export class ReaderSession {
         const text = out.map((p) => p.sentences.map((x: any) => x.text).join(' ')).join('\n\n')
         const copy = await api.importLesson(this.lang, courseId, `${title} (исправлено)`, text)
         log('reader', `Урок ${this.lesson.id}: обработанный текст — новый урок ${copy}`)
-        say(`LingQ не дал перезаписать урок — сделан новый урок «${title} (исправлено)» в том же курсе`)
+        sayLong(`LingQ не дал перезаписать урок — сделан новый урок «${title} (исправлено)» в том же курсе`)
         return
       }
       log('reader', `Урок ${this.lesson.id}: ИИ обработал текст, было ${count} предложений, стало ${idx}`)
-      say(`Текст обработан: было ${count} предложений, стало ${idx}. Копия старого — в резервных копиях`)
+      sayLong(`Текст обработан: было ${count} предложений, стало ${idx}. Копия старого — в резервных копиях`)
       await this.load()
     } catch (e) {
       logError('reader', 'Обработать текст с ИИ', e)
-      say(`Обработка не получилась: ${errorText(e)}`)
+      sayLong(`Обработка не получилась: ${errorText(e)}`)
     } finally { this.aiClean.value = null }
   }
 
@@ -528,9 +528,9 @@ export class ReaderSession {
     }
     await Promise.all([worker(), worker(), worker(), worker()])
     this.trAll.value = null
-    if (!err) say('Весь урок переведён')
-    else if (failed >= done || failed === n) say(`Перевод урока не получился: ${errorText(err)}`)
-    else say(`Переведено ${n - failed} из ${n}; не удалось ${failed}: ${errorText(err)}`)
+    if (!err) sayLong('Весь урок переведён')
+    else if (failed >= done || failed === n) sayLong(`Перевод урока не получился: ${errorText(err)}`)
+    else sayLong(`Переведено ${n - failed} из ${n}; не удалось ${failed}: ${errorText(err)}`)
   }
 
   ensureSentence(id: number) {

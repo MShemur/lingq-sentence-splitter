@@ -10,7 +10,7 @@ import { Prompts } from '../prompts'
 import * as api from '../lingq'
 import * as gemini from '../gemini'
 import { Chip, Dialog, IconButton, ListItem, Loading, SecretField, Spinner, TextField, TopBar } from '../ui'
-import { HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, highlightColors, highlightOf, themeOf } from '../readerLook'
+import { FACES, HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, highlightColors, highlightOf, themeOf } from '../readerLook'
 import { groqSummary, STT_PRICES_CHECKED, STT_PROVIDERS, setSttKey, setSttModel, sttCost, sttHourPrice, sttKey, sttModel, sttPrice, sttProvider } from '../importer/stt'
 import { clearLog, lastLines, log, logText, logVersion } from '../applog'
 
@@ -304,6 +304,12 @@ export function SettingsReading() {
       </div>
       <div class="hl-preview" style={page}>
         Er las das <span class="hl-word"><span style={{ color: c.text }}>книгу</span><span style={{ background: c.bg }}>Buch</span></span> bis zum Ende.
+      </div>
+      <h3 class="section-title">Шрифт текста</h3>
+      <div class="chips">
+        {FACES.map(([v, label, css]) => (
+          <Chip key={v} label={<span style={css ? { fontFamily: css } : undefined}>{label}</span>} selected={prefs.readerFace.value === v} onClick={() => { prefs.readerFace.value = v }} />
+        ))}
       </div>
       <h3 class="section-title">Перевод над словом</h3>
       <p class="hint">Расстояние между переводом и словом под ним.</p>

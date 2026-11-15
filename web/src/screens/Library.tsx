@@ -12,7 +12,7 @@ import { Chip, ClearX, ErrorBox, IconButton, Loading, Menu, MenuItem, TopBar } f
 import { naturalCompare } from '../app'
 import type { Course, Lesson } from '../lingq'
 import { ReaderSession } from '../reader/session'
-import { ImportSession } from '../importer/session'
+import { importSession } from '../importer/session'
 import { Icon } from '../icons'
 import { percent, positionOf } from '../progress'
 import { MainTabs, MiniPlayer } from './Player'
@@ -197,7 +197,7 @@ export function CoursesScreen() {
         </div>
       </div>
       {!noKey && (
-        <button class="fab" onClick={() => go(new ImportSession())}>
+        <button class="fab" onClick={() => go(importSession())}>
           <Icon name="upload" /><span>Загрузить</span>
         </button>
       )}

@@ -135,17 +135,9 @@ export function ImportScreen({ s }: { s: ImportSession }) {
             <div class="clean-card">
               <div class="clean-head"><Icon name="clean" /><span>Очистка текста</span></div>
               <p>Убирает номера страниц, колонтитулы, сноски, ссылки и мусор с сайтов, склеивает переносы и разорванные строки. Сам текст не переписывается.</p>
-              <div class="small">Чистить сразу, как текст пришёл (вставка, файл, PDF, распознавание); нажатие чистит и этот текст:</div>
-              <div class="chip-row">
-                {([['0', 'Нет'], ['1', 'Быстро'], ['2', 'С ИИ']] as const).map(([v, l]) => (
-                  <Chip key={v} label={l} selected={prefs.autoClean.value === v} onClick={() => {
-                    if (s.cleaning.value || running) return
-                    if (v === '2' && !useGemini()) { say('Для чистки с ИИ включите ИИ: Настройки → Перевод'); return }
-                    prefs.autoClean.value = v
-                    if (v === '1') s.cleanQuick()
-                    else if (v === '2') void s.cleanAi()
-                  }} />
-                ))}
+              <div class="row">
+                <button class="btn tonal" onClick={() => s.cleanQuick()} disabled={s.cleaning.value || running}><Icon name="clean" size={18} />Быстро</button>
+                <button class="btn filled" onClick={() => void s.cleanAi()} disabled={s.cleaning.value || running || !useGemini()}><Icon name="magic" size={18} />С ИИ</button>
               </div>
               {!useGemini() && <p class="small">Чистка с ИИ: включите Gemini или другой ИИ в Настройки → Перевод.</p>}
               {s.cleaning.value && (
@@ -195,8 +187,9 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                   onInput={(e) => { const v = (e.target as HTMLInputElement).value.replace(/\D/g, ''); s.splitWords.value = Number(v) > 6000 ? '6000' : v }} />
                 <span>слов</span>
               </div>}
+              {!s.finished.value && s.cleaning.value && <p class="hint small">Дождитесь конца очистки</p>}
               {!s.finished.value && <button class="btn filled wide" onClick={() => void s.run()}
-                disabled={running || n === 0 || (s.newCourse.value ? !s.newCourseTitle.value.trim() : !s.course.value)}>
+                disabled={running || s.cleaning.value || n === 0 || (s.newCourse.value ? !s.newCourseTitle.value.trim() : !s.course.value)}>
                 {n === 1 ? 'Загрузить урок' : `Загрузить уроков: ${n}`}
               </button>}
             </>

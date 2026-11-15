@@ -72,7 +72,12 @@ function App() {
         </div>
       ))}
       <ModelSwitchDialog />
-      {t && <div class={'snackbar' + (top.k === 'player' ? ' high' : '')} key={t.id}>{t.text}</div>}
+      {t && (
+        <div class={'snackbar' + (top.k === 'player' ? ' high' : '') + (t.sticky ? ' sticky' : '')} key={t.id}>
+          <span class="grow">{t.text}</span>
+          {t.sticky && <button class="snackbar-x" aria-label="Закрыть" onClick={() => { toast.value = null }}>✕</button>}
+        </div>
+      )}
     </>
   )
 }
