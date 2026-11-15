@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.runtime.DisposableEffect
@@ -2013,7 +2014,7 @@ private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
                 Modifier.fillMaxSize()
                     // book mode: a tap in the middle (not on a word) shows / hides the bar
                     .pointerInput(s.book) {
-                        if (s.book) androidx.compose.foundation.gestures.detectTapGestures { o ->
+                        if (s.book) detectTapGestures { o ->
                             if (o.x in size.width * 0.2f..size.width * 0.8f && o.y in size.height * 0.15f..size.height * 0.85f) {
                                 s.barShown = !s.barShown
                             }
