@@ -4,6 +4,24 @@ import { signal } from '@preact/signals'
 import { prefs } from './settings'
 import { log } from './applog'
 
+// The browser may ask for the microphone on every getUserMedia (the iPad does): one stream is kept for a few
+// minutes after a dictation and reused; released when idle (the mic indicator goes off then).
+let shared: MediaStream | null = null
+let releaseTimer: ReturnType<typeof setTimeout> | null = null
+const KEEP_MS = 5 * 60_000
+
+async function micStream(): Promise<MediaStream> {
+  if (releaseTimer) { clearTimeout(releaseTimer); releaseTimer = null }
+  if (shared && shared.getAudioTracks().some((t) => t.readyState === 'live')) return shared
+  shared = await navigator.mediaDevices.getUserMedia({ audio: true })
+  return shared
+}
+
+function releaseLater() {
+  if (releaseTimer) clearTimeout(releaseTimer)
+  releaseTimer = setTimeout(() => { shared?.getTracks().forEach((t) => t.stop()); shared = null; releaseTimer = null }, KEEP_MS)
+}
+
 export class Dictation {
   recording = signal(false)
   hearing = signal(false)
@@ -19,7 +37,7 @@ export class Dictation {
     if (this.rec) { this.rec.stop(); return }
     if (this.hearing.value) return
     let stream: MediaStream
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }) } catch {
+    try { stream = await micStream() } catch {
       fail('Нет доступа к микрофону (разрешите его в настройках браузера)')
       return
     }
@@ -28,7 +46,7 @@ export class Dictation {
     const chunks: Blob[] = []
     rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data) }
     rec.onstop = () => {
-      stream.getTracks().forEach((t) => t.stop())
+      releaseLater()
       this.stopMeter?.(); this.stopMeter = null
       this.rec = null
       this.recording.value = false
@@ -46,7 +64,7 @@ export class Dictation {
     if (!this.rec) return
     const r = this.rec
     r.onstop = null
-    r.stream.getTracks().forEach((t) => t.stop())
+    releaseLater()
     try { r.stop() } catch { /* already stopped */ }
     this.stopMeter?.(); this.stopMeter = null
     this.rec = null

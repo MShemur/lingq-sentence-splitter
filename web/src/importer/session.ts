@@ -64,7 +64,11 @@ async function extendLesson(l: string, id: number, rest: string) {
     if (!ss.length) continue
     paras.push({
       ...lastP,
-      sentences: ss.map((t) => ({ ...tmpl, text: t, cleanText: t, translations: [], phrases: [], notes: [], index: ++idx })),
+      ...('index' in lastP ? { index: paras.length + 1 } : {}),
+      sentences: ss.map((t) => ({
+        ...tmpl, text: t, cleanText: t, translations: [], phrases: [], notes: [], index: ++idx,
+        ...('timestamp' in tmpl ? { timestamp: [null, null] } : {}),
+      })),
     })
   }
   await api.saveParagraphs(l, id, paras)

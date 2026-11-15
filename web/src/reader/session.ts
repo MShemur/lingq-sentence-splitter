@@ -433,7 +433,9 @@ export class ReaderSession {
     this.aiClean.value = '…'
     log('reader', `Урок ${this.lesson.id}: обработка текста с ИИ`)
     try {
-      const paras: any[] = await api.editor(this.lang, this.lesson.id)
+      const eo = await api.editorObj(this.lang, this.lesson.id)
+      const paras: any[] = eo?.paragraphs ?? []
+      const courseId = Number(eo?.collection) || 0
       const old = new Map<string, any>()
       let tmpl: any = null, pTmpl: any = null, count = 0
       const parts: string[] = []
@@ -462,10 +464,11 @@ export class ReaderSession {
         if (!ss.length) continue
         const p = structuredClone(pTmpl)
         if ('style' in p) p.style = 'p'
+        if ('index' in p) p.index = out.length + 1 // every paragraph its own number (a copied one made LingQ answer 500)
         p.sentences = ss.map((t) => {
           const o = old.has(t) ? structuredClone(old.get(t)) : {
             ...structuredClone(tmpl), text: t, cleanText: t, translations: [], phrases: [], notes: [],
-            ...('timestamp' in tmpl ? { timestamp: null } : {}),
+            ...('timestamp' in tmpl ? { timestamp: [null, null] } : {}),
           }
           o.index = ++idx
           return o
@@ -475,15 +478,26 @@ export class ReaderSession {
       if (!idx) throw new Error('ИИ вернул пустой текст, урок не изменён')
       await saveBackup(this.lang, this.lesson.id, this.title.value || this.lesson.title, paras)
       fix(out)
-      await api.saveParagraphs(this.lang, this.lesson.id, out)
+      try {
+        await api.saveParagraphs(this.lang, this.lesson.id, out)
+      } catch (e) {
+        // LingQ refused to overwrite: a new lesson "… (исправлено)" in the same course, the old one stays
+        logError('reader', `Урок ${this.lesson.id}: LingQ не сохранил обработанный текст, делаю новый урок`, e)
+        if (!courseId) throw e
+        const title = this.title.value || this.lesson.title
+        const text = out.map((p) => p.sentences.map((x: any) => x.text).join(' ')).join('\n\n')
+        const copy = await api.importLesson(this.lang, courseId, `${title} (исправлено)`, text)
+        log('reader', `Урок ${this.lesson.id}: обработанный текст — новый урок ${copy}`)
+        say(`LingQ не дал перезаписать урок — сделан новый урок «${title} (исправлено)» в том же курсе`)
+        return
+      }
       log('reader', `Урок ${this.lesson.id}: ИИ обработал текст, было ${count} предложений, стало ${idx}`)
       say(`Текст обработан: было ${count} предложений, стало ${idx}. Копия старого — в резервных копиях`)
       await this.load()
     } catch (e) {
       logError('reader', 'Обработать текст с ИИ', e)
       say(`Обработка не получилась: ${errorText(e)}`)
-    }
-    this.aiClean.value = null
+    } finally { this.aiClean.value = null }
   }
 
   /** "Перевести весь урок": "12 из 80" while running, null otherwise. */
