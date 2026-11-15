@@ -971,3 +971,5 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .justify .reader-text .para.cut > .flow:last-child::after { display: none; }
 /* a paragraph cut by the pages: no gap below it, the next page goes on with it */
 .page-text > .para.cut:last-child { margin-bottom: 0; }
+/* justified: a line with much room left is packed to the left (looseJustify) */
+.justify .reader-text .flow > .jl { margin-right: auto; }

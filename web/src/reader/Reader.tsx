@@ -183,8 +183,10 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
   const active = top?.k === 'reader' && top.s === s
   useReadingTimer(active && !!paras)
   useKeepAwake(active)
+  const rootRef = useRef<HTMLDivElement>(null)
+  useLooseJustify(rootRef, prefs.readerJustify.value === '1')
   return (
-    <div class={'screen reader' + (s.pinsHidden.value ? ' pins-hidden' : '') + (prefs.readerJustify.value === '1' ? ' justify' : '')} style={readerStyle()}>
+    <div ref={rootRef} class={'screen reader' + (s.pinsHidden.value ? ' pins-hidden' : '') + (prefs.readerJustify.value === '1' ? ' justify' : '')} style={readerStyle()}>
       <TopBar
         center
         nav={<IconButton icon="close" label="Закрыть урок" onClick={back} />}
@@ -380,6 +382,52 @@ function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number
   })
   flush()
   return pages.length ? pages : [[]]
+}
+
+/**
+ * Justified text: a line with much room left (two or three long words) is not spread over the width. A line is
+ * spread only when its free space is at most 20 % of the width (as Android's JustifyLoose); otherwise its last item
+ * gets margin-right: auto (class "jl"), which packs the line to the left. Lines do not move: only spacing changes.
+ */
+function looseJustify(root: HTMLElement) {
+  const on = !!root.closest('.justify')
+  for (const flow of root.querySelectorAll<HTMLElement>('.flow')) {
+    const kids = [...flow.children] as HTMLElement[]
+    kids.forEach((k) => k.classList.remove('jl'))
+    if (!on || flow.closest('.measurer, .page-inner')) continue
+    const width = flow.clientWidth
+    if (!width) continue
+    const lines: HTMLElement[][] = []
+    let bottom = NaN
+    for (const k of kids) {
+      const b = Math.round(k.getBoundingClientRect().bottom)
+      if (!lines.length || Math.abs(b - bottom) > 2) { lines.push([]); bottom = b }
+      lines[lines.length - 1].push(k)
+    }
+    // also the last line: it is spread too when its paragraph goes on on the next page
+    for (const line of lines) {
+      let used = 0
+      for (const k of line) used += k.getBoundingClientRect().width + (parseFloat(getComputedStyle(k).marginRight) || 0)
+      if (width - used > width * 0.2) line[line.length - 1].classList.add('jl')
+    }
+  }
+}
+
+/** Keeps looseJustify applied while the text changes (pages, translations, font) or the size does. */
+function useLooseJustify(ref: { current: HTMLElement | null }, on: boolean) {
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let raf = 0
+    const run = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => looseJustify(el)) }
+    run()
+    if (!on) return () => cancelAnimationFrame(raf)
+    const mo = new MutationObserver((list) => { if (list.some((m) => m.type === 'childList' || m.type === 'characterData')) run() })
+    mo.observe(el, { childList: true, subtree: true, characterData: true })
+    const ro = new ResizeObserver(run)
+    ro.observe(el)
+    return () => { mo.disconnect(); ro.disconnect(); cancelAnimationFrame(raf) }
+  }, [on])
 }
 
 function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {

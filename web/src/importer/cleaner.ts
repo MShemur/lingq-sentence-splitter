@@ -41,7 +41,7 @@ const JUNK = new RegExp(
 const SUPERSCRIPT = /[¹²³⁴⁵⁶⁷⁸⁹⁰]+/g
 const BRACKET_REF = /\[\d{1,3}(?:[,–-]\d{1,3})*\]/g
 const HYPHEN_BREAK = /(\p{L})[-¬]\n[ \t]*(\p{Ll})/gu
-const TERMINAL = /[.!?…:;"»“”)\]]$/
+const TERMINAL = /[.!?…:;"»«“”)\]]$/
 const isLower = (c: string) => c !== c.toUpperCase() && c === c.toLowerCase()
 
 /**
@@ -74,6 +74,16 @@ export function cleanText(src: string): [string, CleanReport] {
   let hyph = 0
   t = t.replace(HYPHEN_BREAK, (_, a: string, b: string) => { hyph++; return a + b })
 
+  // "double spaced" copy (an empty line after every line, e.g. from some PDFs / sites): single line breaks,
+  // so the broken lines below can be joined
+  {
+    const idx = t.split('\n').map((l, i) => (l.trim() ? i : -1)).filter((i) => i >= 0)
+    const pairs = idx.length - 1
+    let two = 0
+    for (let i = 1; i < idx.length; i++) if (idx[i] - idx[i - 1] === 2) two++
+    if (pairs >= 4 && two >= pairs * 0.7) t = t.replace(/\n[ \t]*\n/g, '\n')
+  }
+
   // lines broken inside a sentence (PDF): join when the line is "full" and does not end a sentence
   const ls = t.split('\n')
   const lens = ls.map((l) => l.trim().length).filter((n) => n > 0).sort((a, b) => a - b)
@@ -89,6 +99,9 @@ export function cleanText(src: string): [string, CleanReport] {
     if (wraps) { out += ' '; joined++ } else out += '\n'
   })
   t = out.replace(/\n{3,}/g, '\n\n').trim()
+  // a sentence end glued to a quote and the next sentence ("Hochschule.»Alle", "werden.«Angst"): LingQ does not
+  // split there, so a space goes in (German quotes: » „ open, « “ ” close)
+  t = t.replace(/([.!?…])([»„])(?=\p{Lu})/gu, '$1 $2').replace(/([.!?…][«“”"])(?=\p{Lu})/gu, '$1 ')
   return [t, { removedLines: removed, joinedHyphens: hyph, joinedLines: joined, removedMarks: marks }]
 }
 
