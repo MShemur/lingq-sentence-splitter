@@ -308,6 +308,9 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** Wide screen (tablet): page-turn buttons and the docked word panel are available. */
     var wide by mutableStateOf(false)
+    /** Book mode: full screen, the top bar lies over the text while [barShown]. */
+    val book get() = app.book
+    var barShown by mutableStateOf(false)
     var docked by mutableStateOf(app.prefs.dockPanel)
     val panelActive get() = wide && docked
 
@@ -1521,6 +1524,11 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             )
         }
         DropdownMenuItem(
+            text = { Text("Книжный режим") },
+            trailingIcon = { androidx.compose.material3.Checkbox(checked = state.book, onCheckedChange = null) },
+            onClick = { menu = false; s.barShown = false; state.applyPrefs { readerBook = !state.book } },
+        )
+        DropdownMenuItem(
             text = { Text("Оформление и экран") },
             onClick = { menu = false; state.go(Screen.SettingsReading) },
         )
@@ -1770,7 +1778,13 @@ fun ReaderScreen(s: ReaderSession) {
  * Part of a paragraph that lies on one page: the first sentence from chunk [first], the last one up to chunk
  * [last] (exclusive; -1 = to its end). A sentence that does not fit is split at a line, its rest starts the next page.
  */
-private class Block(val sents: List<Sent>, val first: Int = 0, val last: Int = -1)
+private class Block(val sents: List<Sent>, val first: Int = 0, val last: Int = -1, val start: Boolean = false)
+
+/** Line height in font sizes: book mode leaves room for the translations above the words. */
+private fun lineMul(book: Boolean) = if (book) 1.55f else 1.35f
+
+/** First-line indent of a paragraph in book mode, in font sizes. */
+private const val INDENT_EM = 1.5f
 
 /**
  * Heights of text pieces as [Paragraph] / [SentenceFlow] will draw them, computed from text sizes only
@@ -1781,9 +1795,13 @@ private class TextMetrics(
     private val m: TextMeasurer, private val d: Density, font: Int, private val width: Int, textStyle: TextStyle,
     /** Text widths, kept between rebuilds while the font is the same. */
     private val widths: HashMap<String, Int>,
+    /** Book mode: taller lines (room for the translations above words), first line of a paragraph indented. */
+    book: Boolean = false,
 ) {
     private val size = font.toFloat()
-    private val text = textStyle.copy(fontSize = size.sp, lineHeight = (size * 1.35).sp)
+    private val text = textStyle.copy(fontSize = size.sp, lineHeight = (size * lineMul(book)).sp)
+    /** Width of the first-line indent of a paragraph (book mode), 0 = none. */
+    val indent = if (book) px(size * INDENT_EM) else 0
     private fun px(dp: Float) = with(d) { dp.dp.roundToPx() }
     private val lineH = m.measure("Ag", text, maxLines = 1).size.height
     private val chunkGap = px(size * 0.3f)
@@ -1820,9 +1838,9 @@ private class TextMetrics(
      * Same flow, chunk by chunk: result[i][c] = height of everything up to chunk c of sents[i]; sents[0] starts at
      * chunk [start]. A sentence without chunks gets one entry (the height so far).
      */
-    fun chunkBottoms(sents: List<Sent>, start: Int): List<IntArray> {
+    fun chunkBottoms(sents: List<Sent>, start: Int, indent: Int = 0): List<IntArray> {
         var total = 0
-        var lineW = 0
+        var lineW = indent
         var lineMax = 0
         var lines = 0
         fun now() = total + (if (lineW > 0) lineMax + lineGap * lines else maxOf(0, lineGap * (lines - 1)))
@@ -1844,6 +1862,9 @@ private class TextMetrics(
  * than a page is split at a line.
  */
 private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: Int, gap: Int): List<List<Block>> {
+    // book mode: a paragraph starts with an indent (not a heading, not the rest of a paragraph from the last page)
+    fun ind(para: List<Sent>, from: Int, fromChunk: Int) =
+        if (from == 0 && fromChunk == 0 && !para[0].heading) metrics.indent else 0
     val pages = mutableListOf<List<Block>>()
     var cur = mutableListOf<Block>()
     var used = 0
@@ -1858,9 +1879,10 @@ private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: I
         var fromChunk = 0
         while (from < para.size) {
             // heights up to every chunk of para[from..], in one pass
-            val cb = metrics.chunkBottoms(para.subList(from, para.size), fromChunk)
+            val start = from == 0 && fromChunk == 0
+            val cb = metrics.chunkBottoms(para.subList(from, para.size), fromChunk, ind(para, from, fromChunk))
             val hRest = cb.last().last()
-            if (used + need(hRest) <= h) { used += need(hRest); cur += Block(para.subList(from, para.size), fromChunk); break }
+            if (used + need(hRest) <= h) { used += need(hRest); cur += Block(para.subList(from, para.size), fromChunk, start = start); break }
             // the last chunk that still fits on this page
             var bj = -1
             var bc = -1
@@ -1881,7 +1903,7 @@ private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: I
                 // than a page
                 if (bj > 0) {
                     used += need(cb[bj - 1].last())
-                    cur += Block(para.subList(from, from + bj), fromChunk)
+                    cur += Block(para.subList(from, from + bj), fromChunk, start = start)
                     from += bj; fromChunk = 0
                     flush(); continue
                 }
@@ -1889,10 +1911,10 @@ private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: I
             }
             used += need(bh)
             if (end >= sent.chunks.size) {
-                cur += Block(para.subList(from, from + bj + 1), fromChunk)
+                cur += Block(para.subList(from, from + bj + 1), fromChunk, start = start)
                 from += bj + 1; fromChunk = 0
             } else {
-                cur += Block(para.subList(from, from + bj + 1), fromChunk, end)
+                cur += Block(para.subList(from, from + bj + 1), fromChunk, end, start = start)
                 from += bj; fromChunk = end
             }
             flush()
@@ -1916,14 +1938,15 @@ private fun PagedText(s: ReaderSession, paras: List<List<Sent>>) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val padH = with(density) { sidePad(s).roundToPx() }
         val padV = with(density) { 12.dp.roundToPx() }
-        val gap = with(density) { 14.dp.roundToPx() }
+        val book = s.book
+        val gap = if (book) 0 else with(density) { 14.dp.roundToPx() }
         val w = (constraints.maxWidth - 2 * padH).coerceAtLeast(1)
         val h = if (constraints.hasBoundedHeight) ((constraints.maxHeight - 2 * padV) * 0.99f).toInt() else Int.MAX_VALUE
         val font = s.font
         // the old pages stay on screen until the new ones are ready
-        val pages by produceState<List<List<Block>>?>(null, paras, font, w, h, gap, density) {
+        val pages by produceState<List<List<Block>>?>(null, paras, font, w, h, gap, density, book) {
             value = withContext(Dispatchers.Default) {
-                lock.withLock { paginate(paras, TextMetrics(measurer, density, font, w, textStyle, widths), h, gap) }
+                lock.withLock { paginate(paras, TextMetrics(measurer, density, font, w, textStyle, widths, book), h, gap) }
             }
         }
         pages?.let { TextPager(s, it) }
@@ -1987,13 +2010,22 @@ private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
     Box(Modifier.fillMaxSize()) {
         HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
             Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = sidePad(s), vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                Modifier.fillMaxSize()
+                    // book mode: a tap in the middle (not on a word) shows / hides the bar
+                    .pointerInput(s.book) {
+                        if (s.book) androidx.compose.foundation.gestures.detectTapGestures { o ->
+                            if (o.x in size.width * 0.2f..size.width * 0.8f && o.y in size.height * 0.15f..size.height * 0.85f) {
+                                s.barShown = !s.barShown
+                            }
+                        }
+                    }
+                    .verticalScroll(rememberScrollState()).padding(horizontal = sidePad(s), vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(if (s.book) 0.dp else 14.dp),
             ) {
-                latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents, b.first, b.last) }
+                latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents, b.first, b.last, b.start && s.book) }
             }
         }
-        if (s.wide) TurnButtons(pager)
+        if (s.wide && !s.book) TurnButtons(pager)
     }
 }
 
@@ -2064,7 +2096,8 @@ private fun DockButton(s: ReaderSession) {
  * a sentence cut at the page bottom gets it on the next page). [first] / [last]: chunk range, see [Block].
  */
 @Composable
-private fun Paragraph(s: ReaderSession, para: List<Sent>, first: Int = 0, last: Int = -1) {
+private fun Paragraph(s: ReaderSession, para: List<Sent>, first: Int = 0, last: Int = -1, indent: Boolean = false) {
+    val ind = if (indent && para.firstOrNull()?.heading == false) (s.font * INDENT_EM).dp else 0.dp
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         var run = mutableListOf<Sent>()
         var runStart = 0
@@ -2072,14 +2105,14 @@ private fun Paragraph(s: ReaderSession, para: List<Sent>, first: Int = 0, last: 
             run += sent
             val cut = i == para.lastIndex && last >= 0
             if (!cut && s.sentenceShown(sent.id)) {
-                SentenceFlow(s, run, from = if (runStart == 0) first else 0, justify = s.justify)
+                SentenceFlow(s, run, from = if (runStart == 0) first else 0, justify = s.justify, indent = if (runStart == 0) ind else 0.dp)
                 SentenceTranslation(s, sent.id)
                 run = mutableListOf(); runStart = i + 1
             }
         }
         if (run.isNotEmpty()) SentenceFlow(
             s, run, from = if (runStart == 0) first else 0, to = last, justify = s.justify,
-            continues = last >= 0,
+            continues = last >= 0, indent = if (runStart == 0) ind else 0.dp,
         )
     }
 }
@@ -2091,17 +2124,20 @@ internal fun SentenceFlow(
     from: Int = 0, to: Int = -1,
     /** Words spread over each line; the last line stays left unless the text [continues] on the next page. */
     justify: Boolean = false, continues: Boolean = false,
+    /** First-line indent (book mode). */
+    indent: Dp = 0.dp,
 ) {
     val size = s.font * scale
     val haptic = LocalHapticFeedback.current
     val selBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val playColor = MaterialTheme.colorScheme.primary
-    val textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = size.sp, lineHeight = (size * 1.35).sp)
+    val textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = size.sp, lineHeight = (size * lineMul(s.book && area == "text")).sp)
     val trStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (size * 0.6).sp, lineHeight = (size * 0.68).sp)
     FlowRow(
         horizontalArrangement = if (center) Arrangement.Center else if (justify) JustifyLoose else Arrangement.Start,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        if (indent > 0.dp) androidx.compose.foundation.layout.Spacer(Modifier.width(indent))
         sents.forEachIndexed { si, sent ->
             val lo = if (si == 0) from.coerceIn(0, sent.chunks.size) else 0
             val hi = if (si == sents.lastIndex && to >= 0) to.coerceIn(lo, sent.chunks.size) else sent.chunks.size
@@ -2204,6 +2240,32 @@ private fun ChunkRow(
                     if (t.isWord) drawRoundRect(c, cornerRadius = CornerRadius(4.dp.toPx())) else drawRect(c)
                 }
             }
+            if (s.book && area == "text" && tr != null) {
+                // book mode: the translation lies in the gap above the line, the lines do not move apart
+                val a by animateFloatAsState(if (s.trVisible(ref.key())) 1f else 0f, tween(600), label = "wordTr")
+                val lift = with(LocalDensity.current) { (textStyle.fontSize.value * 0.24f).sp.roundToPx() }
+                val trColor = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else LocalHighlight.current.text
+                androidx.compose.ui.layout.Layout(content = {
+                    Text(
+                        t.text, style = textStyle,
+                        modifier = mark.onPlaced { s.wordCoords[area to ref] = it }
+                            .pointerInput(ref, area) { wordGestures(s, area, ref, haptic) },
+                    )
+                    Text(
+                        tr.ifEmpty { "…" }, style = trStyle.copy(fontSize = trStyle.fontSize * 0.92f), maxLines = 1,
+                        softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, color = trColor,
+                        modifier = Modifier.graphicsLayer { alpha = a },
+                    )
+                }) { ms, c ->
+                    val w = ms[0].measure(c)
+                    val tw = ms[1].measure(Constraints(maxWidth = maxOf(w.width * 3, c.maxWidth / 2).coerceAtMost(c.maxWidth)))
+                    layout(w.width, w.height) {
+                        w.place(0, 0)
+                        tw.place((w.width - tw.width) / 2, lift - tw.height)
+                    }
+                }
+                continue
+            }
             // a word with its translation above: one highlight over both (as on the iPad); hidden translations: the word only
             val withTr = tr != null && s.trVisible(ref.key())
             Column(if (withTr) mark else Modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2280,6 +2342,12 @@ internal fun WordMenuLayer(s: ReaderSession, area: String, items: @Composable (W
 @Composable
 private fun ReaderMenuItems(s: ReaderSession, ref: WordRef, close: () -> Unit) {
     val id = ref.sent
+    // book mode: a double tap opens this menu, so the word window is here too
+    if (s.book) DropdownMenuItem(
+        text = { Text("Перевод слова") },
+        leadingIcon = { Icon(AppIcons.Translate, contentDescription = null) },
+        onClick = { close(); s.openPopup(ref) },
+    )
     DropdownMenuItem(
         text = { Text(if (s.shownSentences[id] == true) "Скрыть перевод предложения" else "Перевод предложения") },
         leadingIcon = { Icon(AppIcons.Translate, contentDescription = null) },
@@ -2560,9 +2628,14 @@ private suspend fun PointerInputScope.wordGestures(s: ReaderSession, area: Strin
             up.consume()
             val second = withTimeoutOrNull(viewConfiguration.doubleTapTimeoutMillis) { awaitFirstDown() }
             if (second == null) s.tapWord(ref)
-            else { second.consume(); waitForUpOrCancellation()?.consume(); s.openPopup(ref) }
+            else {
+                second.consume(); waitForUpOrCancellation()?.consume()
+                // book mode: the word menu (word / sentence translation…) instead of the word window
+                if (s.book && area == "text") { s.menuArea = area; s.wordMenu = ref } else s.openPopup(ref)
+            }
             return@awaitEachGesture
         }
+        if (s.book && area == "text") return@awaitEachGesture      // book mode: a long press does nothing
         // long press: select from this word, follow the finger
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         s.menuArea = area

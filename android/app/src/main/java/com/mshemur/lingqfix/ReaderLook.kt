@@ -61,6 +61,10 @@ val READER_THEMES = listOf(
     ReaderTheme("black", "Чёрная", Color(0xFF000000), Color(0xFFC8C8C8), true),
 )
 
+/** Book mode with page colours "Как в системе": paper like the iPad's Books app (a warm dark one at night). */
+val BOOK_PAPER = ReaderTheme("book", "Бумага", Color(0xFFF6EFE0), Color(0xFF33291F), false)
+val BOOK_NIGHT = ReaderTheme("bookNight", "Бумага ночью", Color(0xFF1E1B17), Color(0xFFDCD3C3), true)
+
 /** Colour of chosen words and of the translations above them. */
 class Highlight(val key: String, val name: String, val bgLight: Color, val textLight: Color, val bgDark: Color, val textDark: Color)
 
@@ -80,9 +84,11 @@ val LocalHighlight = staticCompositionLocalOf { HlColors(Color(0x3343A047), Colo
 
 fun readerThemeOf(key: String) = READER_THEMES.firstOrNull { it.key == key }
 
-fun highlightColors(key: String, darkPage: Boolean): HlColors {
+/** [wordBg] false: no background under the word, the translation keeps its colour. */
+fun highlightColors(key: String, darkPage: Boolean, wordBg: Boolean = true): HlColors {
     val h = HIGHLIGHTS.firstOrNull { it.key == key } ?: HIGHLIGHTS[0]
-    return if (darkPage) HlColors(h.bgDark, h.textDark) else HlColors(h.bgLight, h.textLight)
+    val c = if (darkPage) HlColors(h.bgDark, h.textDark) else HlColors(h.bgLight, h.textLight)
+    return if (wordBg) c else HlColors(Color.Transparent, c.text)
 }
 
 /** App colours with the reader's page colours (surfaces and text); [light]/[dark] = the app's own schemes. */
@@ -164,8 +170,19 @@ fun SettingsReading(state: AppState) {
                 }
             }
         }
+        listOf(true to "Слово на цветном фоне", false to "Без цвета: цветной только перевод над словом").forEach { (k, label) ->
+            Row(
+                Modifier.fillMaxWidth().selectable(selected = state.wordBg == k, role = Role.RadioButton) {
+                    state.applyPrefs { wordBg = k }
+                }.padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = state.wordBg == k, onClick = null)
+                Text(label, Modifier.padding(start = 12.dp))
+            }
+        }
         // preview: a line of text with one chosen word and its translation above it
-        val c = highlightColors(hl, darkPage)
+        val c = highlightColors(hl, darkPage, state.wordBg)
         Surface(shape = RoundedCornerShape(12.dp), color = pageBg, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Bottom) {
                 Text("Er las das ", color = pageFg, fontSize = 19.sp)
@@ -198,6 +215,19 @@ fun SettingsReading(state: AppState) {
             "Меньше — перевод ближе к слову и текст ниже по высоте. Видно на примере выше.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        Text("Книжный режим", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Row(
+            Modifier.fillMaxWidth().clickable { state.applyPrefs { readerBook = !state.book } }.padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Текст на весь экран, без панелей; меню — касанием середины экрана. Абзацы с красной строки, " +
+                    "перевод над словом не раздвигает строки. С фоном «Как в системе» — цвет бумаги.",
+                Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
+            )
+            androidx.compose.material3.Switch(checked = state.book, onCheckedChange = { v -> state.applyPrefs { readerBook = v } })
+        }
 
         Text("Выравнивание текста", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         listOf(false to "По левому краю", true to "По ширине").forEach { (k, label) ->

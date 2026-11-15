@@ -106,6 +106,25 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/** Reader: close cross, page slider in the middle, bookmarks and the menu. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun ReaderTopBar(
+    state: AppState, s: ReaderSession,
+    colors: androidx.compose.material3.TopAppBarColors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(),
+) {
+    CenterAlignedTopAppBar(
+        title = { ReaderProgress(s) },
+        navigationIcon = {
+            IconButton(onClick = { state.back() }) {
+                Icon(Icons.Filled.Close, contentDescription = "Закрыть урок")
+            }
+        },
+        actions = { ReaderActions(state, s) },
+        colors = colors,
+    )
+}
+
 @Composable
 fun App(state: AppState) {
     val ctx = LocalContext.current
@@ -113,17 +132,25 @@ fun App(state: AppState) {
     val lightS = if (Build.VERSION.SDK_INT >= 31) dynamicLightColorScheme(ctx) else lightColorScheme()
     val darkS = if (Build.VERSION.SDK_INT >= 31) dynamicDarkColorScheme(ctx) else darkColorScheme()
     // the reader uses the page colours chosen in Settings → Чтение
-    val page = if (state.screen is Screen.Reader) readerThemeOf(state.readerTheme) else null
+    val book = state.screen is Screen.Reader && state.book
+    val page = if (state.screen is Screen.Reader) {
+        readerThemeOf(state.readerTheme) ?: if (book) (if (dark) BOOK_NIGHT else BOOK_PAPER) else null
+    } else null
     val scheme = if (page != null) readerScheme(page, lightS, darkS) else if (dark) darkS else lightS
     val darkPage = page?.dark ?: dark
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.runtime.SideEffect {
         (view.context as? android.app.Activity)?.window?.let { w ->
-            androidx.core.view.WindowCompat.getInsetsController(w, view).isAppearanceLightStatusBars = !darkPage
+            val c = androidx.core.view.WindowCompat.getInsetsController(w, view)
+            c.isAppearanceLightStatusBars = !darkPage
+            // book mode: no status / navigation bar (a swipe from the edge shows them for a moment)
+            c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            if (book) c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            else c.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
         }
     }
     MaterialTheme(colorScheme = scheme) {
-      androidx.compose.runtime.CompositionLocalProvider(LocalHighlight provides highlightColors(state.highlight, darkPage)) {
+      androidx.compose.runtime.CompositionLocalProvider(LocalHighlight provides highlightColors(state.highlight, darkPage, state.wordBg)) {
         val screen = state.screen
         BackHandler(enabled = state.stack.size > 1) { state.back() }
         Box(
@@ -139,15 +166,7 @@ fun App(state: AppState) {
         Scaffold(
             topBar = {
                 // reader: close cross, progress in the middle, no lesson title
-                if (screen is Screen.Reader) CenterAlignedTopAppBar(
-                    title = { ReaderProgress(screen.session) },
-                    navigationIcon = {
-                        IconButton(onClick = { state.back() }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Закрыть урок")
-                        }
-                    },
-                    actions = { ReaderActions(state, screen.session) },
-                ) else TopAppBar(
+                if (screen is Screen.Reader) { if (!book) ReaderTopBar(state, screen.session) } else TopAppBar(
                     title = { Text(titleOf(state, screen), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = {
                         if (state.stack.size > 1) IconButton(onClick = { state.back() }) {
@@ -171,7 +190,7 @@ fun App(state: AppState) {
             },
             bottomBar = {
                 when (screen) {
-                    is Screen.Reader -> ReaderBottomBar(screen.session)
+                    is Screen.Reader -> { if (!book) ReaderBottomBar(screen.session) }
                     Screen.Player -> MainTabs(state, screen)
                     Screen.ReaderCourses -> Column { MiniPlayer(state); MainTabs(state, screen) }
                     is Screen.Podcasts -> if (state.stack.size == 1) Column { MiniPlayer(state); MainTabs(state, screen) } else MiniPlayer(state)
@@ -242,6 +261,22 @@ fun App(state: AppState) {
         }
         // sentence mode lies over the whole reader, top bar included
         if (screen is Screen.Reader) SentenceOverlay(screen.session)
+        // book mode: the bar lies over the text (the text does not move), shown by a tap in the middle
+        if (screen is Screen.Reader && book) {
+            val s = screen.session
+            BackHandler(enabled = s.barShown) { s.barShown = false }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = s.barShown && !s.sentenceMode,
+                enter = androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.fadeOut(),
+            ) {
+                ReaderTopBar(
+                    state, s,
+                    androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
+                    ),
+                )
+            }
+        }
         }
         ModelSwitchDialog(state)
         state.crashReport?.let { report ->

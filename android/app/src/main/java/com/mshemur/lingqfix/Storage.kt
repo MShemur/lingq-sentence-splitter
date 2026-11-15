@@ -145,6 +145,14 @@ class Prefs(ctx: Context) {
         set(v) = write("keepAwake", v)
     /** Gap between a word and the translation above it, % of the normal gap (100 = as before, 0 = closest). */
     /** Reader: text justified (spread over each line) instead of left aligned. */
+    /** Reader: book mode (full screen, the bar appears on a tap in the middle). */
+    var readerBook: Boolean
+        get() = read("readerBook", "0") == "1"
+        set(v) = write("readerBook", if (v) "1" else "0")
+    /** A word with its translation above gets a coloured background (false: only the translation is coloured). */
+    var wordBg: Boolean
+        get() = read("wordBg", "1") == "1"
+        set(v) = write("wordBg", if (v) "1" else "0")
     var readerJustify: Boolean
         get() = read("readerJustify", "0") == "1"
         set(v) = write("readerJustify", if (v) "1" else "0")
