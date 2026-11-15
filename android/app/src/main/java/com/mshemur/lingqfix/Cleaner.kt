@@ -54,7 +54,7 @@ object TextCleaner {
     private val SUPERSCRIPT = Regex("[¹²³⁴⁵⁶⁷⁸⁹⁰]+")
     private val BRACKET_REF = Regex("""\[\d{1,3}(?:[,–-]\d{1,3})*]""")
     private val HYPHEN_BREAK = Regex("""(\p{L})[-¬]\n[ \t]*(\p{Ll})""")
-    private val TERMINAL = Regex("""[.!?…:;"»“”)\]]$""")
+    private val TERMINAL = Regex("""[.!?…:;"»«“”)\]]$""")
 
     fun clean(src: String): Pair<String, CleanReport> {
         var t = src.replace("\r\n", "\n").replace('\r', '\n')
@@ -81,6 +81,16 @@ object TextCleaner {
         var hyph = 0
         t = HYPHEN_BREAK.replace(t) { hyph++; it.groupValues[1] + it.groupValues[2] }
 
+        // "double spaced" copy (an empty line after every line, e.g. from some PDFs / sites): single line breaks,
+        // so the broken lines below can be joined
+        run {
+            val idx = t.split('\n').withIndex().filter { it.value.isNotBlank() }.map { it.index }
+            val pairs = idx.size - 1
+            if (pairs >= 4 && idx.zipWithNext().count { (a, b) -> b - a == 2 } >= pairs * 0.7) {
+                t = t.replace(Regex("\n[ \t]*\n"), "\n")
+            }
+        }
+
         // lines broken inside a sentence (PDF, OCR): join when the line is "full" and does not end a sentence
         val ls = t.split('\n')
         val full = ls.map { it.trim().length }.filter { it > 0 }.sorted().let { if (it.isEmpty()) 0 else it[(it.size * 0.8).toInt().coerceAtMost(it.size - 1)] }
@@ -96,6 +106,10 @@ object TextCleaner {
             if (wraps) { sb.append(' '); joined++ } else sb.append('\n')
         }
         t = sb.toString().replace(Regex("\n{3,}"), "\n\n").trim()
+        // a sentence end glued to a quote and the next sentence ("Hochschule.»Alle", "werden.«Angst"): LingQ does
+        // not split there, so a space goes in (German quotes: » „ open, « “ ” close)
+        t = t.replace(Regex("([.!?…])([»„])(?=\\p{Lu})"), "$1 $2")
+            .replace(Regex("([.!?…][«“”\"])(?=\\p{Lu})"), "$1 ")
         return t to CleanReport(removed, hyph, joined, marks)
     }
 

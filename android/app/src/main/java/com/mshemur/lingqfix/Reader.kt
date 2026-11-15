@@ -2099,7 +2099,7 @@ internal fun SentenceFlow(
     val textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = size.sp, lineHeight = (size * 1.35).sp)
     val trStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (size * 0.6).sp, lineHeight = (size * 0.68).sp)
     FlowRow(
-        horizontalArrangement = if (center) Arrangement.Center else if (justify) Arrangement.SpaceBetween else Arrangement.Start,
+        horizontalArrangement = if (center) Arrangement.Center else if (justify) JustifyLoose else Arrangement.Start,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         sents.forEachIndexed { si, sent ->
@@ -2156,6 +2156,22 @@ internal fun SentenceFlow(
         }
         // justified: the last line stays left (a weighted empty box takes the rest of that line)
         if (justify && !continues) androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+    }
+}
+
+/**
+ * Justified lines like an e-book reader: the words are spread over the line, but a line with much room left
+ * (two or three long words) stays left instead of getting huge gaps.
+ */
+private object JustifyLoose : Arrangement.Horizontal {
+    override fun androidx.compose.ui.unit.Density.arrange(
+        totalSize: Int, sizes: IntArray, layoutDirection: androidx.compose.ui.unit.LayoutDirection, outPositions: IntArray,
+    ) {
+        val free = totalSize - sizes.sum()
+        val gaps = sizes.size - 1
+        val step = if (gaps > 0 && free > 0 && free <= totalSize * 0.2f) free.toFloat() / gaps else 0f
+        var x = 0f
+        sizes.forEachIndexed { i, sz -> outPositions[i] = Math.round(x); x += sz + step }
     }
 }
 
