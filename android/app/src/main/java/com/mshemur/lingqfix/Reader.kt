@@ -2264,8 +2264,7 @@ private fun ChunkRow(
                         tw.place((w.width - tw.width) / 2, lift - tw.height)
                     }
                 }
-                continue
-            }
+            } else {
             // a word with its translation above: one highlight over both (as on the iPad); hidden translations: the word only
             val withTr = tr != null && s.trVisible(ref.key())
             Column(if (withTr) mark else Modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2284,6 +2283,7 @@ private fun ChunkRow(
                         .onPlaced { s.wordCoords[area to ref] = it }
                         .pointerInput(ref, area) { wordGestures(s, area, ref, haptic) },
                 )
+            }
             }
         }
     }

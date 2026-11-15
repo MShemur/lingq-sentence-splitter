@@ -166,7 +166,7 @@ fun App(state: AppState) {
         Scaffold(
             topBar = {
                 // reader: close cross, progress in the middle, no lesson title
-                if (screen is Screen.Reader) { if (!book) ReaderTopBar(state, screen.session) } else TopAppBar(
+                if (screen is Screen.Reader) { if (!book) ReaderTopBar(state, screen.session) else Unit } else TopAppBar(
                     title = { Text(titleOf(state, screen), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = {
                         if (state.stack.size > 1) IconButton(onClick = { state.back() }) {
@@ -190,7 +190,7 @@ fun App(state: AppState) {
             },
             bottomBar = {
                 when (screen) {
-                    is Screen.Reader -> { if (!book) ReaderBottomBar(screen.session) }
+                    is Screen.Reader -> if (!book) ReaderBottomBar(screen.session) else Unit
                     Screen.Player -> MainTabs(state, screen)
                     Screen.ReaderCourses -> Column { MiniPlayer(state); MainTabs(state, screen) }
                     is Screen.Podcasts -> if (state.stack.size == 1) Column { MiniPlayer(state); MainTabs(state, screen) } else MiniPlayer(state)
