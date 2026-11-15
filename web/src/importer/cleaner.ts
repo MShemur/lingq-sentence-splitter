@@ -123,3 +123,42 @@ export function splitSentences(p: string): string[] {
 
 /** Pieces of ~1800 words for AI cleaning. */
 export const chunks = (text: string, maxWords = 1800) => splitLong(text, maxWords)
+
+/**
+ * "## Einleitung" left by the AI cleaning: a sentence starting with #..###### loses the marks and becomes its own
+ * paragraph with LingQ's style "hN" (drawn bold). Paragraphs are renumbered. Returns how many. Port of Android
+ * Sources.kt markdownHeadings.
+ */
+export function markdownHeadings(paras: any[]): number {
+  const mark = /^(#{1,6})\s*/
+  let n = 0
+  const out: any[] = []
+  for (const p of paras) {
+    const ss: any[] | undefined = p?.sentences
+    if (!Array.isArray(ss)) { out.push(p); continue }
+    let run: any[] = []
+    const flush = (style?: string) => {
+      if (!run.length) return
+      const q = { ...structuredClone(p), sentences: run }
+      if (style) q.style = style
+      out.push(q)
+      run = []
+    }
+    for (const o of ss) {
+      const text = String(o?.text ?? '')
+      const m = mark.exec(text)
+      if (!m) { run.push(o); continue }
+      const t = text.slice(m[0].length).trim()
+      if (!t) continue
+      flush()
+      run.push({ ...o, text: t, cleanText: t })
+      flush('h' + m[1].length)
+      n++
+    }
+    flush()
+  }
+  if (!n) return 0
+  paras.length = 0
+  out.forEach((q, i) => paras.push({ ...q, index: i + 1 }))
+  return n
+}

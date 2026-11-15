@@ -6,7 +6,7 @@ import type { Course, Lesson } from '../lingq'
 import * as gemini from '../gemini'
 import { courses, geminiFailed, say } from '../app'
 import { lang, prefs, prompt, useGemini } from '../settings'
-import { addReports, chunks, cleanText, countWords, EMPTY_REPORT, LINGQ_MAX_WORDS, reportText, splitLong, splitSentences } from './cleaner'
+import { addReports, chunks, cleanText, countWords, EMPTY_REPORT, LINGQ_MAX_WORDS, markdownHeadings, reportText, splitLong, splitSentences } from './cleaner'
 import { fix, type Change } from './fixer'
 import { readFile } from './sources'
 import { pagesLabel, type PdfDoc } from './pdf'
@@ -513,8 +513,9 @@ export class ImportSession {
     for (let attempt = 0; attempt < 3; attempt++) {
       const paras = await api.editor(l, id)
       const fixed = structuredClone(paras)
+      const heads = attempt === 0 ? markdownHeadings(fixed) : 0 // "## Title" from the AI cleaning
       const changes = fix(fixed)
-      if (!changes.length) break // nothing (left) to fix
+      if (!changes.length && !heads) break // nothing (left) to fix
       if (!result) await saveBackup(l, id, title, paras)
       await api.saveParagraphs(l, id, fixed)
       if (!result) result = { id, title, changes }

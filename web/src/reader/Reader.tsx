@@ -343,7 +343,8 @@ function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, 
  * The text split into pages that fit the screen, turned with a swipe like a book (port of Android PagedText).
  * Pages are laid out from the bare text only: translations above words and under sentences do not move text to
  * other pages, a page that grows with them scrolls up and down instead. A paragraph that does not fit is split at
- * a sentence boundary, and the sentence that does not fit at a line inside it: the page is full to the bottom.
+ * a sentence boundary; a sentence goes whole to the next page (the user's choice, web v1.58), only one taller than a
+ * whole page is split at a line inside it.
  */
 function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number, cache: MeasureCache, prefix: string): Block[][] {
   const whole = measureCached(box, s, cache, prefix, paras.map((p) => ({ sents: p })))
@@ -363,8 +364,8 @@ function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number
       // the longest run of whole sentences that still fits on this page
       let k = 0
       while (k < rest.length && used + need(m.bottoms[k]) <= h) k++
-      // and of the next sentence the chunks (lines) that still fit
-      const cb = m.chunks[k] ?? []
+      // a sentence taller than a whole page (nothing else on it): the lines that fit
+      const cb = k === 0 && !cur.length ? m.chunks[0] ?? [] : []
       let c = 0
       while (c < cb.length - 1 && used + need(cb[c]) <= h) c++
       if (c > 0) {

@@ -13,7 +13,7 @@ import { positionOf, savePosition } from '../progress'
 import { loadTr, rememberTr, trKey } from '../trcache'
 import { countRead } from '../stats'
 import { saveBackup } from '../importer/backups'
-import { chunks as textChunks, cleanText, splitSentences } from '../importer/cleaner'
+import { chunks as textChunks, cleanText, markdownHeadings, splitSentences } from '../importer/cleaner'
 import { fix } from '../importer/fixer'
 import { log, logError } from '../applog'
 import * as audio from '../audio'
@@ -477,6 +477,7 @@ export class ReaderSession {
       }
       if (!idx) throw new Error('ИИ вернул пустой текст, урок не изменён')
       await saveBackup(this.lang, this.lesson.id, this.title.value || this.lesson.title, paras)
+      markdownHeadings(out)
       fix(out)
       try {
         await api.saveParagraphs(this.lang, this.lesson.id, out)
