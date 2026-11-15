@@ -199,6 +199,19 @@ fun SettingsReading(state: AppState) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
+        Text("Выравнивание текста", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        listOf(false to "По левому краю", true to "По ширине").forEach { (k, label) ->
+            Row(
+                Modifier.fillMaxWidth().selectable(selected = state.justify == k, role = Role.RadioButton) {
+                    state.applyPrefs { readerJustify = k }
+                }.padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = state.justify == k, onClick = null)
+                Text(label, Modifier.padding(start = 12.dp))
+            }
+        }
+
         Text("Экран не гаснет при чтении", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         KEEP_AWAKE.forEach { (k, label) ->
             Row(

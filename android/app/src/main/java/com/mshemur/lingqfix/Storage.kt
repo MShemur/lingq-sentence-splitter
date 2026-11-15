@@ -144,6 +144,10 @@ class Prefs(ctx: Context) {
         get() = read("keepAwake", "10")
         set(v) = write("keepAwake", v)
     /** Gap between a word and the translation above it, % of the normal gap (100 = as before, 0 = closest). */
+    /** Reader: text justified (spread over each line) instead of left aligned. */
+    var readerJustify: Boolean
+        get() = read("readerJustify", "0") == "1"
+        set(v) = write("readerJustify", if (v) "1" else "0")
     var trGap: Int
         get() = read("trGap", "100").toIntOrNull()?.coerceIn(0, 100) ?: 100
         set(v) = write("trGap", v.toString())

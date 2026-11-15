@@ -260,6 +260,7 @@ class AppState(val ctx: Context) {
     var highlight by mutableStateOf(prefs.highlight)
     var keepAwake by mutableStateOf(prefs.keepAwake)
     var trGap by mutableStateOf(prefs.trGap)
+    var justify by mutableStateOf(prefs.readerJustify)
     var wsMin by mutableStateOf(prefs.wsMin)
         private set
     fun changeWsMin(n: Int) { wsMin = n; prefs.wsMin = n }
@@ -277,6 +278,7 @@ class AppState(val ctx: Context) {
         prefs.block()
         apiKey = prefs.apiKey; lang = prefs.lang; ghToken = prefs.ghToken; trLang = prefs.trLang
         readerTheme = prefs.readerTheme; highlight = prefs.highlight; keepAwake = prefs.keepAwake; trGap = prefs.trGap
+        justify = prefs.readerJustify
         if (oldLang != lang) courses = null
     }
 

@@ -945,6 +945,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun trVisible(key: String) = !hideTr || peek.containsKey(key)
     /** Settings: gap between a word and its translation, %. */
     val trGap get() = app.trGap
+    val justify get() = app.justify
 
     /** Words and phrases with a translation in this lesson, in text order, each word once: (text, translation, sentence). */
     fun markedWords(): List<Triple<String, String, Int>> {
@@ -1764,8 +1765,11 @@ fun ReaderScreen(s: ReaderSession) {
     }
 }
 
-/** Part of a paragraph that lies on one page. */
-private class Block(val sents: List<Sent>)
+/**
+ * Part of a paragraph that lies on one page: the first sentence from chunk [first], the last one up to chunk
+ * [last] (exclusive; -1 = to its end). A sentence that does not fit is split at a line, its rest starts the next page.
+ */
+private class Block(val sents: List<Sent>, val first: Int = 0, val last: Int = -1)
 
 /**
  * Heights of text pieces as [Paragraph] / [SentenceFlow] will draw them, computed from text sizes only
@@ -1810,9 +1814,31 @@ private class TextMetrics(
         }
         return out
     }
+
+    /**
+     * Same flow, chunk by chunk: result[i][c] = height of everything up to chunk c of sents[i]; sents[0] starts at
+     * chunk [start]. A sentence without chunks gets one entry (the height so far).
+     */
+    fun chunkBottoms(sents: List<Sent>, start: Int): List<IntArray> {
+        var total = 0
+        var lineW = 0
+        var lineMax = 0
+        var lines = 0
+        fun now() = total + (if (lineW > 0) lineMax + lineGap * lines else maxOf(0, lineGap * (lines - 1)))
+        return sents.mapIndexed { i, sent ->
+            val cs = if (i == 0) sent.chunks.drop(start) else sent.chunks
+            if (cs.isEmpty()) intArrayOf(now())
+            else IntArray(cs.size) { k ->
+                val cw = w(cs[k].joinToString("") { it.text }, sent.heading) + chunkGap
+                if (lineW > 0 && lineW + cw > width) { total += lineMax; lines++; lineW = 0; lineMax = 0 }
+                lineW += cw; lineMax = maxOf(lineMax, lineH)
+                now()
+            }
+        }
+    }
 }
 
-/** Pages from the bare text: a paragraph that does not fit is split at a sentence boundary. */
+/** Pages from the bare text, each filled to the bottom: a paragraph is split between pages at a line. */
 private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: Int, gap: Int): List<List<Block>> {
     val pages = mutableListOf<List<Block>>()
     var cur = mutableListOf<Block>()
@@ -1825,24 +1851,36 @@ private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: I
     for (para in paras) {
         kotlinx.coroutines.yield()          // a newer layout (font, width) cancels this one
         var from = 0
+        var fromChunk = 0
         while (from < para.size) {
-            // heights of para[from..k] for every k, in one pass
-            val hs = metrics.bottoms(para.subList(from, para.size))
-            val hRest = hs.last()
-            if (used + need(hRest) <= h) { used += need(hRest); cur += Block(para.subList(from, para.size)); break }
-            // the longest run of sentences that still fits on this page
-            var k = from
-            var hk = 0
-            while (k + 1 < para.size) {
-                val hh = hs[k - from]
-                if (used + need(hh) > h) break
-                k++; hk = hh
+            // heights up to every chunk of para[from..], in one pass
+            val cb = metrics.chunkBottoms(para.subList(from, para.size), fromChunk)
+            val hRest = cb.last().last()
+            if (used + need(hRest) <= h) { used += need(hRest); cur += Block(para.subList(from, para.size), fromChunk); break }
+            // the last chunk that still fits on this page
+            var bj = -1
+            var bc = -1
+            var bh = 0
+            run {
+                cb.forEachIndexed { j, arr ->
+                    arr.forEachIndexed { c, hh -> if (used + need(hh) > h) return@run; bj = j; bc = c; bh = hh }
+                }
             }
-            when {
-                k > from -> { used += need(hk); cur += Block(para.subList(from, k)); from = k; flush() }
-                cur.isNotEmpty() -> flush()
-                else -> { cur += Block(listOf(para[from])); from++; flush() }   // taller than a page
+            if (bj < 0) {
+                if (cur.isNotEmpty()) { flush(); continue }
+                bj = 0; bc = 0; bh = cb[0][0]                                  // one chunk taller than a page
             }
+            val sent = para[from + bj]
+            val end = (if (bj == 0) fromChunk else 0) + bc + 1              // chunks of that sentence on this page
+            used += need(bh)
+            if (end >= sent.chunks.size) {
+                cur += Block(para.subList(from, from + bj + 1), fromChunk)
+                from += bj + 1; fromChunk = 0
+            } else {
+                cur += Block(para.subList(from, from + bj + 1), fromChunk, end)
+                from += bj; fromChunk = end
+            }
+            flush()
         }
     }
     flush()
@@ -1937,7 +1975,7 @@ private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = sidePad(s), vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents) }
+                latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents, b.first, b.last) }
             }
         }
         if (s.wide) TurnButtons(pager)
@@ -2006,25 +2044,39 @@ private fun DockButton(s: ReaderSession) {
     }
 }
 
-/** A paragraph flows as one text; a shown sentence translation is inserted right after its sentence. */
+/**
+ * A paragraph flows as one text; a shown sentence translation is inserted right after its sentence (after its end:
+ * a sentence cut at the page bottom gets it on the next page). [first] / [last]: chunk range, see [Block].
+ */
 @Composable
-private fun Paragraph(s: ReaderSession, para: List<Sent>) {
+private fun Paragraph(s: ReaderSession, para: List<Sent>, first: Int = 0, last: Int = -1) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         var run = mutableListOf<Sent>()
-        for (sent in para) {
+        var runStart = 0
+        para.forEachIndexed { i, sent ->
             run += sent
-            if (s.sentenceShown(sent.id)) {
-                SentenceFlow(s, run)
+            val cut = i == para.lastIndex && last >= 0
+            if (!cut && s.sentenceShown(sent.id)) {
+                SentenceFlow(s, run, from = if (runStart == 0) first else 0, justify = s.justify)
                 SentenceTranslation(s, sent.id)
-                run = mutableListOf()
+                run = mutableListOf(); runStart = i + 1
             }
         }
-        if (run.isNotEmpty()) SentenceFlow(s, run)
+        if (run.isNotEmpty()) SentenceFlow(
+            s, run, from = if (runStart == 0) first else 0, to = last, justify = s.justify,
+            continues = last >= 0,
+        )
     }
 }
 
 @Composable
-internal fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f, area: String = "text", center: Boolean = false) {
+internal fun SentenceFlow(
+    s: ReaderSession, sents: List<Sent>, scale: Float = 1f, area: String = "text", center: Boolean = false,
+    /** First sentence from this chunk, last one up to this chunk (exclusive, -1 = all): a page holds part of it. */
+    from: Int = 0, to: Int = -1,
+    /** Words spread over each line; the last line stays left unless the text [continues] on the next page. */
+    justify: Boolean = false, continues: Boolean = false,
+) {
     val size = s.font * scale
     val haptic = LocalHapticFeedback.current
     val selBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
@@ -2032,11 +2084,13 @@ internal fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f
     val textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = size.sp, lineHeight = (size * 1.35).sp)
     val trStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (size * 0.6).sp, lineHeight = (size * 0.68).sp)
     FlowRow(
-        horizontalArrangement = if (center) Arrangement.Center else Arrangement.Start,
+        horizontalArrangement = if (center) Arrangement.Center else if (justify) Arrangement.SpaceBetween else Arrangement.Start,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        for (sent in sents) {
-            if (s.isBookmarked(sent.id)) Icon(
+        sents.forEachIndexed { si, sent ->
+            val lo = if (si == 0) from.coerceIn(0, sent.chunks.size) else 0
+            val hi = if (si == sents.lastIndex && to >= 0) to.coerceIn(lo, sent.chunks.size) else sent.chunks.size
+            if (lo == 0 && s.isBookmarked(sent.id)) Icon(
                 AppIcons.Bookmark, contentDescription = "Закладка", tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.align(Alignment.Bottom).padding(end = 2.dp, bottom = 4.dp).size((size * 0.9).dp),
             )
@@ -2048,7 +2102,7 @@ internal fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f
                 c.any { if (it.isWord) it.index in r else it.index > r.first && it.index < r.last }
             }
             var i = 0
-            val chunks = sent.chunks
+            val chunks = sent.chunks.subList(lo, hi)
             while (i < chunks.size) {
                 val ph = phraseOf(chunks[i])
                 if (ph == null) {
@@ -2085,6 +2139,8 @@ internal fun SentenceFlow(s: ReaderSession, sents: List<Sent>, scale: Float = 1f
                 i = j
             }
         }
+        // justified: the last line stays left (a weighted empty box takes the rest of that line)
+        if (justify && !continues) androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
     }
 }
 
