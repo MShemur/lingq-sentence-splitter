@@ -5,7 +5,7 @@ import { back, backTo, courses, coursesError, go, LessonsScreen, loadCourses, sa
 import { prefs, useGemini } from '../settings'
 import { Icon, type IconName } from '../icons'
 import { Chip, Dialog, IconButton, ListItem, Loading, TopBar } from '../ui'
-import type { ImportSession } from '../importer/session'
+import { lastImportCourse, rememberImportCourse, type ImportSession } from '../importer/session'
 import { countWords } from '../importer/cleaner'
 import { wordsText } from '../stats'
 import { PdfPicker } from './PdfPicker'
@@ -38,7 +38,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
   useEffect(() => { void loadCourses() }, [])
   const list = courses.value
   useEffect(() => {
-    if (!s.course.value && list?.length) s.course.value = list[0]
+    if (!s.course.value && list?.length) s.course.value = list.find((c) => c.id === lastImportCourse(s.lang)) ?? list[0]
     if (list && !list.length) s.newCourse.value = true // no courses yet: offer to create one
   }, [list])
   const running = s.running.value
@@ -104,8 +104,8 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                 </div>
               )}
               <label class="field">
-                <span>Текст</span>
-                <textarea class="import-text" value={s.pasteText.value} onInput={(e) => { s.pasteText.value = (e.target as HTMLTextAreaElement).value }} />
+                <span>{s.cleaning.value ? 'Текст — ИИ чистит…' : 'Текст'}</span>
+                <textarea class="import-text" value={s.pasteText.value} disabled={s.cleaning.value} onInput={(e) => { s.pasteText.value = (e.target as HTMLTextAreaElement).value }} />
               </label>
               <div class="hint">{wordsLabel(countWords(s.pasteText.value))}</div>
             </>
@@ -135,20 +135,27 @@ export function ImportScreen({ s }: { s: ImportSession }) {
             <div class="clean-card">
               <div class="clean-head"><Icon name="clean" /><span>Очистка текста</span></div>
               <p>Убирает номера страниц, колонтитулы, сноски, ссылки и мусор с сайтов, склеивает переносы и разорванные строки. Сам текст не переписывается.</p>
-              <div class="row">
-                <button class="btn tonal" onClick={() => s.cleanQuick()} disabled={s.cleaning.value || running}><Icon name="clean" size={18} />Быстро</button>
-                <button class="btn filled" onClick={() => void s.cleanAi()} disabled={s.cleaning.value || running || !useGemini()}><Icon name="magic" size={18} />С ИИ</button>
-              </div>
-              {!useGemini() && <p class="small">Чистка с ИИ: включите Gemini или другой ИИ в Настройки → Перевод.</p>}
-              {s.cleaning.value && <div class="bar-progress"><div style={{ width: s.cleanProgress.value * 100 + '%' }} /></div>}
-              {s.cleanNote.value && <p>{s.cleanNote.value}</p>}
-              {s.canUndo.value && !s.cleaning.value && <button class="btn text" onClick={() => s.undoClean()}>Вернуть как было</button>}
-              <div class="small">Сразу, как текст пришёл (вставка, файл, PDF, распознавание):</div>
+              <div class="small">Чистить сразу, как текст пришёл (вставка, файл, PDF, распознавание); нажатие чистит и этот текст:</div>
               <div class="chip-row">
                 {([['0', 'Нет'], ['1', 'Быстро'], ['2', 'С ИИ']] as const).map(([v, l]) => (
-                  <Chip key={v} label={l} selected={prefs.autoClean.value === v} onClick={() => { prefs.autoClean.value = v }} />
+                  <Chip key={v} label={l} selected={prefs.autoClean.value === v} onClick={() => {
+                    if (s.cleaning.value || running) return
+                    if (v === '2' && !useGemini()) { say('Для чистки с ИИ включите ИИ: Настройки → Перевод'); return }
+                    prefs.autoClean.value = v
+                    if (v === '1') s.cleanQuick()
+                    else if (v === '2') void s.cleanAi()
+                  }} />
                 ))}
               </div>
+              {!useGemini() && <p class="small">Чистка с ИИ: включите Gemini или другой ИИ в Настройки → Перевод.</p>}
+              {s.cleaning.value && (
+                <>
+                  <div class="row-status"><span class="spinner-sm" />ИИ чистит текст… {Math.round(s.cleanProgress.value * 100)} %</div>
+                  <div class="bar-progress"><div style={{ width: s.cleanProgress.value * 100 + '%' }} /></div>
+                </>
+              )}
+              {s.cleanNote.value && <p>{s.cleanNote.value}</p>}
+              {s.canUndo.value && !s.cleaning.value && <button class="btn text" onClick={() => s.undoClean()}>Вернуть как было</button>}
             </div>
           )}
 
@@ -166,6 +173,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                   } else {
                     s.newCourse.value = false
                     s.course.value = (list ?? []).find((c) => String(c.id) === v) ?? null
+                    if (s.course.value) rememberImportCourse(s.lang, s.course.value.id)
                   }
                 }}>
                   {!list && <option value="">Загрузка курсов…</option>}

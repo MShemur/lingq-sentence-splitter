@@ -36,6 +36,14 @@ export interface LessonFix { id: number; title: string; changes: Change[] }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** The course the import used last ("importTo.<lang>", as Android). */
+export function lastImportCourse(lang: string): number | null {
+  try { return Number(localStorage.getItem(`importTo.${lang}`)) || null } catch { return null }
+}
+export function rememberImportCourse(lang: string, id: number) {
+  try { localStorage.setItem(`importTo.${lang}`, String(id)) } catch { /* ignore */ }
+}
+
 /**
  * One lesson to upload; [audio] its audio, [words] the recognised words with their times. [rest]: text that does
  * not fit into one LingQ import (more than LINGQ_MAX_WORDS words): it is added to the same lesson afterwards, so a
@@ -387,6 +395,7 @@ export class ImportSession {
         courses.value = [c, ...(courses.value ?? [])]
         this.course.value = c
         this.newCourse.value = false
+        rememberImportCourse(l, c.id)
       } else if (this.cover.value && this.coverToCourse.value) {
         try {
           await api.setCourseImage(l, c!.id, this.cover.value)

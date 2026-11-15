@@ -228,9 +228,19 @@ function ReaderActions({ s }: { s: ReaderSession }) {
   const pinCount = Object.keys(s.pins.value).length + Object.keys(s.phrasePins.value).length
   const [help, setHelp] = useState(false)
   const [del, setDel] = useState(false)
+  const [aiAsk, setAiAsk] = useState(false)
   return (
     <>
       {help && <ReaderHelp onClose={() => setHelp(false)} />}
+      {aiAsk && (
+        <Dialog title="Обработать текст с ИИ?" onClose={() => setAiAsk(false)} actions={<>
+          <button class="btn text" onClick={() => setAiAsk(false)}>Отмена</button>
+          <button class="btn text" onClick={() => { setAiAsk(false); void s.cleanWithAi() }}>Обработать</button>
+        </>}>
+          <p>ИИ уберёт из текста урока мусор (номера страниц, колонтитулы, сноски, разорванные строки) и сохранит его в LingQ.
+            Предложения, которые изменятся, потеряют перевод и время в аудио. Копия старого текста сохранится в резервных копиях.</p>
+        </Dialog>
+      )}
       {del && <LessonDeleteDialog l={s.lang} id={s.lesson.id} title={s.title.value || s.lesson.title} onClose={() => setDel(false)} />}
       <IconButton icon="bookmark" label="Закладки урока" onClick={() => { s.bookmarksOpen.value = true }} />
       <div class="menu-anchor">
@@ -246,6 +256,9 @@ function ReaderActions({ s }: { s: ReaderSession }) {
             )}
             <MenuItem icon="chart" onClick={() => { close(); void s.detectLevel() }}>
               {s.levelBusy.value ? 'Определяю уровень…' : 'Определить уровень (ИИ)'}
+            </MenuItem>
+            <MenuItem icon="magic" onClick={() => { close(); if (s.aiClean.value == null) setAiAsk(true) }}>
+              {s.aiClean.value != null ? `ИИ обрабатывает текст: ${s.aiClean.value}` : 'Обработать текст с ИИ…'}
             </MenuItem>
             <MenuItem icon="delete" onClick={() => { close(); setDel(true) }}>Удалить урок…</MenuItem>
             <hr />

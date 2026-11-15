@@ -13,6 +13,8 @@ import { positionOf, savePosition } from '../progress'
 import { loadTr, rememberTr, trKey } from '../trcache'
 import { countRead } from '../stats'
 import { saveBackup } from '../importer/backups'
+import { chunks as textChunks, cleanText, splitSentences } from '../importer/cleaner'
+import { fix } from '../importer/fixer'
 import { log, logError } from '../applog'
 import * as audio from '../audio'
 import { addAudioBookmark, audioBookmarks, removeBookmark, type Bookmark as Bm } from '../bookmarks'
@@ -415,6 +417,73 @@ export class ReaderSession {
     put(this.sentTr, id, t)
     if (stored == null) this.keepTr(s.text, t)
     return t
+  }
+
+  /** "Обработать текст с ИИ": "2 из 5" while running, null otherwise. */
+  aiClean = signal<string | null>(null)
+
+  /**
+   * The lesson text is cleaned by the AI (quick clean first, then the clean prompt piece by piece) and saved back:
+   * own sentence split; a sentence whose text is unchanged keeps its object (translation, time), new ones start empty.
+   * Backup first, the split fixer after. Port of Android Reader.kt cleanWithAi.
+   */
+  async cleanWithAi() {
+    if (!useGemini()) { say('Для обработки с ИИ включите ИИ: Настройки → Перевод'); return }
+    if (this.aiClean.value != null) return
+    this.aiClean.value = '…'
+    log('reader', `Урок ${this.lesson.id}: обработка текста с ИИ`)
+    try {
+      const paras: any[] = await api.editor(this.lang, this.lesson.id)
+      const old = new Map<string, any>()
+      let tmpl: any = null, pTmpl: any = null, count = 0
+      const parts: string[] = []
+      for (const p of paras) {
+        const texts: string[] = []
+        for (const o of p?.sentences ?? []) {
+          const t = String(o?.text ?? '').trim()
+          if (!t) continue
+          if (!tmpl) { tmpl = o; pTmpl = p }
+          if (!old.has(t)) old.set(t, o)
+          texts.push(t); count++
+        }
+        if (texts.length) parts.push(texts.join(' '))
+      }
+      if (!tmpl) throw new Error('урок пустой')
+      const pieces = textChunks(cleanText(parts.join('\n\n'))[0])
+      const cleaned: string[] = []
+      for (let i = 0; i < pieces.length; i++) {
+        this.aiClean.value = `${i + 1} из ${pieces.length}`
+        cleaned.push((await gemini.cleanPiece(prompt.clean(), this.lang, pieces[i])) || pieces[i])
+      }
+      const out: any[] = []
+      let idx = 0
+      for (const pt of cleaned.join('\n\n').split(/\n\s*\n/)) {
+        const ss = splitSentences(pt.trim())
+        if (!ss.length) continue
+        const p = structuredClone(pTmpl)
+        if ('style' in p) p.style = 'p'
+        p.sentences = ss.map((t) => {
+          const o = old.has(t) ? structuredClone(old.get(t)) : {
+            ...structuredClone(tmpl), text: t, cleanText: t, translations: [], phrases: [], notes: [],
+            ...('timestamp' in tmpl ? { timestamp: null } : {}),
+          }
+          o.index = ++idx
+          return o
+        })
+        out.push(p)
+      }
+      if (!idx) throw new Error('ИИ вернул пустой текст, урок не изменён')
+      await saveBackup(this.lang, this.lesson.id, this.title.value || this.lesson.title, paras)
+      fix(out)
+      await api.saveParagraphs(this.lang, this.lesson.id, out)
+      log('reader', `Урок ${this.lesson.id}: ИИ обработал текст, было ${count} предложений, стало ${idx}`)
+      say(`Текст обработан: было ${count} предложений, стало ${idx}. Копия старого — в резервных копиях`)
+      await this.load()
+    } catch (e) {
+      logError('reader', 'Обработать текст с ИИ', e)
+      say(`Обработка не получилась: ${errorText(e)}`)
+    }
+    this.aiClean.value = null
   }
 
   /** "Перевести весь урок": "12 из 80" while running, null otherwise. */
