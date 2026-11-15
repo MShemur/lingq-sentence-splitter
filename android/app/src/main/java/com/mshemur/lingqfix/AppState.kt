@@ -1244,7 +1244,8 @@ class ImportSession(private val app: AppState) {
         for (pt in rest.split(Regex("\\n\\s*\\n"))) {
             val ss = splitSentences(pt.trim())
             if (ss.isEmpty()) continue
-            val p = JSONObject(lastP.toString())
+            val p = JSONObject(lastP.toString()).put("index", paras.length() + 1)
+            if (p.has("style")) p.put("style", "p")
             val arr = JSONArray()
             ss.forEach { t ->
                 arr.put(JSONObject(tmpl.toString()).put("text", t).put("cleanText", t)

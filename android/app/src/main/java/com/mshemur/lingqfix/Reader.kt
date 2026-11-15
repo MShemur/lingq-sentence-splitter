@@ -596,8 +596,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         AppLog.add("reader", "Урок ${lesson.id}: обработка текста с ИИ")
         app.scope.launch {
             try {
-                val (before, after) = withContext(Dispatchers.IO) {
-                    val paras = app.api.editor(lang, lesson.id)
+                val (before, after, copyId) = withContext(Dispatchers.IO) {
+                    val eo = app.api.editorObj(lang, lesson.id)
+                    val paras = eo.optJSONArray("paragraphs") ?: JSONArray()
+                    val courseId = eo.opt("collection").let { c -> if (c is JSONObject) c.optInt("id") else c?.toString()?.toIntOrNull() ?: 0 }
                     val old = HashMap<String, JSONObject>()
                     var tmpl: JSONObject? = null
                     var pTmpl: JSONObject? = null
@@ -630,14 +632,15 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     for (pt in cleaned.split(Regex("\\n\\s*\\n"))) {
                         val ss = splitSentences(pt.trim())
                         if (ss.isEmpty()) continue
-                        val p = JSONObject(pTmpl.toString())
+                        // LingQ answers 500 when paragraphs repeat an index or a timestamp is not [a, b]
+                        val p = JSONObject(pTmpl.toString()).put("index", out.length() + 1)
                         if (p.has("style")) p.put("style", "p")
                         val arr = JSONArray()
                         ss.forEach { t ->
                             val o = old[t]?.let { JSONObject(it.toString()) } ?: JSONObject(t0.toString())
                                 .put("text", t).put("cleanText", t)
                                 .put("translations", JSONArray()).put("phrases", JSONArray()).put("notes", JSONArray())
-                                .also { if (it.has("timestamp")) it.put("timestamp", JSONObject.NULL) }
+                                .put("timestamp", JSONArray().put(JSONObject.NULL).put(JSONObject.NULL))
                             arr.put(o.put("index", ++idx))
                         }
                         p.put("sentences", arr)
@@ -646,12 +649,28 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     if (idx == 0) throw ApiException("ИИ вернул пустой текст, урок не изменён")
                     app.backups.save(lang, Lesson(lesson.id, title), JSONArray(paras.toString()))
                     Fixer.fix(out)
-                    app.api.saveParagraphs(lang, lesson.id, out)
-                    count to idx
+                    try {
+                        app.api.saveParagraphs(lang, lesson.id, out)
+                        Triple(count, idx, 0)
+                    } catch (e: Throwable) {
+                        // LingQ refused to overwrite: a new lesson "… (исправлено)" in the same course, the old one stays
+                        AppLog.error("reader", "Урок ${lesson.id}: LingQ не сохранил обработанный текст, делаю новый урок", e)
+                        if (courseId <= 0) throw e
+                        val text = (0 until out.length()).joinToString("\n\n") { i ->
+                            val ss = out.getJSONObject(i).getJSONArray("sentences")
+                            (0 until ss.length()).joinToString(" ") { ss.getJSONObject(it).optString("text") }
+                        }
+                        Triple(count, idx, app.api.importLesson(lang, courseId, "$title (исправлено)", text))
+                    }
                 }
-                AppLog.add("reader", "Урок ${lesson.id}: ИИ обработал текст, было $before предложений, стало $after")
-                app.say("Текст обработан: было $before предложений, стало $after. Копия старого — в резервных копиях")
-                load()
+                if (copyId > 0) {
+                    AppLog.add("reader", "Урок ${lesson.id}: обработанный текст — новый урок $copyId")
+                    app.say("LingQ не дал перезаписать урок — сделан новый урок «$title (исправлено)» в том же курсе")
+                } else {
+                    AppLog.add("reader", "Урок ${lesson.id}: ИИ обработал текст, было $before предложений, стало $after")
+                    app.say("Текст обработан: было $before предложений, стало $after. Копия старого — в резервных копиях")
+                    load()
+                }
             } catch (e: Throwable) {
                 AppLog.error("reader", "Обработать текст с ИИ", e)
                 app.say("Обработка не получилась: ${e.message}")
