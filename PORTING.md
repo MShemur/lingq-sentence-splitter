@@ -7,6 +7,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's notes 15.11.2026 -> android v1.115: 1) (20261115-051828) "Обработать текст с ИИ" failed with HTTP 500 on PATCH: every rebuilt paragraph copied the template's "index" (all 1), and new sentences got "timestamp": null (LingQ has [null, null]). Now paragraphs are numbered 1..n and new sentences get [null, null]. If the PATCH still fails, a new lesson "<title> (исправлено)" is imported into the same course (editor "collection"), the old one stays. Check web's port has the same two bugs (also the long-import "extend lesson" path copied the last paragraph's index). 2) (20261115-055040, iPad only) sentence reading mode: the ⋮ menu button and the bookmark button next to it sit at different heights - align them. 3) (20261115-055640-web, iPad only) the mic asks for permission on every tap - keep one getUserMedia stream / avoid re-asking if possible; also the user's idea: keep bold / italic as Markdown marks (*word*, **word**) in the LingQ text and draw them in the reader, if LingQ keeps the asterisks (he says LingQ used to escape them with backslashes) - needs one test import to check; answer the note yourself (status / doneIn / reply on sync).
+
 ## To do on Android
 
 ## Done
