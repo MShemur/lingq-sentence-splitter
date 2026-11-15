@@ -7,6 +7,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's iPad notes 15.11.2026 -> android v1.119: 1) (20261115-082715-web) justified text: a line with much room left (2-3 long words) must not be spread over the width - Android spreads a line only when its free space is at most 20 % of the width, else it stays left (custom FlowRow arrangement JustifyLoose). On web (text-align: justify) find an equivalent, e.g. justify per measured line, or hyphens: auto + lang="de" so lines fill better. 2) (20261115-085309-web) bad sentence split from a "double spaced" copy (an empty line after every line) with "Hochschule.»Alle": quick clean (Cleaner) now a) when >= 70 % of consecutive non-empty lines are 2 apart (at least 5 lines), turns every blank line into a single line break, so the broken lines join; b) after joining puts a space after a sentence end glued to a quote: ([.!?…])([»„])(?=\p{Lu}) -> "$1 $2", ([.!?…][«“”"])(?=\p{Lu}) -> "$1 "; c) « counts as a line end (TERMINAL). Close both notes with doneIn "android v1.119, web v1.N".
+
 ## To do on Android
 
 
