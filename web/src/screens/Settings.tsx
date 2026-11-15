@@ -311,6 +311,12 @@ export function SettingsReading() {
           <Chip key={v} label={<span style={css ? { fontFamily: css } : undefined}>{label}</span>} selected={prefs.readerFace.value === v} onClick={() => { prefs.readerFace.value = v }} />
         ))}
       </div>
+      <h3 class="section-title">Выравнивание текста</h3>
+      <div class="chips">
+        {[['0', 'По левому краю'], ['1', 'По ширине']].map(([v, label]) => (
+          <Chip key={v} label={label} selected={(prefs.readerJustify.value || '0') === v} onClick={() => { prefs.readerJustify.value = v }} />
+        ))}
+      </div>
       <h3 class="section-title">Перевод над словом</h3>
       <p class="hint">Расстояние между переводом и словом под ним.</p>
       <div class="chips">

@@ -964,3 +964,10 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .reader-text { font-family: var(--reader-face, inherit); }
 .snackbar.sticky { display: flex; align-items: center; gap: 8px; padding-right: 4px; }
 .snackbar-x { background: none; border: 0; color: inherit; font-size: 18px; line-height: 1; padding: 6px 10px; cursor: pointer; opacity: 0.8; }
+/* justified text: words spread over the line; the paragraph's last line stays left (a filler takes the rest),
+   unless the paragraph goes on on the next page */
+.justify .reader-text:not(.page-inner) .flow { justify-content: space-between; }
+.justify .reader-text:not(.page-inner) .flow::after { content: ''; flex-grow: 1; }
+.justify .reader-text .para.cut > .flow:last-child::after { display: none; }
+/* a paragraph cut by the pages: no gap below it, the next page goes on with it */
+.page-text > .para.cut:last-child { margin-bottom: 0; }

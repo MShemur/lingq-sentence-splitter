@@ -32,6 +32,8 @@ export const prefs = {
   pinGap: pref('pinGap', '0'),
   /** Reading font: '' = system, else a font family name ("Avenir Next"). */
   readerFace: pref('readerFace', ''),
+  /** '1': the reading text justified (both edges straight). */
+  readerJustify: pref('readerJustify', '0'),
   /** "Слова по урокам": words met this many times or less in the whole course are not counted (0 = all). */
   wsMin: pref('wsMin', '0'),
   /** "Другой ИИ": an OpenAI-compatible service (address, key, main and light model). */

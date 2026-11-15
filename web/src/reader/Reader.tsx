@@ -184,7 +184,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
   useReadingTimer(active && !!paras)
   useKeepAwake(active)
   return (
-    <div class={'screen reader' + (s.pinsHidden.value ? ' pins-hidden' : '')} style={readerStyle()}>
+    <div class={'screen reader' + (s.pinsHidden.value ? ' pins-hidden' : '') + (prefs.readerJustify.value === '1' ? ' justify' : '')} style={readerStyle()}>
       <TopBar
         center
         nav={<IconButton icon="close" label="Закрыть урок" onClick={back} />}
@@ -287,16 +287,20 @@ function ReaderActions({ s }: { s: ReaderSession }) {
 }
 
 /** Part of a paragraph that lies on one page. */
-interface Block { para: number; sents: Sent[] }
+/**
+ * Sentences of one paragraph on one page. [start]: the first sentence begins at this chunk (its start is on the page
+ * before); [end]: the last sentence stops before this chunk (it goes on on the next page).
+ */
+interface Block { para: number; sents: Sent[]; start?: number; end?: number }
 
-/** Height of a block of sentences and the bottom of every prefix of it (k+1 sentences), in px. */
-interface Measure { height: number; bottoms: number[] }
+/** Height of a block of sentences, the bottom of every prefix of it (k+1 sentences), and of every chunk, in px. */
+interface Measure { height: number; bottoms: number[]; chunks: number[][] }
 
 const PARA_GAP = 14
 
 /** Renders blocks (bare text) into the hidden measuring box and reads their layout. */
-function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Sent[][]): Measure[] {
-  render(<>{blocks.map((b, i) => <Paragraph key={i} s={s} sents={b} plain />)}</>, box)
+function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Spec[]): Measure[] {
+  render(<>{blocks.map((b, i) => <Paragraph key={i} s={s} sents={b.sents} start={b.start} plain />)}</>, box)
   const out: Measure[] = []
   box.querySelectorAll<HTMLElement>(':scope > .para').forEach((el, i) => {
     const top = el.getBoundingClientRect().top
@@ -306,8 +310,10 @@ function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Sent[][]): Me
       bottomOf.set(id, Math.max(bottomOf.get(id) ?? 0, x.getBoundingClientRect().bottom - top))
     })
     let acc = 0
-    const bottoms = blocks[i].map((sent) => (acc = Math.max(acc, bottomOf.get(sent.id) ?? acc)))
-    out.push({ height: el.getBoundingClientRect().height, bottoms })
+    const bottoms = blocks[i].sents.map((sent) => (acc = Math.max(acc, bottomOf.get(sent.id) ?? acc)))
+    const chunks = blocks[i].sents.map((sent) => [...el.querySelectorAll<HTMLElement>(`.chunk[data-se="${sent.id}"]`)]
+      .map((x) => x.getBoundingClientRect().bottom - top))
+    out.push({ height: el.getBoundingClientRect().height, bottoms, chunks })
   })
   render(null, box)
   return out
@@ -315,13 +321,15 @@ function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Sent[][]): Me
 
 /** Measured blocks, by width, font and sentences; survives page rebuilds. */
 type MeasureCache = Map<string, Measure>
+/** What is measured: sentences of a paragraph, the first from chunk [start]. */
+interface Spec { sents: Sent[]; start?: number }
 
 /**
  * Measures blocks, using the cache where nothing changed. New ones are rendered in small batches, so a long
  * lesson is never put into the page all at once (Android ran out of memory doing that, PORTING note 87bc83d).
  */
-function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, prefix: string, blocks: Sent[][]): Measure[] {
-  const keys = blocks.map((b) => prefix + b.map((x) => x.id).join('/'))
+function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, prefix: string, blocks: Spec[]): Measure[] {
+  const keys = blocks.map((b) => prefix + b.sents.map((x) => x.id).join('/') + (b.start ? '@' + b.start : ''))
   const missing = blocks.map((_, i) => i).filter((i) => !cache.has(keys[i]))
   for (let a = 0; a < missing.length; a += 25) {
     const part = missing.slice(a, a + 25)
@@ -335,10 +343,10 @@ function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, 
  * The text split into pages that fit the screen, turned with a swipe like a book (port of Android PagedText).
  * Pages are laid out from the bare text only: translations above words and under sentences do not move text to
  * other pages, a page that grows with them scrolls up and down instead. A paragraph that does not fit is split at
- * a sentence boundary.
+ * a sentence boundary, and the sentence that does not fit at a line inside it: the page is full to the bottom.
  */
 function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number, cache: MeasureCache, prefix: string): Block[][] {
-  const whole = measureCached(box, s, cache, prefix, paras)
+  const whole = measureCached(box, s, cache, prefix, paras.map((p) => ({ sents: p })))
   const pages: Block[][] = []
   let cur: Block[] = []
   let used = 0
@@ -346,17 +354,27 @@ function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number
   const flush = () => { if (cur.length) pages.push(cur); cur = []; used = 0 }
   paras.forEach((para, pi) => {
     let from = 0
+    let start = 0 // the first sentence of the rest begins at this chunk
     let m = whole[pi]
     while (from < para.length) {
       const rest = para.slice(from)
-      if (used + need(m.height) <= h) { used += need(m.height); cur.push({ para: pi, sents: rest }); break }
-      // the longest run of sentences that still fits on this page
+      const st = start || undefined
+      if (used + need(m.height) <= h) { used += need(m.height); cur.push({ para: pi, sents: rest, start: st }); break }
+      // the longest run of whole sentences that still fits on this page
       let k = 0
-      while (k + 1 < rest.length && used + need(m.bottoms[k]) <= h) k++
-      if (k > 0) { cur.push({ para: pi, sents: rest.slice(0, k) }); from += k; flush() }
+      while (k < rest.length && used + need(m.bottoms[k]) <= h) k++
+      // and of the next sentence the chunks (lines) that still fit
+      const cb = m.chunks[k] ?? []
+      let c = 0
+      while (c < cb.length - 1 && used + need(cb[c]) <= h) c++
+      if (c > 0) {
+        const base = k === 0 ? start : 0
+        cur.push({ para: pi, sents: rest.slice(0, k + 1), start: st, end: base + c })
+        from += k; start = base + c; flush()
+      } else if (k > 0) { cur.push({ para: pi, sents: rest.slice(0, k), start: st }); from += k; start = 0; flush() }
       else if (cur.length) { flush(); continue }
-      else { cur.push({ para: pi, sents: rest.slice(0, 1) }); from += 1; flush() } // taller than a page
-      if (from < para.length) m = measureCached(box, s, cache, prefix, [para.slice(from)])[0]
+      else { cur.push({ para: pi, sents: rest.slice(0, 1), start: st }); from += 1; start = 0; flush() } // not one line fits
+      if (from < para.length) m = measureCached(box, s, cache, prefix, [{ sents: para.slice(from), start }])[0]
     }
   })
   flush()
@@ -528,7 +546,8 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
           <div class="page" key={i}>
             {Math.abs(i - cur) <= 1 && (
               <div class="reader-text page-text" style={fs} {...handlers}>
-                {p.map((b) => <Paragraph key={b.para + ':' + b.sents[0].id} s={s} sents={b.sents} />)}
+                {p.map((b) => <Paragraph key={b.para + ':' + b.sents[0].id + ':' + (b.start ?? 0)} s={s} sents={b.sents} start={b.start} end={b.end}
+                  cut={b.end != null || b !== p[p.length - 1] ? false : b.sents[b.sents.length - 1] !== paras[b.para][paras[b.para].length - 1]} />)}
               </div>
             )}
           </div>
@@ -543,20 +562,32 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
  * A paragraph flows as one text; a shown sentence translation is inserted right after its sentence.
  * [plain]: the bare text without translations and marks (how pages are laid out).
  */
-function Paragraph({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain?: boolean }) {
-  const cls = 'para' + (sents[0]?.heading ? ' heading' : '')
-  if (plain) return <div class={cls}><SentenceFlow s={s} sents={sents} plain /></div>
+function Paragraph({ s, sents, plain, start, end, cut }: {
+  s: ReaderSession; sents: Sent[]; plain?: boolean
+  /** Chunk range of a block cut by the pages (see Block); [cut]: the paragraph goes on on the next page. */
+  start?: number; end?: number; cut?: boolean
+}) {
+  const cls = 'para' + (sents[0]?.heading ? ' heading' : '') + (end != null || cut ? ' cut' : '') + (start ? ' cont' : '')
+  const last = sents[sents.length - 1]
+  if (plain) return <div class={cls}><SentenceFlow s={s} sents={sents} start={start} end={end} plain /></div>
   const parts: JSX.Element[] = []
   let run: Sent[] = []
+  let first = true
+  const flow = (key: string) => {
+    const el = <SentenceFlow key={key} s={s} sents={run} start={first ? start : undefined} end={run[run.length - 1] === last ? end : undefined} />
+    first = false
+    return el
+  }
   for (const sent of sents) {
     run.push(sent)
-    if (s.sentenceShown(sent.id)) {
-      parts.push(<SentenceFlow key={'f' + sent.id} s={s} sents={run} />)
+    // a sentence going on on the next page gets its translation there, after its end
+    if (s.sentenceShown(sent.id) && !(sent === last && end != null)) {
+      parts.push(flow('f' + sent.id))
       parts.push(<SentenceTranslation key={'t' + sent.id} s={s} id={sent.id} />)
       run = []
     }
   }
-  if (run.length) parts.push(<SentenceFlow key="rest" s={s} sents={run} />)
+  if (run.length) parts.push(flow('rest'))
   return <div class={cls}>{parts}</div>
 }
 
@@ -583,9 +614,12 @@ const NO_STATE: SentState = { pins: {}, peek: {}, prov: {}, popup: null, sel: nu
  * The session's state (pins, the word window, the selection, phrases, bookmarks) is read here once and handed to each
  * sentence as plain data: a tap or a selection drag re-renders the sentence it touches, not every word of three pages.
  */
-export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sent[]; plain?: boolean }) {
+export function SentenceFlow({ s, sents, plain, start, end }: { s: ReaderSession; sents: Sent[]; plain?: boolean; start?: number; end?: number }) {
+  /** Chunk range of each sentence: the first may begin at [start], the last stop before [end]. */
+  const from = (i: number) => (i === 0 ? start : undefined)
+  const to = (i: number) => (i === sents.length - 1 ? end : undefined)
   if (plain) {
-    return <div class="flow">{sents.map((sent) => <SentView key={sent.id} s={s} sent={sent} st={NO_STATE} plain />)}</div>
+    return <div class="flow">{sents.map((sent, i) => <SentView key={sent.id} s={s} sent={sent} st={NO_STATE} plain from={from(i)} to={to(i)} />)}</div>
   }
   const pins = s.pins.value
   const prov = s.provisional.value
@@ -607,7 +641,7 @@ export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sen
   }
   return (
     <div class="flow">
-      {sents.map((sent) => {
+      {sents.map((sent, si) => {
         const e = by.get(sent.id)
         const pp = e?.pins ?? {}
         const pv = e?.prov ?? {}
@@ -620,13 +654,17 @@ export function SentenceFlow({ s, sents, plain }: { s: ReaderSession; sents: Sen
         const pr: Record<string, true> = {}
         for (const k in pairOn) if (refSent(k) === sent.id) pr[k] = true
         const sig = JSON.stringify([pp, Object.keys(pv), pu, sl, phrases, marked, Object.keys(pk), Object.keys(pr)])
-        return <SentView key={sent.id} s={s} sent={sent} st={{ pins: pp, peek: pk, prov: pv, popup: pu, sel: sl, phrases, marked, pair: pr, sig }} />
+        return <SentView key={sent.id} s={s} sent={sent} st={{ pins: pp, peek: pk, prov: pv, popup: pu, sel: sl, phrases, marked, pair: pr, sig }} from={from(si)} to={to(si)} />
       })}
     </div>
   )
 }
 
-const SentView = memo(function SentView({ s, sent, st, plain }: { s: ReaderSession; sent: Sent; st: SentState; plain?: boolean }) {
+const SentView = memo(function SentView({ s, sent, st, plain, from, to }: {
+  s: ReaderSession; sent: Sent; st: SentState; plain?: boolean
+  /** Only chunks [from, to) (a sentence cut by the pages). */
+  from?: number; to?: number
+}) {
   const { pins, peek, prov, popup, sel, phrases: phr } = st
   const picked = (i: number) => !!sel && i >= sel.from && i <= sel.to
 
@@ -658,12 +696,13 @@ const SentView = memo(function SentView({ s, sent, st, plain }: { s: ReaderSessi
     t.isWord ? t.index >= p.from && t.index <= p.to : t.index > p.from && t.index < p.to)) ?? null
   const out: JSX.Element[] = []
   const ch = sent.chunks
-  for (let i = 0; i < ch.length;) {
+  const stop = Math.min(to ?? ch.length, ch.length)
+  for (let i = from ?? 0; i < stop;) {
     const ph = phraseOf(ch[i])
     if (!ph) { out.push(chunkView(ch[i], null, i)); i++; continue }
     // several words translated together: one translation above all of them
     let j = i
-    while (j < ch.length && phraseOf(ch[j]) === ph) j++
+    while (j < stop && phraseOf(ch[j]) === ph) j++
     out.push(
       <span class="phrase" key={'p' + i}>
         <span class={'pin phrase-pin' + (peek[`${sent.id}:${ph.from}:${ph.to}`] ? ' peek' : '')}>{ph.text || '…'}</span>
@@ -675,11 +714,11 @@ const SentView = memo(function SentView({ s, sent, st, plain }: { s: ReaderSessi
   void s
   return (
     <>
-      {st.marked && <span class="flow-mark" data-se={sent.id}><Icon name="bookmark" /></span>}
+      {st.marked && !from && <span class="flow-mark" data-se={sent.id}><Icon name="bookmark" /></span>}
       {out}
     </>
   )
-}, (a, b) => a.sent === b.sent && a.plain === b.plain && a.st.sig === b.st.sig)
+}, (a, b) => a.sent === b.sent && a.plain === b.plain && a.st.sig === b.st.sig && a.from === b.from && a.to === b.to)
 
 /**
  * A sentence translation, or a shimmering placeholder while it is being made (one or two lines, like the
