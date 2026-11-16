@@ -715,7 +715,10 @@ export function SentenceFlow({ s, sents, plain, start, end }: { s: ReaderSession
   void s.phrasePins.value
   const ids = new Set(sents.map((x) => x.id))
   const pairOn: Record<string, true> = {}
-  for (const [w, p] of Object.entries(s.pairs.value)) if (ids.has(refSent(p)) && (popup === w || pins[w] !== undefined)) pairOn[p] = true
+  for (const [w, ps] of Object.entries(s.pairs.value)) {
+    if (popup !== w && pins[w] === undefined) continue
+    for (const p of ps) if (ids.has(refSent(p))) pairOn[p] = true
+  }
   const by = new Map<number, { pins: Record<string, string>; prov: Record<string, true> }>()
   for (const [k, v] of Object.entries(pins)) {
     const id = refSent(k)

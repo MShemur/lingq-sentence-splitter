@@ -41,6 +41,7 @@ export function WordStatsScreen({ ws }: { ws: WordStatsSession }) {
             <>
               <RareSlider r={raw!} min={min} />
               <Summary r={r} cut={cut} min={min} />
+              {cut > 0 && <CutWords r={raw!} min={min} />}
               <Chart title="Новые слова по урокам" note={`макс. ${num(Math.max(1, ...r.chapters.map((c) => c.new)))}`} r={r} picked={p} pick={setPicked} kind="bars" />
               <Details r={r} i={p} />
               <Chart title="Всего уникальных слов" note={`после урока ${p + 1}: ${num(r.chapters[p].total)} из ${num(r.unique)}`} r={r} picked={p} pick={setPicked} kind="line" />
@@ -68,6 +69,43 @@ function RareSlider({ r, min }: { r: WsResult; min: number }) {
       <input type="range" min={0} max={10} step={1} value={min} disabled={!ok}
         onInput={(e) => { prefs.wsMin.value = (e.target as HTMLInputElement).value }} />
       {!ok && <p class="error-text small">Чтобы ползунок работал, нажмите «Пересчитать» внизу (этот курс посчитан старой версией).</p>}
+    </div>
+  )
+}
+
+const wordsWord = (n: number) => {
+  const a = n % 10, b = n % 100
+  return a === 1 && b !== 11 ? 'слово' : a >= 2 && a <= 4 && !(b >= 12 && b <= 14) ? 'слова' : 'слов'
+}
+
+/** The words the rare-words slider cuts, grouped by how often they occur ("1 раз — 120 слов"), each group folds out. */
+function CutWords({ r, min }: { r: WsResult; min: number }) {
+  const [open, setOpen] = useState(false)
+  const [shown, setShown] = useState<Record<number, boolean>>({})
+  const groups = new Map<number, string[]>()
+  if (open) {
+    const la = r.lemmas ?? []
+    for (let k = 0; k + 3 < la.length; k += 4) {
+      const n = Number(la[k + 2])
+      if (n > min) continue
+      const g = groups.get(n)
+      if (g) g.push(String(la[k])); else groups.set(n, [String(la[k])])
+    }
+  }
+  return (
+    <div class="ws-cut">
+      <button class="btn text" onClick={() => setOpen(!open)}>{open ? 'Скрыть отброшенные слова ▲' : 'Показать отброшенные слова ▼'}</button>
+      {open && [...groups.keys()].sort((a, b) => a - b).map((n) => {
+        const words = groups.get(n)!.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+        return (
+          <div key={n} class="ws-cut-group">
+            <button class="ws-cut-head" onClick={() => setShown({ ...shown, [n]: !shown[n] })}>
+              {shown[n] ? '▼' : '▶'} {n} {times(n)} — {num(words.length)} {wordsWord(words.length)}
+            </button>
+            {shown[n] && <p class="ws-cut-words">{words.join(', ')}</p>}
+          </div>
+        )
+      })}
     </div>
   )
 }

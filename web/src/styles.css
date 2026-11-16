@@ -1004,3 +1004,8 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .spread > .page-text { flex: 1 1 0; min-width: 0; }
 /* "Без цвета": no background under a word with a translation, only the translation is coloured */
 .nobg .w.sel, .nobg .punct.sel, .nobg .phrase:has(.w.sel) { background: none; }
+/* "Слова по урокам": the words cut by the rare-words slider */
+.ws-cut { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.ws-cut-group { width: 100%; }
+.ws-cut-head { background: none; border: 0; padding: 8px 0; width: 100%; text-align: left; font: inherit; color: var(--on-surface); cursor: pointer; }
+.ws-cut-words { margin: 0 0 8px 18px; font-size: 14px; line-height: 1.5; color: var(--on-surface-variant); -webkit-user-select: text; user-select: text; }

@@ -93,13 +93,18 @@ const MARK_HELP = '\n\nТы можешь отмечать слова и фраз
   'Пиши слова ровно так, как они написаны в тексте, перевод — коротко, по смыслу в этом тексте. ' +
   'Снять отметки: [[снять: слово; слово]]. Не пиши такие строки, если пользователь об этом не просил.'
 
-/** Added to the word prompt: German-style verbs whose prefix stands apart ("fing … an"). */
-const SEPARABLE = '\n\nУчитывай грамматику всего предложения. Если «{word}» — глагол с отделяемой приставкой ' +
-  '(или часть составного глагола), а приставка стоит отдельно дальше в предложении (нем. «Er fing gestern an» → anfangen, ' +
-  '«Sie kommt morgen zurück» → zurückkommen), переводи глагол вместе с этой приставкой, а в note укажи инфинитив с приставкой. ' +
-  'Если «{word}» — сама отделённая приставка, переводи весь глагол так же. ' +
-  'Добавь в JSON поле "pair": вторая часть этого разделённого глагола ровно так, как она написана в предложении ' +
-  '(приставка, если «{word}» — глагол; глагол, если «{word}» — приставка); пустая строка, если глагол не разделён.'
+/**
+ * Added to the word prompt: the word as part of a whole in the sentence (split separable verb, reflexive verb with
+ * sich, fixed phrase / verb with its preposition). Same text as Android Reader.kt SEPARABLE (v1.125).
+ */
+const SEPARABLE = '\n\nУчитывай грамматику всего предложения. Если «{word}» — часть единого целого в этом предложении: ' +
+  'глагол с отделяемой приставкой, стоящей отдельно (нем. «Er fing gestern an» → anfangen, «Sie kommt morgen zurück» → zurückkommen), ' +
+  'возвратный глагол с местоимением (sich, mich, dich, uns, euch: «Er freut sich darauf» → sich freuen auf), ' +
+  'устойчивое выражение или глагол с управлением («Sie nimmt das in Kauf» → in Kauf nehmen, «Es kommt darauf an» → ankommen auf), ' +
+  'переводи всё целое, а в note укажи его словарную форму (инфинитив с приставкой, sich, предлогом). ' +
+  'Если «{word}» — приставка, sich или другое слово такого целого, переводи всё целое так же. ' +
+  'Добавь в JSON поле "pair": остальные слова этого целого ровно так, как они написаны в предложении, через пробел ' +
+  '(без самого «{word}»); пустая строка, если «{word}» — просто отдельное слово.'
 
 /** The sentence in LingQ's paragraphs: by its index, else by the same order as `parse` (non-empty sentences). */
 function findSentence(paras: any[], s: Sent): any | null {
@@ -172,22 +177,30 @@ export class ReaderSession {
 
   /** Word window (double tap). */
   popup = signal<WordRef | null>(null)
-  /** Separable verb split in the sentence: word -> its other part (verb <-> prefix), from the AI's answer. */
-  pairs = signal<Record<WordRef, WordRef>>({})
+  /**
+   * The whole a word belongs to in its sentence (split verb, reflexive sich, fixed phrase): word -> the other words of
+   * it, from the AI's answer; highlighted together while the word's window is open or the word is pinned.
+   */
+  pairs = signal<Record<WordRef, WordRef[]>>({})
 
-  /** The nearest word of the sentence spelled like [pair] becomes the other part of [r]'s verb. */
+  /** Each word of [pair] (space-separated, max 6) becomes the nearest unused word of the sentence spelled like it. */
   private markPair(r: WordRef, pair: string) {
-    const w = pair.trim().toLowerCase()
-    if (!w || w.includes(' ')) return
+    const words = pair.toLowerCase().split(/\s+/).map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')).filter(Boolean)
+    if (!words.length || words.length > 6) return
     const st = this.sentById.get(refSent(r))
     if (!st) return
     const me = refToken(r)
-    let hit: Token | null = null
-    for (const t of st.tokens) {
-      if (!t.isWord || t.index === me || t.text.toLowerCase() !== w) continue
-      if (!hit || Math.abs(t.index - me) < Math.abs(hit.index - me)) hit = t
+    const used = new Set([me])
+    const hits: WordRef[] = []
+    for (const w of words) {
+      let hit: Token | null = null
+      for (const t of st.tokens) {
+        if (!t.isWord || used.has(t.index) || t.text.toLowerCase() !== w) continue
+        if (!hit || Math.abs(t.index - me) < Math.abs(hit.index - me)) hit = t
+      }
+      if (hit) { used.add(hit.index); hits.push(ref(st.id, hit.index)) }
     }
-    if (hit) this.pairs.value = { ...this.pairs.value, [r]: ref(st.id, hit.index) }
+    if (hits.length) this.pairs.value = { ...this.pairs.value, [r]: hits }
   }
   popupHints = signal<string[] | null>(null)
   popupBest = signal<string | null>(null)
