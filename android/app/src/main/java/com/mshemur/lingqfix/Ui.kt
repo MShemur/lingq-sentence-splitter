@@ -672,7 +672,12 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
         // 1. where the text comes from
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SourceTile(AppIcons.ContentPaste, "Вставить", Modifier.weight(1f), !s.running) {
-                s.paste(clipboard.getText()?.text.orEmpty())
+                // copied with bold / italic (a web page, Google Docs): kept as ** / *
+                val html = runCatching {
+                    (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+                        .primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.htmlText
+                }.getOrNull()
+                s.paste(Epub.pastedEmphasis(html) ?: clipboard.getText()?.text.orEmpty())
             }
             SourceTile(AppIcons.Description, "Файл", Modifier.weight(1f), !s.running) {
                 picker.launch(arrayOf("text/plain", "text/markdown", "application/epub+zip", "application/pdf", "application/octet-stream"))

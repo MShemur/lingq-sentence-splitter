@@ -153,22 +153,71 @@ import java.io.File
 // --- model ---------------------------------------------------------------------------------------
 
 /** A piece of a sentence: a word (tappable) or the punctuation/space between words. */
-class Token(val text: String, val isWord: Boolean, val index: Int)
+class Token(val text: String, val isWord: Boolean, val index: Int, val b: Boolean = false, val i: Boolean = false)
+
+/** Bold / italic span of a lesson sentence: markers at [at, cs) and [ce, end). */
+class Emph(val at: Int, val cs: Int, val ce: Int, val end: Int, val mk: String)
 
 /** One sentence of the lesson; [id] is unique in the lesson. */
 class Sent(
     val id: Int, val text: String, val translations: Map<String, String>, val lingqIndex: Int = id + 1,
     /** Where it sounds in the lesson audio, ms (-1 = unknown). */
     val start: Long = -1, val end: Long = -1,
-    /** In a heading paragraph (LingQ style "h1".."h6"): drawn bold. LingQ keeps no bold / italic inside the text. */
+    /** In a heading paragraph (LingQ style "h1".."h6"): drawn bold. Inside the text bold / italic are ** / * (kept by LingQ). */
     val heading: Boolean = false,
 ) {
-    val tokens: List<Token> = tokenize(text)
+    val tokens: List<Token> = styledTokens(text)
+    /** The text as shown (without the ** / * markers): for translations, the AI, bookmarks. */
+    val plain: String = tokens.joinToString("") { it.text }
     val chunks: List<List<Token>> = chunks(tokens)
 
     companion object {
         private val WORD = Regex("[\\p{L}\\p{N}]+(?:[-'’][\\p{L}\\p{N}]+)*")
         private val SPACES = Regex("\\s+")
+        /** Markdown emphasis kept in the lesson text: ***both***, **bold** / __bold__, *italic* / _italic_. */
+        private val EMPH = Regex("(\\*\\*\\*|\\*\\*|__|\\*|_)([^\\s*_](?:[\\s\\S]*?[^\\s*_])?)\\1")
+        private val NEAR = Regex("[\\p{L}\\p{N}*_]")
+
+        /** Emphasis spans; not glued to a letter on the outside ("3 * 4", snake_case stay). */
+        fun emphSpans(text: String): List<Emph> {
+            if (text.none { it == '*' || it == '_' }) return emptyList()
+            fun near(k: Int) = k in text.indices && NEAR.matches(text[k].toString())
+            val out = mutableListOf<Emph>()
+            for (m in EMPH.findAll(text)) {
+                val at = m.range.first; val mk = m.groupValues[1]; val end = m.range.last + 1
+                if (near(at - 1) || near(end)) continue
+                out += Emph(at, at + mk.length, end - mk.length, end, mk)
+            }
+            return out
+        }
+
+        /** Tokens with the emphasis markers hidden (token indexes stay those of the raw text), words flagged bold / italic. */
+        private fun styledTokens(text: String): List<Token> {
+            val raw = tokenize(text)
+            val spans = emphSpans(text)
+            if (spans.isEmpty()) return raw
+            val hide = BooleanArray(text.length)
+            val style = IntArray(text.length)            // 1 bold, 2 italic
+            for (x in spans) {
+                for (k in x.at until x.cs) hide[k] = true
+                for (k in x.ce until x.end) hide[k] = true
+                val st = when (x.mk.length) { 3 -> 3; 2 -> 1; else -> 2 }
+                for (k in x.cs until x.ce) style[k] = style[k] or st
+            }
+            var pos = 0
+            return raw.map { t ->
+                val a = pos
+                pos += t.text.length
+                var st = style[a]
+                var t2 = t.text
+                if (!t.isWord) {
+                    val sb = StringBuilder(); st = 0
+                    for (k in a until pos) if (!hide[k]) { sb.append(text[k]); if (st == 0 && !text[k].isWhitespace()) st = style[k] }
+                    t2 = sb.toString()
+                }
+                if (st != 0 || t2 != t.text) Token(t2, t.isWord, t.index, (st and 1) != 0, (st and 2) != 0) else t
+            }
+        }
 
         fun tokenize(t: String): List<Token> {
             val out = mutableListOf<Token>()
@@ -311,7 +360,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun toggleBookmark(id: Int) {
         val s = sentById[id] ?: return
         val tr = sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") } ?: s.translations[target].orEmpty()
-        val on = app.bookmarks.toggle(lang, Lesson(lesson.id, title), id, s.text, tr)
+        val on = app.bookmarks.toggle(lang, Lesson(lesson.id, title), id, s.plain, tr)
         app.say(if (on) "Предложение в закладках" else "Закладка удалена")
     }
 
@@ -610,7 +659,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     private fun keepTr(id: Int, t: String) {
         val s = sentById[id] ?: return
         if (t.isBlank() || t.startsWith("⚠") || t == s.translations[target]) return
-        trSaved[s.text] = t
+        trSaved[s.plain] = t
         trCache.save(HashMap(trSaved))
     }
     /** "Обработать текст с ИИ": "2 из 5" while running, null otherwise; [askAiClean] shows the confirmation. */
@@ -726,7 +775,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 val (all, failed) = ListenTranslate.translateAll(app, lang, lesson.id) { n, all -> trAll = "$n из $all" }
                 val saved = withContext(Dispatchers.IO) { trCache.load() }
                 trSaved.putAll(saved)
-                sentences.forEach { st -> saved[st.text]?.let { sentTr[st.id] = it } }
+                sentences.forEach { st -> (saved[st.plain] ?: saved[st.text])?.let { sentTr[st.id] = it } }
                 app.sayLong(if (failed == 0) "Весь урок переведён" else "Переведено ${all - failed} из $all; не удалось $failed")
             } catch (e: Throwable) {
                 AppLog.error("reader", "Перевести весь урок", e)
@@ -761,7 +810,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 pins.putAll(p); chosen.putAll(w); phrasePins.putAll(ph)
                 val saved = withContext(Dispatchers.IO) { trCache.load() }
                 trSaved.putAll(saved)
-                paras.forEach { para -> para.forEach { st -> saved[st.text]?.let { sentTr[st.id] = it } } }
+                paras.forEach { para -> para.forEach { st -> (saved[st.plain] ?: saved[st.text])?.let { sentTr[st.id] = it } } }
                 title = t
                 app.lessonOpened(lang, lesson.copy(title = t, audio = au.orEmpty(), level = lvl.ifBlank { lesson.level }))
                 sentences = paras.flatten()
@@ -825,8 +874,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") }?.let { return it }
         val s = sentById.getValue(id)
         val t = s.translations[target] ?: withContext(Dispatchers.IO) {
-            if (app.useGemini) app.geminiFast().sentence(app.prefs.promptSentence, lang, target, s.text)
-            else app.api.translate(lang, target, s.text)
+            if (app.useGemini) app.geminiFast().sentence(app.prefs.promptSentence, lang, target, s.plain)
+            else app.api.translate(lang, target, s.plain)
         }
         sentTr[id] = t
         keepTr(id, t)
@@ -859,7 +908,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
             try {
                 val current = sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") } ?: s.translations[target].orEmpty()
                 val t = withContext(Dispatchers.IO) {
-                    if (app.useGemini) app.gemini().retranslate(app.prefs.promptRetranslate, lang, target, s.text, current)
+                    if (app.useGemini) app.gemini().retranslate(app.prefs.promptRetranslate, lang, target, s.plain, current)
                     else app.api.retranslate(lang, lesson.id, s.lingqIndex, target).let { r -> r[s.lingqIndex] ?: r.values.firstOrNull() }
                 }
                 if (t.isNullOrBlank()) app.say("Переводчик не вернул перевод") else { sentTr[id] = t.trim(); keepTr(id, t.trim()) }
@@ -918,7 +967,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         aiPending[ref] = d
         try {
             val s = sentById.getValue(ref.sent)
-            val m = withContext(Dispatchers.IO) { app.geminiFast().word(app.prefs.promptWord + SEPARABLE, lang, target, word(ref), s.text) }
+            val m = withContext(Dispatchers.IO) { app.geminiFast().word(app.prefs.promptWord + SEPARABLE, lang, target, word(ref), s.plain) }
             aiCache[ref] = m
             markPair(ref, m.pair)
             d.complete(m)
@@ -1134,7 +1183,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     // --- chat with Gemini ---
 
     fun chatText() {
-        val text = paragraphs.orEmpty().joinToString("\n\n") { p -> p.joinToString(" ") { it.text } }
+        val text = paragraphs.orEmpty().joinToString("\n\n") { p -> p.joinToString(" ") { it.plain } }
         val sys = Prompts.fill(app.prefs.promptChatText, "lang" to lang, "target" to target, "text" to text) + markedForAi() + MARK_HELP
         app.go(Screen.Chat(ChatSession(app, "Чат о тексте", sys, title, wholeText = true, onMark = ::markFromAi)))
     }
@@ -1187,8 +1236,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun chatSentence(id: Int) {
         val s = sentById[id] ?: return
         popup = null
-        val sys = Prompts.fill(app.prefs.promptChatSentence, "lang" to lang, "target" to target, "sentence" to s.text) + markedForAi()
-        app.go(Screen.Chat(ChatSession(app, "Чат о предложении", sys, s.text)))
+        val sys = Prompts.fill(app.prefs.promptChatSentence, "lang" to lang, "target" to target, "sentence" to s.plain) + markedForAi()
+        app.go(Screen.Chat(ChatSession(app, "Чат о предложении", sys, s.plain)))
     }
 
     fun word(ref: WordRef) = sentById[ref.sent]?.tokens?.getOrNull(ref.token)?.text.orEmpty()
@@ -1354,7 +1403,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun detectLevel() {
         if (levelBusy) return
         if (!app.useGemini) { app.say("Нужен Gemini или другой ИИ: Настройки → Перевод"); return }
-        val text = sentences.joinToString(" ") { it.text }
+        val text = sentences.joinToString(" ") { it.plain }
         if (text.isBlank()) return
         levelBusy = true
         app.say("ИИ оценивает уровень…")
@@ -1398,24 +1447,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         AppLog.add("reader", "Правка предложения $id")
         app.scope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    val paras = app.api.editor(lang, lesson.id)
-                    val js = findSentence(paras, s) ?: throw ApiException("Предложение не найдено в уроке на LingQ — обновите урок")
-                    app.backups.save(lang, Lesson(lesson.id, title), JSONArray(paras.toString()))
-                    if (newText != s.text) {
-                        js.put("text", newText)
-                        js.put("cleanText", newText)
-                    }
-                    if (newTr.isNotEmpty() && newTr != s.translations[target]) {
-                        val ta = js.optJSONArray("translations") ?: JSONArray().also { js.put("translations", it) }
-                        val own = (0 until ta.length()).map { ta.getJSONObject(it) }
-                            .firstOrNull { it.optString("language") == target }
-                        if (own != null) own.put("text", newTr)
-                        else ta.put(JSONObject().put("language", target).put("text", newTr))
-                    }
-                    app.api.saveParagraphs(lang, lesson.id, paras)
-                }
-                replaceSentence(s, newText, newTr)
+                writeSentence(s, newText, newTr)
                 editing = null
                 app.say("Предложение сохранено")
             } catch (e: Throwable) {
@@ -1423,6 +1455,80 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 editError = e.message ?: e.toString()
             }
             editSaving = false
+        }
+    }
+
+    /** Reads the lesson again, keeps a backup, changes only sentence [s] (text, translation), saves the structure as is. */
+    private suspend fun writeSentence(s: Sent, newText: String, newTr: String) {
+        withContext(Dispatchers.IO) {
+            val paras = app.api.editor(lang, lesson.id)
+            val js = findSentence(paras, s) ?: throw ApiException("Предложение не найдено в уроке на LingQ — обновите урок")
+            app.backups.save(lang, Lesson(lesson.id, title), JSONArray(paras.toString()))
+            if (newText != s.text) {
+                js.put("text", newText)
+                // LingQ's own cleanText drops the bold markers (** __) and keeps the italic ones
+                js.put("cleanText", newText.replace(Regex("\\*\\*|__"), ""))
+            }
+            if (newTr.isNotEmpty() && newTr != s.translations[target]) {
+                val ta = js.optJSONArray("translations") ?: JSONArray().also { js.put("translations", it) }
+                val own = (0 until ta.length()).map { ta.getJSONObject(it) }
+                    .firstOrNull { it.optString("language") == target }
+                if (own != null) own.put("text", newTr)
+                else ta.put(JSONObject().put("language", target).put("text", newTr))
+            }
+            app.api.saveParagraphs(lang, lesson.id, paras)
+        }
+        replaceSentence(s, newText, newTr)
+    }
+
+    /** Whether every word of tokens [from]..[to] of sentence [id] is bold. */
+    fun isBold(id: Int, from: Int, to: Int): Boolean {
+        val ws = sentById[id]?.tokens.orEmpty().filter { it.isWord && it.index in from..to }
+        return ws.isNotEmpty() && ws.all { it.b }
+    }
+
+    private var boldBusy = false
+
+    /**
+     * Word / words [from]..[to] of sentence [id] made bold (**…** in the lesson text on LingQ) or, if all are bold already,
+     * plain again. Bold spans touching the words are taken in, so markers never nest.
+     */
+    fun toggleBold(id: Int, from: Int, to: Int) {
+        val s = sentById[id] ?: return
+        if (boldBusy) return
+        var pos = 0; var a = -1; var e = -1
+        for (t in Sent.tokenize(s.text)) {
+            if (t.index == from) a = pos
+            pos += t.text.length
+            if (t.index == to) e = pos
+        }
+        if (a < 0 || e < 0) return
+        val on = !isBold(id, from, to)
+        val del = HashSet<Int>()
+        var aa = a; var ee = e
+        for (x in Sent.emphSpans(s.text)) {
+            if (x.mk.length == 1 || x.ce <= a || x.cs >= e) continue
+            // *** keeps one star each side (italic stays)
+            for (k in 0 until 2) { del += x.at + k; del += x.end - 1 - k }
+            aa = minOf(aa, x.cs); ee = maxOf(ee, x.ce)
+        }
+        val out = StringBuilder()
+        for (k in 0..s.text.length) {
+            if (on && k == aa) out.append("**")
+            if (on && k == ee) out.append("**")
+            if (k < s.text.length && k !in del) out.append(s.text[k])
+        }
+        boldBusy = true
+        AppLog.add("reader", "${if (on) "Жирный" else "Без жирного"}: предложение $id")
+        app.scope.launch {
+            try {
+                writeSentence(s, out.toString(), shownTranslation(id))
+                app.say(if (on) "Выделено жирным" else "Жирный снят")
+            } catch (err: Throwable) {
+                AppLog.error("reader", "Жирный", err)
+                app.say("Не сохранилось: ${err.message ?: err}")
+            }
+            boldBusy = false
         }
     }
 
@@ -1439,7 +1545,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
             ?: all.firstOrNull { it.optInt("index", -1) == s.lingqIndex }
     }
 
-    /** The edited sentence replaces the old one on screen; its word pins are dropped (the words moved). */
+    /** The edited sentence replaces the old one on screen; its word pins move with the words or are dropped. */
     private fun replaceSentence(old: Sent, text: String, tr: String) {
         val trs = HashMap(old.translations).apply { if (tr.isNotEmpty()) put(target, tr) }
         val n = Sent(old.id, text, trs, old.lingqIndex, old.start, old.end, old.heading)
@@ -1447,6 +1553,27 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         paragraphs = paragraphs?.map { p -> p.map { if (it.id == n.id) n else it } }
         sentences = sentences.map { if (it.id == n.id) n else it }
         if (tr.isNotEmpty()) sentTr[n.id] = tr else sentTr.remove(n.id)
+        // the same words (only ** added or removed): pins stay, moved to the new token positions
+        val ow = old.tokens.filter { it.isWord }
+        val nw = n.tokens.filter { it.isWord }
+        if (text != old.text && ow.size == nw.size && ow.indices.all { ow[it].text == nw[it].text }) {
+            val m = ow.indices.associate { ow[it].index to nw[it].index }
+            if (m.all { it.key == it.value }) return
+            fun mv(r: WordRef) = if (r.sent != n.id) r else m[r.token]?.let { WordRef(r.sent, it) }
+            pins.filterKeys { it.sent == n.id }.also { p -> p.keys.forEach { pins.remove(it) } }
+                .forEach { (k, v) -> mv(k)?.let { pins[it] = v } }
+            provisional.filterKeys { it.sent == n.id }.also { p -> p.keys.forEach { provisional.remove(it) } }
+                .forEach { (k, v) -> mv(k)?.let { provisional[it] = v } }
+            phrasePins.filterKeys { it.startsWith("${n.id}:") }.also { p -> p.keys.forEach { phrasePins.remove(it) } }
+                .forEach { (k, v) ->
+                    val q = k.split(':').drop(1).map { m[it.toIntOrNull() ?: -1] }
+                    if (q.all { it != null }) phrasePins[(listOf(n.id) + q).joinToString(":")] = v
+                }
+            aiCache.keys.filter { it.sent == n.id }.forEach { aiCache.remove(it) }
+            popup?.let { if (it.sent == n.id) popup = mv(it) }
+            persist()
+            return
+        }
         if (text != old.text) {
             pins.keys.filter { it.sent == n.id }.forEach { pins.remove(it) }
             phrasePins.keys.filter { it.startsWith("${n.id}:") }.forEach { phrasePins.remove(it) }
@@ -1854,7 +1981,7 @@ private class TextMetrics(
         var lines = 0
         sents.forEachIndexed { i, sent ->
             for (c in sent.chunks) {
-                val cw = w(c.joinToString("") { it.text }, sent.heading) + chunkGap
+                val cw = w(c.joinToString("") { it.text }, sent.heading || c.any { it.b }) + chunkGap
                 if (lineW > 0 && lineW + cw > width) { total += lineMax; lines++; lineW = 0; lineMax = 0 }
                 lineW += cw; lineMax = maxOf(lineMax, lineH)
             }
@@ -1878,7 +2005,7 @@ private class TextMetrics(
             val cs = if (i == 0) sent.chunks.drop(start) else sent.chunks
             if (cs.isEmpty()) intArrayOf(now())
             else IntArray(cs.size) { k ->
-                val cw = w(cs[k].joinToString("") { it.text }, sent.heading) + chunkGap
+                val cw = w(cs[k].joinToString("") { it.text }, sent.heading || cs[k].any { it.b }) + chunkGap
                 if (lineW > 0 && lineW + cw > width) { total += lineMax; lines++; lineW = 0; lineMax = 0 }
                 lineW += cw; lineMax = maxOf(lineMax, lineH)
                 now()
@@ -2233,6 +2360,14 @@ private object JustifyLoose : Arrangement.Horizontal {
     }
 }
 
+/** Style of a token: bold / italic from ** / * in the lesson text. */
+private fun TextStyle.emph(t: Token): TextStyle = when {
+    t.b && t.i -> copy(fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
+    t.b -> copy(fontWeight = FontWeight.Bold)
+    t.i -> copy(fontStyle = FontStyle.Italic)
+    else -> this
+}
+
 /** One chunk of a sentence (a word with its punctuation); [phrase] = token range of a pinned phrase it belongs to. */
 @Composable
 private fun ChunkRow(
@@ -2269,7 +2404,7 @@ private fun ChunkRow(
                 val trColor = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else LocalHighlight.current.text
                 androidx.compose.ui.layout.Layout(content = {
                     Text(
-                        t.text, style = textStyle,
+                        t.text, style = textStyle.emph(t),
                         modifier = mark.onPlaced { s.wordCoords[area to ref] = it }
                             .pointerInput(ref, area) { wordGestures(s, area, ref, haptic) },
                     )
@@ -2300,7 +2435,7 @@ private fun ChunkRow(
                 }
                 val own = if (withTr) Modifier else mark
                 Text(
-                    t.text, style = textStyle,
+                    t.text, style = textStyle.emph(t),
                     modifier = if (!t.isWord) own else own
                         .onPlaced { s.wordCoords[area to ref] = it }
                         .pointerInput(ref, area) { wordGestures(s, area, ref, haptic) },
@@ -2379,6 +2514,11 @@ private fun ReaderMenuItems(s: ReaderSession, ref: WordRef, close: () -> Unit) {
         text = { Text(if (s.isBookmarked(id)) "Убрать закладку" else "В закладки") },
         leadingIcon = { Icon(if (s.isBookmarked(id)) AppIcons.Bookmark else AppIcons.BookmarkBorder, contentDescription = null) },
         onClick = { close(); s.toggleBookmark(id) },
+    )
+    if (s.book) DropdownMenuItem(
+        text = { Text(if (s.isBold(id, ref.token, ref.token)) "Убрать жирный" else "Слово жирным") },
+        leadingIcon = { Text("Ж", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) },
+        onClick = { close(); s.toggleBold(id, ref.token, ref.token) },
     )
     DropdownMenuItem(
         text = { Text("Исправить предложение") },
@@ -2641,7 +2781,7 @@ private fun WordContent(s: ReaderSession, ref: WordRef) {
                 )
                 RetranslateButton(s, ref.sent)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (tr.isNullOrEmpty()) AssistChip(
                     onClick = { s.toggleSentence(ref.sent) }, label = { Text("Перевод") },
                     leadingIcon = { Icon(AppIcons.Translate, contentDescription = null, Modifier.size(18.dp)) },
@@ -2657,6 +2797,7 @@ private fun WordContent(s: ReaderSession, ref: WordRef) {
                     onClick = { s.chatWord(ref.sent, word) }, label = { Text("Спросить") },
                     leadingIcon = { Icon(AppIcons.Chat, contentDescription = null, Modifier.size(18.dp)) },
                 )
+                BoldChip(s, ref.sent, ref.token, ref.token)
             }
         }
 }
@@ -2701,6 +2842,16 @@ private suspend fun PointerInputScope.wordGestures(s: ReaderSession, area: Strin
         }
         s.selectEnd()
     }
+}
+
+/** "Жирным" / "Убрать жирный": ** around the words in the lesson text on LingQ. */
+@Composable
+private fun BoldChip(s: ReaderSession, id: Int, from: Int, to: Int) {
+    val on = s.isBold(id, from, to)
+    AssistChip(
+        onClick = { s.toggleBold(id, from, to) },
+        label = { Text(if (on) "Убрать жирный" else "Жирным", fontWeight = if (on) null else FontWeight.Bold) },
+    )
 }
 
 /** Window for several words translated together. */
@@ -2754,7 +2905,7 @@ private fun PhraseContent(s: ReaderSession, p: Phrase) {
                 tr, fontStyle = FontStyle.Italic, style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (tr.isNullOrEmpty()) AssistChip(
                     onClick = { s.ensureSentence(p.sent) }, label = { Text("Перевод предложения") },
                     leadingIcon = { Icon(AppIcons.Translate, contentDescription = null, Modifier.size(18.dp)) },
@@ -2763,6 +2914,7 @@ private fun PhraseContent(s: ReaderSession, p: Phrase) {
                     onClick = { s.chatWord(p.sent, p.text) }, label = { Text("Спросить") },
                     leadingIcon = { Icon(AppIcons.Chat, contentDescription = null, Modifier.size(18.dp)) },
                 )
+                BoldChip(s, p.sent, p.from, p.to)
             }
         }
 }

@@ -92,7 +92,7 @@ object Epub {
         val chapters = spine.mapNotNull { manifest[it] }.mapNotNull { href ->
             val path = resolve(base, Uri.decode(href.substringBefore('#')))
             val html = files[path]?.let { String(it, Charsets.UTF_8) } ?: return@mapNotNull null
-            val text = htmlToText(html)
+            val text = htmlToMarkedText(html)
             if (text.isBlank()) null else SourceText(chapterTitle(html), text)
         }
         if (chapters.isEmpty()) throw ApiException("в EPUB не найден текст")
@@ -137,6 +137,113 @@ object Epub {
     private fun clean(s: String) = unescape(s).replace(Regex("[\\s\\u00A0]+"), " ").trim()
 
     private const val BLOCK = "p|div|h[1-6]|li|blockquote|tr|section|article|pre|dd|dt|figcaption"
+
+    // --- bold / italic of HTML (EPUB, pasted text) -> **…** / *…*, the way the reader shows them ---
+
+    private const val B_ON = "\uE000"
+    private const val B_OFF = "\uE001"
+    private const val I_ON = "\uE002"
+    private const val I_OFF = "\uE003"
+    private val VOID = setOf("br", "img", "hr", "meta", "link", "input", "source", "area", "col", "wbr", "base", "embed", "param", "track")
+
+    /** Private-use marks where bold / italic starts and ends (tags b strong i em, inline font-weight / font-style). */
+    private fun markEmphasis(html: String): String {
+        if (!Regex("(?i)<(b|strong|i|em)\\b|font-(weight|style)").containsMatchIn(html)) return html
+        class Open(val tag: String, val b: Boolean, val i: Boolean, val shut: String)
+        val stack = ArrayList<Open>()
+        val out = StringBuilder()
+        var pos = 0
+        for (m in Regex("<(/?)([a-zA-Z][a-zA-Z0-9:-]*)([^>]*)>").findAll(html)) {
+            out.append(html, pos, m.range.first)
+            pos = m.range.last + 1
+            val tag = m.groupValues[2].lowercase()
+            val rest = m.groupValues[3]
+            if (m.groupValues[1] == "/") {
+                val k = stack.indexOfLast { it.tag == tag }
+                if (k >= 0) while (stack.size > k) out.append(stack.removeAt(stack.lastIndex).shut)
+                out.append(m.value)
+                continue
+            }
+            out.append(m.value)
+            if (tag in VOID || rest.trimEnd().endsWith("/")) continue
+            val b = stack.lastOrNull()?.b ?: false
+            val i = stack.lastOrNull()?.i ?: false
+            val st = attr(rest, "style").orEmpty().lowercase()
+            val fw = Regex("font-weight\\s*:\\s*([a-z0-9]+)").find(st)?.groupValues?.get(1)
+            val fs = Regex("font-style\\s*:\\s*([a-z]+)").find(st)?.groupValues?.get(1)
+            // Google Docs wraps everything in <b style="font-weight:normal">
+            val cb = if (fw != null) fw == "bold" || fw == "bolder" || (fw.toIntOrNull() ?: 0) >= 600 else if (tag == "b" || tag == "strong") true else b
+            val ci = if (fs != null) fs == "italic" || fs == "oblique" else if (tag == "i" || tag == "em") true else i
+            val open = (if (cb != b) (if (cb) B_ON else B_OFF) else "") + (if (ci != i) (if (ci) I_ON else I_OFF) else "")
+            val shut = (if (ci != i) (if (ci) I_OFF else I_ON) else "") + (if (cb != b) (if (cb) B_OFF else B_ON) else "")
+            out.append(open)
+            stack += Open(tag, cb, ci, shut)
+        }
+        out.append(html, pos, html.length)
+        return out.toString()
+    }
+
+    private val LN = Regex("[\\p{L}\\p{N}]")
+    private val SENT_END = Regex("([.!?…]+[\"'»«“”„’)\\]]*)(\\s+)(?=\\S)")
+
+    /** The marks become ** / * around whole words; at a sentence end the markers close and open again (LingQ splits there). */
+    private fun marksToStars(t: String): String {
+        if (t.none { it in '\uE000'..'\uE003' }) return t
+        class Run(val s: StringBuilder, val b: Boolean, val i: Boolean)
+        val runs = ArrayList<Run>()
+        var b = 0; var i = 0
+        for (ch in t) when (ch) {
+            '\uE000' -> b++
+            '\uE001' -> b = maxOf(0, b - 1)
+            '\uE002' -> i++
+            '\uE003' -> i = maxOf(0, i - 1)
+            else -> {
+                val nl = ch == '\n'
+                val rb = !nl && b > 0; val ri = !nl && i > 0
+                val last = runs.lastOrNull()
+                if (last != null && last.b == rb && last.i == ri && !nl && last.s.toString() != "\n") last.s.append(ch)
+                else runs += Run(StringBuilder().append(ch), rb, ri)
+            }
+        }
+        // "<b>Das</b> <b>Haus</b>": the space between two runs of the same style joins them
+        var k = 1
+        while (k + 1 < runs.size) {
+            val x = runs[k - 1]; val y = runs[k]; val z = runs[k + 1]
+            if (!y.b && !y.i && y.s.isNotEmpty() && y.s.all { it == ' ' || it == '\t' } && x.b == z.b && x.i == z.i && (x.b || x.i)) {
+                x.s.append(y.s).append(z.s); runs.removeAt(k); runs.removeAt(k)
+            } else k++
+        }
+        val out = StringBuilder()
+        runs.forEachIndexed { n, r ->
+            val s = r.s.toString()
+            if (!r.b && !r.i) { out.append(s); return@forEachIndexed }
+            val lead = s.takeWhile { it.isWhitespace() }
+            val rest = s.substring(lead.length)
+            val trail = rest.takeLastWhile { it.isWhitespace() }
+            val core = rest.substring(0, rest.length - trail.length)
+            val next = runs.getOrNull(n + 1)?.s?.firstOrNull() ?: ' '
+            val prev = out.lastOrNull() ?: ' '
+            // only around letters, and never glued to a letter outside (mid-word bold would show its stars)
+            if (!LN.containsMatchIn(core) || (lead.isEmpty() && LN.matches(prev.toString())) || (trail.isEmpty() && LN.matches(next.toString()))) {
+                out.append(s); return@forEachIndexed
+            }
+            val mk = if (r.b && r.i) "***" else if (r.b) "**" else "*"
+            out.append(lead).append(mk).append(core.replace(SENT_END, "\$1$mk\$2$mk")).append(mk).append(trail)
+        }
+        return out.toString()
+    }
+
+    /** HTML -> text with paragraphs, bold and italic kept as ** and *. */
+    fun htmlToMarkedText(html: String): String = marksToStars(htmlToText(markEmphasis(html)))
+
+    /** Pasted HTML -> text, only when it has bold / italic (else the plain clipboard text is better); null = none. */
+    fun pastedEmphasis(html: String?): String? {
+        if (html.isNullOrBlank()) return null
+        val marked = markEmphasis(html)
+        if (marked.none { it in '\uE000'..'\uE003' }) return null
+        val t = marksToStars(htmlToText(marked))
+        return if ('*' in t) t else null
+    }
 
     fun htmlToText(html: String): String {
         var s = html
