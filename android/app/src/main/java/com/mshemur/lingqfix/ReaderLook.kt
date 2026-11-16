@@ -38,6 +38,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalView
@@ -47,8 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
-/** Page colours of the reader, like in e-book apps. */
-class ReaderTheme(val key: String, val name: String, val bg: Color, val fg: Color, val dark: Boolean)
+/** Page colours of the reader, like in e-book apps; [grain] > 0 = paper texture of that strength (like FBReader). */
+class ReaderTheme(val key: String, val name: String, val bg: Color, val fg: Color, val dark: Boolean, val grain: Float = 0f)
 
 val READER_THEMES = listOf(
     ReaderTheme("white", "Белая", Color(0xFFFFFFFF), Color(0xFF1C1B1F), false),
@@ -59,11 +61,51 @@ val READER_THEMES = listOf(
     ReaderTheme("dusk", "Сумерки", Color(0xFF3A3A3C), Color(0xFFE3E3E3), true),
     ReaderTheme("dark", "Тёмная", Color(0xFF1E1E1E), Color(0xFFDADADA), true),
     ReaderTheme("black", "Чёрная", Color(0xFF000000), Color(0xFFC8C8C8), true),
+    ReaderTheme("paper", "Бумага", Color(0xFFF3EBDA), Color(0xFF33291F), false, 0.6f),
+    ReaderTheme("parchment", "Пергамент", Color(0xFFE8D8B4), Color(0xFF3D2F1C), false, 0.8f),
+    ReaderTheme("linen", "Лён", Color(0xFFEFEBE3), Color(0xFF2B2824), false, 0.55f),
+    ReaderTheme("sky", "Небесная", Color(0xFFDCE6EE), Color(0xFF1E2830), false),
+    ReaderTheme("navy", "Ночная синяя", Color(0xFF18212C), Color(0xFFC5D0DC), true),
+    ReaderTheme("coffee", "Кофейная", Color(0xFF2B221C), Color(0xFFE0CFB6), true, 0.5f),
 )
 
+/** Paper texture: speckles and short fibres, a tile repeated over the page. */
+private val GRAIN: androidx.compose.ui.graphics.Brush by lazy {
+    val n = 160
+    val px = IntArray(n * n)
+    val r = java.util.Random(7)
+    for (i in px.indices) {
+        val a = (r.nextFloat() * r.nextFloat() * 46).toInt()
+        px[i] = (a shl 24) or (if (r.nextBoolean()) 0x000000 else 0xFFFFFF)
+    }
+    repeat(90) {
+        var x = r.nextInt(n).toDouble(); var y = r.nextInt(n).toDouble()
+        val ang = r.nextDouble() * Math.PI
+        val a = 14 + r.nextInt(22)
+        val c = if (r.nextInt(3) == 0) 0xFFFFFF else 0x000000
+        repeat(5 + r.nextInt(14)) {
+            val xi = ((x.toInt() % n) + n) % n; val yi = ((y.toInt() % n) + n) % n
+            px[yi * n + xi] = (a shl 24) or c
+            x += Math.cos(ang); y += Math.sin(ang)
+        }
+    }
+    val small = android.graphics.Bitmap.createBitmap(px, n, n, android.graphics.Bitmap.Config.ARGB_8888)
+    val big = android.graphics.Bitmap.createScaledBitmap(small, n * 2, n * 2, false)
+    androidx.compose.ui.graphics.ShaderBrush(
+        androidx.compose.ui.graphics.ImageShader(
+            big.asImageBitmap(),
+            androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated,
+        ),
+    )
+}
+
+/** Paper texture of [strength] (0 = none) under the content. */
+fun Modifier.paperGrain(strength: Float): Modifier =
+    if (strength <= 0f) this else drawBehind { drawRect(GRAIN, alpha = strength.coerceAtMost(1f)) }
+
 /** Book mode with page colours "Как в системе": paper like the iPad's Books app (a warm dark one at night). */
-val BOOK_PAPER = ReaderTheme("book", "Бумага", Color(0xFFF6EFE0), Color(0xFF33291F), false)
-val BOOK_NIGHT = ReaderTheme("bookNight", "Бумага ночью", Color(0xFF1E1B17), Color(0xFFDCD3C3), true)
+val BOOK_PAPER = ReaderTheme("book", "Бумага", Color(0xFFF6EFE0), Color(0xFF33291F), false, 0.5f)
+val BOOK_NIGHT = ReaderTheme("bookNight", "Бумага ночью", Color(0xFF1E1B17), Color(0xFFDCD3C3), true, 0.35f)
 
 /** Colour of chosen words and of the translations above them. */
 class Highlight(val key: String, val name: String, val bgLight: Color, val textLight: Color, val bgDark: Color, val textDark: Color)
@@ -145,7 +187,7 @@ fun SettingsReading(state: AppState) {
                 state.applyPrefs { readerTheme = "system" }
             }
             READER_THEMES.forEach { t ->
-                ThemeSwatch(t.name, t.bg, t.fg, theme == t.key) { state.applyPrefs { readerTheme = t.key } }
+                ThemeSwatch(t.name, t.bg, t.fg, theme == t.key, t.grain) { state.applyPrefs { readerTheme = t.key } }
             }
         }
 
@@ -222,7 +264,7 @@ fun SettingsReading(state: AppState) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Текст на весь экран, без панелей; меню — касанием середины экрана. Абзацы с красной строки, " +
+                "Текст на весь экран без системных панелей, сверху — строка урока. Абзацы с красной строки, " +
                     "перевод над словом не раздвигает строки. С фоном «Как в системе» — цвет бумаги.",
                 Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
             )
@@ -280,7 +322,7 @@ fun SettingsReading(state: AppState) {
 }
 
 @Composable
-private fun ThemeSwatch(name: String, bg: Color, fg: Color, selected: Boolean, onClick: () -> Unit) {
+private fun ThemeSwatch(name: String, bg: Color, fg: Color, selected: Boolean, grain: Float = 0f, onClick: () -> Unit) {
     Column(
         Modifier.width(76.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -290,7 +332,7 @@ private fun ThemeSwatch(name: String, bg: Color, fg: Color, selected: Boolean, o
             border = BorderStroke(if (selected) 3.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
             modifier = Modifier.fillMaxWidth().size(width = 72.dp, height = 52.dp),
         ) {
-            Box(contentAlignment = Alignment.Center) { Text("Aa", color = fg, fontSize = 20.sp, fontWeight = FontWeight.Medium) }
+            Box(Modifier.fillMaxSize().paperGrain(grain), contentAlignment = Alignment.Center) { Text("Aa", color = fg, fontSize = 20.sp, fontWeight = FontWeight.Medium) }
         }
         Text(name, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.labelSmall, maxLines = 2)
     }

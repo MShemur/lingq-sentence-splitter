@@ -319,9 +319,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** Wide screen (tablet): page-turn buttons and the docked word panel are available. */
     var wide by mutableStateOf(false)
-    /** Book mode: full screen, the top bar lies over the text while [barShown]. */
+    /** Book mode: full screen, the top bar stays in place above the text. */
     val book get() = app.book
-    var barShown by mutableStateOf(false)
     var docked by mutableStateOf(app.prefs.dockPanel)
     val panelActive get() = wide && docked
 
@@ -1557,7 +1556,7 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
         DropdownMenuItem(
             text = { Text("Книжный режим") },
             trailingIcon = { androidx.compose.material3.Checkbox(checked = state.book, onCheckedChange = null) },
-            onClick = { menu = false; s.barShown = false; state.applyPrefs { readerBook = !state.book } },
+            onClick = { menu = false; state.applyPrefs { readerBook = !state.book } },
         )
         DropdownMenuItem(
             text = { Text("Оформление и экран") },
@@ -2042,14 +2041,6 @@ private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
         HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
             Column(
                 Modifier.fillMaxSize()
-                    // book mode: a tap in the middle (not on a word) shows / hides the bar
-                    .pointerInput(s.book) {
-                        if (s.book) detectTapGestures { o ->
-                            if (o.x in size.width * 0.2f..size.width * 0.8f && o.y in size.height * 0.15f..size.height * 0.85f) {
-                                s.barShown = !s.barShown
-                            }
-                        }
-                    }
                     .verticalScroll(rememberScrollState()).padding(horizontal = sidePad(s), vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(if (s.book) 0.dp else 14.dp),
             ) {

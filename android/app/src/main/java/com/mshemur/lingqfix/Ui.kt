@@ -112,6 +112,7 @@ import java.util.Locale
 private fun ReaderTopBar(
     state: AppState, s: ReaderSession,
     colors: androidx.compose.material3.TopAppBarColors = androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(),
+    insets: androidx.compose.foundation.layout.WindowInsets = androidx.compose.material3.TopAppBarDefaults.windowInsets,
 ) {
     CenterAlignedTopAppBar(
         title = { ReaderProgress(s) },
@@ -122,6 +123,7 @@ private fun ReaderTopBar(
         },
         actions = { ReaderActions(state, s) },
         colors = colors,
+        windowInsets = insets,
     )
 }
 
@@ -166,7 +168,11 @@ fun App(state: AppState) {
         Scaffold(
             topBar = {
                 // reader: close cross, progress in the middle, no lesson title
-                if (screen is Screen.Reader) { if (!book) ReaderTopBar(state, screen.session) else Unit } else TopAppBar(
+                // book mode: the bar stays in place (no status bar there), the text starts below it
+                if (screen is Screen.Reader) {
+                    if (!book) ReaderTopBar(state, screen.session)
+                    else ReaderTopBar(state, screen.session, insets = androidx.compose.foundation.layout.WindowInsets(0))
+                } else TopAppBar(
                     title = { Text(titleOf(state, screen), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     navigationIcon = {
                         if (state.stack.size > 1) IconButton(onClick = { state.back() }) {
@@ -208,7 +214,7 @@ fun App(state: AppState) {
             snackbarHost = { SnackbarHost(state.snackbar) },
         ) { pad ->
             // edge-to-edge: the content must shrink above the keyboard itself, otherwise it covers text fields
-            Box(Modifier.padding(pad).imePadding().fillMaxSize()) {
+            Box(Modifier.padding(pad).imePadding().fillMaxSize().paperGrain(page?.grain ?: 0f)) {
                 // deeper: slides in from the right; back: from the left; tabs: cross-fade
                 val depth = state.stack.size
                 var lastDepth by remember { androidx.compose.runtime.mutableIntStateOf(depth) }
@@ -261,22 +267,6 @@ fun App(state: AppState) {
         }
         // sentence mode lies over the whole reader, top bar included
         if (screen is Screen.Reader) SentenceOverlay(screen.session)
-        // book mode: the bar lies over the text (the text does not move), shown by a tap in the middle
-        if (screen is Screen.Reader && book) {
-            val s = screen.session
-            BackHandler(enabled = s.barShown) { s.barShown = false }
-            androidx.compose.animation.AnimatedVisibility(
-                visible = s.barShown && !s.sentenceMode,
-                enter = androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.fadeOut(),
-            ) {
-                ReaderTopBar(
-                    state, s,
-                    androidx.compose.material3.TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
-                    ),
-                )
-            }
-        }
         }
         ModelSwitchDialog(state)
         state.crashReport?.let { report ->
