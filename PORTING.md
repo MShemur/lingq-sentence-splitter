@@ -7,6 +7,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's iPad notes 16.11.2026 -> android v1.126: 1) (20261116-044454-web, 20261116-050507-web) wrong "um" highlighted: "Doch … erweitert sie sich um den weltlichen Aspekt, treibt im Grunde jeden denkenden Menschen um und …" - tapping treibt marked the preposition um (nearest), not the split prefix (umtreiben). Fix: a) word prompt (SEPARABLE) warns that one word can occur several times in different roles (this example) and asks to number a repeated pair word by its occurrence from the left: "um[2]"; b) markPair reads word[n] = the n-th occurrence; without a number it takes the nearest, but a candidate AFTER the tapped word that ends a clause (next token is punctuation / sentence end / und, oder, aber) wins (distance - 100). 2) (20261116-045520-web) sentence mode: a swipe DOWN collapses it (on the top bar, or on the sentence when its scroll is at the top: pull > 110 dp); and the sentence + translation now use the same font size as the text view (were x1.15 / x1.1). Close all three notes with doneIn "android v1.126, web v1.N".
 ## To do on Android
 
 

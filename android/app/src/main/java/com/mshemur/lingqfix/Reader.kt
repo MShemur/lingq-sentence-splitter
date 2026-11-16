@@ -32,7 +32,9 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -214,7 +216,10 @@ private const val SEPARABLE = "\n\nУчитывай грамматику все�
     "переводи всё целое, а в note укажи его словарную форму (инфинитив с приставкой, sich, предлогом). " +
     "Если «{word}» — приставка, sich или другое слово такого целого, переводи всё целое так же. " +
     "Добавь в JSON поле \"pair\": остальные слова этого целого ровно так, как они написаны в предложении, через пробел " +
-    "(без самого «{word}»); пустая строка, если «{word}» — просто отдельное слово."
+    "(без самого «{word}»); пустая строка, если «{word}» — просто отдельное слово. " +
+    "Будь внимателен: одно и то же слово может стоять в предложении несколько раз в разной роли (нем. «um» — предлог " +
+    "в «erweitert sich um den Aspekt» и приставка в «treibt jeden Menschen um» → umtreiben). Если слово из pair " +
+    "встречается в предложении больше одного раза, допиши к нему номер нужного вхождения, считая слева, в квадратных скобках: «um[2]»."
 
 /** For the chat about the text: how the AI marks words in the lesson (see [ChatSession] onMark). */
 private const val MARK_HELP = "\n\nТы можешь отмечать слова и фразы прямо в тексте урока — над ними появится перевод, " +
@@ -561,13 +566,27 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun pairHighlighted(ref: WordRef): Boolean = pairs.entries.any { (w, p) -> ref in p && (popup == w || pins.containsKey(w)) }
 
     private fun markPair(ref: WordRef, pair: String) {
-        val words = pair.lowercase().split(Regex("\\s+")).map { w -> w.trim { !it.isLetterOrDigit() } }.filter { it.isNotEmpty() }
+        // "um[2]" = the second "um" of the sentence (the AI numbers a word that occurs more than once)
+        val words = pair.lowercase().split(Regex("\\s+")).mapNotNull { raw ->
+            val nth = Regex("\\[(\\d+)]").find(raw)?.groupValues?.get(1)?.toIntOrNull()
+            val w = raw.replace(Regex("\\[\\d+]"), "").trim { !it.isLetterOrDigit() }
+            if (w.isEmpty()) null else w to nth
+        }
         if (words.isEmpty() || words.size > 6) return
         val toks = sentById[ref.sent]?.tokens ?: return
+        val pos = toks.indexOfFirst { it.index == ref.token }
         val used = mutableSetOf(ref.token)
-        val hits = words.mapNotNull { w ->
-            toks.filter { it.isWord && it.index !in used && it.text.lowercase() == w }
-                .minByOrNull { kotlin.math.abs(it.index - ref.token) }?.also { used += it.index }
+        val hits = words.mapNotNull { (w, nth) ->
+            val all = toks.filter { it.isWord && it.text.lowercase() == w }
+            val numbered = nth?.let { all.getOrNull(it - 1) }?.takeIf { it.index !in used }
+            (numbered ?: all.filter { it.index !in used }.minByOrNull { t ->
+                // no number: the nearest one, but a split-off prefix stands AFTER its verb at the end of a clause
+                // (before , . ; or "und"), so such a place counts as much nearer
+                val i = toks.indexOf(t)
+                val next = toks.drop(i + 1).firstOrNull { it.text.isNotBlank() }
+                val clauseEnd = next == null || !next.isWord || next.text.lowercase() in setOf("und", "oder", "aber")
+                kotlin.math.abs(i - pos) - (if (i > pos && clauseEnd) 100 else 0)
+            })?.also { used += it.index }
         }
         if (hits.isNotEmpty()) pairs[ref] = hits.map { WordRef(ref.sent, it.index) }
     }
@@ -2441,8 +2460,36 @@ private fun SentencePager(s: ReaderSession) {
         if (i >= 0) pager.scrollToPage(i)
         s.jump = null
     }
+    // a swipe down (from the top bar, or on the sentence when it is not scrolled) collapses the mode
+    val closeAt = with(LocalDensity.current) { 110.dp.toPx() }
+    val pullDown = remember(s) {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            var pull = 0f
+            override fun onPostScroll(
+                consumed: Offset, available: Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+            ): Offset {
+                if (available.y > 0f) pull += available.y else if (consumed.y != 0f || available.y < 0f) pull = 0f
+                return Offset.Zero
+            }
+            override suspend fun onPostFling(
+                consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity,
+            ): androidx.compose.ui.unit.Velocity {
+                if (pull > closeAt) s.closeSentenceMode()
+                pull = 0f
+                return androidx.compose.ui.unit.Velocity.Zero
+            }
+        }
+    }
     Column(Modifier.fillMaxSize().systemBarsPadding()) {
-        Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp)) {
+        var headPull by remember { mutableStateOf(0f) }
+        Box(
+            Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp).pointerInput(s) {
+                detectVerticalDragGestures(
+                    onDragStart = { headPull = 0f },
+                    onDragEnd = { if (headPull > closeAt * 0.6f) s.closeSentenceMode(); headPull = 0f },
+                ) { _, dy -> headPull += dy }
+            },
+        ) {
             IconButton(onClick = { s.closeSentenceMode() }, modifier = Modifier.align(Alignment.CenterStart)) {
                 Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Свернуть", modifier = Modifier.size(32.dp))
             }
@@ -2461,7 +2508,7 @@ private fun SentencePager(s: ReaderSession) {
             }
         }
         Row(Modifier.fillMaxWidth().weight(1f)) {
-            Box(Modifier.weight(1f).fillMaxHeight()) {
+            Box(Modifier.weight(1f).fillMaxHeight().nestedScroll(pullDown)) {
                 HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { i ->
                     val sent = list[i]
                     // sentence and translation in the middle of the page; long ones scroll
@@ -2474,14 +2521,14 @@ private fun SentencePager(s: ReaderSession) {
                                 verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
-                                SentenceFlow(s, listOf(sent), scale = 1.15f, area = "sent", center = true)
+                                SentenceFlow(s, listOf(sent), area = "sent", center = true)
                                 SmTranslationToggle(s)
                                 AnimatedVisibility(
                                     visible = s.smTranslation,
                                     enter = expandVertically(tween(300)) + fadeIn(tween(300)),
                                     exit = shrinkVertically(tween(300)) + fadeOut(tween(300)),
                                 ) {
-                                    SentenceTranslation(s, sent.id, scale = 1.1f, center = true, area = "sent")
+                                    SentenceTranslation(s, sent.id, center = true, area = "sent")
                                 }
                             }
                         }
