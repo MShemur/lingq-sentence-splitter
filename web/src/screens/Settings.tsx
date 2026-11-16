@@ -10,7 +10,7 @@ import { Prompts } from '../prompts'
 import * as api from '../lingq'
 import * as gemini from '../gemini'
 import { Chip, Dialog, IconButton, ListItem, Loading, SecretField, Spinner, TextField, TopBar } from '../ui'
-import { FACES, HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, highlightColors, highlightOf, themeOf } from '../readerLook'
+import { FACES, HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, grainImage, highlightColors, highlightOf, themeOf } from '../readerLook'
 import { groqSummary, STT_PRICES_CHECKED, STT_PROVIDERS, setSttKey, setSttModel, sttCost, sttHourPrice, sttKey, sttModel, sttPrice, sttProvider } from '../importer/stt'
 import { clearLog, lastLines, log, logText, logVersion } from '../applog'
 
@@ -273,7 +273,7 @@ export function SettingsReading() {
   const t = themeOf(theme)
   const dark = darkPage()
   const c = highlightColors(hl, dark)
-  const page = { background: t?.bg ?? 'var(--surface)', color: t?.fg ?? 'var(--on-surface)' }
+  const page = { background: t?.bg ?? 'var(--surface)', backgroundImage: grainImage(t?.grain) || undefined, color: t?.fg ?? 'var(--on-surface)' }
   return (
     <Page title="Чтение">
       <h3 class="section-title">Фон страницы</h3>
@@ -283,7 +283,7 @@ export function SettingsReading() {
         </button>
         {READER_THEMES.map((x) => (
           <button key={x.key} class={'swatch' + (theme === x.key ? ' on' : '')} onClick={() => { prefs.readerTheme.value = x.key }}>
-            <span class="swatch-box" style={{ background: x.bg, color: x.fg }}>Aa</span><span class="swatch-name">{x.name}</span>
+            <span class="swatch-box" style={{ background: x.bg, backgroundImage: grainImage(x.grain) || undefined, color: x.fg }}>Aa</span><span class="swatch-name">{x.name}</span>
           </button>
         ))}
       </div>
@@ -328,9 +328,9 @@ export function SettingsReading() {
           <Chip key={v} label={label} selected={(prefs.readerBook.value || '0') === v} onClick={() => { prefs.readerBook.value = v }} />
         ))}
       </div>
-      <p class="hint">Текст на весь экран, без панелей и кнопок; страницы листаются свайпом, в альбомной ориентации — две
-        рядом. Тап по середине страницы показывает верхнюю панель (там ⋮ → «Книжный режим» выключает его), двойной тап по
-        слову — меню слова. Абзацы — отступом первой строки, перевод над словом не раздвигает строки.</p>
+      <p class="hint">Текст на весь экран без нижней панели и кнопок, сверху — строка урока (там ⋮ → «Книжный режим»
+        выключает его); страницы листаются свайпом, в альбомной ориентации — две рядом. Двойной тап по слову — меню слова.
+        Абзацы — отступом первой строки, перевод над словом не раздвигает строки.</p>
       <h3 class="section-title">Перевод над словом</h3>
       <p class="hint">Расстояние между переводом и словом под ним.</p>
       <div class="chips">

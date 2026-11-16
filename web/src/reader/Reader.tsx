@@ -196,7 +196,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
   const book = isBook()
   return (
     <div ref={rootRef} class={'screen reader' + (s.pinsHidden.value ? ' pins-hidden' : '') + (prefs.readerJustify.value === '1' ? ' justify' : '')
-      + (book ? ' book' : '') + (book && s.bookBar.value ? ' book-bar' : '') + (prefs.wordBg.value === '0' ? ' nobg' : '')} style={readerStyle(book)}>
+      + (book ? ' book' : '') + (prefs.wordBg.value === '0' ? ' nobg' : '')} style={readerStyle(book)}>
       <TopBar
         center
         nav={<IconButton icon="close" label="Закрыть урок" onClick={back} />}
@@ -578,12 +578,8 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null; settle() }, 150)
     scrollTo(i, true)
   }
-  // book mode: a tap in the middle of the page (not on a word) shows / hides the top bar over the text
-  const swipe = useSwipe(pager, (e) => {
-    if (!isBook() || (e.target as Element | null)?.closest?.('[data-w], .sent-tr, button')) return
-    const x = e.clientX / window.innerWidth, y = e.clientY / window.innerHeight
-    if (x >= 0.2 && x <= 0.8 && y >= 0.15 && y <= 0.85) s.bookBar.value = !s.bookBar.value
-  })
+  // book mode: the top bar always stays above the text (the tap in the middle that showed it is gone, as Android v1.127)
+  const swipe = useSwipe(pager)
 
   // arrow keys turn pages (iPad keyboard)
   useEffect(() => {

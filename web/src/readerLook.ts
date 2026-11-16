@@ -5,7 +5,8 @@ import type { JSX } from 'preact'
 import { prefs } from './settings'
 import { onTouch } from './stats'
 
-export interface ReaderTheme { key: string; name: string; bg: string; fg: string; dark: boolean }
+/** [grain]: strength 0..1 of the paper texture over the page colour (as Android v1.127). */
+export interface ReaderTheme { key: string; name: string; bg: string; fg: string; dark: boolean; grain?: number }
 
 export const READER_THEMES: ReaderTheme[] = [
   { key: 'white', name: 'Белая', bg: '#FFFFFF', fg: '#1C1B1F', dark: false },
@@ -16,7 +17,46 @@ export const READER_THEMES: ReaderTheme[] = [
   { key: 'dusk', name: 'Сумерки', bg: '#3A3A3C', fg: '#E3E3E3', dark: true },
   { key: 'dark', name: 'Тёмная', bg: '#1E1E1E', fg: '#DADADA', dark: true },
   { key: 'black', name: 'Чёрная', bg: '#000000', fg: '#C8C8C8', dark: true },
+  // like FBReader's backgrounds (Android v1.127)
+  { key: 'fbPaper', name: 'Бумага', bg: '#F3EBDA', fg: '#33291F', dark: false, grain: 0.6 },
+  { key: 'parchment', name: 'Пергамент', bg: '#E8D8B4', fg: '#3D2F1C', dark: false, grain: 0.8 },
+  { key: 'linen', name: 'Лён', bg: '#EFEBE3', fg: '#2B2824', dark: false, grain: 0.55 },
+  { key: 'sky', name: 'Небесная', bg: '#DCE6EE', fg: '#1E2830', dark: false },
+  { key: 'nightBlue', name: 'Ночная синяя', bg: '#18212C', fg: '#C5D0DC', dark: true },
+  { key: 'coffee', name: 'Кофейная', bg: '#2B221C', fg: '#E0CFB6', dark: true, grain: 0.5 },
 ]
+
+const grainCache = new Map<string, string>()
+/**
+ * Paper texture: a repeated tile of fine dark and light speckles plus short fibres (SVG noise), alpha up to ~18 % at
+ * strength 1; '' for none.
+ */
+export function grainImage(g = 0): string {
+  if (!(g > 0)) return ''
+  const k = g.toFixed(2)
+  let u = grainCache.get(k)
+  if (!u) {
+    const a = (0.18 * g).toFixed(3)
+    // alpha = a * (4·noise − 2): only the top of the noise shows; R → dark speckles, G → light ones, fibres stretched
+    const row = (ch: number, s: number) => {
+      const v = [0, 0, 0, 0, 0]
+      v[ch] = 4 * s
+      return `${v.slice(0, 4).join(' ')} ${(-2 * s).toFixed(3)}`
+    }
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'>`
+      + `<filter id='d'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='3' stitchTiles='stitch'/>`
+      + `<feColorMatrix values='0 0 0 0 0.16  0 0 0 0 0.12  0 0 0 0 0.08  ${row(0, Number(a))}'/></filter>`
+      + `<filter id='l'><feTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='2' seed='9' stitchTiles='stitch'/>`
+      + `<feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 0.97  ${row(1, Number(a) * 0.8)}'/></filter>`
+      + `<filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.05 0.5' numOctaves='2' seed='5' stitchTiles='stitch'/>`
+      + `<feColorMatrix values='0 0 0 0 0.2  0 0 0 0 0.15  0 0 0 0 0.1  ${row(0, Number(a) * 0.4)}'/></filter>`
+      + `<rect width='100%' height='100%' filter='url(#d)'/><rect width='100%' height='100%' filter='url(#l)'/>`
+      + `<rect width='100%' height='100%' filter='url(#f)'/></svg>`
+    u = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+    grainCache.set(k, u)
+  }
+  return u
+}
 
 /** Colour of chosen words (background) and of the translations above them (text); light and dark pages. */
 export interface Highlight { key: string; name: string; bgLight: string; textLight: string; bgDark: string; textDark: string }
@@ -75,8 +115,8 @@ export const FACES: [string, string, string][] = [
 ]
 
 /** Book mode with "Как в системе": paper colours (as Android v1.121). */
-const PAPER: ReaderTheme = { key: 'paper', name: 'Бумага', bg: '#F6EFE0', fg: '#33291F', dark: false }
-const PAPER_DARK: ReaderTheme = { key: 'paperDark', name: 'Бумага ночью', bg: '#1E1B17', fg: '#DCD3C3', dark: true }
+const PAPER: ReaderTheme = { key: 'paper', name: 'Бумага', bg: '#F6EFE0', fg: '#33291F', dark: false, grain: 0.5 }
+const PAPER_DARK: ReaderTheme = { key: 'paperDark', name: 'Бумага ночью', bg: '#1E1B17', fg: '#DCD3C3', dark: true, grain: 0.35 }
 
 export function readerStyle(book = false): JSX.CSSProperties {
   const t = themeOf(prefs.readerTheme.value) ?? (book ? (systemDark.value ? PAPER_DARK : PAPER) : undefined)
@@ -91,6 +131,8 @@ export function readerStyle(book = false): JSX.CSSProperties {
       '--surface-variant': mix(0.10), '--on-surface-variant': mix(0.72), '--outline': mix(0.45), '--outline-variant': mix(0.18),
       background: t.bg, color: t.fg,
     })
+    const img = grainImage(t.grain)
+    if (img) out.backgroundImage = img
   }
   return out as JSX.CSSProperties
 }

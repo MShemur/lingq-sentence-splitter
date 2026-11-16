@@ -973,18 +973,13 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .page-text > .para.cut:last-child { margin-bottom: 0; }
 /* justified: a line with much room left is packed to the left (looseJustify) */
 .justify .reader-text .flow > .jl { margin-right: auto; }
-/* book mode ("Книжный режим"): the text on the whole screen, the top bar only over it on a tap in the middle */
-.reader.book .top-bar {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 30;
-  background: color-mix(in srgb, var(--surface) 86%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
-}
-.reader.book:not(.book-bar) .top-bar { visibility: hidden; }
+/* book mode ("Книжный режим"): no bottom bar, the top bar always above the text (on the page colour and its texture) */
+.reader.book .top-bar { background: transparent; }
 .reader.book .text-area .reader-text {
   max-width: none; line-height: 1.55;
   padding-left: max(40px, env(safe-area-inset-left)); padding-right: max(40px, env(safe-area-inset-right));
 }
-.reader.book .reader-text.measurer, .reader.book .reader-text.page-text { padding-top: max(28px, env(safe-area-inset-top)); padding-bottom: max(22px, env(safe-area-inset-bottom)); }
+.reader.book .reader-text.measurer, .reader.book .reader-text.page-text { padding-top: 12px; padding-bottom: max(22px, env(safe-area-inset-bottom)); }
 @media (max-width: 600px) {
   .reader.book .text-area .reader-text { padding-left: max(18px, env(safe-area-inset-left)); padding-right: max(18px, env(safe-area-inset-right)); }
 }
