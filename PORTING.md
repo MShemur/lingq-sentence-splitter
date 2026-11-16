@@ -7,6 +7,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's iPad notes 16.11.2026 -> android v1.125: 1) (20261116-035704-web) word count ("Анализ слов"): under the summary, when the rare-words slider cuts words, a fold-out "Показать отброшенные слова" lists the cut base forms grouped by count: "1 раз — N слов", "2 раза — …" (each group folds out separately, words sorted alphabetically, selectable). Android WordStats.kt CutWords. 2) (20261116-040533-web) word window: not only split separable verbs but the whole unit is highlighted together: reflexive verb + sich/mich/dich/uns/euch, fixed phrases / verbs with their preposition ("nimmt … in Kauf", "kommt darauf an"). The word prompt (SEPARABLE) now asks for the whole unit's translation, its dictionary form in note, and "pair" = ALL other words of the unit as written, space-separated; the reader maps each to the nearest unused word token of the sentence (max 6) and highlights them all while the word's window is open or the word is pinned (pairs: word -> list). Close both notes with doneIn "android v1.125, web v1.N".
 ## To do on Android
 
 

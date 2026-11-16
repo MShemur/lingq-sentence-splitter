@@ -203,13 +203,18 @@ class Sent(
     }
 }
 
-/** Added to the word prompt: German-style verbs whose prefix stands apart ("fing … an"). */
-private const val SEPARABLE = "\n\nУчитывай грамматику всего предложения. Если «{word}» — глагол с отделяемой приставкой " +
-    "(или часть составного глагола), а приставка стоит отдельно дальше в предложении (нем. «Er fing gestern an» → anfangen, " +
-    "«Sie kommt morgen zurück» → zurückkommen), переводи глагол вместе с этой приставкой, а в note укажи инфинитив с приставкой. " +
-    "Если «{word}» — сама отделённая приставка, переводи весь глагол так же. " +
-    "Добавь в JSON поле \"pair\": вторая часть этого разделённого глагола ровно так, как она написана в предложении " +
-    "(приставка, если «{word}» — глагол; глагол, если «{word}» — приставка); пустая строка, если глагол не разделён."
+/**
+ * Added to the word prompt: the word may be one part of a bigger unit in this sentence: a verb whose prefix stands
+ * apart ("fing … an"), a reflexive verb with its pronoun ("freut sich"), a fixed phrase ("nimmt … in Kauf").
+ */
+private const val SEPARABLE = "\n\nУчитывай грамматику всего предложения. Если «{word}» — часть единого целого в этом предложении: " +
+    "глагол с отделяемой приставкой, стоящей отдельно (нем. «Er fing gestern an» → anfangen, «Sie kommt morgen zurück» → zurückkommen), " +
+    "возвратный глагол с местоимением (sich, mich, dich, uns, euch: «Er freut sich darauf» → sich freuen auf), " +
+    "устойчивое выражение или глагол с управлением («Sie nimmt das in Kauf» → in Kauf nehmen, «Es kommt darauf an» → ankommen auf), " +
+    "переводи всё целое, а в note укажи его словарную форму (инфинитив с приставкой, sich, предлогом). " +
+    "Если «{word}» — приставка, sich или другое слово такого целого, переводи всё целое так же. " +
+    "Добавь в JSON поле \"pair\": остальные слова этого целого ровно так, как они написаны в предложении, через пробел " +
+    "(без самого «{word}»); пустая строка, если «{word}» — просто отдельное слово."
 
 /** For the chat about the text: how the AI marks words in the lesson (see [ChatSession] onMark). */
 private const val MARK_HELP = "\n\nТы можешь отмечать слова и фразы прямо в тексте урока — над ними появится перевод, " +
@@ -546,19 +551,25 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** Translations pinned above words ("" while loading); kept for this lesson. */
     val pins = mutableStateMapOf<WordRef, String>()
-    /** Separable verb split in the sentence: word -> its other part (verb <-> prefix), from the AI's answer. */
-    val pairs = mutableStateMapOf<WordRef, WordRef>()
+    /**
+     * A word that is part of a bigger unit in its sentence (split verb + prefix, reflexive verb + sich, fixed phrase):
+     * word -> the other words of the unit, from the AI's answer.
+     */
+    val pairs = mutableStateMapOf<WordRef, List<WordRef>>()
 
-    /** The other part of a split verb is highlighted with the word while its window is open or the word is pinned. */
-    fun pairHighlighted(ref: WordRef): Boolean = pairs.entries.any { (w, p) -> p == ref && (popup == w || pins.containsKey(w)) }
+    /** The other words of the unit are highlighted with the word while its window is open or the word is pinned. */
+    fun pairHighlighted(ref: WordRef): Boolean = pairs.entries.any { (w, p) -> ref in p && (popup == w || pins.containsKey(w)) }
 
     private fun markPair(ref: WordRef, pair: String) {
-        val p = pair.trim().lowercase()
-        if (p.isEmpty() || p.contains(' ')) return
+        val words = pair.lowercase().split(Regex("\\s+")).map { w -> w.trim { !it.isLetterOrDigit() } }.filter { it.isNotEmpty() }
+        if (words.isEmpty() || words.size > 6) return
         val toks = sentById[ref.sent]?.tokens ?: return
-        val hit = toks.filter { it.isWord && it.index != ref.token && it.text.lowercase() == p }
-            .minByOrNull { kotlin.math.abs(it.index - ref.token) } ?: return
-        pairs[ref] = WordRef(ref.sent, hit.index)
+        val used = mutableSetOf(ref.token)
+        val hits = words.mapNotNull { w ->
+            toks.filter { it.isWord && it.index !in used && it.text.lowercase() == w }
+                .minByOrNull { kotlin.math.abs(it.index - ref.token) }?.also { used += it.index }
+        }
+        if (hits.isNotEmpty()) pairs[ref] = hits.map { WordRef(ref.sent, it.index) }
     }
     /** Meaning chosen for a word (lower case) in this lesson. */
     val chosen = mutableStateMapOf<String, String>()

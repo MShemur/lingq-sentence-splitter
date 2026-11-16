@@ -287,6 +287,7 @@ fun WordStatsScreen(state: AppState, s: WordStatsScreenState) {
         RareSlider(state, r)
         val (v, cut) = remember(r, state.wsMin) { r.without(state.wsMin) }
         Summary(v, cut, state.wsMin)
+        if (cut > 0) CutWords(r, state.wsMin)
         var picked by remember(r) { mutableStateOf(0) }
         NewWordsChart(v, picked) { picked = it }
         ChapterDetails(v, picked)
@@ -319,6 +320,44 @@ private fun RareSlider(state: AppState, r: WsResult) {
             "Чтобы ползунок работал, нажмите «Пересчитать» внизу (этот курс посчитан старой версией).",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
         )
+    }
+}
+
+/** Fold-out list of the words the slider leaves out, grouped by how often they occur ("1 раз", "2 раза", ...). */
+@Composable
+private fun CutWords(r: WsResult, min: Int) {
+    var open by remember { mutableStateOf(false) }
+    val groups = remember(r, min) {
+        r.lemmas.filter { it.count <= min }.groupBy { it.count }.toSortedMap()
+            .mapValues { (_, l) -> l.map { it.word }.sortedBy { it.lowercase() } }
+    }
+    Column {
+        androidx.compose.material3.TextButton(onClick = { open = !open }) {
+            Text(if (open) "Скрыть отброшенные слова ▲" else "Показать отброшенные слова ▼")
+        }
+        if (open) groups.forEach { (n, words) ->
+            var shown by remember(r, min, n) { mutableStateOf(false) }
+            Text(
+                "${if (shown) "▼" else "▶"} $n ${times(n)} — ${num(words.size)} ${wordsWord(words.size)}",
+                Modifier.fillMaxWidth().clickable { shown = !shown }.padding(vertical = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            if (shown) androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(
+                    words.joinToString(", "), Modifier.padding(start = 16.dp, bottom = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+private fun wordsWord(n: Int): String {
+    val m10 = n % 10; val m100 = n % 100
+    return when {
+        m10 == 1 && m100 != 11 -> "слово"
+        m10 in 2..4 && m100 !in 12..14 -> "слова"
+        else -> "слов"
     }
 }
 
