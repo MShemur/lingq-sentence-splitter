@@ -63,7 +63,7 @@ async function readEpub(bytes: Uint8Array): Promise<{ title: string; chapters: S
     try { path = decodeURIComponent(path) } catch { /* keep */ }
     const html = read(resolve(base, path))
     if (!html) continue
-    const text = htmlToText(html)
+    const text = htmlToMarkedText(html)
     if (text.trim()) chapters.push({ title: chapterTitle(html), text })
   }
   if (!chapters.length) throw new ApiError('в EPUB не найден текст')
@@ -108,6 +108,89 @@ const stripTags = (s: string) => s.replace(/<[^>]+>/g, ' ')
 const clean = (s: string) => unescape(s).replace(/[\s ]+/g, ' ').trim()
 
 const BLOCK = 'p|div|h[1-6]|li|blockquote|tr|section|article|pre|dd|dt|figcaption'
+
+// --- bold / italic of HTML (EPUB, pasted text) -> **…** / *…*, the way the reader shows them ---
+
+const B_ON = '\uE000', B_OFF = '\uE001', I_ON = '\uE002', I_OFF = '\uE003'
+
+/** Private-use marks where bold / italic starts and ends (tags b strong i em, inline font-weight / font-style). */
+function markEmphasis(html: string): string {
+  if (!/<(b|strong|i|em)\b|font-(weight|style)/i.test(html)) return html
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const walk = (el: Element, b: boolean, i: boolean) => {
+    for (const c of [...el.children]) {
+      const tag = c.tagName.toLowerCase()
+      if (tag === 'script' || tag === 'style') continue
+      const st = (c.getAttribute('style') ?? '').toLowerCase()
+      const fw = /font-weight\s*:\s*([a-z0-9]+)/.exec(st)?.[1]
+      const fs = /font-style\s*:\s*([a-z]+)/.exec(st)?.[1]
+      // Google Docs wraps everything in <b style="font-weight:normal">
+      const cb = fw ? fw === 'bold' || fw === 'bolder' || Number(fw) >= 600 : tag === 'b' || tag === 'strong' ? true : b
+      const ci = fs ? fs === 'italic' || fs === 'oblique' : tag === 'i' || tag === 'em' ? true : i
+      const open = (cb !== b ? (cb ? B_ON : B_OFF) : '') + (ci !== i ? (ci ? I_ON : I_OFF) : '')
+      const shut = (ci !== i ? (ci ? I_OFF : I_ON) : '') + (cb !== b ? (cb ? B_OFF : B_ON) : '')
+      if (open) { c.prepend(doc.createTextNode(open)); c.append(doc.createTextNode(shut)) }
+      walk(c, cb, ci)
+    }
+  }
+  walk(doc.body, false, false)
+  return doc.body.innerHTML
+}
+
+/** The marks become ** / * around whole words; at a sentence end the markers close and open again (LingQ splits there). */
+function marksToStars(t: string): string {
+  if (!/[\uE000-\uE003]/.test(t)) return t
+  type Run = { s: string; b: boolean; i: boolean }
+  const runs: Run[] = []
+  let b = 0, i = 0
+  const push = (ch: string) => {
+    const nl = ch === '\n'
+    const rb = !nl && b > 0, ri = !nl && i > 0
+    const last = runs[runs.length - 1]
+    if (last && last.b === rb && last.i === ri && !nl && last.s !== '\n') last.s += ch
+    else runs.push({ s: ch, b: rb, i: ri })
+  }
+  for (const ch of t) {
+    if (ch === B_ON) b++
+    else if (ch === B_OFF) b = Math.max(0, b - 1)
+    else if (ch === I_ON) i++
+    else if (ch === I_OFF) i = Math.max(0, i - 1)
+    else push(ch)
+  }
+  // "<b>Das</b> <b>Haus</b>": the space between two runs of the same style joins them
+  for (let k = 1; k + 1 < runs.length; k++) {
+    const [x, y, z] = [runs[k - 1], runs[k], runs[k + 1]]
+    if (!y.b && !y.i && /^[ \t]+$/.test(y.s) && x.b === z.b && x.i === z.i && (x.b || x.i)) {
+      x.s += y.s + z.s; runs.splice(k, 2); k--
+    }
+  }
+  let out = ''
+  runs.forEach((r, k) => {
+    if (!r.b && !r.i) { out += r.s; return }
+    const m = /^(\s*)([^]*?)(\s*)$/.exec(r.s)!
+    const core = m[2]
+    const next = runs[k + 1]?.s[0] ?? ' '
+    // only around letters, and never glued to a letter outside (mid-word bold would show its stars)
+    if (!/[\p{L}\p{N}]/u.test(core) || (!m[1] && /[\p{L}\p{N}]/u.test(out.slice(-1))) || (!m[3] && /[\p{L}\p{N}]/u.test(next))) { out += r.s; return }
+    const mk = r.b && r.i ? '***' : r.b ? '**' : '*'
+    out += m[1] + mk + core.replace(/([.!?…]+["'»«“”„’)\]]*)(\s+)(?=\S)/g, `$1${mk}$2${mk}`) + mk + m[3]
+  })
+  return out
+}
+
+/** HTML -> text with paragraphs, bold and italic kept as ** and *. */
+export function htmlToMarkedText(html: string): string {
+  return marksToStars(htmlToText(markEmphasis(html)))
+}
+
+/** Pasted HTML -> text, only when it has bold / italic (else the plain clipboard text is better); null = none. */
+export function pastedEmphasis(html: string): string | null {
+  if (!html) return null
+  const marked = markEmphasis(html)
+  if (!/[\uE000-\uE003]/.test(marked)) return null
+  const t = marksToStars(htmlToText(marked))
+  return /\*/.test(t) ? t : null
+}
 
 export function htmlToText(html: string): string {
   let s = html

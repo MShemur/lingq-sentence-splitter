@@ -12,7 +12,7 @@ import { prefs } from '../settings'
 import { Chip, Dialog, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ReaderHelp } from './Help'
-import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef } from './session'
+import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef, refToken } from './session'
 import { playLesson } from '../player'
 import { levelName } from '../lingq'
 import { LessonDeleteDialog } from '../screens/CourseEdit'
@@ -767,7 +767,7 @@ const SentView = memo(function SentView({ s, sent, st, plain, from, to }: {
         const pk = !plain && picked(t.index)
         if (!t.isWord) {
           const between = !!ph && t.index > ph.from && t.index < ph.to
-          return <span class={'punct' + (pk ? ' picked' : between ? ' sel' : '')}>{t.text}</span>
+          return <span class={'punct' + (pk ? ' picked' : between ? ' sel' : '') + (t.b ? ' md-b' : '') + (t.i ? ' md-i' : '')}>{t.text}</span>
         }
         const r = wordRef(sent.id, t.index)
         const tr = inPhrase ? undefined : pins[r]
@@ -775,7 +775,7 @@ const SentView = memo(function SentView({ s, sent, st, plain, from, to }: {
         return (
           <span class={'w' + (selected ? ' sel' : '') + (pk ? ' picked' : '')} data-w={r}>
             {tr !== undefined && <span class={'pin' + (prov[r] ? ' prov' : '') + (peek[r] ? ' peek' : '')}>{tr || '…'}</span>}
-            <span class="wt">{t.text}</span>
+            <span class={'wt' + (t.b ? ' md-b' : '') + (t.i ? ' md-i' : '')}>{t.text}</span>
           </span>
         )
       })}
@@ -873,6 +873,9 @@ function BookMenuItems({ s, r, close }: { s: ReaderSession; r: WordRef; close: (
         {marked ? 'Убрать закладку' : 'Закладка на предложение'}
       </MenuItem>
       <MenuItem icon="chat" onClick={() => { close(); s.chatSentence(id) }}>Чат о предложении</MenuItem>
+      <MenuItem onClick={() => { close(); void s.toggleBold(id, refToken(r), refToken(r)) }}>
+        {s.isBold(id, refToken(r), refToken(r)) ? 'Убрать жирный' : 'Сделать жирным'}
+      </MenuItem>
     </>
   )
 }
@@ -1185,9 +1188,17 @@ function WordContent({ s, r, head }: { s: ReaderSession; r: WordRef; head?: JSX.
         {!tr && <Chip icon="translate" label="Перевод" onClick={() => (docked() ? s.ensureSentence(sid) : s.toggleSentence(sid))} />}
         <Chip icon={marked ? 'bookmark' : 'bookmarkBorder'} label={marked ? 'В закладках' : 'Закладка'} onClick={() => s.toggleBookmark(sid)} />
         <Chip icon="chat" label="Спросить" onClick={() => s.chatWord(sid, word)} />
+        <BoldChip s={s} id={sid} from={refToken(r)} to={refToken(r)} />
       </div>
     </div>
   )
+}
+
+/** "Жирным" / "Убрать жирный": ** around the words in the lesson text on LingQ. */
+function BoldChip({ s, id, from, to }: { s: ReaderSession; id: number; from: number; to: number }) {
+  void s.sentences.value // follows the saved sentence
+  const on = s.isBold(id, from, to)
+  return <Chip label={on ? 'Убрать жирный' : <><b>Ж</b>ирным</>} onClick={() => void s.toggleBold(id, from, to)} />
 }
 
 /** What the window for several words shows; pop-up sheet or docked panel. */
@@ -1227,6 +1238,7 @@ function PhraseContent({ s, head }: { s: ReaderSession; head?: JSX.Element }) {
       <div class="chips">
         {!tr && <Chip icon="translate" label="Перевод предложения" onClick={() => s.ensureSentence(p.sent)} />}
         <Chip icon="chat" label="Спросить" onClick={() => s.chatWord(p.sent, p.text)} />
+        <BoldChip s={s} id={p.sent} from={p.from} to={p.to} />
       </div>
     </div>
   )

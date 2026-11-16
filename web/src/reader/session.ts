@@ -22,7 +22,11 @@ import { addAudioBookmark, audioBookmarks, removeBookmark, type Bookmark as Bm }
 // --- model ---
 
 /** A piece of a sentence: a word (tappable) or the punctuation/space between words. */
-export interface Token { text: string; isWord: boolean; index: number }
+export interface Token {
+  text: string; isWord: boolean; index: number
+  /** Inside **bold** / *italic* of the sentence text (the stars themselves are cut out of the punctuation tokens). */
+  b?: boolean; i?: boolean
+}
 
 const WORD = /[\p{L}\p{N}]+(?:[-'’][\p{L}\p{N}]+)*/gu
 
@@ -38,6 +42,47 @@ export function tokenize(t: string): Token[] {
   }
   if (pos < t.length) out.push({ text: t.slice(pos), isWord: false, index: i++ })
   return out
+}
+
+/** Markdown emphasis kept in the lesson text: ***both***, **bold** / __bold__, *italic* / _italic_. */
+const EMPH = /(\*\*\*|\*\*|__|\*|_)([^\s*_](?:[^]*?[^\s*_])?)\1/gu
+const NEAR = /[\p{L}\p{N}*_]/u
+
+/** Emphasis spans of [text]: markers at [at, cs) and [ce, end); not glued to a letter on the outside ("3 * 4", snake_case stay). */
+export function emphSpans(text: string): { at: number; cs: number; ce: number; end: number; mk: string }[] {
+  if (!/[*_]/.test(text)) return []
+  const out: { at: number; cs: number; ce: number; end: number; mk: string }[] = []
+  for (const m of text.matchAll(EMPH)) {
+    const at = m.index!, mk = m[1], end = at + m[0].length
+    if (NEAR.test(text[at - 1] ?? ' ') || NEAR.test(text[end] ?? ' ')) continue
+    out.push({ at, cs: at + mk.length, ce: end - mk.length, end, mk })
+  }
+  return out
+}
+
+/** Tokens of a lesson sentence: the emphasis markers hidden, the words inside flagged bold / italic. */
+function styledTokens(text: string): Token[] {
+  const raw = tokenize(text)
+  const spans = emphSpans(text)
+  if (!spans.length) return raw
+  const hide = new Uint8Array(text.length), style = new Uint8Array(text.length) // 1 bold, 2 italic
+  for (const x of spans) {
+    for (let k = x.at; k < x.cs; k++) hide[k] = 1
+    for (let k = x.ce; k < x.end; k++) hide[k] = 1
+    const st = x.mk.length === 3 ? 3 : x.mk.length === 2 ? 1 : 2
+    for (let k = x.cs; k < x.ce; k++) style[k] |= st
+  }
+  let pos = 0
+  return raw.map((t) => {
+    const a = pos
+    pos += t.text.length
+    let st = style[a], text2 = t.text
+    if (!t.isWord) {
+      text2 = ''; st = 0
+      for (let k = a; k < pos; k++) if (!hide[k]) { text2 += text[k]; if (!st && text[k].trim()) st = style[k] }
+    }
+    return st || text2 !== t.text ? { ...t, text: text2, b: !!(st & 1), i: !!(st & 2) } : t
+  })
 }
 
 /** Groups tokens up to the next space, so "(Abb." or "24)," never break apart. */
@@ -65,6 +110,8 @@ function chunks(tokens: Token[]): Token[][] {
 export class Sent {
   readonly tokens: Token[]
   readonly chunks: Token[][]
+  /** The text as shown (without the ** / * markers): for translations, the AI, bookmarks. */
+  readonly plain: string
   /** In a paragraph with LingQ's style h1..h6: drawn bold. */
   heading = false
   constructor(
@@ -72,7 +119,8 @@ export class Sent {
     /** Where it sounds in the lesson audio, ms (-1 = unknown). */
     readonly start = -1, readonly end = -1,
   ) {
-    this.tokens = tokenize(text)
+    this.tokens = styledTokens(text)
+    this.plain = this.tokens.map((t) => t.text).join('')
     this.chunks = chunks(this.tokens)
   }
 }
@@ -81,7 +129,7 @@ export class Sent {
 export type WordRef = string
 export const ref = (sent: number, token: number): WordRef => `${sent}:${token}`
 export const refSent = (r: WordRef) => Number(r.split(':')[0])
-const refToken = (r: WordRef) => Number(r.split(':')[1])
+export const refToken = (r: WordRef) => Number(r.split(':')[1])
 
 const isError = (t: string | undefined) => !t || t.startsWith('⚠')
 
@@ -292,7 +340,7 @@ export class ReaderSession {
     const m = await loadTr(trKey(this.lang, this.lesson.id, this.target))
     this.trMap = { ...m, ...this.trMap }
     const add: Record<number, string> = {}
-    for (const s of this.sentences.value) { const t = m[s.text]; if (t && !this.sentTr.value[s.id]) add[s.id] = t }
+    for (const s of this.sentences.value) { const t = m[s.plain]; if (t && !this.sentTr.value[s.id]) add[s.id] = t }
     if (Object.keys(add).length) this.sentTr.value = { ...this.sentTr.value, ...add }
   }
 
@@ -412,7 +460,7 @@ export class ReaderSession {
     if (!s) return
     const cur = this.sentTr.value[id]
     const tr = !isError(cur) ? cur : s.translations[this.target] ?? ''
-    const on = toggleBm(this.lang, this.lesson.id, this.title.value, id, s.text, tr)
+    const on = toggleBm(this.lang, this.lesson.id, this.title.value, id, s.plain, tr)
     say(on ? 'Предложение в закладках' : 'Закладка удалена')
   }
 
@@ -450,10 +498,10 @@ export class ReaderSession {
     const stored = s.translations[this.target]
     const t = stored ??
       (useGemini()
-        ? await gemini.sentence(prompt.sentence(), this.lang, this.target, s.text)
-        : await api.translate(this.lang, this.target, s.text))
+        ? await gemini.sentence(prompt.sentence(), this.lang, this.target, s.plain)
+        : await api.translate(this.lang, this.target, s.plain))
     put(this.sentTr, id, t)
-    if (stored == null) this.keepTr(s.text, t)
+    if (stored == null) this.keepTr(s.plain, t)
     return t
   }
 
@@ -595,13 +643,13 @@ export class ReaderSession {
       const cur = this.sentTr.value[id]
       const current = !isError(cur) ? cur : s.translations[this.target] ?? ''
       let t: string | undefined
-      if (useGemini()) t = await gemini.retranslate(prompt.retranslate(), this.lang, this.target, s.text, current)
+      if (useGemini()) t = await gemini.retranslate(prompt.retranslate(), this.lang, this.target, s.plain, current)
       else {
         const r = await api.retranslate(this.lang, this.lesson.id, s.lingqIndex, this.target)
         t = r.get(s.lingqIndex) ?? r.values().next().value
       }
       if (!t?.trim()) say('Переводчик не вернул перевод')
-      else { put(this.sentTr, id, t.trim()); this.keepTr(s.text, t.trim()) }
+      else { put(this.sentTr, id, t.trim()); this.keepTr(s.plain, t.trim()) }
     } catch (e) {
       say(errorText(e) || 'Ошибка перевода')
       geminiFailed(e, () => void this.retranslate(id))
@@ -693,7 +741,7 @@ export class ReaderSession {
     const id = this.sentenceAt(pos)
     const st = id != null ? this.sentById.get(id) : undefined
     const ms = st && st.start >= 0 ? st.start : pos
-    addAudioBookmark(this.lang, this.lesson.id, this.title.value, id ?? -1, st?.text ?? '', ms)
+    addAudioBookmark(this.lang, this.lesson.id, this.title.value, id ?? -1, st?.plain ?? '', ms)
     log('audio', `Аудиозакладка ${audio.fmtTime(ms)}`)
     say(`Закладка ${audio.fmtTime(ms)}`)
   }
@@ -766,7 +814,7 @@ export class ReaderSession {
   async detectLevel() {
     if (this.levelBusy.value) return
     if (!useGemini()) { say('Нужен Gemini или другой ИИ: Настройки → Перевод'); return }
-    const text = this.sentences.value.map((x) => x.text).join(' ')
+    const text = this.sentences.value.map((x) => x.plain).join(' ')
     if (!text.trim()) return
     this.levelBusy.value = true
     say('ИИ оценивает уровень…')
@@ -812,19 +860,7 @@ export class ReaderSession {
     this.editSaving.value = true; this.editError.value = null
     log('reader', `Правка предложения ${id}`)
     try {
-      const paras = await api.editor(this.lang, this.lesson.id)
-      const js = findSentence(paras, s)
-      if (!js) throw new Error('Предложение не найдено в уроке на LingQ — обновите урок')
-      await saveBackup(this.lang, this.lesson.id, this.title.value, paras)
-      if (newText !== s.text) { js.text = newText; js.cleanText = newText }
-      if (newTr && newTr !== s.translations[this.target]) {
-        if (!Array.isArray(js.translations)) js.translations = []
-        const own = js.translations.find((t: any) => t?.language === this.target)
-        if (own) own.text = newTr
-        else js.translations.push({ language: this.target, text: newTr })
-      }
-      await api.saveParagraphs(this.lang, this.lesson.id, paras)
-      this.replaceSentence(s, newText, newTr)
+      await this.writeSentence(s, newText, newTr)
       this.editing.value = null
       say('Предложение сохранено')
     } catch (e) {
@@ -832,6 +868,73 @@ export class ReaderSession {
       this.editError.value = errorText(e)
     }
     this.editSaving.value = false
+  }
+
+  /** Reads the lesson again, keeps a backup, changes only sentence [s] (text, translation), saves the structure as is. */
+  private async writeSentence(s: Sent, newText: string, newTr: string) {
+    const paras = await api.editor(this.lang, this.lesson.id)
+    const js = findSentence(paras, s)
+    if (!js) throw new Error('Предложение не найдено в уроке на LingQ — обновите урок')
+    await saveBackup(this.lang, this.lesson.id, this.title.value, paras)
+    // LingQ's own cleanText drops the bold markers (** __) and keeps the italic ones
+    if (newText !== s.text) { js.text = newText; js.cleanText = newText.replace(/\*\*|__/g, '') }
+    if (newTr && newTr !== s.translations[this.target]) {
+      if (!Array.isArray(js.translations)) js.translations = []
+      const own = js.translations.find((t: any) => t?.language === this.target)
+      if (own) own.text = newTr
+      else js.translations.push({ language: this.target, text: newTr })
+    }
+    await api.saveParagraphs(this.lang, this.lesson.id, paras)
+    this.replaceSentence(s, newText, newTr)
+  }
+
+  /** Whether every word of tokens [from, to] of sentence [id] is bold. */
+  isBold(id: number, from: number, to: number): boolean {
+    const ws = (this.sentById.get(id)?.tokens ?? []).filter((t) => t.isWord && t.index >= from && t.index <= to)
+    return ws.length > 0 && ws.every((t) => t.b)
+  }
+
+  private boldBusy = false
+  /**
+   * Word / words [from, to] of sentence [id] made bold (**…** in the lesson text on LingQ) or, if all are bold already,
+   * plain again. Bold spans touching the words are taken in, so markers never nest.
+   */
+  async toggleBold(id: number, from: number, to: number) {
+    const s = this.sentById.get(id)
+    if (!s || this.boldBusy) return
+    const raw = tokenize(s.text)
+    let pos = 0, a = -1, e = -1
+    for (const t of raw) {
+      if (t.index === from) a = pos
+      pos += t.text.length
+      if (t.index === to) e = pos
+    }
+    if (a < 0 || e < 0) return
+    const on = !this.isBold(id, from, to)
+    const del = new Set<number>()
+    let A = a, E = e
+    for (const x of emphSpans(s.text)) {
+      if (x.mk.length === 1 || x.ce <= a || x.cs >= e) continue
+      // *** keeps one star each side (italic stays)
+      for (let k = 0; k < 2; k++) { del.add(x.at + k); del.add(x.end - 1 - k) }
+      A = Math.min(A, x.cs); E = Math.max(E, x.ce)
+    }
+    let out = ''
+    for (let k = 0; k <= s.text.length; k++) {
+      if (on && k === A) out += '**'
+      if (on && k === E) out += '**'
+      if (k < s.text.length && !del.has(k)) out += s.text[k]
+    }
+    this.boldBusy = true
+    log('reader', `${on ? 'Жирный' : 'Без жирного'}: предложение ${id}`)
+    try {
+      await this.writeSentence(s, out, this.shownTranslation(id))
+      say(on ? 'Выделено жирным' : 'Жирный снят')
+    } catch (err) {
+      logError('reader', 'Жирный', err)
+      say('Не сохранилось: ' + errorText(err))
+    }
+    this.boldBusy = false
   }
 
   /** The edited sentence replaces the old one on screen; its word pins are dropped (the words moved). */
@@ -844,6 +947,30 @@ export class ReaderSession {
     this.paragraphs.value = this.paragraphs.value?.map((p) => p.map((x) => (x.id === n.id ? n : x))) ?? null
     this.sentences.value = this.sentences.value.map((x) => (x.id === n.id ? n : x))
     if (tr) put(this.sentTr, n.id, tr); else drop(this.sentTr, n.id)
+    // the same words (only ** added or removed): pins stay, moved to the new token positions
+    const ow = old.tokens.filter((t) => t.isWord), nw = n.tokens.filter((t) => t.isWord)
+    if (text !== old.text && ow.length === nw.length && ow.every((t, k) => t.text === nw[k].text)) {
+      const m = new Map(ow.map((t, k) => [t.index, nw[k].index]))
+      if (ow.every((t, k) => t.index === nw[k].index)) return
+      const move = (k: string) => {
+        const p = k.split(':')
+        if (Number(p[0]) !== n.id) return k
+        const q = p.slice(1).map((x) => m.get(Number(x)))
+        return q.every((x) => x != null) ? [p[0], ...q].join(':') : null
+      }
+      const remap = <V>(rec: Record<string, V>) => {
+        const o: Record<string, V> = {}
+        for (const [k, v] of Object.entries(rec)) { const k2 = move(k); if (k2) o[k2] = v }
+        return o
+      }
+      this.pins.value = remap(this.pins.value)
+      this.provisional.value = remap(this.provisional.value)
+      this.phrasePins.value = remap(this.phrasePins.value)
+      for (const k of [...this.aiCache.keys()]) if (k.startsWith(`${n.id}:`)) this.aiCache.delete(k)
+      if (this.popup.value && refSent(this.popup.value) === n.id) this.popup.value = move(this.popup.value)
+      this.persist()
+      return
+    }
     if (text !== old.text) {
       const mine = (k: string) => k.startsWith(`${n.id}:`)
       this.pins.value = Object.fromEntries(Object.entries(this.pins.value).filter(([k]) => !mine(k)))
@@ -877,7 +1004,7 @@ export class ReaderSession {
     const c = this.aiCache.get(r)
     if (c) return c
     const s = this.sentById.get(refSent(r))!
-    const p = gemini.word(prompt.word() + SEPARABLE, this.lang, this.target, this.word(r), s.text)
+    const p = gemini.word(prompt.word() + SEPARABLE, this.lang, this.target, this.word(r), s.plain)
     this.aiCache.set(r, p)
     p.then((m) => this.markPair(r, m.pair ?? ''), () => { if (this.aiCache.get(r) === p) this.aiCache.delete(r) })
     return p
@@ -1198,7 +1325,7 @@ export class ReaderSession {
   // --- chat with Gemini ---
 
   chatText() {
-    const text = (this.paragraphs.value ?? []).map((p) => p.map((s) => s.text).join(' ')).join('\n\n')
+    const text = (this.paragraphs.value ?? []).map((p) => p.map((s) => s.plain).join(' ')).join('\n\n')
     const marked = this.pinnedList()
     const sys = fill(prompt.chatText(), { lang: this.lang, target: this.target, text }) + (marked.length
       ? `\n\nСлова, которые ученик отметил в этом уроке (слово — перевод), учитывай их в ответах:\n${marked.map((m) => `- ${m.word} — ${m.tr}`).join('\n')}`
@@ -1261,16 +1388,16 @@ export class ReaderSession {
     if (!s) return
     this.popup.value = null
     this.closePhrase()
-    const sys = fill(prompt.chatWord(), { lang: this.lang, target: this.target, word, sentence: s.text })
-    go({ k: 'chat', c: new ChatSession(`Чат о слове «${word}»`, sys, `${word}\n\n${s.text}`, 'word') })
+    const sys = fill(prompt.chatWord(), { lang: this.lang, target: this.target, word, sentence: s.plain })
+    go({ k: 'chat', c: new ChatSession(`Чат о слове «${word}»`, sys, `${word}\n\n${s.plain}`, 'word') })
   }
 
   chatSentence(id: number) {
     const s = this.sentById.get(id)
     if (!s) return
     this.popup.value = null
-    const sys = fill(prompt.chatSentence(), { lang: this.lang, target: this.target, sentence: s.text })
-    go({ k: 'chat', c: new ChatSession('Чат о предложении', sys, s.text) })
+    const sys = fill(prompt.chatSentence(), { lang: this.lang, target: this.target, sentence: s.plain })
+    go({ k: 'chat', c: new ChatSession('Чат о предложении', sys, s.plain) })
   }
 }
 

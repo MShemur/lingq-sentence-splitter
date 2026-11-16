@@ -1,5 +1,6 @@
 // "Загрузка в LingQ": text from the clipboard or a file (TXT, MD, EPUB, PDF), cleaning, upload to a course with the
 // sentence split fixed right away; and the backups of lessons before a fix. Port of Android ImportScreen / BackupsScreen.
+import { pastedEmphasis } from '../importer/sources'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { back, backTo, courses, coursesError, go, LessonsScreen, loadCourses, say, stack, type Screen } from '../app'
 import { prefs, useGemini } from '../settings'
@@ -47,7 +48,16 @@ export function ImportScreen({ s }: { s: ImportSession }) {
 
   const pasteClipboard = async () => {
     try {
-      const t = await navigator.clipboard.readText()
+      // bold / italic of the copied text come as **…** / *…* (the HTML version of the clipboard), else plain text
+      let t = ''
+      try {
+        for (const it of await navigator.clipboard.read()) {
+          if (!it.types.includes('text/html')) continue
+          t = pastedEmphasis(await (await it.getType('text/html')).text()) ?? ''
+          if (t) break
+        }
+      } catch { /* plain text below */ }
+      if (!t) t = await navigator.clipboard.readText()
       if (!t.trim()) { s.typeIn(); say('Буфер пуст — вставьте текст в поле'); return }
       s.paste(t)
     } catch {
@@ -105,7 +115,17 @@ export function ImportScreen({ s }: { s: ImportSession }) {
               )}
               <label class="field">
                 <span>{s.cleaning.value ? 'Текст — ИИ чистит…' : 'Текст'}</span>
-                <textarea class="import-text" value={s.pasteText.value} disabled={s.cleaning.value} onInput={(e) => { s.pasteText.value = (e.target as HTMLTextAreaElement).value }} />
+                <textarea class="import-text" value={s.pasteText.value} disabled={s.cleaning.value} onInput={(e) => { s.pasteText.value = (e.target as HTMLTextAreaElement).value }}
+                  onPaste={(e) => {
+                    // pasted by hand: bold / italic become **…** / *…*
+                    const md = pastedEmphasis(e.clipboardData?.getData('text/html') ?? '')
+                    if (md == null) return
+                    e.preventDefault()
+                    const ta = e.target as HTMLTextAreaElement
+                    const v = ta.value, a = ta.selectionStart ?? v.length, b = ta.selectionEnd ?? v.length
+                    s.pasteText.value = v.slice(0, a) + md + v.slice(b)
+                    requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = a + md.length })
+                  }} />
               </label>
               <div class="hint">{wordsLabel(countWords(s.pasteText.value))}</div>
             </>
