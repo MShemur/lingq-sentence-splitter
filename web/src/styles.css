@@ -1009,3 +1009,6 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .ws-cut-group { width: 100%; }
 .ws-cut-head { background: none; border: 0; padding: 8px 0; width: 100%; text-align: left; font: inherit; color: var(--on-surface); cursor: pointer; }
 .ws-cut-words { margin: 0 0 8px 18px; font-size: 14px; line-height: 1.5; color: var(--on-surface-variant); -webkit-user-select: text; user-select: text; }
+/* sentence mode: the translation as big as under a sentence in the text view (was x1.1); the header takes a drag down */
+.sent-tr.big { font-size: 1em; }
+.sm-header { touch-action: none; }

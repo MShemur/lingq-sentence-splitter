@@ -46,7 +46,7 @@ const isBook = () => prefs.readerBook.value === '1'
  * the touch over as soon as the finger moves, which breaks long press + drag over words (selection).
  * Horizontal drag moves the pages and snaps to one; vertical drag scrolls a page that does not fit.
  */
-function useSwipe(pager: { current: HTMLDivElement | null }, onTap?: (e: PointerEvent) => void) {
+function useSwipe(pager: { current: HTMLDivElement | null }, onTap?: (e: PointerEvent) => void, onPullDown?: () => void) {
   const st = useRef<{
     id: number; x: number; y: number; t: number; left: number; top: number; lastX: number
     scroller: HTMLElement | null; axis: '' | 'x' | 'y'
@@ -57,6 +57,8 @@ function useSwipe(pager: { current: HTMLDivElement | null }, onTap?: (e: Pointer
     dragging = false
     const el = pager.current
     if (g && !g.axis && e && onTap && performance.now() - g.t < 450) onTap(e)
+    // pulled down from the top of the page (sentence mode: collapses it)
+    if (g && g.axis === 'y' && e && onPullDown && g.top <= 0 && e.clientY - g.y > 110) onPullDown()
     if (!g || g.axis !== 'x' || !el || !el.clientWidth) return
     const dx = g.lastX - g.x
     const v = dx / Math.max(1, performance.now() - g.t)
@@ -1005,7 +1007,22 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
   const page = Math.min(s.page.value, list.length - 1)
   const pager = useRef<HTMLDivElement>(null)
   const handlers = useWordPress(s)
-  const swipe = useSwipe(pager)
+  // a swipe down on the sentence (scrolled to its top) or on the top bar collapses sentence mode (as Android v1.126)
+  const swipe = useSwipe(pager, undefined, () => s.closeSentenceMode())
+  const headY = useRef<number | null>(null)
+  const head = {
+    onPointerDown: (e: PointerEvent) => {
+      if ((e.target as Element).closest?.('button')) return
+      headY.current = e.clientY
+      try { (e.currentTarget as Element).setPointerCapture(e.pointerId) } catch { /* gone */ }
+    },
+    onPointerUp: (e: PointerEvent) => {
+      const y = headY.current
+      headY.current = null
+      if (y != null && e.clientY - y > 66) s.closeSentenceMode()
+    },
+    onPointerCancel: () => { headY.current = null },
+  }
   const turn = (d: number) => {
     const i = Math.min(list.length - 1, Math.max(0, s.page.value + d))
     if (pager.current) glide(pager.current, i * pager.current.clientWidth)
@@ -1056,7 +1073,7 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
   const cur = list[page]
   return (
     <div class="sentence-mode">
-      <div class="sm-header">
+      <div class="sm-header" {...head}>
         <IconButton icon="down" label="Свернуть" size={32} onClick={() => s.closeSentenceMode()} />
         <div class="sm-progress">
           <ProgressPill p={(page + 1) / Math.max(1, list.length)} />
@@ -1070,7 +1087,7 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
         {list.map((sent, i) => (
           <div class="page" key={sent.id}>
             {Math.abs(i - page) <= 2 && (
-              <div class="page-inner reader-text" style={{ '--fs': Number(prefs.readerFont.value) * 1.15 + 'px' } as JSX.CSSProperties} {...handlers}>
+              <div class="page-inner reader-text" style={{ '--fs': Number(prefs.readerFont.value) + 'px' } as JSX.CSSProperties} {...handlers}>
                 <div class={'sm-center' + (sent.heading ? ' heading' : '')}>
                   <SentenceFlow s={s} sents={[sent]} />
                   <SentenceTranslationPage s={s} id={sent.id} />

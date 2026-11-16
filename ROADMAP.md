@@ -1,7 +1,7 @@
 # План улучшений SatzLoop
 
 Общий план для Android и веб-версии (iPad). Очередь переноса функций между платформами ведётся в `PORTING.md`.
-Обновлено: 11.11.2026 (Android v1.86, web v1.62).
+Обновлено: 11.11.2026 (Android v1.86, web v1.63).
 
 ## Не делаем (решено)
 
@@ -106,6 +106,7 @@ v1.N, optional log; list: both devices, status / doneIn / reply); entries in Set
 German direct speech (»Alle …«) split into sentences, also after AI cleaning (android v1.120, web v1.60)
 Book mode (Книжный режим) and 'Без цвета' word highlight (android v1.121, web v1.61; iPad landscape: two pages)
 Cut rare words listed by count; the word window highlights the whole unit (sich, fixed phrases, split verbs) (android v1.125, web v1.62)
+Repeated word in a unit (um[2]); sentence mode: swipe down collapses, text font size (android v1.126, web v1.63)
 
 ## Оптимизация по обзору кода (10.11.2026)
 

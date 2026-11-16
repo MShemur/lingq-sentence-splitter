@@ -104,7 +104,10 @@ const SEPARABLE = '\n\nУчитывай грамматику всего пред
   'переводи всё целое, а в note укажи его словарную форму (инфинитив с приставкой, sich, предлогом). ' +
   'Если «{word}» — приставка, sich или другое слово такого целого, переводи всё целое так же. ' +
   'Добавь в JSON поле "pair": остальные слова этого целого ровно так, как они написаны в предложении, через пробел ' +
-  '(без самого «{word}»); пустая строка, если «{word}» — просто отдельное слово.'
+  '(без самого «{word}»); пустая строка, если «{word}» — просто отдельное слово. ' +
+  'Будь внимателен: одно и то же слово может стоять в предложении несколько раз в разной роли (нем. «um» — предлог ' +
+  'в «erweitert sich um den Aspekt» и приставка в «treibt jeden Menschen um» → umtreiben). Если слово из pair ' +
+  'встречается в предложении больше одного раза, допиши к нему номер нужного вхождения, считая слева, в квадратных скобках: «um[2]».'
 
 /** The sentence in LingQ's paragraphs: by its index, else by the same order as `parse` (non-empty sentences). */
 function findSentence(paras: any[], s: Sent): any | null {
@@ -185,18 +188,36 @@ export class ReaderSession {
 
   /** Each word of [pair] (space-separated, max 6) becomes the nearest unused word of the sentence spelled like it. */
   private markPair(r: WordRef, pair: string) {
-    const words = pair.toLowerCase().split(/\s+/).map((w) => w.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')).filter(Boolean)
+    // "um[2]" = the second "um" of the sentence (the AI numbers a word that occurs more than once)
+    const words = pair.toLowerCase().split(/\s+/).map((raw) => {
+      const m = /\[(\d+)\]/.exec(raw)
+      const w = raw.replace(/\[\d+\]/g, '').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+      return { w, nth: m ? Number(m[1]) : null }
+    }).filter((x) => x.w)
     if (!words.length || words.length > 6) return
     const st = this.sentById.get(refSent(r))
     if (!st) return
     const me = refToken(r)
+    const toks = st.tokens
+    const pos = toks.findIndex((t) => t.index === me)
     const used = new Set([me])
     const hits: WordRef[] = []
-    for (const w of words) {
-      let hit: Token | null = null
-      for (const t of st.tokens) {
-        if (!t.isWord || used.has(t.index) || t.text.toLowerCase() !== w) continue
-        if (!hit || Math.abs(t.index - me) < Math.abs(hit.index - me)) hit = t
+    for (const { w, nth } of words) {
+      const all = toks.filter((t) => t.isWord && t.text.toLowerCase() === w)
+      let hit: Token | null = nth != null ? all[nth - 1] ?? null : null
+      if (hit && used.has(hit.index)) hit = null
+      if (!hit) {
+        // no number: the nearest one, but a split-off prefix stands AFTER its verb at the end of a clause
+        // (before , . ; or "und"), so such a place counts as much nearer (as Android v1.126)
+        let best = Infinity
+        for (const t of all) {
+          if (used.has(t.index)) continue
+          const i = toks.indexOf(t)
+          const next = toks.slice(i + 1).find((x) => x.text.trim())
+          const clauseEnd = !next || !next.isWord || ['und', 'oder', 'aber'].includes(next.text.toLowerCase())
+          const d = Math.abs(i - pos) - (i > pos && clauseEnd ? 100 : 0)
+          if (d < best) { best = d; hit = t }
+        }
       }
       if (hit) { used.add(hit.index); hits.push(ref(st.id, hit.index)) }
     }
