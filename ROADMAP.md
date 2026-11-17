@@ -1,7 +1,7 @@
 # План улучшений SatzLoop
 
 Общий план для Android и веб-версии (iPad). Очередь переноса функций между платформами ведётся в `PORTING.md`.
-Обновлено: 11.11.2026 (Android v1.86, web v1.65).
+Обновлено: 11.11.2026 (Android v1.86, web v1.66).
 
 ## Не делаем (решено)
 
@@ -109,6 +109,7 @@ Cut rare words listed by count; the word window highlights the whole unit (sich,
 Repeated word in a unit (um[2]); sentence mode: swipe down collapses, text font size (android v1.126, web v1.63)
 Bold / italic kept as ** / * in the LingQ text: drawn in the reader, «Жирным» in the word window, from EPUB and pasted text (web v1.64)
 Book mode: top bar always shown; FBReader-like backgrounds with paper texture (android v1.127, web v1.65)
+Line / paragraph spacing sliders; book mode: sentence may go on on the next page; iPad book bar by tap again (android v1.129, web v1.66)
 
 ## Оптимизация по обзору кода (10.11.2026)
 

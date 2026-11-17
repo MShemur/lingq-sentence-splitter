@@ -118,10 +118,21 @@ export const FACES: [string, string, string][] = [
 const PAPER: ReaderTheme = { key: 'paper', name: 'Бумага', bg: '#F6EFE0', fg: '#33291F', dark: false, grain: 0.5 }
 const PAPER_DARK: ReaderTheme = { key: 'paperDark', name: 'Бумага ночью', bg: '#1E1B17', fg: '#DCD3C3', dark: true, grain: 0.35 }
 
+/** Line spacing multiplier from the setting (1 = usual). */
+export const lineMul = () => Math.min(2, Math.max(0.7, (Number(prefs.lineSpacing.value) || 100) / 100))
+/** Gap between paragraphs, px: the setting, or the usual one (book mode 0, else 14). */
+export const paraGapPx = (book: boolean) => {
+  const g = Number(prefs.paraGap.value)
+  return Number.isFinite(g) && g >= 0 ? g : book ? 0 : 14
+}
+
 export function readerStyle(book = false): JSX.CSSProperties {
   const t = themeOf(prefs.readerTheme.value) ?? (book ? (systemDark.value ? PAPER_DARK : PAPER) : undefined)
   const hl = highlightColors(prefs.highlight.value, darkPage())
   const out: Record<string, string> = { '--green': hl.text, '--green-bg': hl.bg, '--pin-gap': (Number(prefs.pinGap.value) || 0) + 'px' }
+  out['--line-mul'] = String(lineMul())
+  const gap = paraGapPx(book)
+  out['--para-gap'] = gap + 'px'
   const face = FACES.find((f) => f[0] === prefs.readerFace.value)
   if (face?.[2]) out['--reader-face'] = face[2]
   if (t) {

@@ -34,6 +34,10 @@ export const prefs = {
   readerFace: pref('readerFace', ''),
   /** '1': the reading text justified (both edges straight). */
   readerJustify: pref('readerJustify', '0'),
+  /** Line spacing of the reading text, % of the usual (70..200). */
+  lineSpacing: pref('lineSpacing', '100'),
+  /** px between paragraphs (0..48); '-1' = usual (book mode 0, else 14). */
+  paraGap: pref('paraGap', '-1'),
   /** '1': book mode (full screen, no bars, swipe only, paragraphs by indent, two pages in landscape). */
   readerBook: pref('readerBook', '0'),
   /** '1': a word with a translation gets the highlight background; '0': none, only the translation is coloured. */

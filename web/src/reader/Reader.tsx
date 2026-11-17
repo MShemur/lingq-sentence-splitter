@@ -6,7 +6,7 @@ import { signal } from '@preact/signals'
 import { Icon } from '../icons'
 import { Press } from '../press'
 import { back, go, stack } from '../app'
-import { readerStyle, useKeepAwake } from '../readerLook'
+import { readerStyle, useKeepAwake, lineMul, paraGapPx } from '../readerLook'
 import { useReadingTimer } from '../stats'
 import { prefs } from '../settings'
 import { Chip, Dialog, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
@@ -196,7 +196,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
   const book = isBook()
   return (
     <div ref={rootRef} class={'screen reader' + (s.pinsHidden.value ? ' pins-hidden' : '') + (prefs.readerJustify.value === '1' ? ' justify' : '')
-      + (book ? ' book' : '') + (prefs.wordBg.value === '0' ? ' nobg' : '')} style={readerStyle(book)}>
+      + (book ? ' book' : '') + (book && s.bookBar.value ? ' book-bar' : '') + (prefs.wordBg.value === '0' ? ' nobg' : '')} style={readerStyle(book)}>
       <TopBar
         center
         nav={<IconButton icon="close" label="Закрыть урок" onClick={back} />}
@@ -367,7 +367,8 @@ function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, 
  * a sentence boundary; a sentence goes whole to the next page (the user's choice, web v1.58), only one taller than a
  * whole page is split at a line inside it.
  */
-function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number, cache: MeasureCache, prefix: string, gap = PARA_GAP): Block[][] {
+/** [cut]: book mode, a sentence that does not fit goes on on the next page from the line where it was cut (as a book). */
+function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number, cache: MeasureCache, prefix: string, gap = PARA_GAP, cut = false): Block[][] {
   const whole = measureCached(box, s, cache, prefix, paras.map((p) => ({ sents: p })))
   const pages: Block[][] = []
   let cur: Block[] = []
@@ -385,8 +386,8 @@ function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number
       // the longest run of whole sentences that still fits on this page
       let k = 0
       while (k < rest.length && used + need(m.bottoms[k]) <= h) k++
-      // a sentence taller than a whole page (nothing else on it): the lines that fit
-      const cb = k === 0 && !cur.length ? m.chunks[0] ?? [] : []
+      // a sentence taller than a whole page (nothing else on it), or any sentence in book mode: the lines that fit
+      const cb = cut ? m.chunks[k] ?? [] : k === 0 && !cur.length ? m.chunks[0] ?? [] : []
       let c = 0
       while (c < cb.length - 1 && used + need(cb[c]) <= h) c++
       if (c > 0) {
@@ -497,7 +498,8 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     if (!box || !size.h) return
     const cs = getComputedStyle(box)
     const h = size.h - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
-    const next = paginate(box, s, paras, h, cache.current, `${size.w}|${prefs.readerFont.value}|${per}|${book ? 'b' : ''}|`, book ? 0 : PARA_GAP)
+    const next = paginate(box, s, paras, h, cache.current,
+      `${size.w}|${prefs.readerFont.value}|${per}|${book ? 'b' : ''}|${lineMul()}|`, paraGapPx(book), book)
     // the same text stays on screen when pages are rebuilt. The anchor is the sentence the reader got to and is NOT
     // moved to the first sentence of the new page: that crept back a little with every rebuild (font A+ / A−, the
     // window resized when switching apps) until the reading position was back at the start.
@@ -578,8 +580,13 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     scrollEnd.current = window.setTimeout(() => { scrolling.current = false; turnTo.current = null; settle() }, 150)
     scrollTo(i, true)
   }
-  // book mode: the top bar always stays above the text (the tap in the middle that showed it is gone, as Android v1.127)
-  const swipe = useSwipe(pager)
+  // book mode: a tap in the middle of the page (not on a word) shows / hides the top bar over the text
+  // (the iPad keeps this; Android v1.127 fixed the bar in place, the user wants it back here: note 20261117-024446-web)
+  const swipe = useSwipe(pager, (e) => {
+    if (!isBook() || (e.target as Element | null)?.closest?.('[data-w], .sent-tr, button')) return
+    const x = e.clientX / window.innerWidth, y = e.clientY / window.innerHeight
+    if (x >= 0.2 && x <= 0.8 && y >= 0.15 && y <= 0.85) s.bookBar.value = !s.bookBar.value
+  })
 
   // arrow keys turn pages (iPad keyboard)
   useEffect(() => {

@@ -328,9 +328,27 @@ export function SettingsReading() {
           <Chip key={v} label={label} selected={(prefs.readerBook.value || '0') === v} onClick={() => { prefs.readerBook.value = v }} />
         ))}
       </div>
-      <p class="hint">Текст на весь экран без нижней панели и кнопок, сверху — строка урока (там ⋮ → «Книжный режим»
-        выключает его); страницы листаются свайпом, в альбомной ориентации — две рядом. Двойной тап по слову — меню слова.
-        Абзацы — отступом первой строки, перевод над словом не раздвигает строки.</p>
+      <p class="hint">Текст на весь экран, без панелей и кнопок; страницы листаются свайпом, в альбомной ориентации — две
+        рядом. Тап по середине страницы показывает верхнюю панель (там ⋮ → «Книжный режим» выключает его), двойной тап по
+        слову — меню слова. Абзацы — отступом первой строки, перевод над словом не раздвигает строки; предложение, как в
+        книге, может продолжаться на следующей странице.</p>
+      <h3 class="section-title">Расстояние между строками</h3>
+      <div class="spacing-row">
+        <input type="range" min={70} max={200} step={10} value={Number(prefs.lineSpacing.value) || 100} aria-label="Расстояние между строками"
+          onInput={(e) => { prefs.lineSpacing.value = (e.target as HTMLInputElement).value }} />
+        <span class="spacing-val">{(Number(prefs.lineSpacing.value) || 100) === 100 ? 'обычное' : `${prefs.lineSpacing.value} %`}</span>
+      </div>
+      <h3 class="section-title">Расстояние между абзацами</h3>
+      <div class="spacing-row">
+        <input type="range" min={0} max={48} step={4} value={Number(prefs.paraGap.value) >= 0 ? Number(prefs.paraGap.value) : prefs.readerBook.value === '1' ? 0 : 16}
+          aria-label="Расстояние между абзацами" onInput={(e) => { prefs.paraGap.value = (e.target as HTMLInputElement).value }} />
+        <span class="spacing-val">{Number(prefs.paraGap.value) >= 0 ? `${prefs.paraGap.value} px` : 'обычное'}</span>
+      </div>
+      {(prefs.lineSpacing.value !== '100' || prefs.paraGap.value !== '-1') && (
+        <div class="chips">
+          <Chip label="Вернуть обычные расстояния" onClick={() => { prefs.lineSpacing.value = '100'; prefs.paraGap.value = '-1' }} />
+        </div>
+      )}
       <h3 class="section-title">Перевод над словом</h3>
       <p class="hint">Расстояние между переводом и словом под ним.</p>
       <div class="chips">
