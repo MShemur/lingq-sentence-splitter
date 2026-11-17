@@ -159,6 +159,14 @@ class Prefs(ctx: Context) {
     var trGap: Int
         get() = read("trGap", "100").toIntOrNull()?.coerceIn(0, 100) ?: 100
         set(v) = write("trGap", v.toString())
+    /** Line spacing of the reader, % of the usual one. */
+    var lineSpacing: Int
+        get() = read("lineSpacing", "100").toIntOrNull()?.coerceIn(70, 200) ?: 100
+        set(v) = write("lineSpacing", v.toString())
+    /** Space between paragraphs, dp; -1 = usual (none in book mode, 14 dp otherwise). */
+    var paraGap: Int
+        get() = read("paraGap", "-1").toIntOrNull()?.coerceIn(-1, 60) ?: -1
+        set(v) = write("paraGap", v.toString())
     /** "Слова по урокам": words met at most this many times in a course are not counted (0 = all). */
     var wsMin: Int
         get() = read("wsMin", "0").toIntOrNull()?.coerceIn(0, 10) ?: 0

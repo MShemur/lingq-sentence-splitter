@@ -260,6 +260,8 @@ class AppState(val ctx: Context) {
     var highlight by mutableStateOf(prefs.highlight)
     var keepAwake by mutableStateOf(prefs.keepAwake)
     var trGap by mutableStateOf(prefs.trGap)
+    var lineSpacing by mutableStateOf(prefs.lineSpacing)
+    var paraGap by mutableStateOf(prefs.paraGap)
     var justify by mutableStateOf(prefs.readerJustify)
     var book by mutableStateOf(prefs.readerBook)
     var wordBg by mutableStateOf(prefs.wordBg)
@@ -280,6 +282,7 @@ class AppState(val ctx: Context) {
         prefs.block()
         apiKey = prefs.apiKey; lang = prefs.lang; ghToken = prefs.ghToken; trLang = prefs.trLang
         readerTheme = prefs.readerTheme; highlight = prefs.highlight; keepAwake = prefs.keepAwake; trGap = prefs.trGap
+        lineSpacing = prefs.lineSpacing; paraGap = prefs.paraGap
         justify = prefs.readerJustify
         book = prefs.readerBook; wordBg = prefs.wordBg
         if (oldLang != lang) courses = null

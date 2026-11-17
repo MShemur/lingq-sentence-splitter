@@ -1028,6 +1028,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun trVisible(key: String) = !hideTr || peek.containsKey(key)
     /** Settings: gap between a word and its translation, %. */
     val trGap get() = app.trGap
+    /** Settings: line spacing, % of the usual one. */
+    val lineSpacing get() = app.lineSpacing
+    /** Space between paragraphs as set (usual: none in book mode, 14 dp otherwise). */
+    val paraGap: Dp get() = if (app.paraGap >= 0) app.paraGap.dp else if (book) 0.dp else 14.dp
     val justify get() = app.justify
 
     /** Words and phrases with a translation in this lesson, in text order, each word once: (text, translation, sentence). */
@@ -1938,7 +1942,7 @@ fun ReaderScreen(s: ReaderSession) {
 private class Block(val sents: List<Sent>, val first: Int = 0, val last: Int = -1, val start: Boolean = false)
 
 /** Line height in font sizes: book mode leaves room for the translations above the words. */
-private fun lineMul(book: Boolean) = if (book) 1.55f else 1.35f
+private fun lineMul(book: Boolean, pct: Int = 100) = (if (book) 1.55f else 1.35f) * pct / 100f
 
 /** First-line indent of a paragraph in book mode, in font sizes. */
 private const val INDENT_EM = 1.5f
@@ -1954,9 +1958,11 @@ private class TextMetrics(
     private val widths: HashMap<String, Int>,
     /** Book mode: taller lines (room for the translations above words), first line of a paragraph indented. */
     book: Boolean = false,
+    /** Line spacing, % of the usual one. */
+    spacing: Int = 100,
 ) {
     private val size = font.toFloat()
-    private val text = textStyle.copy(fontSize = size.sp, lineHeight = (size * lineMul(book)).sp)
+    private val text = textStyle.copy(fontSize = size.sp, lineHeight = (size * lineMul(book, spacing)).sp)
     /** Width of the first-line indent of a paragraph (book mode), 0 = none. */
     val indent = if (book) px(size * INDENT_EM) else 0
     private fun px(dp: Float) = with(d) { dp.dp.roundToPx() }
@@ -2018,7 +2024,7 @@ private class TextMetrics(
  * Pages from the bare text: a paragraph is split between pages at a sentence boundary; only a sentence taller
  * than a page is split at a line.
  */
-private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: Int, gap: Int): List<List<Block>> {
+private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: Int, gap: Int, cut: Boolean = false): List<List<Block>> {
     // book mode: a paragraph starts with an indent (not a heading, not the rest of a paragraph from the last page)
     fun ind(para: List<Sent>, from: Int, fromChunk: Int) =
         if (from == 0 && fromChunk == 0 && !para[0].heading) metrics.indent else 0
@@ -2055,9 +2061,9 @@ private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: I
             }
             val sent = para[from + bj]
             val end = (if (bj == 0) fromChunk else 0) + bc + 1              // chunks of that sentence on this page
-            if (end < sent.chunks.size) {
-                // a sentence is not cut (the user's wish): it goes to the next page whole, unless it alone is taller
-                // than a page
+            if (end < sent.chunks.size && !cut) {
+                // a sentence is not cut (the user's wish; book mode [cut] lets it go on on the next page like in a book):
+                // it goes to the next page whole, unless it alone is taller than a page
                 if (bj > 0) {
                     used += need(cb[bj - 1].last())
                     cur += Block(para.subList(from, from + bj), fromChunk, start = start)
@@ -2090,20 +2096,21 @@ private fun PagedText(s: ReaderSession, paras: List<List<Sent>>) {
     val measurer = rememberTextMeasurer(cacheSize = 0)
     val density = LocalDensity.current
     val textStyle = MaterialTheme.typography.bodyLarge
-    val widths = remember(s.font, density) { HashMap<String, Int>() }
+    val widths = remember(s.font, density, s.lineSpacing) { HashMap<String, Int>() }
     val lock = remember { Mutex() }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val padH = with(density) { sidePad(s).roundToPx() }
         val padV = with(density) { 12.dp.roundToPx() }
         val book = s.book
-        val gap = if (book) 0 else with(density) { 14.dp.roundToPx() }
+        val gap = with(density) { s.paraGap.roundToPx() }
+        val spacing = s.lineSpacing
         val w = (constraints.maxWidth - 2 * padH).coerceAtLeast(1)
         val h = if (constraints.hasBoundedHeight) ((constraints.maxHeight - 2 * padV) * 0.99f).toInt() else Int.MAX_VALUE
         val font = s.font
         // the old pages stay on screen until the new ones are ready
-        val pages by produceState<List<List<Block>>?>(null, paras, font, w, h, gap, density, book) {
+        val pages by produceState<List<List<Block>>?>(null, paras, font, w, h, gap, density, book, spacing) {
             value = withContext(Dispatchers.Default) {
-                lock.withLock { paginate(paras, TextMetrics(measurer, density, font, w, textStyle, widths, book), h, gap) }
+                lock.withLock { paginate(paras, TextMetrics(measurer, density, font, w, textStyle, widths, book, spacing), h, gap, cut = book) }
             }
         }
         pages?.let { TextPager(s, it) }
@@ -2169,7 +2176,7 @@ private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
             Column(
                 Modifier.fillMaxSize()
                     .verticalScroll(rememberScrollState()).padding(horizontal = sidePad(s), vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(if (s.book) 0.dp else 14.dp),
+                verticalArrangement = Arrangement.spacedBy(s.paraGap),
             ) {
                 latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents, b.first, b.last, b.start && s.book) }
             }
@@ -2280,7 +2287,7 @@ internal fun SentenceFlow(
     val haptic = LocalHapticFeedback.current
     val selBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
     val playColor = MaterialTheme.colorScheme.primary
-    val textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = size.sp, lineHeight = (size * lineMul(s.book && area == "text")).sp)
+    val textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = size.sp, lineHeight = (size * lineMul(s.book && area == "text", s.lineSpacing)).sp)
     val trStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (size * 0.6).sp, lineHeight = (size * 0.68).sp)
     FlowRow(
         horizontalArrangement = if (center) Arrangement.Center else if (justify) JustifyLoose else Arrangement.Start,

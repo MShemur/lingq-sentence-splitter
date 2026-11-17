@@ -258,13 +258,42 @@ fun SettingsReading(state: AppState) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
+        Text("Расстояние между строками", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Slider(
+                value = state.lineSpacing.toFloat(),
+                onValueChange = { v -> val n = (Math.round(v / 10f) * 10).coerceIn(70, 200); if (n != state.lineSpacing) state.applyPrefs { lineSpacing = n } },
+                valueRange = 70f..200f, steps = 12, modifier = Modifier.weight(1f),
+            )
+            Text(if (state.lineSpacing == 100) "обычное" else "${state.lineSpacing} %", Modifier.width(72.dp).padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
+        }
+        Text("Расстояние между абзацами", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val usual = if (state.book) 0 else 14
+            val cur = if (state.paraGap >= 0) state.paraGap else usual
+            androidx.compose.material3.Slider(
+                value = cur.toFloat(),
+                onValueChange = { v -> val n = (Math.round(v / 4f) * 4).coerceIn(0, 48); if (n != cur) state.applyPrefs { paraGap = n } },
+                valueRange = 0f..48f, steps = 11, modifier = Modifier.weight(1f),
+            )
+            Text(if (state.paraGap < 0) "обычное" else "$cur dp", Modifier.width(72.dp).padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
+        }
+        if (state.lineSpacing != 100 || state.paraGap >= 0) androidx.compose.material3.TextButton(
+            onClick = { state.applyPrefs { lineSpacing = 100; paraGap = -1 } },
+        ) { Text("Вернуть обычные расстояния") }
+        Text(
+            "Действует в тексте и в режиме по предложениям. Обычное между абзацами: в книжном режиме без промежутка, иначе 14 dp.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
         Text("Книжный режим", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         Row(
             Modifier.fillMaxWidth().clickable { state.applyPrefs { readerBook = !state.book } }.padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Текст на весь экран без системных панелей, сверху — строка урока. Абзацы с красной строки, " +
+                "Текст на весь экран без системных панелей, сверху — строка урока. Абзацы с красной строки, предложение может " +
+                    "продолжаться на следующей странице, " +
                     "перевод над словом не раздвигает строки. С фоном «Как в системе» — цвет бумаги.",
                 Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium,
             )

@@ -7,6 +7,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user's iPad notes 17.11.2026 (20261117-024446-web, 20261117-032821-web) -> android v1.129 -> web: 1) WEB ONLY: undo the fixed top bar of web v1.65 in book mode: on the iPad the bar again slides in / out by a tap in the middle of the page (as before v1.65); only Android keeps it fixed. 2) Settings → Чтение: «Расстояние между строками» slider 70–200 % step 10 (100 = «обычное»), multiplies the line height of the reader text and sentence mode (Android: lineMul × pct, also in the page metrics); «Расстояние между абзацами» slider 0–48 dp step 4, default -1 = «обычное» (book mode 0, otherwise 14 dp); the page layout uses the same gap; button «Вернуть обычные расстояния» resets both. Prefs lineSpacing / paraGap. 3) Book mode only: a sentence may be cut at a line and go on on the next page, like a book (paginate cut = book; outside book mode a sentence still moves to the next page whole). Settings text of book mode mentions it.
+
 ## To do on Android
 
 ## Done
