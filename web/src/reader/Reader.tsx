@@ -312,7 +312,8 @@ function ReaderActions({ s }: { s: ReaderSession }) {
  * Sentences of one paragraph on one page. [start]: the first sentence begins at this chunk (its start is on the page
  * before); [end]: the last sentence stops before this chunk (it goes on on the next page).
  */
-interface Block { para: number; sents: Sent[]; start?: number; end?: number }
+/** [cont]: the block goes on with a paragraph begun on the page before (no first-line indent in book mode). */
+interface Block { para: number; sents: Sent[]; start?: number; end?: number; cont?: boolean }
 
 /** Height of a block of sentences, the bottom of every prefix of it (k+1 sentences), and of every chunk, in px. */
 interface Measure { height: number; bottoms: number[]; chunks: number[][] }
@@ -320,8 +321,8 @@ interface Measure { height: number; bottoms: number[]; chunks: number[][] }
 const PARA_GAP = 14
 
 /** Renders blocks (bare text) into the hidden measuring box and reads their layout. */
-function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Spec[]): Measure[] {
-  render(<>{blocks.map((b, i) => <Paragraph key={i} s={s} sents={b.sents} start={b.start} plain />)}</>, box)
+function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Spec[], split: boolean): Measure[] {
+  render(<>{blocks.map((b, i) => <Paragraph key={i} s={s} sents={b.sents} start={b.start} cont={b.cont} plain split={split} />)}</>, box)
   const out: Measure[] = []
   box.querySelectorAll<HTMLElement>(':scope > .para').forEach((el, i) => {
     const top = el.getBoundingClientRect().top
@@ -343,18 +344,19 @@ function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Spec[]): Meas
 /** Measured blocks, by width, font and sentences; survives page rebuilds. */
 type MeasureCache = Map<string, Measure>
 /** What is measured: sentences of a paragraph, the first from chunk [start]. */
-interface Spec { sents: Sent[]; start?: number }
+interface Spec { sents: Sent[]; start?: number; cont?: boolean }
 
 /**
  * Measures blocks, using the cache where nothing changed. New ones are rendered in small batches, so a long
  * lesson is never put into the page all at once (Android ran out of memory doing that, PORTING note 87bc83d).
  */
-function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, prefix: string, blocks: Spec[]): Measure[] {
-  const keys = blocks.map((b) => prefix + b.sents.map((x) => x.id).join('/') + (b.start ? '@' + b.start : ''))
+function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, prefix: string, blocks: Spec[], split = false): Measure[] {
+  // [split]: a shown sentence translation ends the line there ('!' in the key), as on the page
+  const keys = blocks.map((b) => prefix + b.sents.map((x) => x.id + (split && s.sentenceShown(x.id) ? '!' : '')).join('/') + (b.start ? '@' + b.start : '') + (b.cont ? '^' : ''))
   const missing = blocks.map((_, i) => i).filter((i) => !cache.has(keys[i]))
   for (let a = 0; a < missing.length; a += 25) {
     const part = missing.slice(a, a + 25)
-    measureBlocks(box, s, part.map((i) => blocks[i])).forEach((m, j) => cache.set(keys[part[j]], m))
+    measureBlocks(box, s, part.map((i) => blocks[i]), split).forEach((m, j) => cache.set(keys[part[j]], m))
   }
   if (cache.size > 4000) { const keep = new Set(keys); for (const k of cache.keys()) if (!keep.has(k)) cache.delete(k) }
   return keys.map((k) => cache.get(k)!)
@@ -369,7 +371,9 @@ function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, 
  */
 /** [cut]: book mode, a sentence that does not fit goes on on the next page from the line where it was cut (as a book). */
 function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number, cache: MeasureCache, prefix: string, gap = PARA_GAP, cut = false): Block[][] {
-  const whole = measureCached(box, s, cache, prefix, paras.map((p) => ({ sents: p })))
+  // book mode cuts a sentence at a line: the lines must be the ones on the page, so a shown sentence translation
+  // (which starts the text after it on a new line) is laid out too, without its own height (the page scrolls for that)
+  const whole = measureCached(box, s, cache, prefix, paras.map((p) => ({ sents: p })), cut)
   const pages: Block[][] = []
   let cur: Block[] = []
   let used = 0
@@ -382,7 +386,8 @@ function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number
     while (from < para.length) {
       const rest = para.slice(from)
       const st = start || undefined
-      if (used + need(m.height) <= h) { used += need(m.height); cur.push({ para: pi, sents: rest, start: st }); break }
+      const cont = from > 0 || start > 0 || undefined
+      if (used + need(m.height) <= h) { used += need(m.height); cur.push({ para: pi, sents: rest, start: st, cont }); break }
       // the longest run of whole sentences that still fits on this page
       let k = 0
       while (k < rest.length && used + need(m.bottoms[k]) <= h) k++
@@ -392,12 +397,12 @@ function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number
       while (c < cb.length - 1 && used + need(cb[c]) <= h) c++
       if (c > 0) {
         const base = k === 0 ? start : 0
-        cur.push({ para: pi, sents: rest.slice(0, k + 1), start: st, end: base + c })
+        cur.push({ para: pi, sents: rest.slice(0, k + 1), start: st, end: base + c, cont })
         from += k; start = base + c; flush()
-      } else if (k > 0) { cur.push({ para: pi, sents: rest.slice(0, k), start: st }); from += k; start = 0; flush() }
+      } else if (k > 0) { cur.push({ para: pi, sents: rest.slice(0, k), start: st, cont }); from += k; start = 0; flush() }
       else if (cur.length) { flush(); continue }
-      else { cur.push({ para: pi, sents: rest.slice(0, 1), start: st }); from += 1; start = 0; flush() } // not one line fits
-      if (from < para.length) m = measureCached(box, s, cache, prefix, [{ sents: para.slice(from), start }])[0]
+      else { cur.push({ para: pi, sents: rest.slice(0, 1), start: st, cont }); from += 1; start = 0; flush() } // not one line fits
+      if (from < para.length) m = measureCached(box, s, cache, prefix, [{ sents: para.slice(from), start, cont: true }], cut)[0]
     }
   })
   flush()
@@ -413,7 +418,7 @@ function looseJustify(root: HTMLElement) {
   const on = !!root.closest('.justify')
   for (const flow of root.querySelectorAll<HTMLElement>('.flow')) {
     const kids = [...flow.children] as HTMLElement[]
-    kids.forEach((k) => k.classList.remove('jl'))
+    kids.forEach((k) => { if (k.classList.contains('jl')) { k.classList.remove('jl'); k.style.paddingRight = '' } })
     if (!on || flow.closest('.measurer, .page-inner')) continue
     const width = flow.clientWidth
     if (!width) continue
@@ -428,7 +433,14 @@ function looseJustify(root: HTMLElement) {
     for (const line of lines) {
       let used = 0
       for (const k of line) used += k.getBoundingClientRect().width + (parseFloat(getComputedStyle(k).marginRight) || 0)
-      if (width - used > width * 0.2) line[line.length - 1].classList.add('jl')
+      if (width - used > width * 0.2) {
+        // the auto margin counts as 0 when the browser breaks lines: the word's own gap goes into a padding instead,
+        // or the next word could move up to this line, and the paragraph would wrap otherwise than its pages were
+        // measured (a page then ended in the middle of a line, web v1.66)
+        const last = line[line.length - 1]
+        last.style.paddingRight = (parseFloat(getComputedStyle(last).marginRight) || 0) + 'px'
+        last.classList.add('jl')
+      }
     }
   }
 }
@@ -474,7 +486,8 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   const spreadOf = (i: number) => Math.floor(i / per)
 
   // what changes the layout of the bare text (translations do not: the page scrolls instead)
-  const deps = [paras, prefs.readerFont.value, size.w, size.h, per, book]
+  const deps = [paras, prefs.readerFont.value, size.w, size.h, per, book, prefs.lineSpacing.value, prefs.paraGap.value,
+    book ? s.shown.value : null, book && s.allSentences.value]
 
   useEffect(() => {
     const el = pager.current
@@ -627,7 +640,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     if (!p) return <div class="reader-text page-text" key={i} style={fs} />
     return (
       <div class="reader-text page-text" key={i} style={fs} {...handlers}>
-        {p.map((b) => <Paragraph key={b.para + ':' + b.sents[0].id + ':' + (b.start ?? 0)} s={s} sents={b.sents} start={b.start} end={b.end}
+        {p.map((b) => <Paragraph key={b.para + ':' + b.sents[0].id + ':' + (b.start ?? 0)} s={s} sents={b.sents} start={b.start} end={b.end} cont={b.cont}
           cut={b.end != null || b !== p[p.length - 1] ? false : b.sents[b.sents.length - 1] !== paras[b.para][paras[b.para].length - 1]} />)}
       </div>
     )
@@ -653,14 +666,27 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
  * A paragraph flows as one text; a shown sentence translation is inserted right after its sentence.
  * [plain]: the bare text without translations and marks (how pages are laid out).
  */
-function Paragraph({ s, sents, plain, start, end, cut }: {
+function Paragraph({ s, sents, plain, start, end, cut, split, cont }: {
   s: ReaderSession; sents: Sent[]; plain?: boolean
+  /** [plain] in book mode: the text breaks after a shown sentence translation as on the page (no translation drawn). */
+  split?: boolean
+  /** Goes on with a paragraph begun on the page before. */
+  cont?: boolean
   /** Chunk range of a block cut by the pages (see Block); [cut]: the paragraph goes on on the next page. */
   start?: number; end?: number; cut?: boolean
 }) {
-  const cls = 'para' + (sents[0]?.heading ? ' heading' : '') + (end != null || cut ? ' cut' : '') + (start ? ' cont' : '')
+  const cls = 'para' + (sents[0]?.heading ? ' heading' : '') + (end != null || cut ? ' cut' : '') + (start || cont ? ' cont' : '')
   const last = sents[sents.length - 1]
-  if (plain) return <div class={cls}><SentenceFlow s={s} sents={sents} start={start} end={end} plain /></div>
+  if (plain && !split) return <div class={cls}><SentenceFlow s={s} sents={sents} start={start} end={end} plain /></div>
+  if (plain) {
+    const runs: Sent[][] = [[]]
+    sents.forEach((x, i) => { runs[runs.length - 1].push(x); if (i < sents.length - 1 && s.sentenceShown(x.id)) runs.push([]) })
+    return (
+      <div class={cls}>
+        {runs.map((r, i) => <SentenceFlow key={i} s={s} sents={r} start={i === 0 ? start : undefined} end={i === runs.length - 1 ? end : undefined} plain />)}
+      </div>
+    )
+  }
   const parts: JSX.Element[] = []
   let run: Sent[] = []
   let first = true
