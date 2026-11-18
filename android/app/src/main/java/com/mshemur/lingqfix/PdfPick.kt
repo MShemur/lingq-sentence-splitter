@@ -181,7 +181,9 @@ fun PdfPagePicker(s: ImportSession, d: PdfDoc) {
         ) {
             Text("Какие страницы взять?", style = MaterialTheme.typography.titleLarge)
             Text(
-                "${s.pdfName} · ${d.pages} стр. Нажмите на страницы или впишите номера. Долгое нажатие — сделать страницу обложкой курса. Страницы без текста (сканы) распознаются на телефоне.",
+                "${s.pdfName} · ${d.pages} стр. Нажмите на страницы или впишите номера. Долгое нажатие — сделать страницу обложкой курса. " +
+                    if (s.pdfBookMode) "PDF-книга: страницы распознаются на телефоне (около секунды на страницу) и покажутся в читалке как есть."
+                    else "Страницы без текста (сканы) распознаются на телефоне.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedTextField(
@@ -216,7 +218,7 @@ fun PdfPagePicker(s: ImportSession, d: PdfDoc) {
                 onClick = { s.importPdfPages() }, enabled = s.pdfPicked.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
             ) {
-                Text(if (s.pdfPicked.isEmpty()) "Выберите страницы" else "Взять ${s.pdfPicked.size} стр.")
+                Text(if (s.pdfPicked.isEmpty()) "Выберите страницы" else if (s.pdfBookMode) "Распознать ${s.pdfPicked.size} стр." else "Взять ${s.pdfPicked.size} стр.")
             }
         }
     }

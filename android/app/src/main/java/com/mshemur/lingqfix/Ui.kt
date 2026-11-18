@@ -634,6 +634,9 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) s.loadFile(uri)
     }
+    val pdfBookPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) { s.pdfBookMode = true; s.loadFile(uri) }
+    }
     val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) s.pickAudio(uri)
     }
@@ -680,6 +683,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 s.paste(Epub.pastedEmphasis(html) ?: clipboard.getText()?.text.orEmpty())
             }
             SourceTile(AppIcons.Description, "Файл", Modifier.weight(1f), !s.running) {
+                s.pdfBookMode = false
                 picker.launch(arrayOf("text/plain", "text/markdown", "application/epub+zip", "application/pdf", "application/octet-stream"))
             }
             SourceTile(AppIcons.Image, "Галерея", Modifier.weight(1f), !s.running) {
@@ -694,9 +698,13 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             SourceTile(AppIcons.Mic, "Аудиофайл → текст", Modifier.weight(1f), !s.running && !s.loading) {
                 audioPicker.launch(arrayOf("audio/*", "video/mp4", "application/ogg"))
             }
+            SourceTile(AppIcons.Book, "PDF-книга", Modifier.weight(1f), !s.running && !s.loading) {
+                pdfBookPicker.launch(arrayOf("application/pdf"))
+            }
         }
         if (!s.pasteMode && s.items.isEmpty() && !s.loading) Text(
             "Текст из буфера, TXT, EPUB, PDF (выбранные страницы, и сканы), фото страниц — распознаются на телефоне, бесплатно. " +
+                "PDF-книга: в читалке будут сами страницы PDF, слова на них нажимаются как в тексте. " +
                 "Аудио: выберите кусок (например 10 минут), он распознаётся сервисом из настроек и загружается в урок вместе с текстом. " +
                 "Потом очистите текст от мусора и загрузите в LingQ.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -758,6 +766,11 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 }
             }
         }
+
+        if (s.pdfBook != null) Text(
+            "PDF-книга: урок откроется страницами PDF. Текст можно чистить — слова на страницах всё равно найдутся.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+        )
 
         // 3. cleaning: the main step
         if (s.pasteMode || s.items.isNotEmpty()) Card(

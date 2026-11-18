@@ -592,6 +592,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     }
 
     var title by mutableStateOf(lesson.title)
+    /** PDF book lesson (see PdfBook.kt): its PDF pages with the words over them; null = an ordinary lesson. */
+    val pdfLink: PdfLink? = runCatching { PdfBooks.link(app.ctx, lang, lesson.id) }.getOrNull()
+    /** The PDF pages are shown (else the text as usual). */
+    var showPdf by mutableStateOf(pdfLink != null)
     var paragraphs by mutableStateOf<List<List<Sent>>?>(null)
     var sentences by mutableStateOf<List<Sent>>(emptyList())
     var error by mutableStateOf<String?>(null)
@@ -1687,6 +1691,11 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
                 onClick = { s.clearPins(); menu = false },
             )
         }
+        if (s.pdfLink != null) DropdownMenuItem(
+            text = { Text(if (s.showPdf) "Показать текстом" else "Показать страницы PDF") },
+            leadingIcon = { Icon(AppIcons.Description, contentDescription = null) },
+            onClick = { menu = false; s.showPdf = !s.showPdf },
+        )
         DropdownMenuItem(
             text = { Text("Книжный режим") },
             trailingIcon = { androidx.compose.material3.Checkbox(checked = state.book, onCheckedChange = null) },
@@ -1783,6 +1792,11 @@ private fun ReaderHelp(onClose: () -> Unit) {
             "Двойное касание — окно слова: варианты значений, свой вариант, «Спросить» (чат об этом слове), закладка.",
             "Выбранное значение запоминается для этого урока и ставится над словом везде в тексте.",
             "Долгое нажатие и, не отпуская, провести по соседним словам — перевод нескольких слов вместе.",
+        ),
+        "PDF-книга" to listOf(
+            "Урок из PDF-книги показывает страницы PDF как есть; слова на них работают как в тексте: касание, двойное касание, долгое нажатие.",
+            "Два пальца — увеличить страницу, одним пальцем — двигать; двойное касание мимо слов — увеличить / вернуть.",
+            "⋮ → «Показать текстом» — обычный текст урока, «Показать страницы PDF» — обратно.",
         ),
         "Предложения" to listOf(
             "Долгое нажатие на слово — перевод предложения (ещё раз — скрыть). У перевода — чат о предложении.",
@@ -1929,7 +1943,10 @@ fun ReaderScreen(s: ReaderSession) {
             CircularProgressIndicator()
         }
         else -> Row(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f).fillMaxHeight()) { PagedText(s, paras) }
+            Box(Modifier.weight(1f).fillMaxHeight()) {
+                val pdf = s.pdfLink
+                if (pdf != null && s.showPdf) PdfReader(s, pdf) else PagedText(s, paras)
+            }
             if (s.panelActive) {
                 VerticalDivider()
                 DockedPanel(s, Modifier.width(PANEL_WIDTH).fillMaxHeight())
@@ -2598,7 +2615,7 @@ private fun ChunkRow(
 }
 
 @Composable
-private fun SentenceTranslation(
+internal fun SentenceTranslation(
     s: ReaderSession, id: Int, scale: Float = 1f, center: Boolean = false, area: String = "text",
     /** Tap on the translation; default: hide it again (not when all sentences are shown). */
     onTap: (() -> Unit)? = null,

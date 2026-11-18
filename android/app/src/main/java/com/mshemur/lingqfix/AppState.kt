@@ -797,6 +797,11 @@ class ImportSession(private val app: AppState) {
     val pdfPicked = mutableStateListOf<Int>()
     /** Page that becomes the course cover (0-based; long press on a preview). */
     var pdfCover by mutableStateOf(0)
+    /** "PDF-книга": the reader shows the PDF pages as they are, the words recognised with their boxes (PdfBook.kt). */
+    var pdfBookMode by mutableStateOf(false)
+    /** Id of the recognised PDF book the current text comes from (null = an ordinary text). */
+    var pdfBook by mutableStateOf<String?>(null)
+    private var pdfBookPages: List<Int> = emptyList()
 
     fun cancelPdf() {
         val d = pdf ?: return
@@ -816,7 +821,7 @@ class ImportSession(private val app: AppState) {
             d.close()
             if (cv != null) setCover(cv, pdfName)
             try {
-                readPdf(d.uri, pdfName, pages, d.pages)
+                if (pdfBookMode) readPdfBook(d.uri, pdfName, pages, d.pages) else readPdf(d.uri, pdfName, pages, d.pages)
             } catch (e: Throwable) {
                 AppLog.error("import", "PDF", e)
                 error = "Не удалось прочитать PDF: ${e.message}"
@@ -834,6 +839,24 @@ class ImportSession(private val app: AppState) {
         val base = name.substringBeforeLast('.')
         setSingle(if (pages.size == total) base else "$base, стр. ${pagesLabel(pages)}", text)
         AppLog.add("import", "PDF: ${pages.size} из $total стр., распознано сканов: $scans")
+        if (text.isBlank()) error = "На выбранных страницах не нашлось текста"
+    }
+
+    /** PDF book: the file is kept on the phone, the chosen pages are recognised with word boxes (once per file). */
+    private suspend fun readPdfBook(uri: android.net.Uri, name: String, pages: List<Int>, total: Int) {
+        status = "Копирую PDF…"
+        val doc = withContext(Dispatchers.IO) { PdfBooks.importFile(app.ctx, uri) }
+        val recognised = PdfBooks.recognise(app.ctx, doc, pages) { n, all -> status = "Распознаю страницу $n из $all…" }
+        val text = withContext(Dispatchers.Default) { PdfBooks.text(recognised) }
+        val base = name.substringBeforeLast('.')
+        val title = if (pages.size == total) base else "$base, стр. ${pagesLabel(pages)}"
+        // a long book is not put into the text field (too slow to edit there)
+        if (text.length > 30_000) {
+            pasteMode = false; isBook = false; items.clear()
+            items.add(ImportItem(title, text, true))
+        } else setSingle(title, text)
+        pdfBook = doc; pdfBookPages = pages
+        AppLog.add("import", "PDF-книга $doc: ${pages.size} из $total стр., слов ${countWords(text)}")
         if (text.isBlank()) error = "На выбранных страницах не нашлось текста"
     }
 
@@ -964,7 +987,7 @@ class ImportSession(private val app: AppState) {
     private fun startLoad(msg: String) {
         dropAudio(); cover = null; textNote = null
         finished = false; log.clear(); fixes.clear(); uploaded.clear()
-        loading = true; status = msg; error = null
+        loading = true; status = msg; error = null; pdfBook = null
         cleanNote = null; before = null; canUndo = false
     }
 
@@ -1064,7 +1087,7 @@ class ImportSession(private val app: AppState) {
                     status = "Открываю PDF…"
                     cancelPdf()
                     val d = withContext(Dispatchers.IO) { PdfDoc(app.ctx, uri) }
-                    if (d.pages <= 1) {
+                    if (d.pages <= 1 && !pdfBookMode) {
                         val cv = runCatching { d.coverJpeg(0) }.getOrNull()
                         d.close()
                         if (cv != null) setCover(cv, name.substringBeforeLast('.'))
@@ -1111,6 +1134,7 @@ class ImportSession(private val app: AppState) {
         val audio = if (pasteMode) audioUri else null
         val audioFile = audioName.replace(Regex("[^\\p{L}\\p{N}._ -]"), "_")
         val words = audioWords
+        val book = pdfBook
         // LingQ takes about 6000 words per import (more becomes several lessons, not fixed by us).
         // Audio (podcast, recording): ONE lesson however long: the first <= 5000 words are imported with the audio,
         // the rest is added to the lesson afterwards. Books / files: parts of the chosen size, below LingQ's limit.
@@ -1157,6 +1181,13 @@ class ImportSession(private val app: AppState) {
                 }
                 // Uploads go one after another (keeps the lesson order in the course); LingQ then
                 // processes each lesson on its own, so every lesson is waited for and fixed in parallel.
+                // PDF book: the pages each lesson covers (the PDF reader shows them)
+                val bookPages = book?.let { doc ->
+                    withContext(Dispatchers.Default) {
+                        val all = pdfBookPages.mapNotNull { PdfBooks.load(app.ctx, doc, it) }
+                        all.map { it.index } to PdfBooks.ranges(all, jobs.map { it.second })
+                    }
+                }
                 val base = log.size
                 jobs.forEach { (title, _) -> log.add("· $title · в очереди") }
                 fun line(i: Int, msg: String) { log[base + i] = "$msg ${jobs[i].first}" }
@@ -1178,6 +1209,11 @@ class ImportSession(private val app: AppState) {
                             continue
                         }
                         uploaded += Lesson(id, title)
+                        if (book != null && bookPages != null) runCatching {
+                            withContext(Dispatchers.IO) {
+                                PdfBooks.register(app.ctx, lang, id, book, bookPages.second.getOrNull(i) ?: bookPages.first)
+                            }
+                        }.onFailure { AppLog.error("import", "PDF-книга: урок $id", it) }
                         val level = app.useGemini      // since v1.83 always (no switch), like the split fix
                         if (!autoFix && !level && audio == null) {
                             line(i, "✅"); done++; progress = done.toFloat() / jobs.size
