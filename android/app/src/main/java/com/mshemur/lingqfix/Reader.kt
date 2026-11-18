@@ -383,6 +383,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     var smTranslation by mutableStateOf(app.prefs.smTranslation)
 
     fun toggleSmTranslation() { smTranslation = !smTranslation; app.prefs.smTranslation = smTranslation }
+    /** ⋮ → "Отзыв / задача" (back returns to the lesson). */
+    fun openFeedback() = app.go(Screen.Feedback)
 
     /** A tap: translation above the word; with the docked panel the word also shows there. */
     fun tapWord(ref: WordRef) {
@@ -1700,6 +1702,11 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             leadingIcon = { Icon(Icons.Filled.Info, contentDescription = null) },
             onClick = { menu = false; help = true },
         )
+        DropdownMenuItem(
+            text = { Text("Отзыв / задача") },
+            leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
+            onClick = { menu = false; s.openFeedback() },
+        )
         // the only action that cannot be undone: last, apart, in red
         HorizontalDivider()
         DropdownMenuItem(
@@ -2591,14 +2598,18 @@ private fun ChunkRow(
 }
 
 @Composable
-private fun SentenceTranslation(s: ReaderSession, id: Int, scale: Float = 1f, center: Boolean = false, area: String = "text") {
+private fun SentenceTranslation(
+    s: ReaderSession, id: Int, scale: Float = 1f, center: Boolean = false, area: String = "text",
+    /** Tap on the translation; default: hide it again (not when all sentences are shown). */
+    onTap: (() -> Unit)? = null,
+) {
     LaunchedEffect(id) { s.ensureSentence(id) }
     val tr = s.sentTr[id]
     Row(
         Modifier.fillMaxWidth()
             .onPlaced { s.trCoords[area to id] = it }
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-            .clickable { if (!s.allSentences) s.toggleSentence(id) }
+            .clickable { if (onTap != null) onTap() else if (!s.allSentences) s.toggleSentence(id) }
             .padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -2803,7 +2814,8 @@ private fun SentencePager(s: ReaderSession) {
                                     enter = expandVertically(tween(300)) + fadeIn(tween(300)),
                                     exit = shrinkVertically(tween(300)) + fadeOut(tween(300)),
                                 ) {
-                                    SentenceTranslation(s, sent.id, center = true, area = "sent")
+                                    // a tap on the translation folds it (as "Скрыть перевод")
+                                    SentenceTranslation(s, sent.id, center = true, area = "sent", onTap = { s.toggleSmTranslation() })
                                 }
                             }
                         }
@@ -2835,6 +2847,11 @@ private fun SentenceMenu(s: ReaderSession, id: Int) {
                 text = { Text("Слушать отсюда") },
                 leadingIcon = { Icon(AppIcons.Headphones, contentDescription = null) },
                 onClick = { open = false; s.listenFrom(id) },
+            )
+            DropdownMenuItem(
+                text = { Text("Отзыв / задача") },
+                leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
+                onClick = { open = false; s.openFeedback() },
             )
             HorizontalDivider()
             FontSizeRow(s)
