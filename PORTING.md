@@ -15,6 +15,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   when Gemini fails: Tesseract order only. Progress per page; one page at a time is fine. Nice to have: in the
   page picker or reader, skip captions/boxes from the lesson text (default: body + headings only). Android keeps
   ML Kit for now; tell the Android session the result format so it can follow.
+- user request 18.11.2026 (both platforms, Android does it now): PDF-книга without LingQ. Import no longer creates a
+  LingQ lesson: the book stays on the device (doc + page words as now), split into sentences locally (same
+  abbreviation rules as Fixer / lingq_fix_splits.py), word / phrase / sentence translations come straight from Gemini
+  (the user's key, fast model) and are cached on the device. The reader works as now (tap, double tap, long press,
+  drag, zoom, «Показать текстом»). Old PDF lessons already in LingQ keep working. The Android session will post its
+  version and storage format here when done.
 
 ## To do on Android
 
