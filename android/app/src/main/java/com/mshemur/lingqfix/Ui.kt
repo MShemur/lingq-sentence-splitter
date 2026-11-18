@@ -584,9 +584,10 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 pdfBookPicker.launch(arrayOf("application/pdf"))
             }
         }
-        if (!s.pasteMode && s.items.isEmpty() && !s.loading) Text(
+        if (!s.pasteMode && s.items.isEmpty() && !s.loading && s.pdfDraft == null) Text(
             "Текст из буфера, TXT, EPUB, PDF (выбранные страницы, и сканы), фото страниц — распознаются на телефоне, бесплатно. " +
-                "PDF-книга: в читалке будут сами страницы PDF, слова на них нажимаются как в тексте. " +
+                "PDF-книга: остаётся только на телефоне (в LingQ не загружается), в читалке — сами страницы PDF, " +
+                "слова на них нажимаются как в тексте, переводит Gemini. " +
                 "Аудио: выберите кусок (например 10 минут), он распознаётся сервисом из настроек и загружается в урок вместе с текстом. " +
                 "Потом очистите текст от мусора и загрузите в LingQ.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -649,10 +650,39 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             }
         }
 
-        if (s.pdfBook != null) Text(
-            "PDF-книга: урок откроется страницами PDF. Текст можно чистить — слова на страницах всё равно найдутся.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
-        )
+        s.pdfDraft?.let { d ->
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(AppIcons.Book, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Text(
+                            "PDF-книга распознана", Modifier.padding(start = 10.dp),
+                            style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    Text(
+                        "${d.pages.size} стр., ${d.words} слов. Книга сохранится только на телефоне (в LingQ не загружается) " +
+                            "и появится в библиотеке. Переводы слов и предложений — от Gemini (ваш ключ), они запоминаются в книге.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    if (!state.useGemini) Text(
+                        "Ключ Gemini не задан: книга сохранится, но переводить её можно будет только после Настройки → Перевод и ИИ.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
+                    )
+                    OutlinedTextField(
+                        s.pdfDraftTitle, { s.pdfDraftTitle = it }, Modifier.fillMaxWidth(),
+                        label = { Text("Название книги") }, singleLine = true, enabled = !s.pdfSaving,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Button(onClick = { s.savePdfBook() }, enabled = !s.pdfSaving) {
+                            if (s.pdfSaving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            else Text("Сохранить и открыть")
+                        }
+                        TextButton(onClick = { s.newImport() }, enabled = !s.pdfSaving) { Text("Отмена") }
+                    }
+                }
+            }
+        }
 
         // 3. cleaning: the main step
         if (s.pasteMode || s.items.isNotEmpty()) Card(

@@ -95,6 +95,17 @@ import com.google.mlkit.vision.text.Text as MlText
  *   <doc>/doc.pdf           the PDF itself (doc id = first 16 hex chars of its SHA-1)
  *   <doc>/page_<n>.json     {"v":1, "page":n, "aspect": height/width,
  *                            "words": [[text, x, y, w, h, line, block], ...]}   boxes as parts (0..1) of the page
+ *
+ * Since v1.137 a new PDF book is NOT uploaded to LingQ: it stays on the phone as a "local book" (lesson id < 0,
+ * = localId(doc, pages)); old LingQ PDF lessons (lessons.json) keep working. Files of a local book (N = -id):
+ *   books.json              {"<id>": {"doc", "lang", "title", "pages": [0-based], "t": created ms}}
+ *   <doc>/book_N.json       {"v":1, "paragraphs": [[sentence, ...], ...]}  split on the phone + Fixer merges
+ *   <doc>/notes_N.json      pins / chosen meanings / phrases (as filesDir/reader/<lang>_<id>.json for lessons)
+ *   <doc>/tr_N_<target>.json  sentence -> AI translation
+ *   <doc>/ai_N.json         {"w:sent:token" | "p:sent:from:to": {best, options, note, pair}}  AI word / phrase meanings
+ *   <doc>/cover_N.jpg       cover (the page chosen in the picker)
+ * Sentence ids = order of the sentences in book_N.json (0-based); words are matched to the page boxes on open
+ * with the same aligner as for LingQ lessons (exact here, the text was made from those very words).
  */
 
 /** One recognised word of a PDF page: its text and box as parts (0..1) of the page width / height. */
@@ -391,12 +402,166 @@ object PdfBooks {
     }
 
     fun link(ctx: Context, lang: String, lesson: Int): PdfLink? = runCatching {
+        if (lesson < 0) return localBook(ctx, lesson)?.let { PdfLink(it.doc, it.pages) }?.takeIf { file(ctx, it.doc).exists() }
         val f = linksFile(ctx)
         if (!f.exists()) return null
         val o = JSONObject(f.readText()).optJSONObject("${lang}_$lesson") ?: return null
         val a = o.getJSONArray("pages")
         PdfLink(o.getString("doc"), List(a.length()) { a.getInt(it) })
     }.getOrNull()?.takeIf { file(ctx, it.doc).exists() }
+
+    // --- local books (since v1.137): no LingQ lesson, everything stays on the phone ---
+
+    private fun booksFile(ctx: Context) = File(root(ctx), "books.json")
+    private fun n(id: Int) = -id.toLong()
+
+    /** Sentences of a local book: [[sentence, ...] per paragraph]. */
+    private fun sentFile(ctx: Context, b: LocalPdfBook) = File(dir(ctx, b.doc), "book_${n(b.id)}.json")
+    /** Pins / chosen meanings / phrases of the book (as LessonNotes keeps them for a LingQ lesson). */
+    fun notesFile(ctx: Context, b: LocalPdfBook) = File(dir(ctx, b.doc), "notes_${n(b.id)}.json")
+    /** Sentence translations: sentence -> translation, per target language. */
+    fun trFile(ctx: Context, b: LocalPdfBook, target: String) = File(dir(ctx, b.doc), "tr_${n(b.id)}_$target.json")
+    /** AI meanings of words ("w:sent:token") and phrases ("p:sent:from:to"), so nothing is asked twice. */
+    fun aiFile(ctx: Context, b: LocalPdfBook) = File(dir(ctx, b.doc), "ai_${n(b.id)}.json")
+    private fun coverFile(ctx: Context, b: LocalPdfBook) = File(dir(ctx, b.doc), "cover_${n(b.id)}.jpg")
+
+    /** Id of a local book: negative (LingQ lesson ids are positive), the same for the same file and pages. */
+    fun localId(doc: String, pages: List<Int>): Int = -(((doc + ":" + pages.joinToString(",")).hashCode() and 0x3fffffff) + 1)
+
+    @Synchronized
+    private fun readBooks(ctx: Context): JSONObject = runCatching { JSONObject(booksFile(ctx).readText()) }.getOrElse { JSONObject() }
+
+    @Synchronized
+    private fun writeBooks(ctx: Context, o: JSONObject) {
+        booksFile(ctx).parentFile?.mkdirs()
+        booksFile(ctx).writeText(o.toString())
+    }
+
+    private fun bookOf(ctx: Context, id: Int, o: JSONObject): LocalPdfBook {
+        val a = o.optJSONArray("pages") ?: JSONArray()
+        val b = LocalPdfBook(id, o.getString("doc"), o.optString("lang"), o.optString("title"), List(a.length()) { a.getInt(it) }, o.optLong("t"))
+        return b.also { it.cover = coverFile(ctx, it).takeIf { f -> f.exists() }?.let { f -> Uri.fromFile(f).toString() }.orEmpty() }
+    }
+
+    fun localBook(ctx: Context, id: Int): LocalPdfBook? = runCatching {
+        readBooks(ctx).optJSONObject(id.toString())?.let { bookOf(ctx, id, it) }
+    }.getOrNull()
+
+    /** Local books of a language, the newest first. */
+    fun localBooks(ctx: Context, lang: String): List<LocalPdfBook> = runCatching {
+        val o = readBooks(ctx)
+        o.keys().asSequence().mapNotNull { k ->
+            val id = k.toIntOrNull() ?: return@mapNotNull null
+            o.optJSONObject(k)?.takeIf { it.optString("lang") == lang }?.let { bookOf(ctx, id, it) }
+        }.sortedByDescending { it.created }.toList()
+    }.getOrDefault(emptyList())
+
+    /**
+     * Sentences of the recognised text, split on the phone: paragraphs as in [text], sentences at . ! ? …, then the
+     * fragments merged back with the rules LingQ's split is fixed with (Fixer: abbreviations, ordinals, small letters).
+     */
+    fun sentences(text: String): List<List<String>> {
+        val paras = JSONArray()
+        for (pt in text.split(Regex("\\n\\s*\\n"))) {
+            val ss = splitSentences(pt.replace(Regex("\\s+"), " ").trim())
+            if (ss.isEmpty()) continue
+            val arr = JSONArray()
+            ss.forEach { arr.put(JSONObject().put("text", it)) }
+            paras.put(JSONObject().put("sentences", arr))
+        }
+        Fixer.fix(paras)
+        return (0 until paras.length()).map { i ->
+            val ss = paras.getJSONObject(i).getJSONArray("sentences")
+            (0 until ss.length()).map { ss.getJSONObject(it).optString("text").trim() }.filter { it.isNotEmpty() }
+        }.filter { it.isNotEmpty() }
+    }
+
+    /** Saves the recognised pages as a local book (replaces one of the same file and pages, keeping its notes). */
+    fun saveLocal(ctx: Context, lang: String, doc: String, pages: List<Int>, title: String, cover: ByteArray?): LocalPdfBook {
+        val recognised = pages.mapNotNull { load(ctx, doc, it) }
+        val paras = sentences(text(recognised))
+        if (paras.isEmpty()) throw ApiException("на выбранных страницах не нашлось текста")
+        val id = localId(doc, pages)
+        val b = LocalPdfBook(id, doc, lang, title.trim().ifBlank { "PDF" }, pages, System.currentTimeMillis())
+        writeSentences(ctx, b, paras)
+        if (cover != null) runCatching { coverFile(ctx, b).writeBytes(cover) }
+        synchronized(this) {
+            val o = readBooks(ctx)
+            o.put(id.toString(), JSONObject().put("doc", doc).put("lang", lang).put("title", b.title).put("pages", JSONArray(pages)).put("t", b.created))
+            writeBooks(ctx, o)
+        }
+        AppLog.add("pdf", "PDF-книга на телефоне $id «${b.title}»: стр. ${pagesLabel(pages)}, предложений ${paras.sumOf { it.size }}")
+        return localBook(ctx, id) ?: b
+    }
+
+    fun readSentences(ctx: Context, b: LocalPdfBook): List<List<String>> {
+        val a = JSONObject(sentFile(ctx, b).readText()).getJSONArray("paragraphs")
+        return (0 until a.length()).map { i -> val p = a.getJSONArray(i); (0 until p.length()).map { p.getString(it) } }
+    }
+
+    fun writeSentences(ctx: Context, b: LocalPdfBook, paras: List<List<String>>) {
+        val a = JSONArray()
+        paras.forEach { p -> a.put(JSONArray().also { arr -> p.forEach { arr.put(it) } }) }
+        sentFile(ctx, b).parentFile?.mkdirs()
+        sentFile(ctx, b).writeText(JSONObject().put("v", 1).put("paragraphs", a).toString())
+    }
+
+    fun renameLocal(ctx: Context, id: Int, title: String) = synchronized(this) {
+        val o = readBooks(ctx)
+        o.optJSONObject(id.toString())?.put("title", title.trim())
+        writeBooks(ctx, o)
+    }
+
+    /** Removes a local book with its notes and translations; the PDF and its pages go too when nothing else uses them. */
+    fun deleteLocal(ctx: Context, id: Int) {
+        val b = localBook(ctx, id) ?: return
+        synchronized(this) {
+            val o = readBooks(ctx)
+            o.remove(id.toString())
+            writeBooks(ctx, o)
+        }
+        val d = dir(ctx, b.doc)
+        d.listFiles().orEmpty().filter { f -> f.name.matches(Regex("(book|notes|ai|cover|tr)_${n(id)}([._].*)?")) }.forEach { it.delete() }
+        val usedLocal = readBooks(ctx).let { o -> o.keys().asSequence().any { o.optJSONObject(it)?.optString("doc") == b.doc } }
+        val usedLingq = runCatching {
+            val o = JSONObject(linksFile(ctx).readText())
+            o.keys().asSequence().any { o.optJSONObject(it)?.optString("doc") == b.doc }
+        }.getOrDefault(false)
+        if (!usedLocal && !usedLingq) d.deleteRecursively()
+        AppLog.add("pdf", "PDF-книга $id «${b.title}» удалена с телефона")
+    }
+}
+
+/** A PDF book kept only on the phone (no LingQ lesson); [id] < 0 is its lesson id in the reader. */
+class LocalPdfBook(val id: Int, val doc: String, val lang: String, val title: String, val pages: List<Int>, val created: Long) {
+    /** Cover picture (file uri) or "". */
+    var cover: String = ""
+
+    fun lesson() = Lesson(id, title, cover, courseTitle = "PDF-книга")
+}
+
+/** Recognised pages waiting at the import screen to be saved as a local book. */
+class PdfDraft(val doc: String, val pages: List<Int>, val title: String, val words: Int)
+
+/** AI meanings of words / phrases of a local book, kept on the phone. */
+internal class MeaningStore(private val file: File) {
+    fun load(): Map<String, WordMeaning> = runCatching {
+        val o = JSONObject(file.readText())
+        o.keys().asSequence().associateWith { k ->
+            val m = o.getJSONObject(k)
+            val a = m.optJSONArray("options") ?: JSONArray()
+            WordMeaning(m.optString("best"), List(a.length()) { a.getString(it) }, m.optString("note"), m.optString("pair"))
+        }
+    }.getOrDefault(emptyMap())
+
+    fun save(all: Map<String, WordMeaning>) {
+        val o = JSONObject()
+        all.forEach { (k, m) ->
+            o.put(k, JSONObject().put("best", m.best).put("options", JSONArray(m.options)).put("note", m.note).put("pair", m.pair))
+        }
+        val s = o.toString()
+        DiskQueue.write { file.parentFile?.mkdirs(); file.writeText(s) }
+    }
 }
 
 /** Draws PDF pages; one page at a time (PdfRenderer allows only one open page). */

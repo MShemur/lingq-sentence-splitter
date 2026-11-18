@@ -592,11 +592,39 @@ class AppState(val ctx: Context) {
         go(Screen.Reader(ReaderSession(this, lang, Lesson(id, title))))
     }
 
+    /** PDF books kept on the phone (no LingQ lesson) of the current language, the newest first. */
+    var pdfBooks by mutableStateOf<List<LocalPdfBook>>(emptyList())
+
+    fun loadPdfBooks() {
+        val l = lang
+        scope.launch {
+            val list = withContext(Dispatchers.IO) { PdfBooks.localBooks(ctx, l) }
+            if (lang == l) pdfBooks = list
+        }
+    }
+
+    fun deletePdfBook(id: Int) {
+        scope.launch {
+            withContext(Dispatchers.IO) { PdfBooks.deleteLocal(ctx, id) }
+            forgetLesson(lang, id)
+            loadPdfBooks()
+            say("PDF-книга удалена")
+        }
+    }
+
+    fun renamePdfBook(id: Int, title: String) {
+        if (title.isBlank()) return
+        scope.launch {
+            withContext(Dispatchers.IO) { PdfBooks.renameLocal(ctx, id, title) }
+            loadPdfBooks()
+        }
+    }
+
     /** A lesson was opened in the reader: remember it for the widget (cover fetched if missing). */
     fun lessonOpened(lang: String, l: Lesson) {
         rememberOpened(lang, l)
         ContinueWidget.save(ctx, lang, l)
-        if (l.imageUrl.isBlank()) scope.launch {
+        if (l.imageUrl.isBlank() && l.id > 0) scope.launch {      // id < 0: a PDF book on the phone, not on LingQ
             runCatching { withContext(Dispatchers.IO) { api.lesson(lang, l.id) } }.onSuccess { full ->
                 if (full.imageUrl.isNotBlank()) ContinueWidget.save(ctx, lang, full.copy(title = l.title.ifBlank { full.title }))
                 rememberOpened(lang, full.copy(title = l.title.ifBlank { full.title }))
@@ -790,7 +818,7 @@ class ImportSession(private val app: AppState) {
     /** After an upload: back to an empty form for the next lesson. */
     fun newImport() {
         finished = false; log.clear(); fixes.clear(); uploaded.clear(); error = null
-        pasteText = ""; items.clear(); dropAudio(); cover = null
+        pasteText = ""; items.clear(); dropAudio(); cover = null; pdfDraft = null
     }
 
     // --- reading the source: file, PDF (text layer or OCR), photos ---
@@ -806,9 +834,34 @@ class ImportSession(private val app: AppState) {
     var pdfCover by mutableStateOf(0)
     /** "PDF-книга": the reader shows the PDF pages as they are, the words recognised with their boxes (PdfBook.kt). */
     var pdfBookMode by mutableStateOf(false)
-    /** Id of the recognised PDF book the current text comes from (null = an ordinary text). */
-    var pdfBook by mutableStateOf<String?>(null)
-    private var pdfBookPages: List<Int> = emptyList()
+    /** A recognised PDF book waiting to be saved on the phone (title can still be changed); null = none. */
+    var pdfDraft by mutableStateOf<PdfDraft?>(null)
+    var pdfDraftTitle by mutableStateOf("")
+    var pdfSaving by mutableStateOf(false)
+
+    /** Saves the recognised book on the phone only (no LingQ call) and opens it. */
+    fun savePdfBook() {
+        val d = pdfDraft ?: return
+        if (pdfSaving) return
+        pdfSaving = true
+        val cv = cover?.first
+        val lang = app.lang
+        app.scope.launch {
+            try {
+                val b = withContext(Dispatchers.Default) {
+                    PdfBooks.saveLocal(app.ctx, lang, d.doc, d.pages, pdfDraftTitle.ifBlank { d.title }, cv)
+                }
+                pdfDraft = null; cover = null
+                app.loadPdfBooks()
+                app.toRoot()
+                app.go(Screen.Reader(ReaderSession(app, lang, b.lesson())))
+            } catch (e: Throwable) {
+                AppLog.error("import", "PDF-книга: сохранение", e)
+                error = "Не удалось сохранить книгу: ${e.message}"
+            }
+            pdfSaving = false
+        }
+    }
 
     fun cancelPdf() {
         val d = pdf ?: return
@@ -857,14 +910,13 @@ class ImportSession(private val app: AppState) {
         val text = withContext(Dispatchers.Default) { PdfBooks.text(recognised) }
         val base = name.substringBeforeLast('.')
         val title = if (pages.size == total) base else "$base, стр. ${pagesLabel(pages)}"
-        // a long book is not put into the text field (too slow to edit there)
-        if (text.length > 30_000) {
-            pasteMode = false; isBook = false; items.clear()
-            items.add(ImportItem(title, text, true))
-        } else setSingle(title, text)
-        pdfBook = doc; pdfBookPages = pages
-        AppLog.add("import", "PDF-книга $doc: ${pages.size} из $total стр., слов ${countWords(text)}")
-        if (text.isBlank()) error = "На выбранных страницах не нашлось текста"
+        // since v1.137 the book stays on the phone: no import form, no LingQ lesson
+        pasteMode = false; isBook = false; items.clear()
+        val words = countWords(text)
+        AppLog.add("import", "PDF-книга $doc: ${pages.size} из $total стр., слов $words")
+        if (text.isBlank()) { error = "На выбранных страницах не нашлось текста"; return }
+        pdfDraftTitle = title
+        pdfDraft = PdfDraft(doc, pages, title, words)
     }
 
     private fun setSingle(title: String, text: String) {
@@ -994,7 +1046,7 @@ class ImportSession(private val app: AppState) {
     private fun startLoad(msg: String) {
         dropAudio(); cover = null; textNote = null
         finished = false; log.clear(); fixes.clear(); uploaded.clear()
-        loading = true; status = msg; error = null; pdfBook = null
+        loading = true; status = msg; error = null; pdfDraft = null
         cleanNote = null; before = null; canUndo = false
     }
 
@@ -1141,7 +1193,6 @@ class ImportSession(private val app: AppState) {
         val audio = if (pasteMode) audioUri else null
         val audioFile = audioName.replace(Regex("[^\\p{L}\\p{N}._ -]"), "_")
         val words = audioWords
-        val book = pdfBook
         // LingQ takes about 6000 words per import (more becomes several lessons, not fixed by us).
         // Audio (podcast, recording): ONE lesson however long: the first <= 5000 words are imported with the audio,
         // the rest is added to the lesson afterwards. Books / files: parts of the chosen size, below LingQ's limit.
@@ -1188,13 +1239,6 @@ class ImportSession(private val app: AppState) {
                 }
                 // Uploads go one after another (keeps the lesson order in the course); LingQ then
                 // processes each lesson on its own, so every lesson is waited for and fixed in parallel.
-                // PDF book: the pages each lesson covers (the PDF reader shows them)
-                val bookPages = book?.let { doc ->
-                    withContext(Dispatchers.Default) {
-                        val all = pdfBookPages.mapNotNull { PdfBooks.load(app.ctx, doc, it) }
-                        all.map { it.index } to PdfBooks.ranges(all, jobs.map { it.second })
-                    }
-                }
                 val base = log.size
                 jobs.forEach { (title, _) -> log.add("· $title · в очереди") }
                 fun line(i: Int, msg: String) { log[base + i] = "$msg ${jobs[i].first}" }
@@ -1216,11 +1260,6 @@ class ImportSession(private val app: AppState) {
                             continue
                         }
                         uploaded += Lesson(id, title)
-                        if (book != null && bookPages != null) runCatching {
-                            withContext(Dispatchers.IO) {
-                                PdfBooks.register(app.ctx, lang, id, book, bookPages.second.getOrNull(i) ?: bookPages.first)
-                            }
-                        }.onFailure { AppLog.error("import", "PDF-книга: урок $id", it) }
                         val level = app.useGemini      // since v1.83 always (no switch), like the split fix
                         if (!autoFix && !level && audio == null) {
                             line(i, "✅"); done++; progress = done.toFloat() / jobs.size

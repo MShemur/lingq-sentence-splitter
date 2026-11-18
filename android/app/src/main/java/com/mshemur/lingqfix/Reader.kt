@@ -294,8 +294,8 @@ data class WordRef(val sent: Int, val token: Int) {
 }
 
 /** Meanings pinned in one lesson (kept on the phone): per word position and per word. */
-private class LessonNotes(ctx: Context, lang: String, id: Int) {
-    private val file = File(File(ctx.filesDir, "reader").apply { mkdirs() }, "${lang}_$id.json")
+private class LessonNotes(private val file: File) {
+    constructor(ctx: Context, lang: String, id: Int) : this(File(File(ctx.filesDir, "reader").apply { mkdirs() }, "${lang}_$id.json"))
 
     fun load(): Triple<Map<WordRef, String>, Map<String, String>, Map<String, String>> = runCatching {
         val o = JSONObject(file.readText())
@@ -321,8 +321,9 @@ private class LessonNotes(ctx: Context, lang: String, id: Int) {
  * Machine / AI sentence translations of a lesson kept on the phone (not synced: it would bloat the sync file),
  * sentence text -> translation, so a lesson opened again does not ask for them again.
  */
-internal class TranslationCache(ctx: Context, lang: String, id: Int, target: String) {
-    private val file = File(File(ctx.filesDir, "trcache").apply { mkdirs() }, "${lang}_${id}_$target.json")
+internal class TranslationCache(private val file: File) {
+    constructor(ctx: Context, lang: String, id: Int, target: String) :
+        this(File(File(ctx.filesDir, "trcache").apply { mkdirs() }, "${lang}_${id}_$target.json"))
 
     fun load(): Map<String, String> = runCatching {
         val o = JSONObject(file.readText())
@@ -334,6 +335,9 @@ internal class TranslationCache(ctx: Context, lang: String, id: Int, target: Str
         DiskQueue.write { file.writeText(all) }
     }
 }
+
+/** PDF book on the phone without an AI key. */
+internal const val NO_AI_LOCAL = "Для переводов в PDF-книге нужен ключ Gemini (или другого ИИ): Настройки → Перевод и ИИ"
 
 private val LETTERS = Regex("\\p{L}+")
 private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
@@ -499,6 +503,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** Contextual translation of several words together (Gemini, or LingQ's meanings + machine translation). */
     fun openPhrase(sent: Int, from: Int, to: Int) {
         val st = sentById[sent] ?: return
+        if (noAi()) { clearSelection(); return }
         val text = st.tokens.subList(from, to + 1).joinToString("") { it.text }.trim()
         val p = Phrase(sent, from, to, text)
         AppLog.add("reader", "Словосочетание «${text.take(80)}» (предл. $sent)")
@@ -520,7 +525,9 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     val prompt = app.prefs.promptWord + "\n\nВажно: «{word}» — не одно слово, а словосочетание. " +
                         "Переведи его целиком как единое целое по смыслу в этом предложении; best может быть длиннее трёх слов. " +
                         "Если в нём есть глагол, чья отделяемая приставка стоит дальше в предложении, переводи глагол вместе с приставкой."
-                    val m = withContext(Dispatchers.IO) { app.geminiFast().word(prompt, lang, target, text, st.text) }
+                    val mk = "p:$key"
+                    val m = meanings[mk] ?: withContext(Dispatchers.IO) { app.geminiFast().word(prompt, lang, target, text, st.text) }
+                        .also { keepMeaning(mk, it) }
                     if (phrase != p) return@launch
                     phraseBest = chosen[text.lowercase()] ?: m.best
                     phraseOptions = dedupe(listOf(m.best) + m.options)
@@ -659,8 +666,29 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     var popupAi by mutableStateOf<List<String>>(emptyList())
     private val aiCache = HashMap<WordRef, WordMeaning>()
 
-    private val notes = LessonNotes(app.ctx, lang, lesson.id)
-    private val trCache by lazy { TranslationCache(app.ctx, lang, lesson.id, target) }
+    /** A PDF book kept on the phone only (PdfBook.kt, id < 0): no LingQ at all, translations straight from the AI. */
+    val local = lesson.id < 0
+    private val localBook: LocalPdfBook? = if (local) PdfBooks.localBook(app.ctx, lesson.id) else null
+    private val notes = localBook?.let { LessonNotes(PdfBooks.notesFile(app.ctx, it)) } ?: LessonNotes(app.ctx, lang, lesson.id)
+    private val trCache by lazy {
+        localBook?.let { TranslationCache(PdfBooks.trFile(app.ctx, it, target)) } ?: TranslationCache(app.ctx, lang, lesson.id, target)
+    }
+    /** Local book: AI meanings of words and phrases kept on the phone ("w:sent:token", "p:sent:from:to"). */
+    private val meaningStore = localBook?.let { MeaningStore(PdfBooks.aiFile(app.ctx, it)) }
+    private val meanings = HashMap<String, WordMeaning>()
+
+    private fun keepMeaning(key: String, m: WordMeaning) {
+        val st = meaningStore ?: return
+        meanings[key] = m
+        st.save(HashMap(meanings))
+    }
+
+    /** Local book without an AI key: nothing can be translated (no LingQ to fall back to). */
+    private fun noAi(): Boolean {
+        if (!local || app.useGemini) return false
+        app.say(NO_AI_LOCAL)
+        return true
+    }
     /** Sentence text -> translation made here (not LingQ's stored one). */
     private val trSaved = HashMap<String, String>()
 
@@ -776,9 +804,26 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** Every sentence translated ahead (kept like the other translations; headphone translation uses them too). */
     fun translateAll() {
-        if (trAll != null) return
+        if (trAll != null || noAi()) return
         trAll = "…"
         app.say("Перевожу весь урок…")
+        if (local) {
+            // local book: sentence by sentence with the AI, each kept like a single translation
+            app.scope.launch {
+                val todo = sentences.filter { sentTr[it.id].let { t -> t.isNullOrEmpty() || t.startsWith("⚠") } }
+                var failed = 0
+                todo.forEachIndexed { i, st ->
+                    trAll = "${i + 1} из ${todo.size}"
+                    try { sentTr.remove(st.id); sentenceTranslation(st.id) } catch (e: Throwable) {
+                        failed++
+                        if (isGeminiLimit(e)) { app.geminiFailed(e, fast = true) { translateAll() }; trAll = null; return@launch }
+                    }
+                }
+                app.sayLong(if (failed == 0) "Вся книга переведена" else "Переведено ${todo.size - failed} из ${todo.size}; не удалось $failed")
+                trAll = null
+            }
+            return
+        }
         app.scope.launch {
             try {
                 val (all, failed) = ListenTranslate.translateAll(app, lang, lesson.id) { n, all -> trAll = "$n из $all" }
@@ -799,8 +844,49 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     val target get() = app.trLang
 
+    /** Local book: sentences from the phone, no LingQ call. */
+    private fun loadLocal() {
+        app.scope.launch {
+            try {
+                val b = localBook ?: throw ApiException("PDF-книга не найдена на телефоне (удалена?)")
+                val paras = withContext(Dispatchers.IO) {
+                    var id = 0
+                    PdfBooks.readSentences(app.ctx, b).map { p ->
+                        p.map { t -> Sent(id, t, emptyMap(), id + 1).also { sentById[it.id] = it; id++ } }
+                    }.filter { it.isNotEmpty() }
+                }
+                audioUrl = null
+                val (p, w, ph) = withContext(Dispatchers.IO) { notes.load() }
+                pins.putAll(p); chosen.putAll(w); phrasePins.putAll(ph)
+                val saved = withContext(Dispatchers.IO) { trCache.load() }
+                trSaved.putAll(saved)
+                paras.forEach { para -> para.forEach { st -> (saved[st.plain] ?: saved[st.text])?.let { sentTr[st.id] = it } } }
+                val ms = withContext(Dispatchers.IO) { meaningStore?.load().orEmpty() }
+                meanings.putAll(ms)
+                ms.forEach { (k, m) ->
+                    val q = k.split(':')
+                    if (q.size == 3 && q[0] == "w") {
+                        val ref = WordRef(q[1].toIntOrNull() ?: return@forEach, q[2].toIntOrNull() ?: return@forEach)
+                        aiCache[ref] = m
+                        if (m.pair.isNotBlank()) markPair(ref, m.pair)
+                    }
+                }
+                title = b.title
+                app.lessonOpened(lang, b.lesson())
+                sentences = paras.flatten()
+                jump?.let { id -> page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0) }
+                paragraphs = paras
+                if (!app.useGemini) app.sayLong(NO_AI_LOCAL)
+            } catch (e: Throwable) {
+                AppLog.error("reader", "PDF-книга ${lesson.id} не открылась", e)
+                error = e.message ?: e.toString()
+            }
+        }
+    }
+
     fun load() {
         error = null
+        if (local) return loadLocal()
         app.scope.launch {
             try {
                 var lvl = ""
@@ -882,6 +968,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     private suspend fun sentenceTranslation(id: Int): String {
         sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") }?.let { return it }
         val s = sentById.getValue(id)
+        if (local && !app.useGemini) throw ApiException(NO_AI_LOCAL)
         val t = s.translations[target] ?: withContext(Dispatchers.IO) {
             if (app.useGemini) app.geminiFast().sentence(app.prefs.promptSentence, lang, target, s.plain)
             else app.api.translate(lang, target, s.plain)
@@ -911,7 +998,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
      */
     fun retranslate(id: Int) {
         val s = sentById[id] ?: return
-        if (retranslating[id] == true) return
+        if (retranslating[id] == true || noAi()) return
         retranslating[id] = true
         app.scope.launch {
             try {
@@ -948,6 +1035,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     private val aiPending = HashMap<WordRef, CompletableDeferred<WordMeaning>>()
 
     private suspend fun hints(word: String): List<String> {
+        if (local) return emptyList()          // local book: no LingQ meanings, the AI only
         hintsCache[word]?.let { return it }
         hintsPending[word]?.let { return it.await() }
         val d = CompletableDeferred<List<String>>()
@@ -976,8 +1064,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         aiPending[ref] = d
         try {
             val s = sentById.getValue(ref.sent)
+            if (local && !app.useGemini) throw ApiException(NO_AI_LOCAL)
             val m = withContext(Dispatchers.IO) { app.geminiFast().word(app.prefs.promptWord + SEPARABLE, lang, target, word(ref), s.plain) }
             aiCache[ref] = m
+            keepMeaning("w:${ref.key()}", m)
             markPair(ref, m.pair)
             d.complete(m)
             return m
@@ -1012,6 +1102,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     private suspend fun contextual(ref: WordRef, hs: List<String>): String {
         val word = word(ref)
         chosen[word.lowercase()]?.let { return it }
+        if (local) return ai(ref).best           // local book: the AI only, never LingQ
         if (app.useGemini) runCatching { ai(ref).best }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return it }
         val tr = runCatching { sentenceTranslation(ref.sent) }.getOrDefault("").lowercase()
         return pickByTranslation(hs, tr)
@@ -1088,6 +1179,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         }
         phraseKeyAt(ref)?.let { phrasePins.remove(it); persist(); return }
         if (pins.containsKey(ref)) { pins.remove(ref); provisional.remove(ref); persist(); return }
+        if (chosen[word(ref).lowercase()] == null && noAi()) return
         pins[ref] = ""
         val saved = chosen[word(ref).lowercase()]
         if (saved != null) { pins[ref] = saved; persist(); return }
@@ -1125,6 +1217,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** Double tap: window with all meanings to choose from. */
     fun openPopup(ref: WordRef) {
         AppLog.add("reader", "Окно слова «${word(ref)}» (предл. ${ref.sent})")
+        if (noAi()) return
         run {
             if (phrase != null) closePhrase()
             focusSent = ref.sent
@@ -1143,7 +1236,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                         popupBest = quickGuess(ref, h)
                         popupThinking = true
                         val m = runCatching { ai(ref) }
-                            .onFailure { e -> app.geminiFailed(e, fast = true) { if (popup == ref) openPopup(ref) } }.getOrNull()
+                            .onFailure { e ->
+                                if (local && popup == ref) popupError = e.message ?: e.toString()
+                                app.geminiFailed(e, fast = true) { if (popup == ref) openPopup(ref) }
+                            }.getOrNull()
                         popupThinking = false
                         if (popup != ref) return@launch
                         if (m != null) {
@@ -1424,7 +1520,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
             try {
                 val r = withContext(Dispatchers.IO) {
                     val r = app.geminiFast().level(app.prefs.promptLevel, lang, text)
-                    app.api.setLevel(lang, lesson.id, r.first)
+                    if (!local) app.api.setLevel(lang, lesson.id, r.first)
                     r
                 }
                 AppLog.add("reader", "Уровень урока ${lesson.id}: ${levelName(r.first)}")
@@ -1473,6 +1569,20 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     /** Reads the lesson again, keeps a backup, changes only sentence [s] (text, translation), saves the structure as is. */
     private suspend fun writeSentence(s: Sent, newText: String, newTr: String) {
+        val b = localBook
+        if (b != null) {
+            // local book: the sentence file on the phone; the translation goes to the book's translation cache
+            withContext(Dispatchers.IO) {
+                val paras = PdfBooks.readSentences(app.ctx, b)
+                var k = 0
+                val out = paras.map { p -> p.map { t -> (if (k++ == s.id && t == s.text) newText else t) } }
+                if (out == paras && newText != s.text) throw ApiException("Предложение не найдено в книге")
+                PdfBooks.writeSentences(app.ctx, b, out)
+            }
+            replaceSentence(s, newText, "")
+            if (newTr.isNotEmpty()) { sentTr[s.id] = newTr; keepTr(s.id, newTr) }
+            return
+        }
         withContext(Dispatchers.IO) {
             val paras = app.api.editor(lang, lesson.id)
             val js = findSentence(paras, s) ?: throw ApiException("Предложение не найдено в уроке на LingQ — обновите урок")
@@ -1618,7 +1728,8 @@ fun SentenceEditDialog(s: ReaderSession) {
                     minLines = 2, enabled = !s.editSaving,
                 )
                 Text(
-                    "Изменения сохранятся в уроке на LingQ (копия урока до правки — в «Резервных копиях»). " +
+                    (if (s.local) "Изменения сохранятся в книге на телефоне. "
+                    else "Изменения сохранятся в уроке на LingQ (копия урока до правки — в «Резервных копиях»). ") +
                         "Переводы слов этого предложения сбросятся, если изменить текст.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1704,19 +1815,20 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             leadingIcon = { Icon(AppIcons.Headphones, contentDescription = null) },
             onClick = { menu = false; state.playLesson(s.lang, Lesson(s.lesson.id, s.title, s.lesson.imageUrl, courseTitle = s.lesson.courseTitle)) },
         )
-        DropdownMenuItem(
+        // LingQ lesson only (a PDF book on the phone has no lesson on LingQ)
+        if (!s.local) DropdownMenuItem(
             text = { Text(if (s.levelBusy) "Определяю уровень…" else "Определить уровень (ИИ)") },
             leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
             enabled = !s.levelBusy,
             onClick = { menu = false; s.detectLevel() },
         )
-        DropdownMenuItem(
+        if (!s.local) DropdownMenuItem(
             text = { Text(s.aiClean?.let { "ИИ обрабатывает текст: $it" } ?: "Обработать текст с ИИ…") },
             leadingIcon = { Icon(AppIcons.AutoFix, contentDescription = null) },
             enabled = s.aiClean == null,
             onClick = { menu = false; s.askAiClean = true },
         )
-        DropdownMenuItem(
+        if (!s.local) DropdownMenuItem(
             text = { Text("Исправить разбивку…") },
             leadingIcon = { Icon(Icons.Filled.Build, contentDescription = null) },
             onClick = { menu = false; state.checkLessons(s.lang, listOf(Lesson(s.lesson.id, s.title)), s.title) },
@@ -1735,7 +1847,7 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
         // the only action that cannot be undone: last, apart, in red
         HorizontalDivider()
         DropdownMenuItem(
-            text = { Text("Удалить урок…", color = MaterialTheme.colorScheme.error) },
+            text = { Text(if (s.local) "Удалить книгу…" else "Удалить урок…", color = MaterialTheme.colorScheme.error) },
             leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
             onClick = { menu = false; delete = true },
         )
@@ -1815,7 +1927,9 @@ private fun ReaderHelp(onClose: () -> Unit) {
             "Долгое нажатие и, не отпуская, провести по соседним словам — перевод нескольких слов вместе.",
         ),
         "PDF-книга" to listOf(
-            "Урок из PDF-книги показывает страницы PDF как есть; слова на них работают как в тексте: касание, двойное касание, долгое нажатие.",
+            "PDF-книга хранится только на телефоне (в LingQ не загружается) и показывает страницы PDF как есть; " +
+                "слова на них работают как в тексте: касание, двойное касание, долгое нажатие.",
+            "Переводы слов, фраз и предложений делает Gemini (ваш ключ, лёгкая модель); они запоминаются в книге и второй раз не запрашиваются.",
             "Два пальца — увеличить страницу, одним пальцем — двигать; двойное касание мимо слов — увеличить / вернуть.",
             "⋮ → «Показать текстом» — обычный текст урока, «Показать страницы PDF» — обратно.",
         ),

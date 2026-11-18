@@ -237,7 +237,10 @@ fun LessonDeleteDialog(state: AppState, s: ReaderSession, onClose: () -> Unit) {
         title = { Text("Удалить урок?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("«${s.title}» будет удалён на LingQ вместе с переводами и аудио. Отменить это нельзя.")
+                Text(
+                    if (s.local) "PDF-книга «${s.title}» будет удалена с телефона вместе с переводами. Отменить это нельзя."
+                    else "«${s.title}» будет удалён на LingQ вместе с переводами и аудио. Отменить это нельзя.",
+                )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
         },
@@ -248,7 +251,10 @@ fun LessonDeleteDialog(state: AppState, s: ReaderSession, onClose: () -> Unit) {
                     busy = true; error = null
                     scope.launch {
                         try {
-                            withContext(Dispatchers.IO) { state.api.deleteLesson(s.lang, s.lesson.id) }
+                            withContext(Dispatchers.IO) {
+                                if (s.local) PdfBooks.deleteLocal(state.ctx, s.lesson.id) else state.api.deleteLesson(s.lang, s.lesson.id)
+                            }
+                            if (s.local) state.loadPdfBooks()
                             AppLog.add("reader", "Урок ${s.lesson.id} «${s.title}» удалён")
                             state.forgetLesson(s.lang, s.lesson.id)
                             onClose()

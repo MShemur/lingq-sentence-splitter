@@ -2,6 +2,7 @@ package com.mshemur.lingqfix
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -107,9 +108,13 @@ private fun groupDigits(n: Int) = n.toString().reversed().chunked(3).joinToStrin
  * ([subtitle]: course name in "continue", word counts in a course).
  */
 @Composable
-fun LessonTile(state: AppState, lang: String, l: Lesson, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+fun LessonTile(
+    state: AppState, lang: String, l: Lesson, subtitle: String, modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null, onClick: () -> Unit,
+) {
     val read = state.progress.read(lang, l.id)
-    Column(modifier.clip(TILE).clickable(onClick = onClick).padding(bottom = 6.dp)) {
+    Column(modifier.clip(TILE).combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(bottom = 6.dp)) {
         Box {
             Cover(l.imageUrl, l.title, Modifier.fillMaxWidth(), ratio = 4f / 3f)
             if (l.level.isNotBlank() && l.level != "null") Surface(
@@ -177,6 +182,7 @@ fun LibraryScreen(state: AppState) {
     var q by remember { mutableStateOf("") }
     LaunchedEffect(state.lang) { state.loadCourses() }
     LaunchedEffect(Unit) { state.loadRecent() }
+    LaunchedEffect(state.lang) { state.loadPdfBooks() }
     val err = state.coursesError
     val list = state.visibleCourses()
     val recent = state.recent.orEmpty()
@@ -243,6 +249,12 @@ fun LibraryScreen(state: AppState) {
                 }
             }
         }
+        // PDF books kept on the phone (no LingQ lesson): tap = open, long press = rename / delete
+        val books = state.pdfBooks.filter { q.isBlank() || it.title.contains(q, ignoreCase = true) }
+        if (books.isNotEmpty()) {
+            fullWidth("pdfTitle") { SectionTitle("PDF-книги на телефоне") }
+            items(books, key = { "pdf${it.id}" }) { b -> PdfBookTile(state, b) }
+        }
         fullWidth("coursesTitle") { SectionTitle("Мои курсы") }
         when {
             err != null -> fullWidth("err") {
@@ -268,6 +280,43 @@ fun LibraryScreen(state: AppState) {
             )
         }
     }
+}
+
+/** A PDF book on the phone: lesson-like tile marked "PDF"; long press = rename / delete. */
+@Composable
+private fun PdfBookTile(state: AppState, b: LocalPdfBook) {
+    var dialog by remember { mutableStateOf(false) }
+    var askDelete by remember { mutableStateOf(false) }
+    var name by remember(b.id, b.title) { mutableStateOf(b.title) }
+    Box {
+        LessonTile(
+            state, b.lang, b.lesson(), "${b.pages.size} стр. · на телефоне",
+            onLongClick = { name = b.title; askDelete = false; dialog = true },
+        ) { state.go(Screen.Reader(ReaderSession(state, b.lang, b.lesson()))) }
+        Surface(
+            shape = RoundedCornerShape(8.dp), color = Color.Black.copy(alpha = 0.55f),
+            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+        ) {
+            Text("PDF", Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = Color.White)
+        }
+    }
+    if (dialog) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { dialog = false },
+        title = { Text(if (askDelete) "Удалить PDF-книгу?" else "PDF-книга") },
+        text = {
+            if (askDelete) Text("«${b.title}» будет удалена с телефона вместе с переводами. Отменить это нельзя.")
+            else OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Название") }, singleLine = true)
+        },
+        confirmButton = {
+            if (askDelete) TextButton(onClick = { dialog = false; state.deletePdfBook(b.id) }) {
+                Text("Удалить", color = MaterialTheme.colorScheme.error)
+            } else TextButton(onClick = { dialog = false; state.renamePdfBook(b.id, name) }, enabled = name.isNotBlank()) { Text("Сохранить") }
+        },
+        dismissButton = {
+            if (askDelete) TextButton(onClick = { askDelete = false }) { Text("Отмена") }
+            else TextButton(onClick = { askDelete = true }) { Text("Удалить…", color = MaterialTheme.colorScheme.error) }
+        },
+    )
 }
 
 /** Lessons of a course as covers, the course cover and name on top. */
