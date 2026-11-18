@@ -1130,6 +1130,9 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun trVisible(key: String) = !hideTr || peek.containsKey(key)
     /** Settings: gap between a word and its translation, %. */
     val trGap get() = app.trGap
+    /** Settings: highlight colour key and "word on a coloured background" (false = «Без цвета»). */
+    val highlightKey get() = app.highlight
+    val wordBg get() = app.wordBg
     /** Settings: line spacing, % of the usual one. */
     val lineSpacing get() = app.lineSpacing
     /** Space between paragraphs as set (usual: none in book mode, 14 dp otherwise). */

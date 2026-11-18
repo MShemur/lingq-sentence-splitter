@@ -853,9 +853,13 @@ private suspend fun PointerInputScope.zoomGestures(z: PdfZoom) {
 @Composable
 private fun PdfWordLayer(s: ReaderSession, toks: List<PdfTok>, z: PdfZoom) {
     val haptic = LocalHapticFeedback.current
-    val hl = LocalHighlight.current
+    // the PDF page is always white: the light variant of the highlight colour, whatever the reader's page colour;
+    // «Без цвета»: no background under chosen words / phrases (the long-press selection keeps its colour)
+    val hl = highlightColors(s.highlightKey, darkPage = false, wordBg = s.wordBg)
+    // «Расстояние до перевода над словом»: 100 % = usual, 0 % = half the label font closer
+    val pull = (100 - s.trGap).coerceIn(0, 100) / 100f * 0.5f
     val selBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
-    val labelBg = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+    val labelBg = Color.White.copy(alpha = 0.92f)
     val grey = MaterialTheme.colorScheme.outline
     val measurer = rememberTextMeasurer()
     val minLabel = with(LocalDensity.current) { 9.dp.toPx() }
@@ -880,7 +884,7 @@ private fun PdfWordLayer(s: ReaderSession, toks: List<PdfTok>, z: PdfZoom) {
                     val lw = lay.size.width.toFloat(); val lh = lay.size.height.toFloat()
                     val pad = fontPx * 0.25f
                     val x = (cx - lw / 2).coerceIn(pad, (pw - lw - pad).coerceAtLeast(pad))
-                    val y = (top - lh - lineH * 0.08f).coerceAtLeast(0f)
+                    val y = (top - lh - lineH * 0.08f + pull * fontPx).coerceAtLeast(0f)
                     drawRoundRect(labelBg, Offset(x - pad, y), Size(lw + 2 * pad, lh), CornerRadius(lh * 0.3f))
                     drawText(lay, topLeft = Offset(x, y))
                 }
@@ -903,7 +907,7 @@ private fun PdfWordLayer(s: ReaderSession, toks: List<PdfTok>, z: PdfZoom) {
                         t in inPhrase || s.pins.containsKey(ref) || s.popup == ref || s.pairHighlighted(ref) -> hl.bg
                         else -> null
                     }
-                    if (c != null) box(t, c)
+                    if (c != null && c.alpha > 0f) box(t, c)
                 }
                 for ((ref, tr) in s.pins) {
                     val t = byRef[ref]?.firstOrNull() ?: continue
