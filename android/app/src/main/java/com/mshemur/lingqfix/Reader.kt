@@ -43,6 +43,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.sync.Mutex
@@ -1941,6 +1942,63 @@ fun ReaderScreen(s: ReaderSession) {
  */
 private class Block(val sents: List<Sent>, val first: Int = 0, val last: Int = -1, val start: Boolean = false)
 
+/** Key of a chunk in the hyphenation map: sentence id + chunk index. */
+private fun splitKey(sent: Int, chunk: Int) = (sent.toLong() shl 20) or chunk.toLong()
+
+/** Book pages: words hyphenated at a line end by the page layout ([TextMetrics.splits]). */
+private val LocalSplits = androidx.compose.runtime.staticCompositionLocalOf<Map<Long, Int>> { emptyMap() }
+
+/** Layout ids of a hyphenated chunk in [HyphFlow]: the whole word, its first part with the hyphen, the rest. */
+private const val HY_FULL = "hyFull"
+private const val HY_HEAD = "hyHead"
+private const val HY_TAIL = "hyTail"
+
+/**
+ * Book mode text flow (like FlowRow with [JustifyLoose], items at the line bottom, lines 2 dp apart). A hyphenated
+ * chunk comes as three items [HY_FULL], [HY_HEAD], [HY_TAIL]: the whole word if it fits the line, else its first part
+ * ends the line and the rest starts the next one, else the whole word goes to the next line.
+ */
+@Composable
+private fun HyphFlow(justify: Boolean, continues: Boolean, content: @Composable () -> Unit) {
+    val vGap = with(LocalDensity.current) { 2.dp.roundToPx() }
+    androidx.compose.ui.layout.Layout(content) { ms, c ->
+        val maxW = if (c.hasBoundedWidth) c.maxWidth else Int.MAX_VALUE
+        val ps = ms.map { it.measure(Constraints(maxWidth = maxW)) }
+        val ids = ms.map { it.layoutId }
+        val lines = mutableListOf(mutableListOf<Int>())
+        var lw = 0
+        fun put(i: Int) {
+            if (lines.last().isNotEmpty() && lw + ps[i].width > maxW) { lines += mutableListOf<Int>(); lw = 0 }
+            lines.last() += i; lw += ps[i].width
+        }
+        var i = 0
+        while (i < ps.size) {
+            if (ids[i] == HY_FULL && i + 2 < ps.size) {
+                if (lines.last().isNotEmpty() && lw + ps[i].width > maxW && lw + ps[i + 1].width <= maxW) {
+                    lines.last() += i + 1
+                    lines += mutableListOf(i + 2); lw = ps[i + 2].width
+                } else put(i)
+                i += 3
+            } else { put(i); i++ }
+        }
+        val width = if (maxW != Int.MAX_VALUE) maxW else lines.maxOf { l -> l.sumOf { ps[it].width } }
+        val heights = lines.map { l -> l.maxOfOrNull { ps[it].height } ?: 0 }
+        val total = heights.sum() + vGap * maxOf(0, lines.size - 1)
+        layout(width, total) {
+            var y = 0
+            lines.forEachIndexed { li, l ->
+                val free = width - l.sumOf { ps[it].width }
+                val gaps = l.size - 1
+                val last = li == lines.lastIndex && !continues
+                val step = if (justify && !last && gaps > 0 && free > 0 && free <= width * 0.2f) free.toFloat() / gaps else 0f
+                var x = 0f
+                l.forEach { k -> ps[k].place(Math.round(x), y + heights[li] - ps[k].height); x += ps[k].width + step }
+                y += heights[li] + vGap
+            }
+        }
+    }
+}
+
 /** Line height in font sizes: book mode leaves room for the translations above the words. */
 private fun lineMul(book: Boolean, pct: Int = 100) = (if (book) 1.55f else 1.35f) * pct / 100f
 
@@ -1960,9 +2018,51 @@ private class TextMetrics(
     book: Boolean = false,
     /** Line spacing, % of the usual one. */
     spacing: Int = 100,
+    /** Lesson language: its hyphenation rules (book mode). */
+    lang: String = "de",
 ) {
     private val size = font.toFloat()
     private val text = textStyle.copy(fontSize = size.sp, lineHeight = (size * lineMul(book, spacing)).sp)
+    /** Book mode: words hyphenated at a line end, [splitKey] -> letters of the word left on the line (see [HyphFlow]). */
+    val splits = HashMap<Long, Int>()
+    private val hyph = book
+    private val paint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = with(d) { size.sp.toPx() }
+        textLocale = java.util.Locale.forLanguageTag(lang)
+    }
+
+    /**
+     * Book mode: chunk [c] does not fit into the [room] px left on the line: how many letters of its word stay there
+     * with a hyphen (or at a hyphen of the word itself), -1 = none. Break points from Android's hyphenator (API 29+;
+     * older: only at a hyphen in the word).
+     */
+    private fun hyphenAt(c: List<Token>, room: Int, bold: Boolean): Int {
+        val wi = c.indices.singleOrNull { c[it].isWord } ?: return -1
+        val word = c[wi].text
+        if (word.length < 5) return -1
+        val pre = c.take(wi).joinToString("") { it.text }
+        var avail = room - (if (pre.isEmpty()) 0 else w(pre, bold))
+        paint.typeface = if (bold) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+        val full = android.os.Build.VERSION.SDK_INT >= 29
+        repeat(3) {
+            if (avail < lineH) return -1
+            val l = android.text.StaticLayout.Builder.obtain(word, 0, word.length, paint, avail)
+                .setHyphenationFrequency(
+                    if (full) android.text.Layout.HYPHENATION_FREQUENCY_FULL else android.text.Layout.HYPHENATION_FREQUENCY_NONE,
+                )
+                .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE).setIncludePad(false).build()
+            if (l.lineCount < 2) return -1
+            val n = l.getLineEnd(0)
+            if (n < 2 || word.length - n < 2) return -1
+            val dash = word[n - 1] == '-'
+            if (!dash && !(android.os.Build.VERSION.SDK_INT >= 29 && l.getEndHyphenEdit(0) != android.graphics.Paint.END_HYPHEN_EDIT_NO_EDIT)) return -1
+            // the app draws with Compose: check the width there, else try a shorter piece
+            val over = w(pre + word.take(n) + (if (dash) "" else "-"), bold) - room
+            if (over <= 0) return n
+            avail -= over + 1
+        }
+        return -1
+    }
     /** Width of the first-line indent of a paragraph (book mode), 0 = none. */
     val indent = if (book) px(size * INDENT_EM) else 0
     private fun px(dp: Float) = with(d) { dp.dp.roundToPx() }
@@ -2011,9 +2111,24 @@ private class TextMetrics(
             val cs = if (i == 0) sent.chunks.drop(start) else sent.chunks
             if (cs.isEmpty()) intArrayOf(now())
             else IntArray(cs.size) { k ->
-                val cw = w(cs[k].joinToString("") { it.text }, sent.heading || cs[k].any { it.b }) + chunkGap
-                if (lineW > 0 && lineW + cw > width) { total += lineMax; lines++; lineW = 0; lineMax = 0 }
-                lineW += cw; lineMax = maxOf(lineMax, lineH)
+                val bold = sent.heading || cs[k].any { it.b }
+                val key = splitKey(sent.id, if (i == 0) k + start else k)
+                val cw = w(cs[k].joinToString("") { it.text }, bold) + chunkGap
+                var split = -1
+                if (lineW > 0 && lineW + cw > width) {
+                    // book mode: a long word is hyphenated instead of leaving the line end empty
+                    if (hyph) split = hyphenAt(cs[k], width - lineW - chunkGap, bold)
+                    total += lineMax; lines++; lineW = 0; lineMax = 0
+                }
+                if (split > 0) {
+                    splits[key] = split
+                    val wi = cs[k].indexOfFirst { it.isWord }
+                    lineW = w(cs[k][wi].text.drop(split) + cs[k].drop(wi + 1).joinToString("") { it.text }, bold) + chunkGap
+                } else {
+                    splits.remove(key)
+                    lineW += cw
+                }
+                lineMax = maxOf(lineMax, lineH)
                 now()
             }
         }
@@ -2108,12 +2223,15 @@ private fun PagedText(s: ReaderSession, paras: List<List<Sent>>) {
         val h = if (constraints.hasBoundedHeight) ((constraints.maxHeight - 2 * padV) * 0.99f).toInt() else Int.MAX_VALUE
         val font = s.font
         // the old pages stay on screen until the new ones are ready
-        val pages by produceState<List<List<Block>>?>(null, paras, font, w, h, gap, density, book, spacing) {
+        val pages by produceState<Pair<List<List<Block>>, Map<Long, Int>>?>(null, paras, font, w, h, gap, density, book, spacing) {
             value = withContext(Dispatchers.Default) {
-                lock.withLock { paginate(paras, TextMetrics(measurer, density, font, w, textStyle, widths, book, spacing), h, gap, cut = book) }
+                lock.withLock {
+                    val m = TextMetrics(measurer, density, font, w, textStyle, widths, book, spacing, s.lang)
+                    paginate(paras, m, h, gap, cut = book) to HashMap(m.splits)
+                }
             }
         }
-        pages?.let { TextPager(s, it) }
+        pages?.let { (p, sp) -> androidx.compose.runtime.CompositionLocalProvider(LocalSplits provides sp) { TextPager(s, p) } }
     }
 }
 
@@ -2289,17 +2407,17 @@ internal fun SentenceFlow(
     val playColor = MaterialTheme.colorScheme.primary
     val textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = size.sp, lineHeight = (size * lineMul(s.book && area == "text", s.lineSpacing)).sp)
     val trStyle = MaterialTheme.typography.labelSmall.copy(fontSize = (size * 0.6).sp, lineHeight = (size * 0.68).sp)
-    FlowRow(
-        horizontalArrangement = if (center) Arrangement.Center else if (justify) JustifyLoose else Arrangement.Start,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
+    // book pages: long words hyphenated at the line end
+    val hy = s.book && area == "text" && !center
+    val splits = LocalSplits.current
+    val items: @Composable (Modifier) -> Unit = { bottom ->
         if (indent > 0.dp) androidx.compose.foundation.layout.Spacer(Modifier.width(indent))
         sents.forEachIndexed { si, sent ->
             val lo = if (si == 0) from.coerceIn(0, sent.chunks.size) else 0
             val hi = if (si == sents.lastIndex && to >= 0) to.coerceIn(lo, sent.chunks.size) else sent.chunks.size
             if (lo == 0 && s.isBookmarked(sent.id)) Icon(
                 AppIcons.Bookmark, contentDescription = "Закладка", tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.align(Alignment.Bottom).padding(end = 2.dp, bottom = 4.dp).size((size * 0.9).dp),
+                modifier = bottom.padding(end = 2.dp, bottom = 4.dp).size((size * 0.9).dp),
             )
             val phr = s.phrasesIn(sent.id)
             val sounding = s.playingSent == sent.id && AudioEngine.key == s.audioKey
@@ -2313,8 +2431,20 @@ internal fun SentenceFlow(
             while (i < chunks.size) {
                 val ph = phraseOf(chunks[i])
                 if (ph == null) {
-                    ChunkRow(s, sent, chunks[i], area, ts, trStyle, selBg, haptic, null,
-                        Modifier.align(Alignment.Bottom).padding(end = (size * 0.3).dp))
+                    val c = chunks[i]
+                    val pad = bottom.padding(end = (size * 0.3).dp)
+                    val n = if (hy) splits[splitKey(sent.id, lo + i)] ?: -1 else -1
+                    val wi = c.indexOfFirst { it.isWord }
+                    if (n > 0 && wi >= 0 && n < c[wi].text.length) {
+                        // hyphenated by the page layout: whole word, first part with a hyphen, rest ([HyphFlow] picks)
+                        val wt = c[wi]
+                        val dash = wt.text[n - 1] == '-'
+                        val head = c.take(wi) + Token(wt.text.take(n) + (if (dash) "" else "-"), true, wt.index, wt.b, wt.i)
+                        val tail = listOf(Token(wt.text.drop(n), true, wt.index, wt.b, wt.i)) + c.drop(wi + 1)
+                        ChunkRow(s, sent, c, area, ts, trStyle, selBg, haptic, null, pad.layoutId(HY_FULL))
+                        ChunkRow(s, sent, head, area, ts, trStyle, selBg, haptic, null, pad.layoutId(HY_HEAD))
+                        ChunkRow(s, sent, tail, area, ts, trStyle, selBg, haptic, null, pad.layoutId(HY_TAIL), noTr = true)
+                    } else ChunkRow(s, sent, c, area, ts, trStyle, selBg, haptic, null, pad)
                     i++
                     continue
                 }
@@ -2325,7 +2455,7 @@ internal fun SentenceFlow(
                 val pk = "${sent.id}:${ph.first.first}:${ph.first.last}"
                 val hlPhrase = LocalHighlight.current.bg
                 Column(
-                    Modifier.align(Alignment.Bottom).padding(end = (size * 0.3).dp)
+                    bottom.padding(end = (size * 0.3).dp)
                         // one highlight over the translation and all the words (as for a single word)
                         .drawBehind { if (s.trVisible(pk)) drawRoundRect(hlPhrase, cornerRadius = CornerRadius(4.dp.toPx())) },
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -2346,6 +2476,13 @@ internal fun SentenceFlow(
                 i = j
             }
         }
+    }
+    if (hy) HyphFlow(justify, continues) { items(Modifier) }
+    else FlowRow(
+        horizontalArrangement = if (center) Arrangement.Center else if (justify) JustifyLoose else Arrangement.Start,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        items(Modifier.align(Alignment.Bottom))
         // justified: the last line stays left (a weighted empty box takes the rest of that line)
         if (justify && !continues) androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
     }
@@ -2380,6 +2517,8 @@ private fun TextStyle.emph(t: Token): TextStyle = when {
 private fun ChunkRow(
     s: ReaderSession, sent: Sent, chunk: List<Token>, area: String,
     textStyle: TextStyle, trStyle: TextStyle, selBg: Color, haptic: HapticFeedback, phrase: IntRange?, modifier: Modifier,
+    /** Rest of a hyphenated word: highlighted, but its translation is shown above the first part only. */
+    noTr: Boolean = false,
 ) {
     // bottom-aligned: a translation above one word pushes the whole line down
     Row(modifier, verticalAlignment = Alignment.Bottom) {
@@ -2390,6 +2529,7 @@ private fun ChunkRow(
             // a phrase with its translation shown has one highlight over the whole block (drawn by the caller)
             val block = phrase != null && s.trVisible("${sent.id}:${phrase.first}:${phrase.last}")
             val pinned = tr != null || (inPhrase && !block)
+            val trShown = if (noTr) null else tr
             val hl = LocalHighlight.current.bg
             if (t.isWord) DisposableEffect(area, ref) { onDispose { s.wordCoords.remove(area to ref) } }
             // the highlight is drawn: dragging a selection or opening the word window only redraws
@@ -2404,7 +2544,7 @@ private fun ChunkRow(
                     if (t.isWord) drawRoundRect(c, cornerRadius = CornerRadius(4.dp.toPx())) else drawRect(c)
                 }
             }
-            if (s.book && area == "text" && tr != null) {
+            if (s.book && area == "text" && trShown != null) {
                 // book mode: the translation lies in the gap above the line, the lines do not move apart
                 val a by animateFloatAsState(if (s.trVisible(ref.key())) 1f else 0f, tween(600), label = "wordTr")
                 val lift = with(LocalDensity.current) { (textStyle.fontSize.value * 0.24f).sp.roundToPx() }
@@ -2416,7 +2556,7 @@ private fun ChunkRow(
                             .pointerInput(ref, area) { wordGestures(s, area, ref, haptic) },
                     )
                     Text(
-                        tr.ifEmpty { "…" }, style = trStyle.copy(fontSize = trStyle.fontSize * 0.92f), maxLines = 1,
+                        trShown.ifEmpty { "…" }, style = trStyle.copy(fontSize = trStyle.fontSize * 0.92f), maxLines = 1,
                         softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, color = trColor,
                         modifier = Modifier.graphicsLayer { alpha = a },
                     )
@@ -2430,12 +2570,12 @@ private fun ChunkRow(
                 }
             } else {
             // a word with its translation above: one highlight over both (as on the iPad); hidden translations: the word only
-            val withTr = tr != null && s.trVisible(ref.key())
+            val withTr = trShown != null && s.trVisible(ref.key())
             Column(if (withTr) mark else Modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-                if (tr != null) {
+                if (trShown != null) {
                     val a by animateFloatAsState(if (s.trVisible(ref.key())) 1f else 0f, tween(600), label = "wordTr")
                     Text(
-                        tr.ifEmpty { "…" }, style = trStyle, maxLines = 2,
+                        trShown.ifEmpty { "…" }, style = trStyle, maxLines = 2,
                         color = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else LocalHighlight.current.text,
                         modifier = Modifier.trPull(textStyle.fontSize.value, s.trGap).graphicsLayer { alpha = a }.padding(horizontal = 1.dp),
                     )
