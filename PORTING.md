@@ -21,6 +21,18 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   (the user's key, fast model) and are cached on the device. The reader works as now (tap, double tap, long press,
   drag, zoom, «Показать текстом»). Old PDF lessons already in LingQ keep working. The Android session will post its
   version and storage format here when done.
+  Android v1.137 (PdfBook.kt, Reader.kt, AppState.kt, Library.kt): after «Распознать» the import screen shows a card
+  (pages, words, editable title, «Сохранить и открыть»); no course / LingQ call. Local book = lesson id < 0,
+  id = -((hash(doc + ":" + pages joined by ",") & 0x3fffffff) + 1), so the same file + pages replaces the old one.
+  Storage (filesDir/pdf): books.json {"<id>": {doc, lang, title, pages: [0-based], t}}; per book (N = -id) in <doc>/:
+  book_N.json {"v":1,"paragraphs":[[sentence,...],...]} (paragraphs from the page-text rule, sentences = splitSentences
+  at . ! ? … then Fixer.fix merges), notes_N.json (pins / words / phrases, same shape as the lesson notes),
+  tr_N_<target>.json (sentence -> AI translation), ai_N.json {"w:sent:token" | "p:sent:from:to": {best, options, note,
+  pair}}, cover_N.jpg. Sentence ids = order in book_N.json; word boxes matched on open with the existing aligner.
+  Reader: no LingQ hints for local books, tap / window / phrase / sentence / «Перевести весь урок» use the fast AI model,
+  without a key a clear message (NO_AI_LOCAL); level / AI clean / fix split hidden; sentence edit and bold write
+  book_N.json; delete removes the book files (the PDF too when unused). Library: section «PDF-книги на телефоне»
+  (tile marked PDF, long press = rename / delete).
 
 ## To do on Android
 
