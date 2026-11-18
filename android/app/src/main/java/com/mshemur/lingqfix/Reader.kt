@@ -2033,8 +2033,7 @@ private class TextMetrics(
 
     /**
      * Book mode: chunk [c] does not fit into the [room] px left on the line: how many letters of its word stay there
-     * with a hyphen (or at a hyphen of the word itself), -1 = none. Break points from Android's hyphenator (API 29+;
-     * older: only at a hyphen in the word).
+     * with a hyphen (or at a hyphen of the word itself), -1 = none. Break points from Android's hyphenator.
      */
     private fun hyphenAt(c: List<Token>, room: Int, bold: Boolean): Int {
         val wi = c.indices.singleOrNull { c[it].isWord } ?: return -1
@@ -2043,19 +2042,17 @@ private class TextMetrics(
         val pre = c.take(wi).joinToString("") { it.text }
         var avail = room - (if (pre.isEmpty()) 0 else w(pre, bold))
         paint.typeface = if (bold) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
-        val full = android.os.Build.VERSION.SDK_INT >= 29
         repeat(3) {
             if (avail < lineH) return -1
             val l = android.text.StaticLayout.Builder.obtain(word, 0, word.length, paint, avail)
-                .setHyphenationFrequency(
-                    if (full) android.text.Layout.HYPHENATION_FREQUENCY_FULL else android.text.Layout.HYPHENATION_FREQUENCY_NONE,
-                )
+                .setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_FULL)
                 .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE).setIncludePad(false).build()
             if (l.lineCount < 2) return -1
             val n = l.getLineEnd(0)
             if (n < 2 || word.length - n < 2) return -1
             val dash = word[n - 1] == '-'
-            if (!dash && !(android.os.Build.VERSION.SDK_INT >= 29 && l.getEndHyphenEdit(0) != android.graphics.Paint.END_HYPHEN_EDIT_NO_EDIT)) return -1
+            // a hyphen drawn at the line end makes the line wider than its letters (a forced break inside a word does not)
+            if (!dash && l.getLineWidth(0) < paint.measureText(word, 0, n) + paint.measureText("-") * 0.5f) return -1
             // the app draws with Compose: check the width there, else try a shorter piece
             val over = w(pre + word.take(n) + (if (dash) "" else "-"), bold) - room
             if (over <= 0) return n
