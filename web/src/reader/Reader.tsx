@@ -300,6 +300,7 @@ function ReaderActions({ s }: { s: ReaderSession }) {
             <hr />
             <div class="menu-group">Помощь</div>
             <MenuItem icon="info" onClick={() => { close(); setHelp(true) }}>Как пользоваться</MenuItem>
+            <MenuItem icon="chat" onClick={() => { close(); go({ k: 'feedback' }) }}>Отзыв / задача</MenuItem>
           </Menu>
         )}
       </div>
@@ -966,6 +967,8 @@ function SentenceMenu({ s, id }: { s: ReaderSession; id: number }) {
           <div class="menu-group">Текст</div>
           <MenuItem onClick={() => s.changeFont(+2)}>Крупнее&nbsp; A+</MenuItem>
           <MenuItem onClick={() => s.changeFont(-2)}>Мельче&nbsp; A−</MenuItem>
+          <hr />
+          <MenuItem icon="chat" onClick={() => { close(); go({ k: 'feedback' }) }}>Отзыв / задача</MenuItem>
         </Menu>
       )}
     </div>
@@ -1166,7 +1169,7 @@ function SentenceTranslationPage({ s, id }: { s: ReaderSession; id: number }) {
       <div class={'fold' + (open ? ' open' : '')}>
         <div class="fold-inner">
           <div class="sent-tr big">
-            <div class="sent-tr-text"><TrText s={s} id={id} /></div>
+            <div class="sent-tr-text" onClick={() => { prefs.smTranslation.value = '0' }}><TrText s={s} id={id} /></div>
             <RetranslateButton s={s} id={id} />
             <ChatButton s={s} id={id} />
           </div>
