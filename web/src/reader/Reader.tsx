@@ -324,17 +324,25 @@ const PARA_GAP = 14
 function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Spec[], split: boolean): Measure[] {
   render(<>{blocks.map((b, i) => <Paragraph key={i} s={s} sents={b.sents} start={b.start} cont={b.cont} plain split={split} />)}</>, box)
   const out: Measure[] = []
+  // the bottom of the line [x] ends on: book mode lays words out as text (inline), where a word's box is lower than
+  // its line by half the leading; a word split by a hyphen has two boxes, the last one counts
+  const lh = parseFloat(getComputedStyle(box).lineHeight) || 0
+  const lineBottom = (x: HTMLElement) => {
+    const rs = x.getClientRects()
+    const r = rs.length ? rs[rs.length - 1] : x.getBoundingClientRect()
+    return r.bottom + Math.max(0, (lh - r.height) / 2)
+  }
   box.querySelectorAll<HTMLElement>(':scope > .para').forEach((el, i) => {
     const top = el.getBoundingClientRect().top
     const bottomOf = new Map<number, number>()
     el.querySelectorAll<HTMLElement>('[data-se]').forEach((x) => {
       const id = Number(x.dataset.se)
-      bottomOf.set(id, Math.max(bottomOf.get(id) ?? 0, x.getBoundingClientRect().bottom - top))
+      bottomOf.set(id, Math.max(bottomOf.get(id) ?? 0, lineBottom(x) - top))
     })
     let acc = 0
     const bottoms = blocks[i].sents.map((sent) => (acc = Math.max(acc, bottomOf.get(sent.id) ?? acc)))
     const chunks = blocks[i].sents.map((sent) => [...el.querySelectorAll<HTMLElement>(`.chunk[data-se="${sent.id}"]`)]
-      .map((x) => x.getBoundingClientRect().bottom - top))
+      .map((x) => lineBottom(x) - top))
     out.push({ height: el.getBoundingClientRect().height, bottoms, chunks })
   })
   render(null, box)
@@ -419,7 +427,8 @@ function looseJustify(root: HTMLElement) {
   for (const flow of root.querySelectorAll<HTMLElement>('.flow')) {
     const kids = [...flow.children] as HTMLElement[]
     kids.forEach((k) => { if (k.classList.contains('jl')) { k.classList.remove('jl'); k.style.paddingRight = '' } })
-    if (!on || flow.closest('.measurer, .page-inner')) continue
+    // book mode: words are text there, justified by the browser with hyphenation (no flex lines to pack)
+    if (!on || flow.closest('.measurer, .page-inner, .book')) continue
     const width = flow.clientWidth
     if (!width) continue
     const lines: HTMLElement[][] = []
@@ -639,7 +648,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     const p = pages[i]
     if (!p) return <div class="reader-text page-text" key={i} style={fs} />
     return (
-      <div class="reader-text page-text" key={i} style={fs} {...handlers}>
+      <div class="reader-text page-text" lang={s.lang} key={i} style={fs} {...handlers}>
         {p.map((b) => <Paragraph key={b.para + ':' + b.sents[0].id + ':' + (b.start ?? 0)} s={s} sents={b.sents} start={b.start} end={b.end} cont={b.cont}
           cut={b.end != null || b !== p[p.length - 1] ? false : b.sents[b.sents.length - 1] !== paras[b.para][paras[b.para].length - 1]} />)}
       </div>
@@ -647,7 +656,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   }
   return (
     <>
-      <div class={'reader-text measurer' + (per === 2 ? ' half' : '')} ref={measurer} style={fs} aria-hidden="true" />
+      <div class={'reader-text measurer' + (per === 2 ? ' half' : '')} lang={s.lang} ref={measurer} style={fs} aria-hidden="true" />
       <div class="pager text-pager" ref={pager} onScroll={onScroll} {...swipe}>
         {Array.from({ length: Math.ceil(pages.length / per) }, (_, si) => (
           <div class="page" key={si}>
@@ -814,20 +823,21 @@ const SentView = memo(function SentView({ s, sent, st, plain, from, to }: {
   // a chunk belongs to a phrase by one of its words, or by anything lying inside it (a dash between its words)
   const phraseOf = (c: Token[]) => phr.find((p) => c.some((t) =>
     t.isWord ? t.index >= p.from && t.index <= p.to : t.index > p.from && t.index < p.to)) ?? null
-  const out: JSX.Element[] = []
+  const out: (JSX.Element | string)[] = []
   const ch = sent.chunks
   const stop = Math.min(to ?? ch.length, ch.length)
   for (let i = from ?? 0; i < stop;) {
     const ph = phraseOf(ch[i])
-    if (!ph) { out.push(chunkView(ch[i], null, i)); i++; continue }
+    if (!ph) { out.push(chunkView(ch[i], null, i), ' '); i++; continue }
     // several words translated together: one translation above all of them
     let j = i
     while (j < stop && phraseOf(ch[j]) === ph) j++
     out.push(
       <span class="phrase" key={'p' + i}>
         <span class={'pin phrase-pin' + (peek[`${sent.id}:${ph.from}:${ph.to}`] ? ' peek' : '')}>{ph.text || '…'}</span>
-        <span class="phrase-words">{ch.slice(i, j).map((c, n) => chunkView(c, ph, i + n))}</span>
+        <span class="phrase-words">{ch.slice(i, j).flatMap((c, n) => [chunkView(c, ph, i + n), ' '])}</span>
       </span>,
+      ' ',
     )
     i = j
   }

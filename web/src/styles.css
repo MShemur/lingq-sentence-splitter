@@ -990,11 +990,19 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 }
 /* paragraphs: no gap, a first-line indent (not headings, not a paragraph going on from the page before) */
 .reader.book .para { margin-bottom: 0; }
-.reader.book .para:not(.heading):not(.cont) > .flow:first-child::before { content: ''; width: 1.5em; flex-shrink: 0; }
+.reader.book .para:not(.heading):not(.cont) > .flow:first-child::before { content: ''; width: 1.5em; flex-shrink: 0; display: inline-block; }
+/* the words flow as text, so a long word is split with a hyphen at a syllable instead of leaving the line a third
+   empty (note 20261118-032701); justified by the browser, the line before a page break too */
+.reader.book .flow { display: block; -webkit-hyphens: auto; hyphens: auto; }
+.reader.book .chunk, .reader.book .w, .reader.book .phrase, .reader.book .phrase-words { display: inline; margin-right: 0; }
+.reader.book.justify .reader-text .flow { text-align: justify; }
+.reader.book.justify .reader-text .flow::after { display: none; }
+.reader.book.justify .reader-text .para.cut > .flow:last-child { text-align-last: justify; }
 /* a translation above a word lies in the gap between the lines: it takes no room, the lines never move apart */
 .reader.book .w, .reader.book .phrase { position: relative; }
 .reader.book .pin {
-  position: absolute; left: 50%; bottom: calc(100% - 0.24em + var(--pin-gap, 0px)); transform: translateX(-50%);
+  /* a word is an inline box lower than its line by half the leading: the same place as above a line-high box */
+  position: absolute; left: 50%; bottom: calc(50% + 0.775em * var(--line-mul, 1) - 0.24em + var(--pin-gap, 0px)); transform: translateX(-50%);
   margin: 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 11em; pointer-events: none;
 }
 .reader.book .phrase-pin { max-width: max(100%, 14em); }

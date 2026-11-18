@@ -1,7 +1,7 @@
 # План улучшений SatzLoop
 
 Общий план для Android и веб-версии (iPad). Очередь переноса функций между платформами ведётся в `PORTING.md`.
-Обновлено: 11.11.2026 (Android v1.86, web v1.67).
+Обновлено: 11.11.2026 (Android v1.86, web v1.68).
 
 ## Не делаем (решено)
 
@@ -111,6 +111,7 @@ Bold / italic kept as ** / * in the LingQ text: drawn in the reader, «Жирн�
 Book mode: top bar always shown; FBReader-like backgrounds with paper texture (android v1.127, web v1.65)
 Line / paragraph spacing sliders; book mode: sentence may go on on the next page; iPad book bar by tap again (android v1.129, web v1.66)
 Book mode page break at a line end again (justified line no longer re-wraps), a paragraph going on is not indented, a sentence translation is counted in the layout (web v1.67)
+Book mode: long words split with a hyphen at a syllable (text flows as text, justified by the browser) (web v1.68)
 
 ## Оптимизация по обзору кода (10.11.2026)
 
