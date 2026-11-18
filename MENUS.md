@@ -201,9 +201,8 @@ Deliberate shortcuts: «Книжный режим» (also in Settings → Чте
 6. Слушать отсюда (sentence has a time)
 7. Чат о предложении
 
-Platform exception: [W] text mode has no long-press menu (user's iPad wish: long press = sentence translation);
-the book-mode double-tap menu uses the full list above. [A] keeps the long-press menu. (If the user wants the iPad
-behaviour on the phone too, that is a separate decision.)
+Same on both (user confirmed 18.11.2026): in text mode a long press = sentence translation (long press + drag = phrase), no menu;
+the book-mode double-tap menu uses the full list above. The player keeps its long-press menu.
 
 ### 3.10 Player
 Header: «Закладка на это место» icon · ⋮ → «Аудиозакладки (N)». Word menu unchanged. Remove the dead «Другой урок».
