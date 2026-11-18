@@ -5,6 +5,8 @@ import { ApiError } from '../lingq'
 /** An opened PDF: page count, previews, text of chosen pages. */
 export interface PdfDoc {
   pages: number
+  /** The pdf.js document (the PDF book reads word boxes and page pictures from it). */
+  raw: any
   /** Preview of page [i] (0-based) as an image URL, [width] px wide. */
   preview(i: number, width: number): Promise<string>
   /** Text of pages [list] (0-based); [scans]: chosen pages without a text layer (skipped). */
@@ -12,15 +14,22 @@ export interface PdfDoc {
   close(): void
 }
 
-export async function openPdf(bytes: Uint8Array): Promise<PdfDoc> {
+/** pdf.js, loaded on first use. */
+export async function pdfjsLib() {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const worker = (await import('pdfjs-dist/legacy/build/pdf.worker.mjs?url')).default
   pdfjs.GlobalWorkerOptions.workerSrc = worker
+  return pdfjs
+}
+
+export async function openPdf(bytes: Uint8Array): Promise<PdfDoc> {
+  const pdfjs = await pdfjsLib()
   const doc = await pdfjs.getDocument({ data: bytes, isEvalSupported: false }).promise
   // previews one at a time (pdf.js renders a page at a time anyway; the iPad stays responsive)
   let chain: Promise<unknown> = Promise.resolve()
   return {
     pages: doc.numPages,
+    raw: doc,
     preview(i, width) {
       const job = chain.then(async () => {
         const page = await doc.getPage(i + 1)

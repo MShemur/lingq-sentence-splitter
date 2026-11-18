@@ -72,17 +72,36 @@ export async function generateFull(system: string | null, messages: Msg[], json 
 export const generate = async (system: string | null, messages: Msg[], json = false, fast = false) =>
   (await generateFull(system, messages, json, fast)).text
 
-async function geminiGenerate(system: string | null, messages: Msg[], json = false, fast = false): Promise<string> {
+const geminiGenerate = (system: string | null, messages: Msg[], json = false, fast = false) =>
+  geminiRun(system, messages.map((x) => ({ role: x.user ? 'user' : 'model', parts: [{ text: x.text }] })), json, fast)
+
+/**
+ * Text of a page picture (PDF book, a scanned page): lines with their boxes, as JSON (see pdfbook.ts). Always Gemini
+ * (the other AI may not read pictures), with the main model: small print is read better.
+ */
+export async function ocr(prompt: string, mime: string, b64: string): Promise<string> {
+  const t0 = Date.now()
+  try {
+    const r = await geminiRun(null, [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }, { text: prompt }] }], true, false)
+    log('ai', `Gemini OCR ✓ ${Date.now() - t0} мс, ${r.length} симв.`)
+    return r
+  } catch (e) {
+    logError('ai', `Gemini OCR ✗ ${Date.now() - t0} мс`, e)
+    throw e
+  }
+}
+
+async function geminiRun(system: string | null, contents: any[], json: boolean, fast: boolean): Promise<string> {
   const key = prefs.geminiKey.value.trim()
   if (!key) throw new ApiError('Не задан ключ Gemini (⚙ Настройки)')
   const m = modelFor(fast)
   const run = async (model: string) => {
     try {
-      return await request(key, model, system, messages, json, true)
+      return await request(key, model, system, contents, json, true)
     } catch (e) {
       // older/newer models may not know the thinking option: try once without it
       const msg = String((e as Error).message)
-      if (msg.includes('HTTP 400') && /hink/i.test(msg)) return request(key, model, system, messages, json, false)
+      if (msg.includes('HTTP 400') && /hink/i.test(msg)) return request(key, model, system, contents, json, false)
       throw e
     }
   }
@@ -98,10 +117,10 @@ async function geminiGenerate(system: string | null, messages: Msg[], json = fal
   }
 }
 
-async function request(key: string, m: string, system: string | null, messages: Msg[], json: boolean, lowThinking: boolean): Promise<string> {
+async function request(key: string, m: string, system: string | null, contents: any[], json: boolean, lowThinking: boolean): Promise<string> {
   const body: any = {}
   if (system?.trim()) body.systemInstruction = { parts: [{ text: system }] }
-  body.contents = messages.map((x) => ({ role: x.user ? 'user' : 'model', parts: [{ text: x.text }] }))
+  body.contents = contents
   const cfg: any = { temperature: 0.3 }
   if (json) cfg.responseMimeType = 'application/json'
   // Flash models answer much faster with little "thinking"

@@ -36,6 +36,7 @@ function openImported(sc: Screen) {
 export function ImportScreen({ s }: { s: ImportSession }) {
   const file = useRef<HTMLInputElement>(null)
   const audioFile = useRef<HTMLInputElement>(null)
+  const pdfFile = useRef<HTMLInputElement>(null)
   useEffect(() => { void loadCourses() }, [])
   const list = courses.value
   useEffect(() => {
@@ -86,13 +87,19 @@ export function ImportScreen({ s }: { s: ImportSession }) {
             <SourceTile icon="headphones" label="Подкаст" onClick={() => go(new PodcastSession(s, s.lang))} disabled={running || s.loading.value} />
             <SourceTile icon="mic" label="Аудиофайл → текст" onClick={() => audioFile.current?.click()} disabled={running || s.loading.value} />
           </div>
+          <div class="source-tiles">
+            <SourceTile icon="library" label="PDF-книга" onClick={() => pdfFile.current?.click()} disabled={running || s.loading.value} />
+          </div>
+          <input ref={pdfFile} type="file" hidden accept=".pdf,application/pdf"
+            onChange={(e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void s.loadPdfBook(f); (e.target as HTMLInputElement).value = '' }} />
           <input ref={audioFile} type="file" hidden accept="audio/*,video/mp4,.mp3,.m4a,.ogg,.opus,.wav,.flac,.webm"
             onChange={(e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void s.pickAudio(f); (e.target as HTMLInputElement).value = '' }} />
           {!has && !s.loading.value && (
             <p class="hint">
               Текст из буфера или файл: TXT, MD, EPUB, PDF с текстом. Аудио: выберите кусок (например 10 минут), он
               распознаётся сервисом из настроек и загружается в урок вместе с текстом. Потом очистите текст от мусора и
-              загрузите в LingQ.
+              загрузите в LingQ. PDF-книга: в уроке видны сами страницы PDF, слова на них нажимаются как в тексте
+              (PDF хранится в этом браузере).
             </p>
           )}
           {s.loading.value && <div class="row-status"><span class="spinner-sm" />{s.status.value || 'Загрузка…'}</div>}
@@ -127,7 +134,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                     requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = a + md.length })
                   }} />
               </label>
-              <div class="hint">{wordsLabel(countWords(s.pasteText.value))}</div>
+              <div class="hint">{wordsLabel(countWords(s.pasteText.value))}{s.isPdfBook ? ' · PDF-книга: урок откроется страницами PDF' : ''}</div>
             </>
           ) : items.length > 0 && (
             <>

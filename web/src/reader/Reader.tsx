@@ -16,6 +16,7 @@ import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, typ
 import { playLesson } from '../player'
 import { levelName } from '../lingq'
 import { LessonDeleteDialog } from '../screens/CourseEdit'
+import { PdfReader } from './PdfReader'
 
 /** A long-press selection is being dragged: the page must not scroll under the finger (iOS). */
 let selecting = false
@@ -36,10 +37,10 @@ const narrow = signal(narrowQuery.matches)
 narrowQuery.addEventListener?.('change', (e) => { narrow.value = e.matches })
 
 /** The word window is docked at the right (not on a phone: the text would get too narrow). */
-const docked = () => prefs.dockPanel.value === '1' && !narrow.value && !isBook()
+export const docked = () => prefs.dockPanel.value === '1' && !narrow.value && !isBook()
 
 /** Book mode ("Книжный режим"): full screen text, swipe only, word menu on a double tap. */
-const isBook = () => prefs.readerBook.value === '1'
+export const isBook = () => prefs.readerBook.value === '1'
 
 /**
  * Page turning by swipe, done here instead of the browser's own scrolling: on the iPad the browser would take
@@ -108,7 +109,7 @@ function useSwipe(pager: { current: HTMLDivElement | null }, onTap?: (e: Pointer
 const glides = new WeakMap<HTMLElement, number>()
 
 /** Stops a page-turn animation (a finger took the page). */
-function stopGlide(el: HTMLElement) {
+export function stopGlide(el: HTMLElement) {
   const id = glides.get(el)
   if (id != null) cancelAnimationFrame(id)
   glides.delete(el)
@@ -118,7 +119,7 @@ function stopGlide(el: HTMLElement) {
  * Turns the pager to [left] slowly and evenly (the browser's own smooth scrolling is too fast for a book page).
  * [ms] is for a whole page; a shorter way (the rest of a swipe) takes proportionally less, but not too little.
  */
-function glide(el: HTMLElement, left: number, ms = 520) {
+export function glide(el: HTMLElement, left: number, ms = 520) {
   stopGlide(el)
   const from = el.scrollLeft
   const dist = left - from
@@ -205,7 +206,8 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
       />
       <div class={'screen-body reader-body' + (docked() ? ' docked' : '')}>
         <div class="text-area">
-          {err ? <ErrorBox text={err} retry={() => void s.load()} /> : !paras ? <Loading /> : <TextView s={s} paras={paras} />}
+          {err ? <ErrorBox text={err} retry={() => void s.load()} /> : !paras ? <Loading />
+            : s.showPdf.value && s.pdfLink.value ? <PdfReader s={s} link={s.pdfLink.value} /> : <TextView s={s} paras={paras} />}
         </div>
         {docked() && <DockedPanel s={s} />}
       </div>
@@ -286,6 +288,11 @@ function ReaderActions({ s }: { s: ReaderSession }) {
               close(); s.bookBar.value = false; s.bookMenu.value = null
               prefs.readerBook.value = isBook() ? '0' : '1'
             }}>Книжный режим</MenuItem>
+            {s.pdfLink.value && (
+              <MenuItem icon={s.showPdf.value ? 'list' : 'file'} onClick={() => { close(); s.showPdf.value = !s.showPdf.value }}>
+                {s.showPdf.value ? 'Показать текстом' : 'Показать страницы PDF'}
+              </MenuItem>
+            )}
             <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
             <MenuItem icon="translate" onClick={() => { close(); void s.translateAll() }}>
               {s.trAll.value != null ? `Перевожу урок: ${s.trAll.value}` : 'Перевести весь урок'}
@@ -869,7 +876,7 @@ export function TrText({ s, id }: { s: ReaderSession; id: number }) {
   return <span class={'tr-arrived' + (s.retranslating.value[id] ? ' tr-redo' : '')} key={tr}>{tr}</span>
 }
 
-function SentenceTranslation({ s, id }: { s: ReaderSession; id: number }) {
+export function SentenceTranslation({ s, id }: { s: ReaderSession; id: number }) {
   useEffect(() => { s.ensureSentence(id) }, [id])
   return (
     <div class="sent-tr" data-se={id}>

@@ -1,7 +1,7 @@
 # План улучшений SatzLoop
 
 Общий план для Android и веб-версии (iPad). Очередь переноса функций между платформами ведётся в `PORTING.md`.
-Обновлено: 11.11.2026 (Android v1.86, web v1.69).
+Обновлено: 11.11.2026 (Android v1.86, web v1.70).
 
 ## Не делаем (решено)
 
@@ -117,6 +117,7 @@ Line / paragraph spacing sliders; book mode: sentence may go on on the next page
 Book mode page break at a line end again (justified line no longer re-wraps), a paragraph going on is not indented, a sentence translation is counted in the layout (web v1.67)
 Book mode: long words split with a hyphen at a syllable (text flows as text, justified by the browser) (web v1.68)
 «Отзыв / задача» in the reader and sentence mode ⋮; sentence mode: a tap on the translation folds it (web v1.69)
+PDF-книга: страницы PDF как есть, слова поверх нажимаются как в тексте, зум до 5× (android v1.134, web v1.70)
 
 ## Оптимизация по обзору кода (10.11.2026)
 

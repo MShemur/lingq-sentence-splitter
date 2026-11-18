@@ -9,7 +9,8 @@ import { lang, prefs, prompt, useGemini } from '../settings'
 import { addReports, chunks, cleanText, countWords, EMPTY_REPORT, LINGQ_MAX_WORDS, markdownHeadings, reportText, spaceQuotes, splitLong, splitSentences } from './cleaner'
 import { fix, type Change } from './fixer'
 import { readFile } from './sources'
-import { pagesLabel, type PdfDoc } from './pdf'
+import { openPdf, pagesLabel, type PdfDoc } from './pdf'
+import * as pdfBook from '../pdfbook'
 import { saveBackup } from './backups'
 import { clock, cutMp3, decodePcm, mp3Frames, playerDuration, RATE, wav, type Mp3 } from './audio'
 import { align, fromSegments, matchText, sttKeyFor, sttModel, sttProvider, transcribe, type TSeg, type TWord } from './stt'
@@ -133,6 +134,7 @@ export class ImportSession {
   newImport() {
     this.finished.value = false; this.log.value = []; this.fixes.value = []; this.uploaded.value = []; this.error.value = null; this.textNote.value = ''
     this.pasteText.value = ''; this.pasteTitle.value = ''; this.items.value = []; this.dropAudio(); this.cover.value = null
+    this.pdfBook = null; this.pdfBookPages = []
   }
   lang = lang()
 
@@ -144,7 +146,7 @@ export class ImportSession {
   }
 
   private startLoad(msg: string) {
-    this.dropAudio(); this.cover.value = null
+    this.dropAudio(); this.cover.value = null; this.pdfBook = null; this.pdfBookPages = []
     this.finished.value = false; this.log.value = []; this.fixes.value = []; this.uploaded.value = []
     this.loading.value = true; this.status.value = msg; this.error.value = null
     this.cleanNote.value = null; this.before = null; this.canUndo.value = false
@@ -183,13 +185,75 @@ export class ImportSession {
   /** A PDF of several pages waiting for the page choice (the picker sheet is open). */
   pdfPick = signal<PdfDoc | null>(null)
 
-  cancelPdf() { this.pdfPick.value?.close(); this.pdfPick.value = null }
+  cancelPdf() { this.pdfPick.value?.close(); this.pdfPick.value = null; this.pickBook = null }
+
+  // --- PDF book: the PDF kept in this browser, its pages shown in the reader with the words over them ---
+
+  /** The PDF book being picked (its doc id), or null for the plain PDF import. */
+  private pickBook: string | null = null
+  /** The text in the form comes from this PDF book (doc id) and these pages: the uploaded lessons are registered. */
+  private pdfBook: string | null = null
+  private pdfBookPages: number[] = []
+  /** The text in the form comes from a PDF book (for the hint on the form). */
+  get isPdfBook() { return this.pdfBook != null }
+
+  async loadPdfBook(file: File) {
+    this.startLoad('Открываю PDF…')
+    this.pasteMode.value = false; this.items.value = []
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      if (String.fromCharCode(...bytes.subarray(0, 4)) !== '%PDF') throw new Error('это не PDF')
+      this.status.value = 'Сохраняю PDF…'
+      const doc = await pdfBook.importFile(bytes)
+      const pdf = await openPdf(bytes.slice())
+      this.sourceName.value = file.name.replace(/\.[^.]+$/, '')
+      this.pdfPick.value?.close()
+      this.pickBook = doc
+      if (pdf.pages > 1) { this.pdfPick.value = pdf; this.loading.value = false; this.status.value = ''; return }
+      this.pdfPick.value = pdf
+      await this.importPdfPages([0])
+      return
+    } catch (e) {
+      this.error.value = `Не удалось прочитать PDF: ${(e as Error).message}`
+    }
+    this.loading.value = false; this.status.value = ''
+  }
+
+  /** PDF book: the chosen pages are recognised with word boxes (once per file) and their text goes into the form. */
+  private async readPdfBook(pdf: PdfDoc, doc: string, list: number[]) {
+    const r = await pdfBook.recognise(doc, pdf.raw, list, (st) => { this.status.value = st })
+    const text = pdfBook.text(r.pages)
+    const name = this.sourceName.value
+    const title = list.length === pdf.pages ? name : `${name}, стр. ${pagesLabel(list)}`
+    // a long book is not put into the text field (too slow to edit there)
+    if (text.length > 30_000) {
+      this.pasteMode.value = false; this.isBook.value = false
+      this.items.value = [new ImportItem(title, text, true)]
+    } else this.setSingle(title, text)
+    this.pdfBook = doc; this.pdfBookPages = list
+    log('import', `PDF-книга ${doc}: ${list.length} из ${pdf.pages} стр., слов ${countWords(text)}, Gemini OCR: ${r.ocr}`)
+    if (r.scans.length) {
+      say(`${r.scans.length === 1 ? 'Страница' : 'Страницы'} ${pagesLabel(r.scans)} — скан без текста: для распознавания нужен ключ Gemini (⚙ Настройки → Перевод)`)
+    }
+    if (!text.trim()) this.error.value = 'На выбранных страницах не нашлось текста'
+  }
 
   /** Reads pages [list] (0-based) of the PDF being picked; the title gets ", стр. 3–5, 8" unless all were taken. */
   async importPdfPages(list: number[]) {
     const pdf = this.pdfPick.value
     if (!pdf || !list.length) return
     this.pdfPick.value = null
+    const book = this.pickBook
+    this.pickBook = null
+    if (book) {
+      this.startLoad('Распознаю PDF…')
+      try { await this.readPdfBook(pdf, book, list) } catch (e) {
+        log('import', `PDF-книга ✗ ${(e as Error).message}`)
+        this.error.value = `Не удалось распознать PDF: ${(e as Error).message}`
+      } finally { pdf.close() }
+      this.loading.value = false; this.status.value = ''
+      return
+    }
     this.startLoad('Читаю PDF…')
     try {
       const { text, scans } = await pdf.text(list, (s) => { this.status.value = s })
@@ -403,6 +467,15 @@ export class ImportSession {
       })
     }
     if (!jobs.length || !jobs[0].text.trim()) { say('Нечего загружать'); return }
+    // PDF book: the pages each lesson covers (the PDF reader shows them)
+    const book = audio ? null : this.pdfBook
+    let bookPages: (number[] | null)[] = []
+    if (book) {
+      try {
+        const all = (await Promise.all(this.pdfBookPages.map((i) => pdfBook.load(book, i)))).filter((p): p is pdfBook.PdfPage => !!p)
+        bookPages = pdfBook.ranges(all, jobs.map((j) => j.text))
+      } catch (e) { log('import', `PDF-книга: страницы уроков ✗ ${(e as Error).message}`) }
+    }
     this.running.value = true; this.finished.value = false; this.error.value = null
     this.log.value = []; this.fixes.value = []; this.uploaded.value = []; this.progress.value = 0
     try {
@@ -447,6 +520,10 @@ export class ImportSession {
           this.line(base + i, `❌ ${(e as Error).message} · ${title}`); failed++; step(); continue
         }
         this.uploaded.value = [...this.uploaded.value, { id, title }]
+        if (book) {
+          await pdfBook.register(l, id, book, bookPages[i] ?? this.pdfBookPages)
+            .catch((e) => log('import', `PDF-книга: урок ${id} ✗ ${(e as Error).message}`))
+        }
         // the split is always fixed and, with an AI, the level always set (no switches: the user wants both)
         const wantLevel = useGemini()
         if (!this.autoFix.value && !wantLevel && !audio) { this.line(base + i, `✅ ${title}`); step(); continue }

@@ -17,6 +17,7 @@ import { chunks as textChunks, cleanText, markdownHeadings, spaceQuotes, splitSe
 import { fix } from '../importer/fixer'
 import { log, logError } from '../applog'
 import * as audio from '../audio'
+import { link as pdfLinkOf, type PdfLink } from '../pdfbook'
 import { addAudioBookmark, audioBookmarks, removeBookmark, type Bookmark as Bm } from '../bookmarks'
 
 // --- model ---
@@ -288,6 +289,10 @@ export class ReaderSession {
   textAnchor: number | null = null
   /** Sentences on the page being read. */
   visibleSents = new Set<number>()
+  /** The lesson was made from a PDF book in this browser: its pages can be shown instead of the text. */
+  pdfLink = signal<PdfLink | null>(null)
+  /** The PDF pages are shown (⋮ «Показать текстом» / «Показать страницы PDF»). */
+  showPdf = signal(false)
 
   private sentById = new Map<number, Sent>()
   private hintsCache = new Map<string, Promise<string[]>>()
@@ -306,10 +311,12 @@ export class ReaderSession {
   async load() {
     this.error.value = null
     try {
-      const [l, o] = await Promise.all([
+      const [l, o, pdf] = await Promise.all([
         this.lesson.title ? Promise.resolve(this.lesson) : api.lesson(this.lang, this.lesson.id),
         api.editorObj(this.lang, this.lesson.id),
+        pdfLinkOf(this.lang, this.lesson.id),
       ])
+      if (pdf && !this.pdfLink.value) { this.pdfLink.value = pdf; this.showPdf.value = true }
       const paras = this.parse(o?.paragraphs ?? [])
       const au = typeof o?.audio === 'string' && o.audio.startsWith('http') ? o.audio : null
       this.audioUrl.value = au

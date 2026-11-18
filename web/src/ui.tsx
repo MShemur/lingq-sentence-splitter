@@ -1,6 +1,6 @@
 // Small Material 3 style building blocks.
 import type { ComponentChildren, JSX } from 'preact'
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { Icon, type IconName } from './icons'
 import type { Dictation } from './voice'
 
@@ -101,10 +101,24 @@ export function Sheet(p: { children: ComponentChildren; onClose: () => void }) {
 /** Dropdown menu: a transparent layer closes it on any outside tap. */
 export function Menu(p: { children: ComponentChildren; onClose: () => void; class?: string }) {
   useEscape(p.onClose)
+  // a long menu never runs off the bottom of the screen: it ends above it and scrolls (note 20261118-042917)
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const fit = () => {
+      const h = window.visualViewport?.height ?? window.innerHeight
+      el.style.maxHeight = Math.max(160, h - Math.max(0, el.getBoundingClientRect().top) - 12) + 'px'
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    window.visualViewport?.addEventListener('resize', fit)
+    return () => { window.removeEventListener('resize', fit); window.visualViewport?.removeEventListener('resize', fit) }
+  }, [])
   return (
     <>
       <div class="menu-layer" onClick={p.onClose} />
-      <div class={'menu ' + (p.class ?? '')} role="menu">{p.children}</div>
+      <div ref={ref} class={'menu ' + (p.class ?? '')} role="menu">{p.children}</div>
     </>
   )
 }
