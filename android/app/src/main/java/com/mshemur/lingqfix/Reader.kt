@@ -345,6 +345,8 @@ private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
 // --- session -------------------------------------------------------------------------------------
 
 class ReaderSession(private val app: AppState, val lang: String, val lesson: Lesson, startSent: Int? = null) {
+    /** PDF book page at the base zoom: "width" (fills the screen width) or "page" (whole page). */
+    val pdfFit: String get() = app.pdfFit
     /** Sentence to scroll to (bookmark); consumed by the screen. */
     var jump by mutableStateOf(startSent ?: app.progress.pos(lang, lesson.id))
 
@@ -1782,6 +1784,12 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             leadingIcon = { Icon(AppIcons.Description, contentDescription = null) },
             onClick = { menu = false; s.showPdf = !s.showPdf },
         )
+        if (s.pdfLink != null && s.showPdf) DropdownMenuItem(
+            text = { Text("Страница PDF целиком") },
+            leadingIcon = { Icon(AppIcons.Description, contentDescription = null) },
+            trailingIcon = { androidx.compose.material3.Checkbox(checked = state.pdfFit == "page", onCheckedChange = null) },
+            onClick = { menu = false; state.applyPrefs { pdfFit = if (state.pdfFit == "page") "width" else "page" } },
+        )
         DropdownMenuItem(
             text = { Text("Настройки чтения…") },
             leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
@@ -1930,6 +1938,8 @@ private fun ReaderHelp(onClose: () -> Unit) {
             "PDF-книга хранится только на телефоне (в LingQ не загружается) и показывает страницы PDF как есть; " +
                 "слова на них работают как в тексте: касание, двойное касание, долгое нажатие.",
             "Переводы слов, фраз и предложений делает Gemini (ваш ключ, лёгкая модель); они запоминаются в книге и второй раз не запрашиваются.",
+            "Страница открывается по ширине экрана: вверх-вниз — двигать страницу, влево-вправо — листать; " +
+                "⋮ → «Страница PDF целиком» — вся страница на экране.",
             "Два пальца — увеличить страницу, одним пальцем — двигать; двойное касание мимо слов — увеличить / вернуть.",
             "⋮ → «Показать текстом» — обычный текст урока, «Показать страницы PDF» — обратно.",
         ),

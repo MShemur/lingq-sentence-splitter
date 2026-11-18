@@ -153,6 +153,10 @@ class Prefs(ctx: Context) {
     var readerBook: Boolean
         get() = read("readerBook", "0") == "1"
         set(v) = write("readerBook", if (v) "1" else "0")
+    /** PDF book page at the base zoom: "width" = fills the screen width, "page" = the whole page fits in. */
+    var pdfFit: String
+        get() = read("pdfFit", "width")
+        set(v) = write("pdfFit", v)
     /** A word with its translation above gets a coloured background (false: only the translation is coloured). */
     var wordBg: Boolean
         get() = read("wordBg", "1") == "1"

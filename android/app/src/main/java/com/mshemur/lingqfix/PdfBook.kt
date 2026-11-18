@@ -36,6 +36,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -68,11 +69,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -582,6 +584,25 @@ private class PdfRender(file: File) {
         } finally { p.close() }
     }
 
+    /**
+     * Draws the part [x], [y], [w], [h] (px of the page laid out [pw] px wide) at [k] bitmap px per layout px:
+     * the whole page with x = y = 0, w x h = the page, or the visible part of a zoomed page.
+     */
+    fun renderPart(i: Int, pw: Float, k: Float, x: Float, y: Float, w: Float, h: Float): Bitmap? = synchronized(this) {
+        if (closed || pw <= 0f || k <= 0f || w <= 0f || h <= 0f || i !in 0 until r.pageCount) return null
+        val bw = kotlin.math.ceil(w * k).toInt().coerceAtLeast(1)
+        val bh = kotlin.math.ceil(h * k).toInt().coerceAtLeast(1)
+        val p = r.openPage(i)
+        try {
+            val b = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
+            b.eraseColor(android.graphics.Color.WHITE)
+            val sc = pw * k / p.width
+            val mx = android.graphics.Matrix().apply { setScale(sc, sc); postTranslate(-x * k, -y * k) }
+            p.render(b, null, mx, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            b
+        } finally { p.close() }
+    }
+
     fun close() = synchronized(this) {
         if (!closed) { closed = true; runCatching { r.close() }; runCatching { pfd.close() } }
     }
@@ -595,10 +616,14 @@ private class PdfZoom {
     /** View size and where the unzoomed page lies in it. */
     var vw = 0f; var vh = 0f; var left = 0f; var top = 0f; var pw = 0f; var ph = 0f
 
+    /** Keeps the page in view (a page taller than the view is moved up to its edges, also at the base zoom). */
     fun clamp() {
-        if (scale <= 1.001f) { scale = 1f; ox = 0f; oy = 0f; return }
+        if (scale <= 1.001f) scale = 1f
         ox = fit(ox, vw, left, pw); oy = fit(oy, vh, top, ph)
     }
+
+    /** The page sticks out of the view up and down (one finger moves it that way also unzoomed). */
+    fun tallY() = ph * scale > vh + 1f
 
     private fun fit(o: Float, view: Float, start: Float, len: Float): Float {
         val size = len * scale
@@ -616,10 +641,10 @@ private class PdfZoom {
 
     fun panBy(d: Offset) { ox += d.x; oy += d.y; clamp() }
 
-    /** Double tap on the page (not on a word): zoom in there, or back to the whole page. */
+    /** Double tap on the page (not on a word): zoom in there, or back to the base zoom keeping that place. */
     fun toggle(local: Offset) {
-        if (scale > 1.01f) { scale = 1f; clamp(); return }
-        zoomBy(2.5f, Offset(ox + (left + local.x) * scale, oy + (top + local.y) * scale))
+        val c = Offset(ox + (left + local.x) * scale, oy + (top + local.y) * scale)
+        zoomBy(if (scale > 1.01f) 1f / scale else 2.5f, c)
     }
 }
 
@@ -709,25 +734,51 @@ fun PdfReader(s: ReaderSession, link: PdfLink) {
     }
 }
 
+/** The sharper picture of the visible part of a zoomed page: [x], [y], [w], [h] in px of the laid out page. */
+private class PdfPart(val bmp: Bitmap, val x: Float, val y: Float, val w: Float, val h: Float, val k: Float)
+
+private const val BASE_PX = 6_000_000f
+private const val SIDE_PX = 800_000f
+private const val DETAIL_PX = 6_000_000f
+
 @Composable
 private fun PdfPageView(s: ReaderSession, doc: PdfRender, page: Int, aspect: Float, toks: List<PdfTok>, z: PdfZoom, current: Boolean) {
     BoxWithConstraints(Modifier.fillMaxSize().clipToBounds()) {
         val vw = constraints.maxWidth.toFloat()
         val vh = constraints.maxHeight.toFloat()
-        val pw = minOf(vw, vh / aspect)
+        // base zoom: the page fills the screen width (a portrait page is then taller than the screen and is moved up
+        // and down), or the whole page fits in (menu "Страница PDF целиком")
+        val pw = if (s.pdfFit == "page") minOf(vw, vh / aspect) else vw
         val ph = pw * aspect
         z.vw = vw; z.vh = vh; z.pw = pw; z.ph = ph
-        z.left = (vw - pw) / 2; z.top = (vh - ph) / 2
-        // zoomed in: the page is drawn again sharper (only the page on screen, at most ~12 Mpx)
-        var q = if (!current) 1f else when {
-            z.scale >= 2.5f -> 3f
-            z.scale >= 1.5f -> 2f
-            else -> 1f
-        }
-        while (q > 1f && pw * q * ph * q > 12_000_000f) q -= 0.5f
-        val bmp by produceState<Bitmap?>(null, page, pw.toInt(), q) {
-            val b = withContext(Dispatchers.IO) { runCatching { doc.render(page, (pw * q).toInt()) }.getOrNull() }
+        z.left = maxOf(0f, (vw - pw) / 2); z.top = maxOf(0f, (vh - ph) / 2)
+        LaunchedEffect(vw, vh, pw) { z.clamp() }
+        // the whole page at the screen's sharpness (a page beside the current one: coarser, it is seen only while
+        // swiping); the old picture stays until the new one is ready
+        val baseK = minOf(1f, kotlin.math.sqrt((if (current) BASE_PX else SIDE_PX) / maxOf(1f, pw * ph)))
+        val bmp by produceState<Bitmap?>(null, page, pw.toInt(), baseK) {
+            val b = withContext(Dispatchers.IO) { runCatching { doc.renderPart(page, pw, baseK, 0f, 0f, pw, ph) }.getOrNull() }
             if (b != null) value = b
+        }
+        // zoomed in, after the gesture settled: the visible part drawn again at zoom x screen sharpness over the base
+        // picture; the previous part stays (it lies right, only blurrier) until the new one is ready
+        var detail by remember { mutableStateOf<PdfPart?>(null) }
+        LaunchedEffect(page, current, vw, vh, pw, baseK) {
+            if (!current) { detail = null; return@LaunchedEffect }
+            snapshotFlow { Triple(z.scale, z.ox, z.oy) }.collectLatest { (sc, ox, oy) ->
+                delay(250)
+                val x = maxOf(0f, kotlin.math.floor(-ox / sc - z.left))
+                val y = maxOf(0f, kotlin.math.floor(-oy / sc - z.top))
+                val w = minOf(pw, kotlin.math.ceil((vw - ox) / sc - z.left)) - x
+                val h = minOf(ph, kotlin.math.ceil((vh - oy) / sc - z.top)) - y
+                if (w <= 0f || h <= 0f) { detail = null; return@collectLatest }
+                val k = minOf(sc, kotlin.math.sqrt(DETAIL_PX / maxOf(1f, w * h)))
+                if (k <= baseK * 1.1f) { detail = null; return@collectLatest }
+                val d = detail
+                if (d != null && d.x == x && d.y == y && d.w == w && d.h == h && kotlin.math.abs(d.k - k) < 0.001f) return@collectLatest
+                val b = withContext(Dispatchers.IO) { runCatching { doc.renderPart(page, pw, k, x, y, w, h) }.getOrNull() }
+                if (b != null) detail = PdfPart(b, x, y, w, h, k)
+            }
         }
         val density = LocalDensity.current
         val wDp = with(density) { pw.toDp() }
@@ -742,6 +793,15 @@ private fun PdfPageView(s: ReaderSession, doc: PdfRender, page: Int, aspect: Flo
             ) {
                 Box(Modifier.offset { IntOffset(z.left.roundToInt(), z.top.roundToInt()) }.size(wDp, hDp).background(Color.White)) {
                     bmp?.let { Image(it.asImageBitmap(), contentDescription = null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds) }
+                    detail?.let { d ->
+                        val img = remember(d) { d.bmp.asImageBitmap() }
+                        Image(
+                            img, contentDescription = null,
+                            Modifier.offset { IntOffset(d.x.roundToInt(), d.y.roundToInt()) }
+                                .size(with(density) { d.w.toDp() }, with(density) { d.h.toDp() }),
+                            contentScale = ContentScale.FillBounds,
+                        )
+                    }
                     PdfWordLayer(s, toks, z)
                 }
             }
@@ -749,11 +809,15 @@ private fun PdfPageView(s: ReaderSession, doc: PdfRender, page: Int, aspect: Flo
     }
 }
 
-/** Pinch = zoom, one finger on a zoomed page = pan (after the touch slop, so taps on words still work). */
+/**
+ * Pinch = zoom, one finger on a zoomed page = pan (after the touch slop, so taps on words still work). Unzoomed, a page
+ * taller than the screen is moved up and down; a sideways drag is left to the pager (next page).
+ */
 private suspend fun PointerInputScope.zoomGestures(z: PdfZoom) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false)
         var panning = false
+        var ignore = false
         var moved = Offset.Zero
         while (true) {
             val ev = awaitPointerEvent()
@@ -767,13 +831,17 @@ private suspend fun PointerInputScope.zoomGestures(z: PdfZoom) {
                 z.panBy(pan)
                 ev.changes.forEach { it.consume() }
                 panning = true
-            } else if (z.scale > 1.001f) {
+            } else if (!ignore && (z.scale > 1.001f || z.tallY())) {
                 val ch = down[0]
                 if (ch.isConsumed) continue
                 val d = ch.positionChange()
                 if (!panning) {
                     moved += d
-                    if (moved.getDistance() > viewConfiguration.touchSlop) panning = true
+                    if (moved.getDistance() > viewConfiguration.touchSlop) {
+                        // unzoomed: only an up / down drag moves the page, sideways turns it
+                        if (z.scale > 1.001f || kotlin.math.abs(moved.y) > kotlin.math.abs(moved.x)) panning = true
+                        else { ignore = true; continue }
+                    }
                 }
                 if (panning) { z.panBy(d); ch.consume() }
             }
@@ -790,7 +858,7 @@ private fun PdfWordLayer(s: ReaderSession, toks: List<PdfTok>, z: PdfZoom) {
     val labelBg = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
     val grey = MaterialTheme.colorScheme.outline
     val measurer = rememberTextMeasurer()
-    val minLabel = with(LocalDensity.current) { 10.sp.toPx() }
+    val minLabel = with(LocalDensity.current) { 9.dp.toPx() }
     val byRef = remember(toks) { toks.groupBy { it.ref } }
     Box(
         Modifier.fillMaxSize()
@@ -802,7 +870,8 @@ private fun PdfWordLayer(s: ReaderSession, toks: List<PdfTok>, z: PdfZoom) {
                     drawRoundRect(c, Offset(t.x * pw - m, t.y * ph - m), Size(t.w * pw + 2 * m, t.h * ph + 2 * m), CornerRadius(m * 2))
                 }
                 fun label(text: String, cx: Float, top: Float, lineH: Float, color: Color) {
-                    val fontPx = maxOf(lineH * 0.62f, minLabel / z.scale)
+                    // sized by the word's line on the page and zoomed with it; tiny print still gets 9 dp unzoomed
+                    val fontPx = maxOf(lineH * 0.65f, minLabel)
                     val lay = measurer.measure(
                         AnnotatedString(text), style = TextStyle(color = color, fontSize = fontPx.toSp()),
                         overflow = TextOverflow.Ellipsis, maxLines = 1,

@@ -264,6 +264,7 @@ class AppState(val ctx: Context) {
     var paraGap by mutableStateOf(prefs.paraGap)
     var justify by mutableStateOf(prefs.readerJustify)
     var book by mutableStateOf(prefs.readerBook)
+    var pdfFit by mutableStateOf(prefs.pdfFit)
     var wordBg by mutableStateOf(prefs.wordBg)
     var wsMin by mutableStateOf(prefs.wsMin)
         private set
@@ -285,7 +286,7 @@ class AppState(val ctx: Context) {
         maxBright = prefs.maxBright
         lineSpacing = prefs.lineSpacing; paraGap = prefs.paraGap
         justify = prefs.readerJustify
-        book = prefs.readerBook; wordBg = prefs.wordBg
+        book = prefs.readerBook; wordBg = prefs.wordBg; pdfFit = prefs.pdfFit
         if (oldLang != lang) courses = null
     }
 
