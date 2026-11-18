@@ -140,6 +140,10 @@ class Prefs(ctx: Context) {
     var highlight: String
         get() = read("highlight", "green")
         set(v) = write("highlight", v)
+    /** Reader: screen brightness at maximum while a lesson is open. */
+    var maxBright: Boolean
+        get() = read("maxBright", "0") == "1"
+        set(v) = write("maxBright", if (v) "1" else "0")
     var keepAwake: String
         get() = read("keepAwake", "10")
         set(v) = write("keepAwake", v)

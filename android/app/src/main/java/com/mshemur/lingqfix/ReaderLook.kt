@@ -170,6 +170,16 @@ fun KeepScreenOn(state: AppState) {
         }
     }
     DisposableEffect(Unit) { onDispose { view.keepScreenOn = false } }
+    // the screen as bright as the system allows while the lesson is open (this window only, back on leaving)
+    val bright = state.maxBright
+    DisposableEffect(bright) {
+        var c = view.context
+        while (c is android.content.ContextWrapper && c !is android.app.Activity) c = c.baseContext
+        val win = (c as? android.app.Activity)?.window
+        fun set(v: Float) { win?.attributes = win?.attributes?.also { it.screenBrightness = v } }
+        set(if (bright) android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL else android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
+        onDispose { set(android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE) }
+    }
 }
 
 /** Settings → Чтение: page colours, highlight colour, screen timeout. */
@@ -329,6 +339,17 @@ fun SettingsReading(state: AppState) {
             "Пока урок открыт, экран не погаснет столько времени после последнего касания, даже если в телефоне стоит меньше.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Максимальная яркость", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    "Пока урок открыт, экран на полной яркости, даже если в телефоне убавлена или стоит автояркость. Ярче максимума системы Android не даёт.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            androidx.compose.material3.Switch(checked = state.maxBright, onCheckedChange = { v -> state.applyPrefs { maxBright = v } })
+        }
 
         Text("Наушники", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         var nextTr by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(state.prefs.nextKeyTranslate) }
