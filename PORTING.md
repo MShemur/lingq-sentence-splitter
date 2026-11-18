@@ -7,6 +7,15 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- user request 18.11.2026: OCR of scanned PDFs on the iPad (PDF-книга), aimed at magazines like GEO / GEO Epoche
+  (columns, photo captions, text on images). Tesseract.js (deu+eng, in the browser) gives the exact word boxes;
+  then one Gemini call per page (the user's key from Settings, fast/flash-lite model, page image + Tesseract words
+  with ids) returns the reading order: blocks of word ids in order, each tagged body / caption / heading / other,
+  and fixes misread words. Words keep Tesseract's boxes; the lesson text follows Gemini's order. Without a key or
+  when Gemini fails: Tesseract order only. Progress per page; one page at a time is fine. Nice to have: in the
+  page picker or reader, skip captions/boxes from the lesson text (default: body + headings only). Android keeps
+  ML Kit for now; tell the Android session the result format so it can follow.
+
 ## To do on Android
 
 ## Done
