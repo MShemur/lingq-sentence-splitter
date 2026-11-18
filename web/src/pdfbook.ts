@@ -7,7 +7,9 @@
 //
 // IndexedDB "satzloop-pdf", store "files", keys as Android's files (filesDir/pdf):
 //   lessons.json            {"<lang>_<lessonId>": {"doc": "<doc id>", "pages": [0-based page numbers], "kinds"?: "bh"}}
-//                           kinds: the block kinds that went into the lesson text (absent = all words)
+//                           kinds: the block kinds that went into the lesson text (absent = all words); with c / o
+//                           ("bhco", web v1.76): captions placed after the paragraph they stand in (ocrorder
+//                           asideOrder) and "other" blocks of at most 3 letters (page numbers) left out
 //   <doc>/doc.pdf           the PDF itself (bytes; doc id = first 16 hex chars of its SHA-1)
 //   <doc>/page_<n>.json     {"v":1, "page":n, "aspect": height/width,
 //                            "words": [[text, x, y, w, h, line, block, kind?], ...]}   boxes as parts (0..1) of the page
@@ -16,7 +18,7 @@
 import { ApiError } from './lingq'
 import { prefs } from './settings'
 import { ocr } from './gemini'
-import { arrange, noise, orderPrompt, parseOrder, tessWords, type Kind } from './ocrorder'
+import { arrange, asideWordOrder, noise, orderPrompt, parseOrder, tessWords, type Kind } from './ocrorder'
 import { log, logError } from './applog'
 import { pdfjsLib } from './importer/pdf'
 import { pagesLabel } from './importer/pdf'
@@ -28,11 +30,12 @@ export interface PdfPage { index: number; aspect: number; words: PdfWord[] }
 /** A lesson made from a PDF book: the doc, the pages the lesson covers (0-based), the kinds in its text (null = all). */
 export interface PdfLink { doc: string; pages: number[]; kinds?: string | null }
 
-/** Kinds of blocks that go into the lesson text by default: body and headings (captions, boxes, page numbers not). */
+/** Kinds of blocks in the lesson text without captions: body and headings (captions, boxes, page numbers not). */
 export const TEXT_KINDS = 'bh'
-const inText = (w: PdfWord, kinds?: string | null) => !kinds || kinds.includes(w.kind ?? 'b')
-/** A word of the lesson on a PDF page: its sentence / token and box (0..1 of the page). Hyphenated words have two. */
-export interface PdfTok { ref: WordRef; sent: number; token: number; x: number; y: number; w: number; h: number }
+/** Kinds of blocks in the lesson text by default (web v1.76): all, captions after their paragraph, page numbers not. */
+export const ALL_KINDS = 'bhco'
+/** A word of the lesson on a PDF page: its sentence / token, box (0..1 of the page), block kind. Hyphenated words have two. */
+export interface PdfTok { ref: WordRef; sent: number; token: number; x: number; y: number; w: number; h: number; kind?: Kind }
 
 /** The lesson's words on the pages of its PDF. */
 export class PdfMap {
@@ -332,8 +335,21 @@ const isLower = (c: string | undefined) => !!c && /\p{Ll}/u.test(c)
 
 interface W { page: PdfPage; i: number; w: PdfWord }
 /** The words of [pages] that go into the lesson text ([kinds]: block kinds taken, null = all); [i] = index on the page. */
-const flat = (pages: PdfPage[], kinds?: string | null): W[] =>
-  pages.flatMap((p) => p.words.flatMap((w, i) => (inText(w, kinds) ? [{ page: p, i, w }] : [])))
+function flat(pages: PdfPage[], kinds?: string | null): W[] {
+  if (!kinds) return pages.flatMap((p) => p.words.map((w, i) => ({ page: p, i, w })))
+  const asides = kinds.includes('c') || kinds.includes('o')
+  return pages.flatMap((p) => {
+    // "other" blocks with at most 3 letters: page numbers, single marks
+    const letters = new Map<number, number>()
+    for (const w of p.words) if (w.kind === 'o') letters.set(w.block, (letters.get(w.block) ?? 0) + (w.t.match(/\p{L}/gu)?.length ?? 0))
+    const order = asides ? asideWordOrder(p.words) : p.words.map((_, i) => i)
+    return order.flatMap((i) => {
+      const w = p.words[i]
+      const k = w.kind ?? 'b'
+      return kinds.includes(k) && !(k === 'o' && (letters.get(w.block) ?? 0) <= 3) ? [{ page: p, i, w }] : []
+    })
+  })
+}
 
 /** Word [k] ends its line with a hyphen and goes on in the next word ("Ent-" / "wicklung"). */
 function joinsNext(ws: W[], k: number): boolean {
@@ -365,9 +381,11 @@ export function text(pages: PdfPage[], kinds?: string | null): string {
     sb += t; paraWords++
     if (!b) break
     if (a.page === b.page && a.w.block === b.w.block) { sb += ' '; continue }
-    // a new block: a new paragraph, unless the sentence goes on (no end mark and a small letter or a long block)
+    // a new block: a new paragraph, unless the sentence goes on (no end mark and a small letter or a long block);
+    // a caption / box is always a paragraph of its own
     const ends = '.!?…:;"»«“”)]'.includes(t[t.length - 1])
-    const goesOn = !ends && (isLower(b.w.t[0]) || paraWords >= 12)
+    const aside = (k?: Kind) => k === 'c' || k === 'o'
+    const goesOn = !ends && !aside(a.w.kind) && !aside(b.w.kind) && (isLower(b.w.t[0]) || paraWords >= 12)
     if (goesOn) sb += ' '
     else { sb += '\n\n'; paraWords = 0 }
   }
@@ -481,11 +499,32 @@ export async function map(link: PdfLink, sents: Sent[]): Promise<PdfMap> {
       const r = refs[j]
       let l = toks.get(p.page.index)
       if (!l) toks.set(p.page.index, l = [])
-      l.push({ ref: `${r.sent}:${r.token}`, sent: r.sent, token: r.token, x: w.x + (w.w * p.from) / n, y: w.y, w: (w.w * (p.to - p.from)) / n, h: w.h })
+      l.push({ ref: `${r.sent}:${r.token}`, sent: r.sent, token: r.token, x: w.x + (w.w * p.from) / n, y: w.y, w: (w.w * (p.to - p.from)) / n, h: w.h, kind: w.kind })
     }
   })
   log('pdf', `PDF-урок: слов ${b.length}, найдено на страницах ${found}`)
   return new PdfMap(pages.map((p) => p.index), new Map(pages.map((p) => [p.index, p.aspect])), toks)
+}
+
+/**
+ * Lesson paragraphs that came from a caption ("c") or another block ("o", a box) of a scanned page, by the first
+ * sentence id of the paragraph: most of its words found on the pages are of that kind. Display only (text view label).
+ */
+export function asides(m: PdfMap, paras: Sent[][]): Map<number, 'c' | 'o'> {
+  const kindOf = new Map<string, Kind>()
+  for (const l of m.toks.values()) for (const t of l) if (!kindOf.has(t.ref)) kindOf.set(t.ref, t.kind ?? 'b')
+  const out = new Map<number, 'c' | 'o'>()
+  for (const p of paras) {
+    let c = 0, o = 0, n = 0
+    for (const st of p) for (const t of st.tokens) {
+      const k = kindOf.get(`${st.id}:${t.index}`)
+      if (!k) continue
+      n++
+      if (k === 'c') c++; else if (k === 'o') o++
+    }
+    if (p.length && c + o > n / 2) out.set(p[0].id, c >= o ? 'c' : 'o')
+  }
+  return out
 }
 
 // --- which lessons are PDF books ---

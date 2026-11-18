@@ -375,7 +375,7 @@ interface Spec { sents: Sent[]; start?: number; cont?: boolean }
  */
 function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, prefix: string, blocks: Spec[], split = false): Measure[] {
   // [split]: a shown sentence translation ends the line there ('!' in the key), as on the page
-  const keys = blocks.map((b) => prefix + b.sents.map((x) => x.id + (split && s.sentenceShown(x.id) ? '!' : '')).join('/') + (b.start ? '@' + b.start : '') + (b.cont ? '^' : ''))
+  const keys = blocks.map((b) => prefix + b.sents.map((x) => x.id + (split && s.sentenceShown(x.id) ? '!' : '')).join('/') + (b.start ? '@' + b.start : '') + (b.cont ? '^' : '') + (asideOf(s, b.sents, b.start, b.cont) ?? ''))
   const missing = blocks.map((_, i) => i).filter((i) => !cache.has(keys[i]))
   for (let a = 0; a < missing.length; a += 25) {
     const part = missing.slice(a, a + 25)
@@ -511,7 +511,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
 
   // what changes the layout of the bare text (translations do not: the page scrolls instead)
   const deps = [paras, prefs.readerFont.value, size.w, size.h, per, book, prefs.lineSpacing.value, prefs.paraGap.value,
-    book ? s.shown.value : null, book && s.allSentences.value]
+    book ? s.shown.value : null, book && s.allSentences.value, s.asides.value]
 
   useEffect(() => {
     const el = pager.current
@@ -686,6 +686,15 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   )
 }
 
+/** PDF book: the paragraph begun by [sents] came from a caption ('c') or a box ('o') of a page (not on a page after its start). */
+const asideOf = (s: ReaderSession, sents: Sent[], start?: number, cont?: boolean) =>
+  start || cont || !sents.length ? undefined : s.asides.value.get(sents[0].id)
+
+/** The grey label over such a paragraph: shown only, not part of the lesson text; measured with the paragraph. */
+function AsideLabel({ kind }: { kind?: 'c' | 'o' }) {
+  return kind ? <div class="para-label" aria-hidden="true">{kind === 'c' ? 'Подпись к картинке' : 'Врезка'}</div> : null
+}
+
 /**
  * A paragraph flows as one text; a shown sentence translation is inserted right after its sentence.
  * [plain]: the bare text without translations and marks (how pages are laid out).
@@ -701,17 +710,19 @@ function Paragraph({ s, sents, plain, start, end, cut, split, cont }: {
 }) {
   const cls = 'para' + (sents[0]?.heading ? ' heading' : '') + (end != null || cut ? ' cut' : '') + (start || cont ? ' cont' : '')
   const last = sents[sents.length - 1]
-  if (plain && !split) return <div class={cls}><SentenceFlow s={s} sents={sents} start={start} end={end} plain /></div>
+  const label = <AsideLabel key="label" kind={asideOf(s, sents, start, cont)} />
+  if (plain && !split) return <div class={cls}>{label}<SentenceFlow s={s} sents={sents} start={start} end={end} plain /></div>
   if (plain) {
     const runs: Sent[][] = [[]]
     sents.forEach((x, i) => { runs[runs.length - 1].push(x); if (i < sents.length - 1 && s.sentenceShown(x.id)) runs.push([]) })
     return (
       <div class={cls}>
+        {label}
         {runs.map((r, i) => <SentenceFlow key={i} s={s} sents={r} start={i === 0 ? start : undefined} end={i === runs.length - 1 ? end : undefined} plain />)}
       </div>
     )
   }
-  const parts: JSX.Element[] = []
+  const parts: JSX.Element[] = [label]
   let run: Sent[] = []
   let first = true
   const flow = (key: string) => {

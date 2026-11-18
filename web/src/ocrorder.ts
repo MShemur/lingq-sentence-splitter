@@ -186,11 +186,44 @@ export function parseOrder(raw: string, words: TWord[]): Order | null {
   return { blocks, fix }
 }
 
+/** The text ends a sentence here (". ! ? …" or a closing quote mark). */
+export const endsSentence = (t: string) => /[.!?…»«"“”„]$/.test(t)
+const isAside = (k?: Kind) => k === 'c' || k === 'o'
+
+/**
+ * Captions and other blocks ([kind] c / o) between body blocks: one standing where the body text before it has not
+ * ended its sentence (Gemini put it between two halves of a sentence or paragraph) moves after the next body block
+ * that does end one, or before the next heading, or to the end of the page. Headings and body keep their order.
+ * [last]: the last word of each block. Returns the new order of block indexes (idempotent).
+ */
+export function asideOrder(kinds: (Kind | undefined)[], last: string[]): number[] {
+  const out: number[] = []
+  let pending: number[] = []
+  let open = false // the body text so far has not ended its sentence
+  kinds.forEach((k, i) => {
+    if (isAside(k)) { if (open) pending.push(i); else out.push(i); return }
+    if (k === 'h') { out.push(...pending, i); pending = []; open = false; return }
+    out.push(i)
+    open = !endsSentence(last[i] ?? '')
+    if (!open) { out.push(...pending); pending = [] }
+  })
+  out.push(...pending)
+  return out
+}
+
+/** Word indexes of a page's words (blocks as runs of the same [block]) with captions moved as in asideOrder. */
+export function asideWordOrder(ws: { t: string; block: number; kind?: Kind }[]): number[] {
+  const runs: number[][] = []
+  ws.forEach((w, i) => { if (!i || w.block !== ws[i - 1].block) runs.push([]); runs[runs.length - 1].push(i) })
+  const order = asideOrder(runs.map((r) => ws[r[0]].kind), runs.map((r) => ws[r[r.length - 1]].t))
+  return order.flatMap((b) => runs[b])
+}
+
 /** Words in Gemini's [order] (with corrections and kinds); without one, in Tesseract's order (paragraphs = blocks). */
-export function arrange(ws: TWord[], order: Order | null): OWord[] {
+export function arrange(ws: TWord[], given: Order | null): OWord[] {
   const out: OWord[] = []
   let line = -1
-  if (!order) {
+  if (!given) {
     ws.forEach((w, i) => {
       if (i === 0 || w.line !== ws[i - 1].line) line++
       out.push({ t: w.t, x: w.x, y: w.y, w: w.w, h: w.h, line, block: w.para })
@@ -200,6 +233,9 @@ export function arrange(ws: TWord[], order: Order | null): OWord[] {
     for (const w of out) { let b = ids.get(w.block); if (b == null) ids.set(w.block, b = ids.size); w.block = b }
     return out
   }
+  // captions never between two halves of a sentence: the stored order is the lesson text's order
+  const lastOf = (b: Order['blocks'][number]) => { const id = b.ids[b.ids.length - 1]; return given.fix.get(id) ?? ws[id].t }
+  const order = { ...given, blocks: asideOrder(given.blocks.map((b) => b.kind), given.blocks.map(lastOf)).map((i) => given.blocks[i]) }
   order.blocks.forEach((b, bi) => {
     let prev = -1
     for (const id of b.ids) {

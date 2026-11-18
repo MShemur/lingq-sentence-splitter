@@ -28,6 +28,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- user's iPad feedback 18.11.2026 -> web v1.76 -> android (if Android has block kinds; else note it): scanned PDF captions / boxes go into the lesson text BY DEFAULT (picker switch on; web pref key pdfAsides default '1'; lessons.json kinds "bhco", off = "bh"). Each caption ('c') / other ('o') block is its own paragraph, moved after the next body block that ends a sentence (. ! ? … » « " “ ” „) if Gemini put it after unfinished body text; a heading or the page end comes first -> there; headings / body keep order; the page words are stored in that order (web ocrorder.ts asideOrder, pdfbook.ts flat applies it again for older pages with "bhco"). An 'o' block with ≤ 3 letters in all (page numbers) stays out of the text. Text view: a paragraph whose mapped words are mostly 'c' / 'o' gets a small grey display-only label «Подпись к картинке» / «Врезка» above it (measured in pagination; not on a continuation; book mode: no indent there).
 
 ## Done
 

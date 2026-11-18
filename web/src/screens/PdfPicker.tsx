@@ -33,7 +33,7 @@ export function PdfPicker({ s, d }: { s: ImportSession; d: PdfDoc }) {
             <input type="checkbox" class="switch" checked={prefs.pdfCaptions.value === '1'}
               onChange={(e) => { prefs.pdfCaptions.value = (e.target as HTMLInputElement).checked ? '1' : '0' }} />
             <span>Сканы: подписи к фото и врезки — тоже в текст<br /><span class="hint">{prefs.pdfCaptions.value === '1'
-              ? 'В уроке весь текст страницы'
+              ? 'Подписи и врезки — отдельными абзацами после абзаца, рядом с которым стоят'
               : 'В уроке только статья и заголовки (порядок и подписи определяет Gemini)'}</span></span>
           </label>
         )}

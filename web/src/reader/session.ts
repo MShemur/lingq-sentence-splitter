@@ -17,7 +17,7 @@ import { chunks as textChunks, cleanText, markdownHeadings, spaceQuotes, splitSe
 import { fix } from '../importer/fixer'
 import { log, logError } from '../applog'
 import * as audio from '../audio'
-import { link as pdfLinkOf, type PdfLink } from '../pdfbook'
+import { asides as pdfAsides, link as pdfLinkOf, map as pdfMap, type PdfLink } from '../pdfbook'
 import { addAudioBookmark, audioBookmarks, removeBookmark, type Bookmark as Bm } from '../bookmarks'
 
 // --- model ---
@@ -293,6 +293,8 @@ export class ReaderSession {
   pdfLink = signal<PdfLink | null>(null)
   /** The PDF pages are shown (⋮ «Показать текстом» / «Показать страницы PDF»). */
   showPdf = signal(false)
+  /** PDF book: paragraphs from a caption ('c') or a box ('o') of a scanned page, by their first sentence id (a label). */
+  asides = signal<Map<number, 'c' | 'o'>>(new Map())
 
   private sentById = new Map<number, Sent>()
   private hintsCache = new Map<string, Promise<string[]>>()
@@ -333,6 +335,10 @@ export class ReaderSession {
       const start = this.jump.value ?? positionOf(this.lang, this.lesson.id)?.s ?? null
       if (start != null && this.sentById.has(start)) { this.page.value = this.indexOf(start); this.textAnchor = start }
       this.paragraphs.value = paras
+      if (pdf && pdf.kinds !== 'bh') {
+        pdfMap(pdf, paras.flat()).then((m) => { this.asides.value = pdfAsides(m, paras) },
+          (e) => logError('pdf', 'Подписи к картинкам', e))
+      }
       if (this.autoPlay && au) { this.autoPlay = false; this.togglePlay() }
     } catch (e) {
       logError('reader', `Урок ${this.lesson.id} не открылся`, e)

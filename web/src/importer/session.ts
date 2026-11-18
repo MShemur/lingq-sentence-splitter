@@ -226,9 +226,10 @@ export class ImportSession {
   /** PDF book: the chosen pages are recognised with word boxes (once per file) and their text goes into the form. */
   private async readPdfBook(pdf: PdfDoc, doc: string, list: number[]) {
     const r = await pdfBook.recognise(doc, pdf.raw, list, (st) => { this.status.value = st }, this.lang)
-    // scanned pages read with Gemini: captions, boxes, page numbers stay out of the text unless asked for
+    // scanned pages read with Gemini: captions and boxes go into the text after their paragraph (page numbers not),
+    // or stay out when the switch is off
     const skipped = r.pages.reduce((k, p) => k + p.words.filter((w) => w.kind && !pdfBook.TEXT_KINDS.includes(w.kind)).length, 0)
-    const kinds = skipped && prefs.pdfCaptions.value !== '1' ? pdfBook.TEXT_KINDS : null
+    const kinds = !skipped ? null : prefs.pdfCaptions.value === '1' ? pdfBook.ALL_KINDS : pdfBook.TEXT_KINDS
     const text = pdfBook.text(r.pages, kinds)
     const name = this.sourceName.value
     const title = list.length === pdf.pages ? name : `${name}, стр. ${pagesLabel(list)}`
@@ -238,7 +239,7 @@ export class ImportSession {
       this.items.value = [new ImportItem(title, text, true)]
     } else this.setSingle(title, text)
     this.pdfBook = doc; this.pdfBookPages = list; this.pdfBookKinds = kinds
-    log('import', `PDF-книга ${doc}: ${list.length} из ${pdf.pages} стр., слов ${countWords(text)}, сканов: ${r.ocr} (Gemini: ${r.ordered})${kinds ? `, подписи и прочее не в тексте: ${skipped} слов` : ''}`)
+    log('import', `PDF-книга ${doc}: ${list.length} из ${pdf.pages} стр., слов ${countWords(text)}, сканов: ${r.ocr} (Gemini: ${r.ordered})${kinds === pdfBook.TEXT_KINDS ? `, подписи и прочее не в тексте: ${skipped} слов` : ''}`)
     const notes: string[] = []
     if (r.scans.length) notes.push(`${r.scans.length === 1 ? 'Страницу' : 'Страницы'} ${pagesLabel(r.scans)} (скан) не удалось распознать — нужна связь с интернетом`)
     if (r.ocr > r.ordered) {
@@ -246,7 +247,7 @@ export class ImportSession {
         ? 'Порядок чтения части сканов — без Gemini (ответ не подошёл)'
         : 'Сканы распознаны без Gemini: колонки и подписи могут идти не по порядку (ключ Gemini — ⚙ Настройки → Перевод и ИИ)')
     }
-    if (kinds) notes.push(`Подписи к фото, врезки и номера страниц не вошли в текст (${skipped} сл.)`)
+    if (kinds === pdfBook.TEXT_KINDS) notes.push(`Подписи к фото, врезки и номера страниц не вошли в текст (${skipped} сл.)`)
     if (notes.length) say(notes.join('. '))
     if (!text.trim()) this.error.value = 'На выбранных страницах не нашлось текста'
   }
