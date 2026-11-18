@@ -213,23 +213,24 @@ Header: «Закладка на это место» icon · ⋮ → «Аудио
 ## 4. Checklist
 
 ### Android (`android/app/src/main/java/com/mshemur/lingqfix/`)
-- [ ] `Ui.kt` top bar, `Screen.ReaderCourses`: replace `LibraryMenu(state)` with an `IconButton` `Icons.Filled.Settings`, «Настройки» → `Screen.Settings`.
-- [ ] `Ui.kt` FAB: text «Загрузить» (icon upload/add), `onClick` → `state.go(Screen.Import(ImportSession(state)))`.
-- [ ] `Ui.kt`: remove `HomeScreen`, `Screen.Home` routing/title; move its link field + «Проверить» (`state.openLink`) to the bottom of `ImportScreen` under header «Уже на LingQ». `CoursesScreen` (non-library) and the non-reader branch of `LessonsScreen` become unused: remove. `AppState.kt`: drop `Screen.Home`, `Screen.Courses`.
-- [ ] `CourseEdit.kt`: delete `LibraryMenu`. `CourseMenu`: add «Исправить разбивку…» (icon Build) after «Слова по урокам» → `state.checkLessons(s.lang, s.lessons!!, s.title)`, enabled when lessons are loaded; give «В архив» an icon like web.
-- [ ] `Library.kt` `LibraryScreen`: after the course items add a full-width row «Архив курсов (N) ›» → `Screen.Archive`, only if `state.archivedCourses()` is not empty.
-- [ ] `Settings.kt` `SettingsRoot`: group headers Сервисы / Чтение и звук / Данные / Приложение, order as 3.4; rename «Перевод» → «Перевод и ИИ»; remove root rows «Промпты Gemini» and «Очистить кэш аудио»; add «Плеер» → new `Screen.SettingsPlayer`; summaries as 3.4.
-- [ ] `Settings.kt` `SettingsTranslation`: last row `ListItem` «Промпты ИИ ›» → `Screen.SettingsPrompts`. `SettingsPrompts`: field order and labels as 3.6.
-- [ ] New `SettingsPlayer` (e.g. in `Settings.kt`): the «Наушники» block moved from `ReaderLook.kt` + «Очистить кэш аудио» (size, clear) moved from the root. Add to `AppState.kt` `Screen`, routing and `titleOf` («Плеер»).
-- [ ] `Settings.kt` `SettingsUpdates`: move the GitHub token `SecretField` + hint to `Sync.kt` `SettingsSync` (section «Токен GitHub», like web); in Updates leave a hint «Токен GitHub задаётся в «Синхронизации»» + button there when blank. In `SettingsSync` drop the «Вставить токен» link to Updates.
-- [ ] `ReaderLook.kt` `SettingsReading`: order and headers as 3.5; «Наушники» out.
-- [ ] `Ui.kt` `titleOf`: «Перевод и ИИ», «Промпты ИИ», «Плеер».
-- [ ] `Reader.kt` `ReaderActions`: order as 3.7; «Перевести весь урок» out of the `pins.isNotEmpty()` block; «Слова урока» → «Слова с переводом» (also `MarkedWordsDialog` title); «Оформление и экран» → «Настройки чтения…»; add «Исправить разбивку…» → `state.checkLessons(s.lang, listOf(s.lesson), s.title)`.
-- [ ] `Reader.kt` `SentenceMenu`: «Редактировать предложение» → «Исправить предложение»; order as 3.8.
-- [ ] `Reader.kt` `ReaderMenuItems`: «Слово жирным» → «Сделать жирным»; order as 3.9.
-- [ ] `Reader.kt` `ReaderHelp`: update «Оформление и экран» → «Настройки чтения», and other moved items.
-- [ ] `Player.kt` `PlayerActions`: remove the unused `onPick` / «Другой урок».
-- [ ] `CourseEdit.kt` `ArchiveScreen` empty text: fine as is.
+- [x] `Ui.kt` top bar, `Screen.ReaderCourses`: replace `LibraryMenu(state)` with an `IconButton` `Icons.Filled.Settings`, «Настройки» → `Screen.Settings`.
+- [x] `Ui.kt` FAB: text «Загрузить» (icon upload/add), `onClick` → `state.go(Screen.Import(ImportSession(state)))`.
+- [x] `Ui.kt`: remove `HomeScreen`, `Screen.Home` routing/title; move its link field + «Проверить» (`state.openLink`) to the bottom of `ImportScreen` under header «Уже на LingQ». `CoursesScreen` (non-library) and the non-reader branch of `LessonsScreen` become unused: remove. `AppState.kt`: drop `Screen.Home`, `Screen.Courses`.
+- [x] `CourseEdit.kt`: delete `LibraryMenu`. `CourseMenu`: add «Исправить разбивку…» (icon Build) after «Слова по урокам» → `state.checkLessons(s.lang, s.lessons!!, s.title)`, enabled when lessons are loaded; give «В архив» an icon like web.
+- [x] `Library.kt` `LibraryScreen`: after the course items add a full-width row «Архив курсов (N) ›» → `Screen.Archive`, only if `state.archivedCourses()` is not empty.
+- [x] `Settings.kt` `SettingsRoot`: group headers Сервисы / Чтение и звук / Данные / Приложение, order as 3.4; rename «Перевод» → «Перевод и ИИ»; remove root rows «Промпты Gemini» and «Очистить кэш аудио»; add «Плеер» → new `Screen.SettingsPlayer`; summaries as 3.4.
+- [x] `Settings.kt` `SettingsTranslation`: last row `ListItem` «Промпты ИИ ›» → `Screen.SettingsPrompts`. `SettingsPrompts`: field order and labels as 3.6.
+- [x] New `SettingsPlayer` (e.g. in `Settings.kt`): the «Наушники» block moved from `ReaderLook.kt` + «Очистить кэш аудио» (size, clear) moved from the root. Add to `AppState.kt` `Screen`, routing and `titleOf` («Плеер»).
+- [x] `Settings.kt` `SettingsUpdates`: move the GitHub token `SecretField` + hint to `Sync.kt` `SettingsSync` (section «Токен GitHub», like web); in Updates leave a hint «Токен GitHub задаётся в «Синхронизации»» + button there when blank. In `SettingsSync` drop the «Вставить токен» link to Updates.
+- [x] `ReaderLook.kt` `SettingsReading`: order and headers as 3.5; «Наушники» out.
+- [x] `Ui.kt` `titleOf`: «Перевод и ИИ», «Промпты ИИ», «Плеер».
+- [x] `Reader.kt` `ReaderActions`: order as 3.7; «Перевести весь урок» out of the `pins.isNotEmpty()` block; «Слова урока» → «Слова с переводом» (also `MarkedWordsDialog` title); «Оформление и экран» → «Настройки чтения…»; add «Исправить разбивку…» → `state.checkLessons(s.lang, listOf(s.lesson), s.title)`.
+- [x] `Reader.kt` `SentenceMenu`: «Редактировать предложение» → «Исправить предложение»; order as 3.8.
+- [x] `Reader.kt` `ReaderMenuItems`: «Слово жирным» → «Сделать жирным»; order as 3.9.
+- [x] `Reader.kt` `ReaderHelp`: update «Оформление и экран» → «Настройки чтения», and other moved items.
+- [x] `Player.kt` `PlayerActions`: remove the unused `onPick` / «Другой урок».
+- [x] `CourseEdit.kt` `ArchiveScreen` empty text: fine as is.
+- Done in android v1.136. Differences: the old course list for checking is gone, a course link in «Проверить» / sharing checks the whole course at once (one lesson: reader ⋮ → «Исправить разбивку…»); the unused course picker in `WordStats.kt` is left in place; «Шрифт текста» deferred.
 
 ### Web (`web/src/`)
 - [x] `screens/Library.tsx` `CoursesScreen`: remove the ⋮ (`menu` state, `Menu`, three items); keep Закладки + Настройки icons; add the «Архив курсов (N) ›» row after the grid when N > 0.
@@ -246,4 +247,4 @@ Header: «Закладка на это место» icon · ⋮ → «Аудио
 - [x] Styles for the settings group header, the menu font row and the red menu item go in `styles.css`: coordinate with the session editing PDF files there.
 
 ### Both
-- [ ] Add a `PORTING.md` / `ROADMAP.md` line when done; raise versions (Android v1.N, web v1.N).
+- [x] Add a `PORTING.md` / `ROADMAP.md` line when done; raise versions (Android v1.136, web v1.71).
