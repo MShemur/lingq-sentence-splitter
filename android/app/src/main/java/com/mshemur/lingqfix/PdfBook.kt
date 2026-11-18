@@ -96,12 +96,16 @@ import com.google.mlkit.vision.text.Text as MlText
  *   lessons.json            {"<lang>_<lessonId>": {"doc": "<doc id>", "pages": [0-based page numbers]}}
  *   <doc>/doc.pdf           the PDF itself (doc id = first 16 hex chars of its SHA-1)
  *   <doc>/page_<n>.json     {"v":1, "page":n, "aspect": height/width,
- *                            "words": [[text, x, y, w, h, line, block], ...]}   boxes as parts (0..1) of the page
+ *                            "words": [[text, x, y, w, h, line, block, kind?], ...]}   boxes as parts (0..1) of the page
+ *                           with a Gemini key: words in Gemini's reading order (PdfOrder.kt), "g": 1,
+ *                           kind (8th element) "h" heading / "c" caption / "o" other, absent = body
  *
  * Since v1.137 a new PDF book is NOT uploaded to LingQ: it stays on the phone as a "local book" (lesson id < 0,
  * = localId(doc, pages)); old LingQ PDF lessons (lessons.json) keep working. Files of a local book (N = -id):
  *   books.json              {"<id>": {"doc", "lang", "title", "pages": [0-based], "t": created ms}}
- *   <doc>/book_N.json       {"v":1, "paragraphs": [[sentence, ...], ...]}  split on the phone + Fixer merges
+ *   <doc>/book_N.json       {"v":1, "paragraphs": [[sentence, ...], ...], "kinds"?: ["", "c", "o", ...]}  split on
+ *                           the phone + Fixer merges; kinds: per paragraph, "c" / "o" = caption / box (label in the text view)
+ *   books.json entry "kinds": "bh" / "bhco" = block kinds in the text (absent = all words in stored order)
  *   <doc>/notes_N.json      pins / chosen meanings / phrases (as filesDir/reader/<lang>_<id>.json for lessons)
  *   <doc>/tr_N_<target>.json  sentence -> AI translation
  *   <doc>/ai_N.json         {"w:sent:token" | "p:sent:from:to": {best, options, note, pair}}  AI word / phrase meanings
@@ -111,12 +115,17 @@ import com.google.mlkit.vision.text.Text as MlText
  */
 
 /** One recognised word of a PDF page: its text and box as parts (0..1) of the page width / height. */
-class PdfWord(val t: String, val x: Float, val y: Float, val w: Float, val h: Float, val line: Int, val block: Int)
+class PdfWord(
+    val t: String, val x: Float, val y: Float, val w: Float, val h: Float, val line: Int, val block: Int,
+    /** Block kind from Gemini: 'h' heading, 'c' caption, 'o' other; null = body. */
+    val kind: Char? = null,
+)
 
-class PdfPage(val index: Int, val aspect: Float, val words: List<PdfWord>)
+/** [ordered]: the words are in Gemini's reading order (with kinds). */
+class PdfPage(val index: Int, val aspect: Float, val words: List<PdfWord>, val ordered: Boolean = false)
 
-/** A lesson made from a PDF book: the doc and the pages the lesson covers (0-based). */
-class PdfLink(val doc: String, val pages: List<Int>)
+/** A lesson made from a PDF book: the doc, the pages the lesson covers (0-based), the block kinds in its text (null = all). */
+class PdfLink(val doc: String, val pages: List<Int>, val kinds: String? = null)
 
 /** A word of the lesson on a PDF page: its sentence / token and box (0..1 of the page). Hyphenated words have two. */
 class PdfTok(val ref: WordRef, val x: Float, val y: Float, val w: Float, val h: Float)
@@ -138,6 +147,8 @@ object PdfBooks {
     private fun dir(ctx: Context, doc: String) = File(root(ctx), doc)
     fun file(ctx: Context, doc: String) = File(dir(ctx, doc), "doc.pdf")
     private fun pageFile(ctx: Context, doc: String, i: Int) = File(dir(ctx, doc), "page_$i.json")
+    /** The page in ML Kit's order, kept when a page recognised before gets Gemini's order (older books are matched with it). */
+    private fun mlFile(ctx: Context, doc: String, i: Int) = File(dir(ctx, doc), "page_${i}_m.json")
     private fun linksFile(ctx: Context) = File(root(ctx), "lessons.json")
 
     /** Copies the PDF into the app's storage; its id comes from the content, so the same file is recognised once. */
@@ -171,16 +182,22 @@ object PdfBooks {
             .addOnFailureListener { cont.resumeWithException(it) }
     }
 
-    /** Recognises [pages] (0-based) of the doc, page by page; pages recognised before come from the cache. */
-    suspend fun recognise(ctx: Context, doc: String, pages: List<Int>, onPage: (Int, Int) -> Unit): List<PdfPage> {
+    /**
+     * Recognises [pages] (0-based) of the doc, page by page; pages recognised before come from the cache.
+     * With [ai] (Gemini, the fast model) each page then goes to Gemini with its picture for the reading order, block
+     * kinds and corrections (PdfOrder.kt); a cached page without that order gets it now. Without a key or when the
+     * answer is not usable the ML Kit order stays. [status]: progress text.
+     */
+    suspend fun recognise(ctx: Context, doc: String, pages: List<Int>, ai: Gemini?, status: (String) -> Unit): List<PdfPage> {
         val out = ArrayList<PdfPage>()
         val pfd = withContext(Dispatchers.IO) { ParcelFileDescriptor.open(file(ctx, doc), ParcelFileDescriptor.MODE_READ_ONLY) }
         pfd.use {
             PdfRenderer(pfd).use { r ->
                 pages.forEachIndexed { n, i ->
-                    onPage(n + 1, pages.size)
+                    val at = "Страница ${n + 1} из ${pages.size}"
+                    status("$at: распознаю…")
                     val cached = withContext(Dispatchers.IO) { load(ctx, doc, i) }
-                    if (cached != null) { out += cached; return@forEachIndexed }
+                    if (cached != null && (ai == null || cached.ordered || cached.words.isEmpty())) { out += cached; return@forEachIndexed }
                     val bmp = withContext(Dispatchers.IO) {
                         val pg = r.openPage(i)
                         try {
@@ -193,15 +210,48 @@ object PdfBooks {
                             }
                         } finally { pg.close() }
                     }
-                    val bw = bmp.width; val bh = bmp.height
-                    val t = try { recognize(InputImage.fromBitmap(bmp, 0)) } finally { bmp.recycle() }
-                    val p = fromMlKit(i, bw, bh, t)
-                    withContext(Dispatchers.IO) { save(ctx, doc, p) }
+                    val p = try {
+                        val q = cached ?: fromMlKit(i, bmp.width, bmp.height, recognize(InputImage.fromBitmap(bmp, 0)))
+                        if (ai != null && q.words.isNotEmpty()) {
+                            status("$at: Gemini расставляет порядок чтения (${q.words.size} слов)…")
+                            ordered(ai, q, bmp) ?: q
+                        } else q
+                    } finally { bmp.recycle() }
+                    withContext(Dispatchers.IO) {
+                        // books / lessons made before from this page keep its ML Kit order
+                        if (cached != null && p.ordered) runCatching { mlFile(ctx, doc, i).let { m -> if (!m.exists()) pageFile(ctx, doc, i).copyTo(m) } }
+                        save(ctx, doc, p)
+                    }
                     out += p
                 }
             }
         }
         return out
+    }
+
+    /** The page in Gemini's reading order; null when Gemini fails or its answer is not usable (logged). */
+    private suspend fun ordered(ai: Gemini, p: PdfPage, bmp: Bitmap): PdfPage? = withContext(Dispatchers.IO) {
+        try {
+            // about 1200 px wide is enough for Gemini to see the layout and read the words
+            val k = minOf(1f, 1200f / bmp.width)
+            val small = if (k < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * k).toInt(), (bmp.height * k).toInt().coerceAtLeast(1), true) else bmp
+            val jpeg = java.io.ByteArrayOutputStream().also { small.compress(Bitmap.CompressFormat.JPEG, 80, it) }.toByteArray()
+            if (small !== bmp) small.recycle()
+            val b64 = android.util.Base64.encodeToString(jpeg, android.util.Base64.NO_WRAP)
+            val raw = ai.generate(null, listOf(Gemini.Msg(true, PdfOrder.prompt(p.words), jpeg = b64)), json = true)
+            val order = PdfOrder.parse(raw, p.words)
+            if (order == null) {
+                AppLog.add("pdf", "Стр. ${p.index + 1}: ответ Gemini не подошёл, порядок ML Kit")
+                null
+            } else {
+                AppLog.add("pdf", "Стр. ${p.index + 1}: ML Kit ${p.words.size} слов, Gemini: блоков ${order.blocks.size}, исправлено ${order.fix.size}")
+                PdfPage(p.index, p.aspect, PdfOrder.arrange(p.words, order), ordered = true)
+            }
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLog.error("pdf", "Стр. ${p.index + 1}: Gemini ✗, порядок ML Kit", e)
+            null
+        }
     }
 
     private fun fromMlKit(i: Int, w: Int, h: Int, t: MlText): PdfPage {
@@ -225,17 +275,26 @@ object PdfBooks {
 
     private fun save(ctx: Context, doc: String, p: PdfPage) {
         val ws = JSONArray()
-        p.words.forEach { w -> ws.put(JSONArray().put(w.t).put(r5(w.x)).put(r5(w.y)).put(r5(w.w)).put(r5(w.h)).put(w.line).put(w.block)) }
-        pageFile(ctx, doc, p.index).writeText(JSONObject().put("v", 1).put("page", p.index).put("aspect", r5(p.aspect)).put("words", ws).toString())
+        p.words.forEach { w ->
+            val a = JSONArray().put(w.t).put(r5(w.x)).put(r5(w.y)).put(r5(w.w)).put(r5(w.h)).put(w.line).put(w.block)
+            w.kind?.let { a.put(it.toString()) }
+            ws.put(a)
+        }
+        val o = JSONObject().put("v", 1).put("page", p.index).put("aspect", r5(p.aspect)).put("words", ws)
+        if (p.ordered) o.put("g", 1)
+        pageFile(ctx, doc, p.index).writeText(o.toString())
     }
 
-    fun load(ctx: Context, doc: String, i: Int): PdfPage? = runCatching {
-        val o = JSONObject(pageFile(ctx, doc, i).readText())
+    /** [mlKit]: the page as ML Kit read it, also when it got Gemini's order later (for texts made without kinds). */
+    fun load(ctx: Context, doc: String, i: Int, mlKit: Boolean = false): PdfPage? = runCatching {
+        val f = if (mlKit) mlFile(ctx, doc, i).takeIf { it.exists() } ?: pageFile(ctx, doc, i) else pageFile(ctx, doc, i)
+        val o = JSONObject(f.readText())
         val a = o.getJSONArray("words")
         PdfPage(i, o.getDouble("aspect").toFloat(), List(a.length()) { k ->
             val w = a.getJSONArray(k)
-            PdfWord(w.getString(0), w.getDouble(1).toFloat(), w.getDouble(2).toFloat(), w.getDouble(3).toFloat(), w.getDouble(4).toFloat(), w.getInt(5), w.getInt(6))
-        })
+            val kind = w.optString(7).firstOrNull()?.takeIf { it in "hco" }
+            PdfWord(w.getString(0), w.getDouble(1).toFloat(), w.getDouble(2).toFloat(), w.getDouble(3).toFloat(), w.getDouble(4).toFloat(), w.getInt(5), w.getInt(6), kind)
+        }, ordered = o.optInt("g") == 1)
     }.getOrNull()
 
     // --- lesson text and word matching ---
@@ -245,7 +304,29 @@ object PdfBooks {
 
     private class W(val page: PdfPage, val i: Int) { val w get() = page.words[i] }
 
-    private fun flat(pages: List<PdfPage>): List<W> = pages.flatMap { p -> p.words.indices.map { W(p, it) } }
+    /** Kinds in the text when the captions / boxes are taken too, and when only body and headings are. */
+    const val ALL_KINDS = "bhco"
+    const val TEXT_KINDS = "bh"
+
+    /**
+     * The words of [pages] that go into the text ([kinds]: block kinds taken, null = all, in stored order). With
+     * captions / boxes taken they come after the body block that ends their sentence (PdfOrder.asideOrder);
+     * "other" blocks of at most 3 letters (page numbers) stay out.
+     */
+    private fun flat(pages: List<PdfPage>, kinds: String? = null): List<W> {
+        if (kinds == null) return pages.flatMap { p -> p.words.indices.map { W(p, it) } }
+        val asides = 'c' in kinds || 'o' in kinds
+        return pages.flatMap { p ->
+            val letters = HashMap<Int, Int>()
+            for (w in p.words) if (w.kind == 'o') letters[w.block] = (letters[w.block] ?: 0) + w.t.count { it.isLetter() }
+            val order = if (asides) PdfOrder.asideWordOrder(p.words) else p.words.indices.toList()
+            order.mapNotNull { i ->
+                val w = p.words[i]
+                val k = w.kind ?: 'b'
+                if (k in kinds && !(k == 'o' && (letters[w.block] ?: 0) <= 3)) W(p, i) else null
+            }
+        }
+    }
 
     /** Word [k] ends its line with a hyphen and goes on in the next word ("Ent-" / "wicklung"). */
     private fun joinsNext(ws: List<W>, k: Int): Boolean {
@@ -259,13 +340,24 @@ object PdfBooks {
     private fun keepsHyphen(next: String) = !next.first().isLowerCase()
 
     /** Lesson text of recognised pages: blocks become paragraphs unless a sentence goes on; line-end hyphens joined. */
-    fun text(pages: List<PdfPage>): String {
-        val ws = flat(pages)
+    fun text(pages: List<PdfPage>, kinds: String? = null): String = paragraphs(pages, kinds).joinToString("\n\n") { it.first }
+
+    /** The paragraphs of [text] with their kind: "c" / "o" = a caption / box paragraph, "" = body or heading. */
+    fun paragraphs(pages: List<PdfPage>, kinds: String? = null): List<Pair<String, String>> {
+        val ws = flat(pages, kinds)
+        val out = ArrayList<Pair<String, String>>()
         val sb = StringBuilder()
+        var kind = ""
         var paraWords = 0
+        fun flush() {
+            val t = sb.toString().trim()
+            if (t.isNotEmpty()) out += t to kind
+            sb.clear(); paraWords = 0
+        }
         for (k in ws.indices) {
             val a = ws[k]; val t = a.w.t
             val b = ws.getOrNull(k + 1)
+            if (sb.isEmpty()) kind = a.w.kind?.takeIf { PdfOrder.isAside(it) }?.toString().orEmpty()
             if (joinsNext(ws, k)) {
                 sb.append(t.dropLast(1)); if (keepsHyphen(b!!.w.t)) sb.append('-')
                 continue
@@ -273,12 +365,15 @@ object PdfBooks {
             sb.append(t); paraWords++
             if (b == null) break
             if (a.page === b.page && a.w.block == b.w.block) { sb.append(' '); continue }
-            // a new block: a new paragraph, unless the sentence goes on (no end mark and a small letter or a long block)
+            // a new block: a new paragraph, unless the sentence goes on (no end mark and a small letter or a long block);
+            // a caption / box is always a paragraph of its own
             val ends = t.last() in ".!?…:;\"»«“”)]"
-            val goesOn = !ends && (b.w.t.first().isLowerCase() || paraWords >= 12)
-            if (goesOn) sb.append(' ') else { sb.append("\n\n"); paraWords = 0 }
+            val goesOn = !ends && !PdfOrder.isAside(a.w.kind) && !PdfOrder.isAside(b.w.kind) &&
+                (b.w.t.first().isLowerCase() || paraWords >= 12)
+            if (goesOn) sb.append(' ') else flush()
         }
-        return sb.toString().trim()
+        flush()
+        return out
     }
 
     private fun norm(s: String) = s.lowercase().replace('’', '\'')
@@ -287,8 +382,8 @@ object PdfBooks {
     private class Wu(val norm: String, val parts: List<Piece>)
 
     /** The words of the pages as the lesson tokenises them; a word hyphenated at a line end is one unit with two parts. */
-    private fun units(pages: List<PdfPage>): List<Wu> {
-        val ws = flat(pages)
+    private fun units(pages: List<PdfPage>, kinds: String? = null): List<Wu> {
+        val ws = flat(pages, kinds)
         val out = ArrayList<Wu>()
         var carry: Wu? = null
         for (k in ws.indices) {
@@ -371,8 +466,8 @@ object PdfBooks {
 
     /** The lesson's words on its pages ([sents] = the lesson's sentences as the reader has them). */
     fun map(ctx: Context, link: PdfLink, sents: List<Sent>): PdfMap {
-        val pages = link.pages.mapNotNull { load(ctx, link.doc, it) }
-        val us = units(pages)
+        val pages = link.pages.mapNotNull { load(ctx, link.doc, it, mlKit = link.kinds == null) }
+        val us = units(pages, link.kinds)
         val refs = ArrayList<WordRef>()
         val b = ArrayList<String>()
         for (st in sents) for (t in st.tokens) if (t.isWord) { refs += WordRef(st.id, t.index); b += norm(t.text) }
@@ -404,7 +499,7 @@ object PdfBooks {
     }
 
     fun link(ctx: Context, lang: String, lesson: Int): PdfLink? = runCatching {
-        if (lesson < 0) return localBook(ctx, lesson)?.let { PdfLink(it.doc, it.pages) }?.takeIf { file(ctx, it.doc).exists() }
+        if (lesson < 0) return localBook(ctx, lesson)?.let { PdfLink(it.doc, it.pages, it.kinds) }?.takeIf { file(ctx, it.doc).exists() }
         val f = linksFile(ctx)
         if (!f.exists()) return null
         val o = JSONObject(f.readText()).optJSONObject("${lang}_$lesson") ?: return null
@@ -441,7 +536,10 @@ object PdfBooks {
 
     private fun bookOf(ctx: Context, id: Int, o: JSONObject): LocalPdfBook {
         val a = o.optJSONArray("pages") ?: JSONArray()
-        val b = LocalPdfBook(id, o.getString("doc"), o.optString("lang"), o.optString("title"), List(a.length()) { a.getInt(it) }, o.optLong("t"))
+        val b = LocalPdfBook(
+            id, o.getString("doc"), o.optString("lang"), o.optString("title"), List(a.length()) { a.getInt(it) }, o.optLong("t"),
+            o.optString("kinds").ifEmpty { null },
+        )
         return b.also { it.cover = coverFile(ctx, it).takeIf { f -> f.exists() }?.let { f -> Uri.fromFile(f).toString() }.orEmpty() }
     }
 
@@ -462,34 +560,50 @@ object PdfBooks {
      * Sentences of the recognised text, split on the phone: paragraphs as in [text], sentences at . ! ? …, then the
      * fragments merged back with the rules LingQ's split is fixed with (Fixer: abbreviations, ordinals, small letters).
      */
-    fun sentences(text: String): List<List<String>> {
-        val paras = JSONArray()
-        for (pt in text.split(Regex("\\n\\s*\\n"))) {
+    fun sentences(text: String): List<List<String>> = sentences(text.split(Regex("\\n\\s*\\n")).map { it to "" }).map { it.first }
+
+    /** Same for paragraphs with their kind ([paragraphs]); the kind stays with its paragraph. */
+    fun sentences(paras: List<Pair<String, String>>): List<Pair<List<String>, String>> {
+        val arr = JSONArray()
+        val kinds = ArrayList<String>()
+        for ((pt, kind) in paras) {
             val ss = splitSentences(pt.replace(Regex("\\s+"), " ").trim())
             if (ss.isEmpty()) continue
-            val arr = JSONArray()
-            ss.forEach { arr.put(JSONObject().put("text", it)) }
-            paras.put(JSONObject().put("sentences", arr))
+            val sa = JSONArray()
+            ss.forEach { sa.put(JSONObject().put("text", it)) }
+            arr.put(JSONObject().put("sentences", sa))
+            kinds += kind
         }
-        Fixer.fix(paras)
-        return (0 until paras.length()).map { i ->
-            val ss = paras.getJSONObject(i).getJSONArray("sentences")
-            (0 until ss.length()).map { ss.getJSONObject(it).optString("text").trim() }.filter { it.isNotEmpty() }
-        }.filter { it.isNotEmpty() }
+        Fixer.fix(arr)
+        return (0 until arr.length()).map { i ->
+            val ss = arr.getJSONObject(i).getJSONArray("sentences")
+            (0 until ss.length()).map { ss.getJSONObject(it).optString("text").trim() }.filter { it.isNotEmpty() } to kinds[i]
+        }.filter { it.first.isNotEmpty() }
     }
 
     /** Saves the recognised pages as a local book (replaces one of the same file and pages, keeping its notes). */
-    fun saveLocal(ctx: Context, lang: String, doc: String, pages: List<Int>, title: String, cover: ByteArray?): LocalPdfBook {
+    /**
+     * Block kinds that go into the text of [pages]: null (all words, stored order) when no page has Gemini's order,
+     * else body + headings, with [asides] also captions / boxes.
+     */
+    fun kindsFor(pages: List<PdfPage>, asides: Boolean): String? =
+        if (pages.none { it.ordered }) null else if (asides) ALL_KINDS else TEXT_KINDS
+
+    fun saveLocal(ctx: Context, lang: String, doc: String, pages: List<Int>, title: String, cover: ByteArray?, asides: Boolean = true): LocalPdfBook {
         val recognised = pages.mapNotNull { load(ctx, doc, it) }
-        val paras = sentences(text(recognised))
+        val kinds = kindsFor(recognised, asides)
+        val sp = sentences(paragraphs(recognised, kinds))
+        val paras = sp.map { it.first }
         if (paras.isEmpty()) throw ApiException("на выбранных страницах не нашлось текста")
         val id = localId(doc, pages)
-        val b = LocalPdfBook(id, doc, lang, title.trim().ifBlank { "PDF" }, pages, System.currentTimeMillis())
-        writeSentences(ctx, b, paras)
+        val b = LocalPdfBook(id, doc, lang, title.trim().ifBlank { "PDF" }, pages, System.currentTimeMillis(), kinds)
+        writeSentences(ctx, b, paras, sp.map { it.second })
         if (cover != null) runCatching { coverFile(ctx, b).writeBytes(cover) }
         synchronized(this) {
             val o = readBooks(ctx)
-            o.put(id.toString(), JSONObject().put("doc", doc).put("lang", lang).put("title", b.title).put("pages", JSONArray(pages)).put("t", b.created))
+            val e = JSONObject().put("doc", doc).put("lang", lang).put("title", b.title).put("pages", JSONArray(pages)).put("t", b.created)
+            if (kinds != null) e.put("kinds", kinds)
+            o.put(id.toString(), e)
             writeBooks(ctx, o)
         }
         AppLog.add("pdf", "PDF-книга на телефоне $id «${b.title}»: стр. ${pagesLabel(pages)}, предложений ${paras.sumOf { it.size }}")
@@ -501,11 +615,21 @@ object PdfBooks {
         return (0 until a.length()).map { i -> val p = a.getJSONArray(i); (0 until p.length()).map { p.getString(it) } }
     }
 
-    fun writeSentences(ctx: Context, b: LocalPdfBook, paras: List<List<String>>) {
+    /** Kind of each paragraph of the book ("c" caption, "o" box, "" other); empty list = none known. */
+    fun readKinds(ctx: Context, b: LocalPdfBook): List<String> = runCatching {
+        val a = JSONObject(sentFile(ctx, b).readText()).optJSONArray("kinds") ?: return emptyList()
+        List(a.length()) { a.optString(it) }
+    }.getOrDefault(emptyList())
+
+    /** [kinds]: per paragraph (see [readKinds]); null = keep the ones in the file when the paragraph count is the same. */
+    fun writeSentences(ctx: Context, b: LocalPdfBook, paras: List<List<String>>, kinds: List<String>? = null) {
         val a = JSONArray()
         paras.forEach { p -> a.put(JSONArray().also { arr -> p.forEach { arr.put(it) } }) }
+        val ks = kinds ?: readKinds(ctx, b)
+        val o = JSONObject().put("v", 1).put("paragraphs", a)
+        if (ks.size == paras.size && ks.any { it.isNotEmpty() }) o.put("kinds", JSONArray(ks))
         sentFile(ctx, b).parentFile?.mkdirs()
-        sentFile(ctx, b).writeText(JSONObject().put("v", 1).put("paragraphs", a).toString())
+        sentFile(ctx, b).writeText(o.toString())
     }
 
     fun renameLocal(ctx: Context, id: Int, title: String) = synchronized(this) {
@@ -535,7 +659,11 @@ object PdfBooks {
 }
 
 /** A PDF book kept only on the phone (no LingQ lesson); [id] < 0 is its lesson id in the reader. */
-class LocalPdfBook(val id: Int, val doc: String, val lang: String, val title: String, val pages: List<Int>, val created: Long) {
+class LocalPdfBook(
+    val id: Int, val doc: String, val lang: String, val title: String, val pages: List<Int>, val created: Long,
+    /** Block kinds in the text ("bh" / "bhco"); null = all words in stored order (no Gemini order). */
+    val kinds: String? = null,
+) {
     /** Cover picture (file uri) or "". */
     var cover: String = ""
 
@@ -543,7 +671,8 @@ class LocalPdfBook(val id: Int, val doc: String, val lang: String, val title: St
 }
 
 /** Recognised pages waiting at the import screen to be saved as a local book. */
-class PdfDraft(val doc: String, val pages: List<Int>, val title: String, val words: Int)
+/** [words]: words in the text with captions / boxes, [mainWords]: without them; [ordered]: pages with Gemini's order. */
+class PdfDraft(val doc: String, val pages: List<Int>, val title: String, val words: Int, val mainWords: Int = words, val ordered: Int = 0)
 
 /** AI meanings of words / phrases of a local book, kept on the phone. */
 internal class MeaningStore(private val file: File) {

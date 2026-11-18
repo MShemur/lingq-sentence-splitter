@@ -198,6 +198,10 @@ class Prefs(ctx: Context) {
     var autoLevel: Boolean
         get() = read("autoLevel", "1") == "1"
         set(v) = write("autoLevel", if (v) "1" else "0")
+    /** PDF book: captions / boxes found by Gemini go into the book text too (web pref pdfAsides, default on). */
+    var pdfAsides: Boolean
+        get() = read("pdfAsides", "1") == "1"
+        set(v) = write("pdfAsides", if (v) "1" else "0")
     var autoClean: Boolean
         get() = read("autoClean", "1") == "1"
         set(v) = write("autoClean", if (v) "1" else "0")

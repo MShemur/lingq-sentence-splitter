@@ -661,7 +661,9 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                         )
                     }
                     Text(
-                        "${d.pages.size} стр., ${d.words} слов. Книга сохранится только на телефоне (в LingQ не загружается) " +
+                        "${d.pages.size} стр., ${if (s.pdfAsides || d.ordered == 0) d.words else d.mainWords} слов. " +
+                            (if (d.ordered > 0) "Порядок чтения от Gemini: ${d.ordered} из ${d.pages.size} стр. " else "") +
+                            "Книга сохранится только на телефоне (в LingQ не загружается) " +
                             "и появится в библиотеке. Переводы слов и предложений — от Gemini (ваш ключ), они запоминаются в книге.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
@@ -669,6 +671,24 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                         "Ключ Gemini не задан: книга сохранится, но переводить её можно будет только после Настройки → Перевод и ИИ.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
                     )
+                    // Gemini marked captions / boxes: take them into the text (each its own paragraph) or leave them out
+                    if (d.ordered > 0) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Подписи и врезки в текст", style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                            Text(
+                                if (s.pdfAsides) "Подписи к фото и врезки — отдельными абзацами после своего абзаца; номера страниц не входят"
+                                else "Только основной текст и заголовки (без подписей: ${d.words - d.mainWords} сл.)",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                        }
+                        Switch(
+                            checked = s.pdfAsides, enabled = !s.pdfSaving,
+                            onCheckedChange = { s.pdfAsides = it; state.prefs.pdfAsides = it },
+                        )
+                    }
                     OutlinedTextField(
                         s.pdfDraftTitle, { s.pdfDraftTitle = it }, Modifier.fillMaxWidth(),
                         label = { Text("Название книги") }, singleLine = true, enabled = !s.pdfSaving,

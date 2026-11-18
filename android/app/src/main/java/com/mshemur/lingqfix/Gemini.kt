@@ -65,7 +65,7 @@ class WordMeaning(val best: String, val options: List<String>, val note: String,
 /** Google Gemini API (key from aistudio.google.com/apikey). Blocking: call from Dispatchers.IO. */
 class Gemini(private val key: String, private val model: String) : Llm() {
     /** A chat message; [reasoning] = the model's thoughts shown folded in the chat (if the service sends them). */
-    class Msg(val user: Boolean, val text: String, val reasoning: String? = null)
+    class Msg(val user: Boolean, val text: String, val reasoning: String? = null, val jpeg: String? = null)
 
     companion object {
         const val DEFAULT_MODEL = "gemini-3.8-flash"
@@ -133,8 +133,11 @@ class Gemini(private val key: String, private val model: String) : Llm() {
         if (!system.isNullOrBlank()) body.put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
         val contents = JSONArray()
         messages.forEach { msg ->
-            contents.put(JSONObject().put("role", if (msg.user) "user" else "model")
-                .put("parts", JSONArray().put(JSONObject().put("text", msg.text))))
+            val parts = JSONArray()
+            // a picture (base64 JPEG) goes before the text: PDF book pages read with the reading order prompt
+            msg.jpeg?.let { parts.put(JSONObject().put("inlineData", JSONObject().put("mimeType", "image/jpeg").put("data", it))) }
+            parts.put(JSONObject().put("text", msg.text))
+            contents.put(JSONObject().put("role", if (msg.user) "user" else "model").put("parts", parts))
         }
         body.put("contents", contents)
         val cfg = JSONObject().put("temperature", 0.3)

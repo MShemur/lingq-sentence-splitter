@@ -168,6 +168,8 @@ class Sent(
     val start: Long = -1, val end: Long = -1,
     /** In a heading paragraph (LingQ style "h1".."h6"): drawn bold. Inside the text bold / italic are ** / * (kept by LingQ). */
     val heading: Boolean = false,
+    /** PDF book: in a caption ("c") / box ("o") paragraph, labelled in the text view; "" = body. */
+    val aside: String = "",
 ) {
     val tokens: List<Token> = styledTokens(text)
     /** The text as shown (without the ** / * markers): for translations, the AI, bookmarks. */
@@ -853,8 +855,10 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 val b = localBook ?: throw ApiException("PDF-книга не найдена на телефоне (удалена?)")
                 val paras = withContext(Dispatchers.IO) {
                     var id = 0
-                    PdfBooks.readSentences(app.ctx, b).map { p ->
-                        p.map { t -> Sent(id, t, emptyMap(), id + 1).also { sentById[it.id] = it; id++ } }
+                    val kinds = PdfBooks.readKinds(app.ctx, b)
+                    PdfBooks.readSentences(app.ctx, b).mapIndexed { pi, p ->
+                        val aside = kinds.getOrElse(pi) { "" }
+                        p.map { t -> Sent(id, t, emptyMap(), id + 1, aside = aside).also { sentById[it.id] = it; id++ } }
                     }.filter { it.isNotEmpty() }
                 }
                 audioUrl = null
@@ -1676,7 +1680,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     /** The edited sentence replaces the old one on screen; its word pins move with the words or are dropped. */
     private fun replaceSentence(old: Sent, text: String, tr: String) {
         val trs = HashMap(old.translations).apply { if (tr.isNotEmpty()) put(target, tr) }
-        val n = Sent(old.id, text, trs, old.lingqIndex, old.start, old.end, old.heading)
+        val n = Sent(old.id, text, trs, old.lingqIndex, old.start, old.end, old.heading, old.aside)
         sentById[n.id] = n
         paragraphs = paragraphs?.map { p -> p.map { if (it.id == n.id) n else it } }
         sentences = sentences.map { if (it.id == n.id) n else it }
@@ -2177,6 +2181,9 @@ private fun lineMul(book: Boolean, pct: Int = 100) = (if (book) 1.55f else 1.35f
 /** First-line indent of a paragraph in book mode, in font sizes. */
 private const val INDENT_EM = 1.5f
 
+/** Label above a caption / box paragraph of a PDF book. */
+private val ASIDE_LABEL_STYLE = TextStyle(fontSize = 11.sp, lineHeight = 14.sp)
+
 /**
  * Heights of text pieces as [Paragraph] / [SentenceFlow] will draw them, computed from text sizes only
  * (composing the whole lesson just to measure it runs out of memory on long lessons).
@@ -2236,6 +2243,8 @@ private class TextMetrics(
     val indent = if (book) px(size * INDENT_EM) else 0
     private fun px(dp: Float) = with(d) { dp.dp.roundToPx() }
     private val lineH = m.measure("Ag", text, maxLines = 1).size.height
+    /** Height of the caption / box label above such a paragraph (PDF book) with the 6 dp gap below it. */
+    val labelH = m.measure("Подпись", ASIDE_LABEL_STYLE, maxLines = 1).size.height + px(6f)
     private val chunkGap = px(size * 0.3f)
     private val lineGap = px(2f)
 
@@ -2311,7 +2320,7 @@ private class TextMetrics(
 private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: Int, gap: Int, cut: Boolean = false): List<List<Block>> {
     // book mode: a paragraph starts with an indent (not a heading, not the rest of a paragraph from the last page)
     fun ind(para: List<Sent>, from: Int, fromChunk: Int) =
-        if (from == 0 && fromChunk == 0 && !para[0].heading) metrics.indent else 0
+        if (from == 0 && fromChunk == 0 && !para[0].heading && para[0].aside.isEmpty()) metrics.indent else 0
     val pages = mutableListOf<List<Block>>()
     var cur = mutableListOf<Block>()
     var used = 0
@@ -2327,7 +2336,10 @@ private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: I
         while (from < para.size) {
             // heights up to every chunk of para[from..], in one pass
             val start = from == 0 && fromChunk == 0
-            val cb = metrics.chunkBottoms(para.subList(from, para.size), fromChunk, ind(para, from, fromChunk))
+            val cb0 = metrics.chunkBottoms(para.subList(from, para.size), fromChunk, ind(para, from, fromChunk))
+            // PDF book: a caption / box paragraph has a small label above its start
+            val lab = if (start && para[0].aside.isNotEmpty()) metrics.labelH else 0
+            val cb = if (lab == 0) cb0 else cb0.map { a -> IntArray(a.size) { a[it] + lab } }
             val hRest = cb.last().last()
             if (used + need(hRest) <= h) { used += need(hRest); cur += Block(para.subList(from, para.size), fromChunk, start = start); break }
             // the last chunk that still fits on this page
@@ -2465,7 +2477,7 @@ private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
                     .verticalScroll(rememberScrollState()).padding(horizontal = sidePad(s), vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(s.paraGap),
             ) {
-                latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents, b.first, b.last, b.start && s.book) }
+                latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents, b.first, b.last, b.start && s.book, label = b.start) }
             }
         }
         if (s.wide && !s.book) TurnButtons(pager)
@@ -2539,9 +2551,15 @@ private fun DockButton(s: ReaderSession) {
  * a sentence cut at the page bottom gets it on the next page). [first] / [last]: chunk range, see [Block].
  */
 @Composable
-private fun Paragraph(s: ReaderSession, para: List<Sent>, first: Int = 0, last: Int = -1, indent: Boolean = false) {
-    val ind = if (indent && para.firstOrNull()?.heading == false) (s.font * INDENT_EM).dp else 0.dp
+private fun Paragraph(s: ReaderSession, para: List<Sent>, first: Int = 0, last: Int = -1, indent: Boolean = false, label: Boolean = false) {
+    val aside = para.firstOrNull()?.aside.orEmpty()
+    val ind = if (indent && para.firstOrNull()?.heading == false && aside.isEmpty()) (s.font * INDENT_EM).dp else 0.dp
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // PDF book: what this paragraph is (display only; measured in [TextMetrics.labelH])
+        if (label && aside.isNotEmpty()) Text(
+            if (aside == "c") "Подпись к картинке" else "Врезка", style = ASIDE_LABEL_STYLE,
+            color = MaterialTheme.colorScheme.outline, maxLines = 1,
+        )
         var run = mutableListOf<Sent>()
         var runStart = 0
         para.forEachIndexed { i, sent ->

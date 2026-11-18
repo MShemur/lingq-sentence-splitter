@@ -839,6 +839,8 @@ class ImportSession(private val app: AppState) {
     var pdfDraft by mutableStateOf<PdfDraft?>(null)
     var pdfDraftTitle by mutableStateOf("")
     var pdfSaving by mutableStateOf(false)
+    /** PDF book: captions / boxes (found by Gemini) go into the text too (remembered, default on). */
+    var pdfAsides by mutableStateOf(app.prefs.pdfAsides)
 
     /** Saves the recognised book on the phone only (no LingQ call) and opens it. */
     fun savePdfBook() {
@@ -850,7 +852,7 @@ class ImportSession(private val app: AppState) {
         app.scope.launch {
             try {
                 val b = withContext(Dispatchers.Default) {
-                    PdfBooks.saveLocal(app.ctx, lang, d.doc, d.pages, pdfDraftTitle.ifBlank { d.title }, cv)
+                    PdfBooks.saveLocal(app.ctx, lang, d.doc, d.pages, pdfDraftTitle.ifBlank { d.title }, cv, pdfAsides)
                 }
                 pdfDraft = null; cover = null
                 app.loadPdfBooks()
@@ -907,17 +909,23 @@ class ImportSession(private val app: AppState) {
     private suspend fun readPdfBook(uri: android.net.Uri, name: String, pages: List<Int>, total: Int) {
         status = "Копирую PDF…"
         val doc = withContext(Dispatchers.IO) { PdfBooks.importFile(app.ctx, uri) }
-        val recognised = PdfBooks.recognise(app.ctx, doc, pages) { n, all -> status = "Распознаю страницу $n из $all…" }
-        val text = withContext(Dispatchers.Default) { PdfBooks.text(recognised) }
+        // with a Gemini key: reading order, captions / boxes and corrections per page (fast model)
+        val ai = app.prefs.geminiKey.takeIf { it.isNotBlank() }?.let { Gemini(it, app.prefs.geminiFastModel.ifBlank { app.prefs.geminiModel }) }
+        val recognised = PdfBooks.recognise(app.ctx, doc, pages, ai) { status = it }
+        val ordered = recognised.count { it.ordered }
+        val all = PdfBooks.kindsFor(recognised, true)
+        val text = withContext(Dispatchers.Default) { PdfBooks.text(recognised, all) }
+        val mainWords = if (all == null) countWords(text) else withContext(Dispatchers.Default) { countWords(PdfBooks.text(recognised, PdfBooks.TEXT_KINDS)) }
         val base = name.substringBeforeLast('.')
         val title = if (pages.size == total) base else "$base, стр. ${pagesLabel(pages)}"
         // since v1.137 the book stays on the phone: no import form, no LingQ lesson
         pasteMode = false; isBook = false; items.clear()
         val words = countWords(text)
-        AppLog.add("import", "PDF-книга $doc: ${pages.size} из $total стр., слов $words")
+        AppLog.add("import", "PDF-книга $doc: ${pages.size} из $total стр., слов $words (без подписей $mainWords), Gemini: $ordered стр." +
+            if (ai != null && ordered < recognised.count { it.words.isNotEmpty() }) " — на остальных порядок ML Kit" else "")
         if (text.isBlank()) { error = "На выбранных страницах не нашлось текста"; return }
         pdfDraftTitle = title
-        pdfDraft = PdfDraft(doc, pages, title, words)
+        pdfDraft = PdfDraft(doc, pages, title, words, mainWords, ordered)
     }
 
     private fun setSingle(title: String, text: String) {
