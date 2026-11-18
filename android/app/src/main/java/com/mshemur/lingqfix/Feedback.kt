@@ -72,7 +72,7 @@ object Feedback {
     }
 
     fun send(token: String, text: String, log: String?) {
-        if (token.isBlank()) throw ApiException("Нет токена GitHub (⚙ Настройки → Обновления)")
+        if (token.isBlank()) throw ApiException("Нет токена GitHub (⚙ Настройки → Синхронизация)")
         val now = System.currentTimeMillis()
         val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date(now))
         val o = JSONObject().put("t", now).put("device", "android").put("version", BuildConfig.VERSION_NAME)

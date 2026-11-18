@@ -106,7 +106,7 @@ fun PlayerScreen(state: AppState) {
         if (expanded) Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { expanded = false }) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Свернуть текст") }
             Text(s.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            PlayerActions(s, onMarks = { marks = true }, onPick = null)
+            PlayerActions(s, onMarks = { marks = true })
         } else Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(56.dp)) {
                 Box(contentAlignment = Alignment.Center) {
@@ -124,7 +124,7 @@ fun PlayerScreen(state: AppState) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            PlayerActions(s, onMarks = { marks = true }, onPick = null)
+            PlayerActions(s, onMarks = { marks = true })
         }
         val paras = s.paragraphs
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -295,9 +295,9 @@ private fun PlayerMenuItems(s: ReaderSession, ref: WordRef, close: () -> Unit) {
     }
 }
 
-/** Header buttons: bookmark this place; menu with the lesson's audio bookmarks and another lesson. */
+/** Header buttons: bookmark this place; menu with the lesson's audio bookmarks. */
 @Composable
-private fun PlayerActions(s: ReaderSession, onMarks: () -> Unit, onPick: (() -> Unit)?) {
+private fun PlayerActions(s: ReaderSession, onMarks: () -> Unit) {
     IconButton(onClick = { s.markAudio() }, enabled = s.audioUrl != null) {
         Icon(AppIcons.BookmarkBorder, contentDescription = "Закладка на это место")
     }
@@ -309,11 +309,6 @@ private fun PlayerActions(s: ReaderSession, onMarks: () -> Unit, onPick: (() -> 
                 text = { Text("Аудиозакладки (${s.audioMarks().size})") },
                 leadingIcon = { Icon(AppIcons.Bookmark, contentDescription = null) },
                 onClick = { menu = false; onMarks() },
-            )
-            if (onPick != null) DropdownMenuItem(
-                text = { Text("Другой урок") },
-                leadingIcon = { Icon(AppIcons.Headphones, contentDescription = null) },
-                onClick = { menu = false; onPick() },
             )
         }
     }

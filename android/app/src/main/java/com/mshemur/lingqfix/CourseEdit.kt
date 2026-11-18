@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
@@ -61,7 +62,7 @@ internal fun coverFromUri(ctx: android.content.Context, uri: Uri): Pair<ByteArra
     out.toByteArray() to "image/jpeg"
 }.getOrNull()
 
-/** Course screen ⋮: edit (title, cover), archive, delete. */
+/** Course screen ⋮: edit (title, cover), word stats, fix sentence split, archive, delete. */
 @Composable
 fun CourseMenu(state: AppState, s: Screen.Lessons) {
     var open by remember { mutableStateOf(false) }
@@ -81,8 +82,16 @@ fun CourseMenu(state: AppState, s: Screen.Lessons) {
                 leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
                 onClick = { open = false; state.go(Screen.WordStats(WordStatsScreenState(s.lang, s.course.copy(title = s.title)))) },
             )
+            val lessons = s.lessons
+            DropdownMenuItem(
+                text = { Text("Исправить разбивку…") },
+                leadingIcon = { Icon(Icons.Filled.Build, contentDescription = null) },
+                enabled = !lessons.isNullOrEmpty(),
+                onClick = { open = false; if (lessons != null) state.checkLessons(s.lang, lessons, s.title) },
+            )
             DropdownMenuItem(
                 text = { Text(if (archived) "Вернуть из архива" else "В архив") },
+                leadingIcon = { Icon(AppIcons.Archive, contentDescription = null) },
                 onClick = {
                     open = false
                     state.setArchived(s.course.id, !archived)
@@ -259,37 +268,6 @@ fun LessonDeleteDialog(state: AppState, s: ReaderSession, onClose: () -> Unit) {
         },
         dismissButton = { TextButton(onClick = onClose, enabled = !busy) { Text("Отмена") } },
     )
-}
-
-/** Library ⋮ (top right): the course archive. */
-@Composable
-fun LibraryMenu(state: AppState) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(
-                text = { Text("Архив курсов (${state.archivedCourses().size})") },
-                onClick = { open = false; state.go(Screen.Archive) },
-            )
-            DropdownMenuItem(
-                text = { Text("Слова по урокам курса…") },
-                leadingIcon = { Icon(AppIcons.BarChart, contentDescription = null) },
-                onClick = { open = false; state.go(Screen.WordStats(WordStatsScreenState(state.lang, null))) },
-            )
-            DropdownMenuItem(
-                text = { Text("Отзыв / задача") },
-                leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
-                onClick = { open = false; state.go(Screen.Feedback) },
-            )
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text("Настройки") },
-                leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                onClick = { open = false; state.go(Screen.Settings) },
-            )
-        }
-    }
 }
 
 /** Archived courses: hidden in the library and the player on this device; LingQ is not touched. */

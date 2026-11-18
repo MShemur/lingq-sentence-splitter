@@ -186,7 +186,9 @@ fun App(state: AppState) {
                                 IconButton(onClick = { state.go(Screen.Bookmarks) }) {
                                     Icon(AppIcons.Bookmark, contentDescription = "Закладки")
                                 }
-                                LibraryMenu(state)
+                                IconButton(onClick = { state.go(Screen.Settings) }) {
+                                    Icon(Icons.Filled.Settings, contentDescription = "Настройки")
+                                }
                             }
                             is Screen.Lessons -> if (screen.reader) CourseMenu(state, screen)
                             else -> {}
@@ -200,15 +202,15 @@ fun App(state: AppState) {
                     Screen.Player -> MainTabs(state, screen)
                     Screen.ReaderCourses -> Column { MiniPlayer(state); MainTabs(state, screen) }
                     is Screen.Podcasts -> if (state.stack.size == 1) Column { MiniPlayer(state); MainTabs(state, screen) } else MiniPlayer(state)
-                    is Screen.Chat, Screen.Home, is Screen.Import -> {}
+                    is Screen.Chat, is Screen.Import -> {}
                     else -> MiniPlayer(state)
                 }
             },
             floatingActionButton = {
                 if (screen == Screen.ReaderCourses) ExtendedFloatingActionButton(
-                    onClick = { state.go(Screen.Home) },
+                    onClick = { state.go(Screen.Import(ImportSession(state))) },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                    text = { Text("Импорт") },
+                    text = { Text("Загрузить") },
                 )
             },
             snackbarHost = { SnackbarHost(state.snackbar) },
@@ -235,7 +237,6 @@ fun App(state: AppState) {
                 ) { screen ->
                 androidx.compose.runtime.SideEffect { lastDepth = depth }
                 when (screen) {
-                    Screen.Home -> HomeScreen(state)
                     Screen.ReaderCourses -> LibraryScreen(state)
                     is Screen.Reader -> ReaderScreen(screen.session)
                     is Screen.Chat -> ChatScreen(screen.session)
@@ -247,13 +248,13 @@ fun App(state: AppState) {
                     Screen.SettingsUpdates -> SettingsUpdates(state)
                     Screen.SettingsReading -> SettingsReading(state)
                     Screen.SettingsSpeech -> SettingsSpeech(state)
+                    Screen.SettingsPlayer -> SettingsPlayer(state)
                     is Screen.Podcasts -> PodcastsScreen(state, screen.session)
                     is Screen.PodcastFeed -> PodcastFeedScreen(screen.session)
                     Screen.Stats -> StatsScreen(state)
                     Screen.SettingsSync -> SettingsSync(state)
                     Screen.Log -> LogScreen(state)
                     Screen.Player -> PlayerScreen(state)
-                    Screen.Courses -> CoursesScreen(state) { c -> state.go(Screen.Lessons(state.lang, c)) }
                     Screen.Backups -> BackupsScreen(state)
                     Screen.Archive -> ArchiveScreen(state)
                     Screen.Feedback -> FeedbackScreen(state)
@@ -332,25 +333,24 @@ private fun MainTabs(state: AppState, screen: Screen) {
 }
 
 private fun titleOf(state: AppState, s: Screen): String = when (s) {
-    Screen.Home -> "Импорт"
     Screen.ReaderCourses -> "Библиотека · ${state.lang}"
     is Screen.Reader -> s.session.title
     is Screen.Chat -> s.session.title
     Screen.Bookmarks -> "Закладки"
     Screen.Settings -> "Настройки"
     Screen.SettingsLingq -> "Аккаунт LingQ"
-    Screen.SettingsTranslation -> "Перевод"
-    Screen.SettingsPrompts -> "Промпты Gemini"
+    Screen.SettingsTranslation -> "Перевод и ИИ"
+    Screen.SettingsPrompts -> "Промпты ИИ"
     Screen.SettingsUpdates -> "Обновления"
     Screen.SettingsReading -> "Чтение"
     Screen.SettingsSpeech -> "Распознавание речи"
+    Screen.SettingsPlayer -> "Плеер"
     is Screen.Podcasts -> "Подкасты"
     is Screen.PodcastFeed -> s.session.podcast?.title?.ifBlank { null } ?: "Подкаст"
     Screen.Stats -> "Статистика"
     Screen.SettingsSync -> "Синхронизация"
     Screen.Log -> "Журнал действий"
     Screen.Player -> "Плеер"
-    Screen.Courses -> "Мои курсы · ${state.lang}"
     Screen.Backups -> "Резервные копии"
     Screen.Archive -> "Архив курсов"
     Screen.Feedback -> "Отзыв / задача"
@@ -383,105 +383,7 @@ private fun BigButton(title: String, sub: String, onClick: () -> Unit) {
     }
 }
 
-// --- Import & fix --------------------------------------------------------------------------------
-
-@Composable
-private fun HomeScreen(state: AppState) {
-    var link by remember { mutableStateOf("") }
-    val clipboard = LocalClipboardManager.current
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        if (state.apiKey.isBlank()) Card(
-            Modifier.fillMaxWidth().padding(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-        ) {
-            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Укажите API-ключ LingQ", Modifier.weight(1f))
-                TextButton(onClick = { state.go(Screen.SettingsLingq) }) { Text("Настроить") }
-            }
-        }
-        ListItem(
-            leadingContent = { Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            headlineContent = { Text("Загрузить в LingQ") },
-            supportingContent = { Text("Файл .txt, .md, .epub или вставленный текст") },
-            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
-            modifier = Modifier.clickable { state.go(Screen.Import(ImportSession(state))) },
-        )
-        ListItem(
-            leadingContent = { Icon(Icons.Filled.Build, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            headlineContent = { Text("Исправить разбивку на предложения") },
-            supportingContent = { Text("Курс или урок из ваших курсов (${state.lang})") },
-            trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
-            modifier = Modifier.clickable { state.go(Screen.Courses) },
-        )
-        HorizontalDivider()
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Исправить по ссылке", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-            OutlinedTextField(
-                link, { link = it }, Modifier.fillMaxWidth(),
-                placeholder = { Text("Ссылка на урок или курс LingQ") }, singleLine = true,
-                trailingIcon = {
-                    if (link.isBlank()) TextButton(onClick = { clipboard.getText()?.text?.let { link = it } }) { Text("Вставить") }
-                    else IconButton(onClick = { link = "" }) { Icon(Icons.Filled.Clear, contentDescription = "Очистить") }
-                },
-            )
-            Button(onClick = { state.openLink(link) }, enabled = link.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
-                Text("Проверить")
-            }
-        }
-    }
-}
-
 // --- Courses / lessons ---------------------------------------------------------------------------
-
-@Composable
-private fun CoursesScreen(state: AppState, library: Boolean = false, onPick: (Course) -> Unit) {
-    var q by remember { mutableStateOf("") }
-    LaunchedEffect(state.lang) { state.loadCourses() }
-    Column(Modifier.fillMaxSize()) {
-        if (library) Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.update?.let { u ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Доступна версия ${u.versionName}", Modifier.weight(1f))
-                        val p = state.updateProgress
-                        if (p != null) CircularProgressIndicator(progress = { p })
-                        else Button(onClick = { state.installUpdate() }) { Text("Обновить") }
-                    }
-                }
-            }
-            if (state.apiKey.isBlank()) Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Укажите API-ключ LingQ", Modifier.weight(1f))
-                    TextButton(onClick = { state.go(Screen.SettingsLingq) }) { Text("Настроить") }
-                }
-            }
-        }
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                q, { q = it }, Modifier.weight(1f),
-                placeholder = { Text("Поиск курса") }, singleLine = true,
-                trailingIcon = { ClearButton(q) { q = "" } },
-            )
-            IconButton(onClick = { state.loadCourses(force = true) }) { Icon(Icons.Filled.Refresh, contentDescription = "Обновить") }
-        }
-        val err = state.coursesError
-        val list = state.courses
-        when {
-            err != null -> ErrorBox(err) { state.loadCourses(force = true) }
-            list == null -> Loading()
-            else -> LazyColumn(Modifier.fillMaxSize()) {
-                items(list.filter { q.isBlank() || it.title.contains(q, ignoreCase = true) }, key = { it.id }) { c ->
-                    ListItem(
-                        headlineContent = { Text(c.title) },
-                        trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
-                        modifier = Modifier.clickable { onPick(c) },
-                    )
-                    HorizontalDivider()
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun LessonsScreen(state: AppState, s: Screen.Lessons) {
@@ -492,27 +394,7 @@ private fun LessonsScreen(state: AppState, s: Screen.Lessons) {
         when {
             err != null -> ErrorBox(err) { s.load(state) }
             list == null -> Loading()
-            s.reader -> LessonsGrid(state, s, list)
-            else -> {
-                Button(
-                    onClick = { state.checkLessons(s.lang, list, s.title) },
-                    enabled = list.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                ) { Text("Проверить весь курс (${list.size} уроков)") }
-                Text(
-                    "или выберите один урок:", Modifier.padding(horizontal = 16.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                )
-                LazyColumn(Modifier.fillMaxSize()) {
-                    items(list, key = { it.id }) { l ->
-                        ListItem(
-                            headlineContent = { Text(l.title) },
-                            modifier = Modifier.clickable { state.checkLessons(s.lang, listOf(l), l.title) },
-                        )
-                        HorizontalDivider()
-                    }
-                }
-            }
+            else -> LessonsGrid(state, s, list)
         }
     }
 }
@@ -801,7 +683,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                     }
                 }
                 if (!state.useGemini) Text(
-                    "«С ИИ»: включите Gemini или другой ИИ в Настройки → Перевод.",
+                    "«С ИИ»: включите Gemini или другой ИИ в Настройки → Перевод и ИИ.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 if (s.cleaning) {
@@ -872,7 +754,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             state.coursesError?.let { Text("Курсы не загрузились: $it", color = MaterialTheme.colorScheme.error) }
             Text(
                 "Разбивка на предложения исправляется сразу" +
-                    if (state.useGemini) ", ИИ ставит уровень сложности (A1–C2)." else ". Уровень ставит ИИ — нужен Gemini или другой ИИ: Настройки → Перевод.",
+                    if (state.useGemini) ", ИИ ставит уровень сложности (A1–C2)." else ". Уровень ставит ИИ — нужен Gemini или другой ИИ: Настройки → Перевод и ИИ.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (s.audioUri != null && s.pasteMode) Text(
@@ -922,6 +804,25 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 }
                 TextButton(onClick = { s.newImport() }) { Text("Новый импорт") }
             }
+        }
+        // lessons already on LingQ: check / fix the sentence split by link (was the «Импорт» hub screen)
+        HorizontalDivider(Modifier.padding(top = 12.dp))
+        Text("Уже на LingQ", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text(
+            "Исправить разбивку на предложения у готового урока или курса. Для своих курсов то же есть в меню ⋮ курса и урока.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        var link by remember { mutableStateOf("") }
+        OutlinedTextField(
+            link, { link = it }, Modifier.fillMaxWidth(),
+            placeholder = { Text("Ссылка на урок или курс LingQ") }, singleLine = true,
+            trailingIcon = {
+                if (link.isBlank()) TextButton(onClick = { clipboard.getText()?.text?.let { link = it } }) { Text("Вставить") }
+                else IconButton(onClick = { link = "" }) { Icon(Icons.Filled.Clear, contentDescription = "Очистить") }
+            },
+        )
+        OutlinedButton(onClick = { state.openLink(link) }, enabled = link.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+            Text("Проверить")
         }
         Spacer(Modifier.height(24.dp))
     }

@@ -73,54 +73,70 @@ private fun SectionItem(icon: ImageVector, title: String, summary: String, onCli
     )
 }
 
+/** A small group header of the settings list (Сервисы, Чтение и звук…). */
+@Composable
+private fun ListGroup(title: String) {
+    Text(
+        title, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+        style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary,
+    )
+}
+
 @Composable
 fun SettingsRoot(state: AppState) {
     val p = state.prefs
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val audioMb = remember { AudioCache.size(ctx) / 1_048_576 }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        ListGroup("Сервисы")
         SectionItem(
             Icons.Filled.AccountCircle, "Аккаунт LingQ",
             (if (state.apiKey.isBlank()) "Ключ не задан" else "Ключ задан") + " · язык ${state.lang}",
         ) { state.go(Screen.SettingsLingq) }
         SectionItem(
-            Icons.Filled.Create, "Перевод",
+            Icons.Filled.Create, "Перевод и ИИ",
             when (p.translator) { "gemini" -> "Gemini · ${p.geminiModel}"; "openai" -> "ИИ · ${p.aiModel}"; else -> "LingQ" } + " → ${state.trLang}",
         ) { state.go(Screen.SettingsTranslation) }
         SectionItem(
             AppIcons.Mic, "Распознавание речи",
             sttProvider(p.sttProvider).let { it.name + if (sttKeyFor(p, it).isBlank()) " · ключ не задан" else " · ключ задан" },
         ) { state.go(Screen.SettingsSpeech) }
+
+        HorizontalDivider(Modifier.padding(top = 8.dp))
+        ListGroup("Чтение и звук")
         SectionItem(
-            Icons.Filled.Info, "Чтение",
-            (readerThemeOf(state.readerTheme)?.name ?: "Фон как в системе") + " · " +
-                (HIGHLIGHTS.firstOrNull { it.key == state.highlight }?.name ?: "") + " · " +
-                (KEEP_AWAKE.firstOrNull { it.first == state.keepAwake }?.second?.lowercase() ?: ""),
+            AppIcons.Book, "Чтение",
+            (readerThemeOf(state.readerTheme)?.name ?: "Фон как в системе") + " · выделение: " +
+                (HIGHLIGHTS.firstOrNull { it.key == state.highlight }?.name?.lowercase() ?: ""),
         ) { state.go(Screen.SettingsReading) }
-        SectionItem(Icons.Filled.Star, "Промпты Gemini", "Как Gemini переводит и отвечает в чате") {
-            state.go(Screen.SettingsPrompts)
+        SectionItem(AppIcons.Headphones, "Плеер", "Наушники · кэш аудио $audioMb МБ") {
+            state.go(Screen.SettingsPlayer)
         }
+
+        HorizontalDivider(Modifier.padding(top = 8.dp))
+        ListGroup("Данные")
         SectionItem(
             Icons.Filled.Refresh, "Синхронизация",
-            if (state.sync.enabled) "Телефон и iPad · включена" else "Телефон и iPad · выключена",
+            when {
+                !state.sync.enabled -> "Выключена"
+                state.sync.lastError != null -> "Ошибка"
+                else -> "Включена"
+            },
         ) { state.go(Screen.SettingsSync) }
-        HorizontalDivider()
-        run {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            var mb by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(AudioCache.size(ctx) / 1_048_576) }
-            SectionItem(AppIcons.Headphones, "Очистить кэш аудио", "Скачанные выпуски и куски для распознавания · $mb МБ · старше 30 дней удаляются сами") {
-                AudioCache.clear(ctx); mb = 0; state.say("Кэш аудио очищен")
-            }
-        }
-        SectionItem(Icons.Filled.Refresh, "Резервные копии", "Вернуть урок к версии до исправления") {
+        SectionItem(Icons.Filled.Star, "Резервные копии", "Вернуть урок к версии до исправления") {
             state.go(Screen.Backups)
         }
+
+        HorizontalDivider(Modifier.padding(top = 8.dp))
+        ListGroup("Приложение")
         SectionItem(Icons.Filled.Build, "Обновления", "Версия ${BuildConfig.VERSION_NAME}") {
             state.go(Screen.SettingsUpdates)
         }
+        SectionItem(Icons.Filled.Info, "Журнал действий", "Для сообщения об ошибке · хранится 2 дня") {
+            state.go(Screen.Log)
+        }
         SectionItem(AppIcons.Chat, "Отзыв / задача", "Написать, что поправить; Claude отвечает здесь") {
             state.go(Screen.Feedback)
-        }
-        SectionItem(Icons.Filled.Info, "Журнал действий", "Скопировать для сообщения об ошибке · хранится 2 дня") {
-            state.go(Screen.Log)
         }
     }
 }
@@ -221,7 +237,7 @@ fun SettingsTranslation(state: AppState) {
                 }
             }
         }
-        if (translator == "lingq") return@Page
+        if (translator == "lingq") { PromptsRow(state); return@Page }
         HorizontalDivider()
         if (translator == "gemini") {
             Text("Gemini", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
@@ -310,7 +326,20 @@ fun SettingsTranslation(state: AppState) {
             },
             confirmButton = { TextButton(onClick = { modelFor = null }) { Text("Закрыть") } },
         )
+        PromptsRow(state)
     }
+}
+
+/** Last row of Settings → Перевод и ИИ. */
+@Composable
+private fun PromptsRow(state: AppState) {
+    HorizontalDivider()
+    ListItem(
+        headlineContent = { Text("Промпты ИИ") },
+        supportingContent = { Text("Как ИИ переводит, чистит текст и отвечает в чате") },
+        trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+        modifier = Modifier.clickable { state.go(Screen.SettingsPrompts) },
+    )
 }
 
 @Composable
@@ -333,9 +362,9 @@ fun SettingsPrompts(state: AppState) {
         OutlinedTextField(pSent, { pSent = it; p.promptSentence = it }, Modifier.fillMaxWidth(), label = { Text("Перевод предложения") }, minLines = 3)
         OutlinedTextField(pRetr, { pRetr = it; p.promptRetranslate = it }, Modifier.fillMaxWidth(), label = { Text("Повторный перевод ({current} — текущий)") }, minLines = 3)
         OutlinedTextField(pChatS, { pChatS = it; p.promptChatSentence = it }, Modifier.fillMaxWidth(), label = { Text("Чат о предложении") }, minLines = 3)
-        OutlinedTextField(pClean, { pClean = it; p.promptClean = it }, Modifier.fillMaxWidth(), label = { Text("Очистка текста при импорте") }, minLines = 3)
-        OutlinedTextField(pChatW, { pChatW = it; p.promptChatWord = it }, Modifier.fillMaxWidth(), label = { Text("Чат о слове") }, minLines = 3)
+        OutlinedTextField(pChatW, { pChatW = it; p.promptChatWord = it }, Modifier.fillMaxWidth(), label = { Text("Чат о слове («Спросить» в окне слова)") }, minLines = 3)
         OutlinedTextField(pChatT, { pChatT = it; p.promptChatText = it }, Modifier.fillMaxWidth(), label = { Text("Чат о всём тексте") }, minLines = 3)
+        OutlinedTextField(pClean, { pClean = it; p.promptClean = it }, Modifier.fillMaxWidth(), label = { Text("Очистка текста при загрузке") }, minLines = 3)
         OutlinedTextField(pLevel, { pLevel = it; p.promptLevel = it }, Modifier.fillMaxWidth(), label = { Text("Уровень текста (JSON: cefr, why)") }, minLines = 3)
         OutlinedButton(onClick = {
             pWord = Prompts.WORD; pSent = Prompts.SENTENCE; pChatS = Prompts.CHAT_SENTENCE; pChatT = Prompts.CHAT_TEXT
@@ -351,7 +380,6 @@ fun SettingsPrompts(state: AppState) {
 
 @Composable
 fun SettingsUpdates(state: AppState) {
-    var token by remember { mutableStateOf(state.ghToken) }
     Page {
         ListItem(
             leadingContent = { Icon(Icons.Filled.Info, contentDescription = null) },
@@ -366,12 +394,40 @@ fun SettingsUpdates(state: AppState) {
             }
             if (p != null) androidx.compose.material3.LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
         }
+        if (state.ghToken.isBlank()) {
+            HorizontalDivider()
+            Hint("Чтобы скачивать новые версии, нужен токен GitHub. Он задаётся в «Синхронизации».")
+            OutlinedButton(onClick = { state.go(Screen.SettingsSync) }, modifier = Modifier.fillMaxWidth()) { Text("Задать токен GitHub") }
+        }
+    }
+}
+
+/** Settings → Плеер: headphone «вперёд» key and the audio cache. */
+@Composable
+fun SettingsPlayer(state: AppState) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var mb by remember { mutableStateOf(AudioCache.size(ctx) / 1_048_576) }
+    var nextTr by remember { mutableStateOf(state.prefs.nextKeyTranslate) }
+    Page {
+        Text("Наушники", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Кнопка «вперёд» читает перевод")
+                Text(
+                    if (nextTr) "«Вперёд» на наушниках: пауза, перевод звучащего предложения голосом, дальше слушаем"
+                    else "«Вперёд» на наушниках: на 5 секунд вперёд",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            androidx.compose.material3.Switch(nextTr, { nextTr = it; state.prefs.nextKeyTranslate = it })
+        }
+        Hint("Двойное нажатие «пауза/плей» тоже читает перевод, если наушники передают его телефону (Marshall — нет).")
         HorizontalDivider()
-        SecretField(token, "GitHub-токен", "SatzLoop: токен GitHub") { token = it; state.applyPrefs { ghToken = it } }
-        Hint(
-            "Нужен, чтобы скачивать новые версии из приватного репозитория. GitHub → Settings → Developer settings → " +
-                "Fine-grained tokens: репозиторий lingq-sentence-splitter, права Contents: Read-only " +
-                "(для синхронизации — Read and write).",
-        )
+        Text("Кэш аудио", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Hint("Скачанные выпуски и куски для распознавания: $mb МБ. Старше 30 дней удаляются сами.")
+        OutlinedButton(
+            onClick = { AudioCache.clear(ctx); mb = 0; state.say("Кэш аудио очищен") },
+            enabled = mb > 0, modifier = Modifier.fillMaxWidth(),
+        ) { Text("Очистить кэш аудио") }
     }
 }

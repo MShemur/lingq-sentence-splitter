@@ -191,7 +191,8 @@ fun SettingsReading(state: AppState) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Фон страницы", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        GroupHeader("Страница", first = true)
+        Text("Фон страницы", style = MaterialTheme.typography.titleSmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ThemeSwatch("Как в системе", MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.onSurface, theme == "system") {
                 state.applyPrefs { readerTheme = "system" }
@@ -201,7 +202,7 @@ fun SettingsReading(state: AppState) {
             }
         }
 
-        Text("Цвет выделения слов", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text("Цвет выделения слов", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall)
         val t = readerThemeOf(theme)
         val pageBg = t?.bg ?: MaterialTheme.colorScheme.surface
         val pageFg = t?.fg ?: MaterialTheme.colorScheme.onSurface
@@ -254,21 +255,21 @@ fun SettingsReading(state: AppState) {
             }
         }
 
-        Text("Расстояние до перевода над словом", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.material3.Slider(
-                value = state.trGap.toFloat(),
-                onValueChange = { v -> val n = (Math.round(v / 10f) * 10).coerceIn(0, 100); if (n != state.trGap) state.applyPrefs { trGap = n } },
-                valueRange = 0f..100f, steps = 9, modifier = Modifier.weight(1f),
-            )
-            Text(if (state.trGap >= 100) "обычное" else "${state.trGap} %", Modifier.width(72.dp).padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
+        GroupHeader("Текст")
+        Text("Выравнивание текста", style = MaterialTheme.typography.titleSmall)
+        listOf(false to "По левому краю", true to "По ширине").forEach { (k, label) ->
+            Row(
+                Modifier.fillMaxWidth().selectable(selected = state.justify == k, role = Role.RadioButton) {
+                    state.applyPrefs { readerJustify = k }
+                }.padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = state.justify == k, onClick = null)
+                Text(label, Modifier.padding(start = 12.dp))
+            }
         }
-        Text(
-            "Меньше — перевод ближе к слову и текст ниже по высоте. Видно на примере выше.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
 
-        Text("Расстояние между строками", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text("Расстояние между строками", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall)
         Row(verticalAlignment = Alignment.CenterVertically) {
             androidx.compose.material3.Slider(
                 value = state.lineSpacing.toFloat(),
@@ -277,7 +278,7 @@ fun SettingsReading(state: AppState) {
             )
             Text(if (state.lineSpacing == 100) "обычное" else "${state.lineSpacing} %", Modifier.width(72.dp).padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
         }
-        Text("Расстояние между абзацами", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text("Расстояние между абзацами", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall)
         Row(verticalAlignment = Alignment.CenterVertically) {
             val usual = if (state.book) 0 else 14
             val cur = if (state.paraGap >= 0) state.paraGap else usual
@@ -296,7 +297,22 @@ fun SettingsReading(state: AppState) {
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Text("Книжный режим", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text("Расстояние до перевода над словом", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Slider(
+                value = state.trGap.toFloat(),
+                onValueChange = { v -> val n = (Math.round(v / 10f) * 10).coerceIn(0, 100); if (n != state.trGap) state.applyPrefs { trGap = n } },
+                valueRange = 0f..100f, steps = 9, modifier = Modifier.weight(1f),
+            )
+            Text(if (state.trGap >= 100) "обычное" else "${state.trGap} %", Modifier.width(72.dp).padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
+        }
+        Text(
+            "Меньше — перевод ближе к слову и текст ниже по высоте. Видно на примере выше.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        GroupHeader("Режим")
+        Text("Книжный режим", style = MaterialTheme.typography.titleSmall)
         Row(
             Modifier.fillMaxWidth().clickable { state.applyPrefs { readerBook = !state.book } }.padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -310,20 +326,8 @@ fun SettingsReading(state: AppState) {
             androidx.compose.material3.Switch(checked = state.book, onCheckedChange = { v -> state.applyPrefs { readerBook = v } })
         }
 
-        Text("Выравнивание текста", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        listOf(false to "По левому краю", true to "По ширине").forEach { (k, label) ->
-            Row(
-                Modifier.fillMaxWidth().selectable(selected = state.justify == k, role = Role.RadioButton) {
-                    state.applyPrefs { readerJustify = k }
-                }.padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = state.justify == k, onClick = null)
-                Text(label, Modifier.padding(start = 12.dp))
-            }
-        }
-
-        Text("Экран не гаснет при чтении", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        GroupHeader("Экран")
+        Text("Экран не гаснет при чтении", style = MaterialTheme.typography.titleSmall)
         KEEP_AWAKE.forEach { (k, label) ->
             Row(
                 Modifier.fillMaxWidth().selectable(selected = state.keepAwake == k, role = Role.RadioButton) {
@@ -342,7 +346,7 @@ fun SettingsReading(state: AppState) {
 
         Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Максимальная яркость", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                Text("Максимальная яркость", style = MaterialTheme.typography.titleSmall)
                 Text(
                     "Пока урок открыт, экран на полной яркости, даже если в телефоне убавлена или стоит автояркость. Ярче максимума системы Android не даёт.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -350,25 +354,14 @@ fun SettingsReading(state: AppState) {
             }
             androidx.compose.material3.Switch(checked = state.maxBright, onCheckedChange = { v -> state.applyPrefs { maxBright = v } })
         }
-
-        Text("Наушники", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        var nextTr by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(state.prefs.nextKeyTranslate) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Кнопка «вперёд» читает перевод")
-                Text(
-                    if (nextTr) "«Вперёд» на наушниках: пауза, перевод звучащего предложения голосом, дальше слушаем"
-                    else "«Вперёд» на наушниках: на 5 секунд вперёд",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            androidx.compose.material3.Switch(nextTr, { nextTr = it; state.prefs.nextKeyTranslate = it })
-        }
-        Text(
-            "Двойное нажатие «пауза/плей» тоже читает перевод, если наушники передают его телефону (Marshall — нет).",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
+}
+
+/** A group header of a settings page (Страница, Текст…): primary colour, a divider above all but the first. */
+@Composable
+internal fun GroupHeader(title: String, first: Boolean = false) {
+    if (!first) androidx.compose.material3.HorizontalDivider(Modifier.padding(top = 12.dp))
+    Text(title, Modifier.padding(top = if (first) 0.dp else 8.dp), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
 }
 
 @Composable

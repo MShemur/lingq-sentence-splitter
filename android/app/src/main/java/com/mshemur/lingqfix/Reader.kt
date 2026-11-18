@@ -679,7 +679,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
      * time; then the sentence split is fixed as after an import and the lesson is read again.
      */
     fun cleanWithAi() {
-        if (!app.useGemini) return app.say("Для обработки с ИИ включите ИИ: Настройки → Перевод")
+        if (!app.useGemini) return app.say("Для обработки с ИИ включите ИИ: Настройки → Перевод и ИИ")
         if (aiClean != null) return
         aiClean = "…"
         AppLog.add("reader", "Урок ${lesson.id}: обработка текста с ИИ")
@@ -1413,7 +1413,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 
     fun detectLevel() {
         if (levelBusy) return
-        if (!app.useGemini) { app.say("Нужен Gemini или другой ИИ: Настройки → Перевод"); return }
+        if (!app.useGemini) { app.say("Нужен Gemini или другой ИИ: Настройки → Перевод и ИИ"); return }
         val text = sentences.joinToString(" ") { it.plain }
         if (text.isBlank()) return
         levelBusy = true
@@ -1604,7 +1604,7 @@ fun SentenceEditDialog(s: ReaderSession) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = { if (!s.editSaving) s.editing = null },
         icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-        title = { Text("Редактировать предложение") },
+        title = { Text("Исправить предложение") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
@@ -1650,7 +1650,52 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
     var words by remember { mutableStateOf(false) }
     if (words) MarkedWordsDialog(s) { words = false }
     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
-    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+    // stays inside the screen and scrolls (book mode hides the system bars, the window is then the whole screen)
+    DropdownMenu(
+        expanded = menu, onDismissRequest = { menu = false },
+        modifier = Modifier.heightIn(max = menuMaxHeight()),
+    ) {
+        val hasPins = s.pins.isNotEmpty() || s.phrasePins.isNotEmpty()
+        MenuGroup("Текст")
+        FontSizeRow(s)
+        DropdownMenuItem(
+            text = { Text("Книжный режим") },
+            leadingIcon = { Icon(AppIcons.Book, contentDescription = null) },
+            trailingIcon = { androidx.compose.material3.Checkbox(checked = state.book, onCheckedChange = null) },
+            onClick = { menu = false; state.applyPrefs { readerBook = !state.book } },
+        )
+        if (s.pdfLink != null) DropdownMenuItem(
+            text = { Text(if (s.showPdf) "Показать текстом" else "Показать страницы PDF") },
+            leadingIcon = { Icon(AppIcons.Description, contentDescription = null) },
+            onClick = { menu = false; s.showPdf = !s.showPdf },
+        )
+        DropdownMenuItem(
+            text = { Text("Настройки чтения…") },
+            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Filled.Settings, contentDescription = null) },
+            onClick = { menu = false; state.go(Screen.SettingsReading) },
+        )
+        HorizontalDivider()
+        MenuGroup("Переводы")
+        DropdownMenuItem(
+            text = { Text(s.trAll?.let { "Перевожу урок: $it" } ?: "Перевести весь урок") },
+            leadingIcon = { Icon(AppIcons.Translate, contentDescription = null) },
+            enabled = s.trAll == null,
+            onClick = { menu = false; s.translateAll() },
+        )
+        if (hasPins) DropdownMenuItem(
+            text = { Text("Слова с переводом (${s.markedWords().size})") },
+            leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+            onClick = { menu = false; words = true },
+        )
+        if (hasPins || s.hideTr) DropdownMenuItem(
+            text = { Text(if (s.hideTr) "Показать переводы над словами" else "Временно скрыть переводы") },
+            onClick = { menu = false; s.toggleHideTr() },
+        )
+        if (hasPins) DropdownMenuItem(
+            text = { Text("Снять переводы над словами (${s.pins.size + s.phrasePins.size})") },
+            onClick = { s.clearPins(); menu = false },
+        )
+        HorizontalDivider()
         MenuGroup("Урок")
         if (s.audioUrl != null) DropdownMenuItem(
             text = { Text("Слушать в плеере") },
@@ -1664,46 +1709,15 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             onClick = { menu = false; s.detectLevel() },
         )
         DropdownMenuItem(
-            text = { Text(s.aiClean?.let { "ИИ обрабатывает текст: $it" } ?: "Обработать текст с ИИ") },
+            text = { Text(s.aiClean?.let { "ИИ обрабатывает текст: $it" } ?: "Обработать текст с ИИ…") },
             leadingIcon = { Icon(AppIcons.AutoFix, contentDescription = null) },
             enabled = s.aiClean == null,
             onClick = { menu = false; s.askAiClean = true },
         )
-        HorizontalDivider()
-        MenuGroup("Текст")
-        FontSizeRow(s)
-        if (s.pins.isNotEmpty() || s.phrasePins.isNotEmpty()) {
-            DropdownMenuItem(
-                text = { Text("Слова урока (${s.markedWords().size})") },
-                onClick = { menu = false; words = true },
-            )
-            DropdownMenuItem(
-                text = { Text(s.trAll?.let { "Перевожу урок: $it" } ?: "Перевести весь урок") },
-                enabled = s.trAll == null,
-                onClick = { menu = false; s.translateAll() },
-            )
-            DropdownMenuItem(
-                text = { Text(if (s.hideTr) "Показать переводы над словами" else "Временно скрыть переводы") },
-                onClick = { menu = false; s.toggleHideTr() },
-            )
-            DropdownMenuItem(
-                text = { Text("Снять переводы над словами (${s.pins.size + s.phrasePins.size})") },
-                onClick = { s.clearPins(); menu = false },
-            )
-        }
-        if (s.pdfLink != null) DropdownMenuItem(
-            text = { Text(if (s.showPdf) "Показать текстом" else "Показать страницы PDF") },
-            leadingIcon = { Icon(AppIcons.Description, contentDescription = null) },
-            onClick = { menu = false; s.showPdf = !s.showPdf },
-        )
         DropdownMenuItem(
-            text = { Text("Книжный режим") },
-            trailingIcon = { androidx.compose.material3.Checkbox(checked = state.book, onCheckedChange = null) },
-            onClick = { menu = false; state.applyPrefs { readerBook = !state.book } },
-        )
-        DropdownMenuItem(
-            text = { Text("Оформление и экран") },
-            onClick = { menu = false; state.go(Screen.SettingsReading) },
+            text = { Text("Исправить разбивку…") },
+            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Filled.Build, contentDescription = null) },
+            onClick = { menu = false; state.checkLessons(s.lang, listOf(Lesson(s.lesson.id, s.title)), s.title) },
         )
         HorizontalDivider()
         DropdownMenuItem(
@@ -1726,13 +1740,18 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
     }
 }
 
+/** Max height of a ⋮ menu: the screen minus room for the top bar, so a long menu scrolls instead of leaving the screen. */
+@Composable
+internal fun menuMaxHeight(): androidx.compose.ui.unit.Dp =
+    (LocalConfiguration.current.screenHeightDp - 96).coerceAtLeast(200).dp
+
 /** Words and phrases of the lesson with a translation: word — translation; a tap goes to its sentence. */
 @Composable
 private fun MarkedWordsDialog(s: ReaderSession, close: () -> Unit) {
     val list = remember(s.pins.size, s.phrasePins.size) { s.markedWords() }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = close,
-        title = { Text("Слова урока (${list.size})") },
+        title = { Text("Слова с переводом (${list.size})") },
         text = {
             if (list.isEmpty()) Text("Пока нет слов с переводом. Нажмите на слово в тексте — его перевод появится над ним и попадёт сюда.")
             else androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 480.dp)) {
@@ -1826,8 +1845,8 @@ private fun ReaderHelp(onClose: () -> Unit) {
             "⋮ → «Определить уровень (ИИ)» — ИИ оценивает текст (A1–C2) и записывает уровень урока в LingQ.",
             "Закладка вверху — закладки этого урока; все закладки — в библиотеке.",
             "«Чат» внизу — разговор с ИИ о всём тексте.",
-            "⋮ → «Оформление и экран»: фон страницы, цвет выделения слов, сколько экран не гаснет.",
-            "⋮ → размер текста (A− / A+), снять все переводы над словами, удалить урок (в самом низу).",
+            "⋮ → «Настройки чтения…»: фон страницы, цвет выделения слов, расстояния, сколько экран не гаснет.",
+            "⋮ → «Текст»: размер текста (A− / A+), книжный режим. «Переводы»: перевести весь урок, слова с переводом, снять переводы. «Урок»: слушать в плеере, уровень, обработать текст с ИИ, исправить разбивку. Удалить урок — в самом низу.",
         ),
     )
     androidx.compose.material3.AlertDialog(
@@ -2688,7 +2707,7 @@ private fun ReaderMenuItems(s: ReaderSession, ref: WordRef, close: () -> Unit) {
         onClick = { close(); s.toggleBookmark(id) },
     )
     if (s.book) DropdownMenuItem(
-        text = { Text(if (s.isBold(id, ref.token, ref.token)) "Убрать жирный" else "Слово жирным") },
+        text = { Text(if (s.isBold(id, ref.token, ref.token)) "Убрать жирный" else "Сделать жирным") },
         leadingIcon = { Text("Ж", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium) },
         onClick = { close(); s.toggleBold(id, ref.token, ref.token) },
     )
@@ -2854,9 +2873,9 @@ private fun SentenceMenu(s: ReaderSession, id: Int) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.heightIn(max = menuMaxHeight())) {
             DropdownMenuItem(
-                text = { Text("Редактировать предложение") },
+                text = { Text("Исправить предложение") },
                 leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                 onClick = { open = false; s.startEdit(id) },
             )
@@ -2865,13 +2884,14 @@ private fun SentenceMenu(s: ReaderSession, id: Int) {
                 leadingIcon = { Icon(AppIcons.Headphones, contentDescription = null) },
                 onClick = { open = false; s.listenFrom(id) },
             )
+            HorizontalDivider()
+            FontSizeRow(s)
+            HorizontalDivider()
             DropdownMenuItem(
                 text = { Text("Отзыв / задача") },
                 leadingIcon = { Icon(AppIcons.Chat, contentDescription = null) },
                 onClick = { open = false; s.openFeedback() },
             )
-            HorizontalDivider()
-            FontSizeRow(s)
         }
     }
 }

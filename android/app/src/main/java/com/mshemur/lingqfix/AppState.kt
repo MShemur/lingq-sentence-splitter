@@ -23,7 +23,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 sealed interface Screen {
-    data object Home : Screen
     data object Settings : Screen
     data object SettingsLingq : Screen
     data object SettingsTranslation : Screen
@@ -31,6 +30,7 @@ sealed interface Screen {
     data object SettingsUpdates : Screen
     data object SettingsReading : Screen
     data object SettingsSpeech : Screen
+    data object SettingsPlayer : Screen
     class Podcasts(val session: PodcastSession) : Screen
     class PodcastFeed(val session: PodcastSession) : Screen
     data object Stats : Screen
@@ -38,7 +38,6 @@ sealed interface Screen {
     data object Log : Screen
     /** Tab "Плеер": lesson audio with its text. */
     data object Player : Screen
-    data object Courses : Screen
     data object Backups : Screen
     data object Archive : Screen
     data object Feedback : Screen
@@ -610,7 +609,15 @@ class AppState(val ctx: Context) {
         val language = t.lang ?: lang
         when {
             t.lessonId != null -> checkLessons(language, listOf(Lesson(t.lessonId, "")), "Урок ${t.lessonId}")
-            t.courseId != null -> go(Screen.Lessons(language, Course(t.courseId, "")))
+            // a course link: check all its lessons (the course list for checking is gone; the course ⋮ has it too)
+            t.courseId != null -> scope.launch {
+                try {
+                    val (title, l) = withContext(Dispatchers.IO) { api.lessons(language, t.courseId) }
+                    checkLessons(language, l, title.ifBlank { "Курс ${t.courseId}" })
+                } catch (e: Throwable) {
+                    say(e.message ?: e.toString())
+                }
+            }
         }
     }
 
@@ -647,7 +654,7 @@ class AppState(val ctx: Context) {
     // --- updates -------------------------------------------------------------------------------
 
     fun checkUpdate(quiet: Boolean) {
-        if (ghToken.isBlank()) { if (!quiet) say("Укажите GitHub-токен в настройках"); return }
+        if (ghToken.isBlank()) { if (!quiet) say("Укажите GitHub-токен: Настройки → Синхронизация"); return }
         scope.launch {
             try {
                 val r = withContext(Dispatchers.IO) { Updater.latest(ghToken) }
@@ -1050,7 +1057,7 @@ class ImportSession(private val app: AppState) {
 
     /** Clean with AI (light model), piece by piece; the quick clean runs first and stays if AI fails. */
     fun cleanAi() {
-        if (!app.useGemini) return app.say("Для чистки с ИИ включите Gemini или другой ИИ: Настройки → Перевод")
+        if (!app.useGemini) return app.say("Для чистки с ИИ включите Gemini или другой ИИ: Настройки → Перевод и ИИ")
         if (before == null) snapshot()
         cleaning = true; cleanProgress = 0f; cleanNote = null
         app.scope.launch {

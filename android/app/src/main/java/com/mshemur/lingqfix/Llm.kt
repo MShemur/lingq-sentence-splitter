@@ -77,8 +77,8 @@ class OpenAiCompat(base: String, private val key: String, private val model: Str
     private val base = base.trim().trimEnd('/')
 
     private fun check() {
-        if (base.isBlank()) throw ApiException("Не задан адрес сервиса ИИ (⚙ Настройки → Перевод)")
-        if (key.isBlank()) throw ApiException("Не задан ключ сервиса ИИ (⚙ Настройки → Перевод)")
+        if (base.isBlank()) throw ApiException("Не задан адрес сервиса ИИ (⚙ Настройки → Перевод и ИИ)")
+        if (key.isBlank()) throw ApiException("Не задан ключ сервиса ИИ (⚙ Настройки → Перевод и ИИ)")
     }
 
     override fun models(): List<String> {
@@ -94,7 +94,7 @@ class OpenAiCompat(base: String, private val key: String, private val model: Str
 
     override fun generate(system: String?, messages: List<Gemini.Msg>, json: Boolean): String {
         check()
-        if (model.isBlank()) throw ApiException("Не выбрана модель ИИ (⚙ Настройки → Перевод)")
+        if (model.isBlank()) throw ApiException("Не выбрана модель ИИ (⚙ Настройки → Перевод и ИИ)")
         return logged("${AppLog.short(base)} $model") {
             try {
                 request(system, messages, json)

@@ -461,17 +461,16 @@ fun SettingsSync(state: AppState) {
         ) { Text(if (pass.isBlank()) "Не синхронизировать ключи" else "Сохранить пароль") }
         s.keysNote?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         HorizontalDivider()
-        Text("Токен", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text("Токен GitHub", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        var token by remember { mutableStateOf(state.ghToken) }
+        SecretField(token, "GitHub-токен", "SatzLoop: токен GitHub") { token = it; state.applyPrefs { ghToken = it } }
         Text(
-            "Нужен тот же GitHub-токен, что для обновлений, но с правом записи. Один раз: github.com → Settings → " +
-                "Developer settings → Fine-grained tokens → ваш токен → Repository permissions → Contents: «Read and write» → " +
-                "Update. Сам токен менять в приложении не нужно." + if (state.ghToken.isBlank()) " Токена пока нет — вставьте его в «Обновлениях»." else "",
+            "Нужен для синхронизации и для скачивания новых версий из приватного репозитория. github.com → Settings → " +
+                "Developer settings → Fine-grained tokens: репозиторий lingq-sentence-splitter, Repository permissions → " +
+                "Contents: «Read and write» (только для обновлений хватит Read-only).",
             style = MaterialTheme.typography.bodySmall,
         )
-        Row {
-            TextButton(onClick = { uri.openUri("https://github.com/settings/personal-access-tokens") }) { Text("Открыть токены GitHub") }
-            if (state.ghToken.isBlank()) TextButton(onClick = { state.go(Screen.SettingsUpdates) }) { Text("Вставить токен") }
-        }
+        TextButton(onClick = { uri.openUri("https://github.com/settings/personal-access-tokens") }) { Text("Открыть токены GitHub") }
     }
 }
 

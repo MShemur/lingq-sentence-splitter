@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -254,6 +255,17 @@ fun LibraryScreen(state: AppState) {
             else -> items(list.filter { q.isBlank() || it.title.contains(q, ignoreCase = true) }, key = { it.id }) { c ->
                 CourseTile(state, c) { state.go(Screen.Lessons(state.lang, c, reader = true)) }
             }
+        }
+        // hidden courses live under the courses (was library ⋮ → «Архив курсов»)
+        val archivedN = state.archivedCourses().size
+        if (q.isBlank() && archivedN > 0) fullWidth("archive") {
+            androidx.compose.material3.ListItem(
+                leadingContent = { Icon(AppIcons.Archive, contentDescription = null) },
+                headlineContent = { Text("Архив курсов ($archivedN)") },
+                trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+                colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+                modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable { state.go(Screen.Archive) },
+            )
         }
     }
 }
