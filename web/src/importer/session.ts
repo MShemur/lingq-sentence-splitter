@@ -134,7 +134,7 @@ export class ImportSession {
   newImport() {
     this.finished.value = false; this.log.value = []; this.fixes.value = []; this.uploaded.value = []; this.error.value = null; this.textNote.value = ''
     this.pasteText.value = ''; this.pasteTitle.value = ''; this.items.value = []; this.dropAudio(); this.cover.value = null
-    this.pdfBook = null; this.pdfBookPages = []
+    this.pdfBook = null; this.pdfBookPages = []; this.pdfBookKinds = null
   }
   lang = lang()
 
@@ -146,7 +146,7 @@ export class ImportSession {
   }
 
   private startLoad(msg: string) {
-    this.dropAudio(); this.cover.value = null; this.pdfBook = null; this.pdfBookPages = []
+    this.dropAudio(); this.cover.value = null; this.pdfBook = null; this.pdfBookPages = []; this.pdfBookKinds = null
     this.finished.value = false; this.log.value = []; this.fixes.value = []; this.uploaded.value = []
     this.loading.value = true; this.status.value = msg; this.error.value = null
     this.cleanNote.value = null; this.before = null; this.canUndo.value = false
@@ -191,9 +191,13 @@ export class ImportSession {
 
   /** The PDF book being picked (its doc id), or null for the plain PDF import. */
   private pickBook: string | null = null
+  /** The page picker is open for a PDF book (it then offers the captions switch for scans). */
+  get pickingBook() { return this.pickBook != null }
   /** The text in the form comes from this PDF book (doc id) and these pages: the uploaded lessons are registered. */
   private pdfBook: string | null = null
   private pdfBookPages: number[] = []
+  /** Block kinds of scanned pages that went into the text (pdfbook TEXT_KINDS), null = all words. */
+  private pdfBookKinds: string | null = null
   /** The text in the form comes from a PDF book (for the hint on the form). */
   get isPdfBook() { return this.pdfBook != null }
 
@@ -221,8 +225,11 @@ export class ImportSession {
 
   /** PDF book: the chosen pages are recognised with word boxes (once per file) and their text goes into the form. */
   private async readPdfBook(pdf: PdfDoc, doc: string, list: number[]) {
-    const r = await pdfBook.recognise(doc, pdf.raw, list, (st) => { this.status.value = st })
-    const text = pdfBook.text(r.pages)
+    const r = await pdfBook.recognise(doc, pdf.raw, list, (st) => { this.status.value = st }, this.lang)
+    // scanned pages read with Gemini: captions, boxes, page numbers stay out of the text unless asked for
+    const skipped = r.pages.reduce((k, p) => k + p.words.filter((w) => w.kind && !pdfBook.TEXT_KINDS.includes(w.kind)).length, 0)
+    const kinds = skipped && prefs.pdfCaptions.value !== '1' ? pdfBook.TEXT_KINDS : null
+    const text = pdfBook.text(r.pages, kinds)
     const name = this.sourceName.value
     const title = list.length === pdf.pages ? name : `${name}, стр. ${pagesLabel(list)}`
     // a long book is not put into the text field (too slow to edit there)
@@ -230,11 +237,17 @@ export class ImportSession {
       this.pasteMode.value = false; this.isBook.value = false
       this.items.value = [new ImportItem(title, text, true)]
     } else this.setSingle(title, text)
-    this.pdfBook = doc; this.pdfBookPages = list
-    log('import', `PDF-книга ${doc}: ${list.length} из ${pdf.pages} стр., слов ${countWords(text)}, Gemini OCR: ${r.ocr}`)
-    if (r.scans.length) {
-      say(`${r.scans.length === 1 ? 'Страница' : 'Страницы'} ${pagesLabel(r.scans)} — скан без текста: для распознавания нужен ключ Gemini (⚙ Настройки → Перевод и ИИ)`)
+    this.pdfBook = doc; this.pdfBookPages = list; this.pdfBookKinds = kinds
+    log('import', `PDF-книга ${doc}: ${list.length} из ${pdf.pages} стр., слов ${countWords(text)}, сканов: ${r.ocr} (Gemini: ${r.ordered})${kinds ? `, подписи и прочее не в тексте: ${skipped} слов` : ''}`)
+    const notes: string[] = []
+    if (r.scans.length) notes.push(`${r.scans.length === 1 ? 'Страницу' : 'Страницы'} ${pagesLabel(r.scans)} (скан) не удалось распознать — нужна связь с интернетом`)
+    if (r.ocr > r.ordered) {
+      notes.push(prefs.geminiKey.value.trim()
+        ? 'Порядок чтения части сканов — без Gemini (ответ не подошёл)'
+        : 'Сканы распознаны без Gemini: колонки и подписи могут идти не по порядку (ключ Gemini — ⚙ Настройки → Перевод и ИИ)')
     }
+    if (kinds) notes.push(`Подписи к фото, врезки и номера страниц не вошли в текст (${skipped} сл.)`)
+    if (notes.length) say(notes.join('. '))
     if (!text.trim()) this.error.value = 'На выбранных страницах не нашлось текста'
   }
 
@@ -473,7 +486,7 @@ export class ImportSession {
     if (book) {
       try {
         const all = (await Promise.all(this.pdfBookPages.map((i) => pdfBook.load(book, i)))).filter((p): p is pdfBook.PdfPage => !!p)
-        bookPages = pdfBook.ranges(all, jobs.map((j) => j.text))
+        bookPages = pdfBook.ranges(all, jobs.map((j) => j.text), this.pdfBookKinds)
       } catch (e) { log('import', `PDF-книга: страницы уроков ✗ ${(e as Error).message}`) }
     }
     this.running.value = true; this.finished.value = false; this.error.value = null
@@ -521,7 +534,7 @@ export class ImportSession {
         }
         this.uploaded.value = [...this.uploaded.value, { id, title }]
         if (book) {
-          await pdfBook.register(l, id, book, bookPages[i] ?? this.pdfBookPages)
+          await pdfBook.register(l, id, book, bookPages[i] ?? this.pdfBookPages, this.pdfBookKinds)
             .catch((e) => log('import', `PDF-книга: урок ${id} ✗ ${(e as Error).message}`))
         }
         // the split is always fixed and, with an AI, the level always set (no switches: the user wants both)

@@ -4,6 +4,7 @@ import type { ImportSession } from '../importer/session'
 import { pagesLabel, parsePages, type PdfDoc } from '../importer/pdf'
 import { Sheet } from '../ui'
 import { Icon } from '../icons'
+import { prefs } from '../settings'
 
 export function PdfPicker({ s, d }: { s: ImportSession; d: PdfDoc }) {
   const [picked, setPicked] = useState<Set<number>>(new Set())
@@ -27,6 +28,15 @@ export function PdfPicker({ s, d }: { s: ImportSession; d: PdfDoc }) {
           <input value={range} inputMode="numeric" placeholder={`1–${d.pages}`} onInput={(e) => typed((e.target as HTMLInputElement).value)} />
         </label>
         {bad && <div class="error-text pdf-bad">Не понимаю диапазон: номера от 1 до {d.pages}, через запятую или дефис</div>}
+        {s.pickingBook && (
+          <label class="switch-row">
+            <input type="checkbox" class="switch" checked={prefs.pdfCaptions.value === '1'}
+              onChange={(e) => { prefs.pdfCaptions.value = (e.target as HTMLInputElement).checked ? '1' : '0' }} />
+            <span>Сканы: подписи к фото и врезки — тоже в текст<br /><span class="hint">{prefs.pdfCaptions.value === '1'
+              ? 'В уроке весь текст страницы'
+              : 'В уроке только статья и заголовки (порядок и подписи определяет Gemini)'}</span></span>
+          </label>
+        )}
         <div class="pdf-grid">
           {Array.from({ length: d.pages }, (_, i) => (
             <PageTile key={i} d={d} i={i} on={picked.has(i)} onClick={() => toggle(i)} />

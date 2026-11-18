@@ -76,13 +76,13 @@ const geminiGenerate = (system: string | null, messages: Msg[], json = false, fa
   geminiRun(system, messages.map((x) => ({ role: x.user ? 'user' : 'model', parts: [{ text: x.text }] })), json, fast)
 
 /**
- * Text of a page picture (PDF book, a scanned page): lines with their boxes, as JSON (see pdfbook.ts). Always Gemini
- * (the other AI may not read pictures), with the main model: small print is read better.
+ * A JSON answer about a picture (PDF book, a scanned page: the reading order of Tesseract's words, see ocrorder.ts).
+ * Always Gemini (the other AI may not read pictures); [fast]: the light model.
  */
-export async function ocr(prompt: string, mime: string, b64: string): Promise<string> {
+export async function ocr(prompt: string, mime: string, b64: string, fast = false): Promise<string> {
   const t0 = Date.now()
   try {
-    const r = await geminiRun(null, [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }, { text: prompt }] }], true, false)
+    const r = await geminiRun(null, [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }, { text: prompt }] }], true, fast)
     log('ai', `Gemini OCR ✓ ${Date.now() - t0} мс, ${r.length} симв.`)
     return r
   } catch (e) {

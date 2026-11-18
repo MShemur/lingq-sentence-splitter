@@ -21,6 +21,8 @@ export const prefs = {
   /** "lingq", "gemini" or "openai" (another AI): who translates words and sentences in the reader. */
   translator: pref('translator', 'lingq'),
   geminiKey: pref('geminiKey', ''),
+  /** PDF book, scanned pages read with Gemini: '1' = captions, boxes, page numbers go into the lesson text too. */
+  pdfCaptions: pref('pdfCaptions', '0'),
   // gemini-2.5-* are retired for new users
   geminiModel: pref('geminiModel', DEFAULT_MODEL, (v) => (v.startsWith('gemini-2.5') ? DEFAULT_MODEL : v)),
   /** Light model for the many word / phrase / sentence requests; '' = the same as [geminiModel]. */

@@ -7,14 +7,6 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-- user request 18.11.2026: OCR of scanned PDFs on the iPad (PDF-книга), aimed at magazines like GEO / GEO Epoche
-  (columns, photo captions, text on images). Tesseract.js (deu+eng, in the browser) gives the exact word boxes;
-  then one Gemini call per page (the user's key from Settings, fast/flash-lite model, page image + Tesseract words
-  with ids) returns the reading order: blocks of word ids in order, each tagged body / caption / heading / other,
-  and fixes misread words. Words keep Tesseract's boxes; the lesson text follows Gemini's order. Without a key or
-  when Gemini fails: Tesseract order only. Progress per page; one page at a time is fine. Nice to have: in the
-  page picker or reader, skip captions/boxes from the lesson text (default: body + headings only). Android keeps
-  ML Kit for now; tell the Android session the result format so it can follow.
 - user request 18.11.2026 (both platforms, Android does it now): PDF-книга without LingQ. Import no longer creates a
   LingQ lesson: the book stays on the device (doc + page words as now), split into sentences locally (same
   abbreviation rules as Fixer / lingq_fix_splits.py), word / phrase / sentence translations come straight from Gemini
@@ -37,6 +29,16 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 ## To do on Android
 
 ## Done
+
+- user request 18.11.2026 -> web v1.72: OCR of scanned PDFs on the iPad (PDF-книга), aimed at magazines like GEO / GEO Epoche
+  (columns, photo captions, text on images). Tesseract.js (deu+eng, in the browser) gives the exact word boxes;
+  then one Gemini call per page (the user's key from Settings, fast/flash-lite model, page image + Tesseract words
+  with ids) returns the reading order: blocks of word ids in order, each tagged body / caption / heading / other,
+  and fixes misread words. Words keep Tesseract's boxes; the lesson text follows Gemini's order. Without a key or
+  when Gemini fails: Tesseract order only. Progress per page; one page at a time is fine. Nice to have: in the
+  page picker or reader, skip captions/boxes from the lesson text (default: body + headings only). Android keeps
+  ML Kit for now; tell the Android session the result format so it can follow.
+  Web v1.72: PDF-книга: scanned pages (<80 letters in the text layer) are read by Tesseract.js 7 (deu+eng, PSM 3, lazy chunk, CDN data, page rendered ~2000 px), lines split at column gaps; then with a key one Gemini flash-lite call per page: JPEG + words as 'id word' per line -> {"blocks":[{"kind":"heading|body|caption|other","ids":[[a,b],n,...]}],"fix":{"id":"word"}}; rejected (Tesseract order) if not JSON, <85 % words placed or >max(3,5 %) bad ids; missing words go to a last 'other' block; fixes only single words. Page words keep Tesseract boxes, in Gemini order, optional 8th element kind b/h/c/o (absent = body). Lesson text by default body + headings only (lessons.json entry "kinds":"bh", text / ranges / units / align filter the same way); picker switch «Сканы: подписи к фото и врезки — тоже в текст» (pref pdfCaptions). Without key / on failure: Tesseract order, low-confidence noise dropped. Old Gemini-vision OCR removed. Real Gemini call and GEO scans untested (no key in dev).
 
 - user's note 18.11.2026 (20261118-035646-web, approved plan) -> android v1.134 (android/.../PdfBook.kt) -> web -> web v1.70: PDF book reader on the iPad, same idea: Import tile «PDF-книга» (application/pdf) → page choice → recognise pages (web: pdf.js text layer if the PDF has text, else Gemini vision OCR with word boxes; Android uses ML Kit) → recognised text goes into the normal import form → new LingQ lessons, each registered as a PDF lesson. Opening it shows the PDF pages (pdf.js), swiped like book mode, pinch zoom up to 5× (swipe blocked while zoomed), ⋮ «Показать текстом» / «Показать страницы PDF». Invisible word boxes over the page: same gestures as the reader (tap = translation above the word as a small pill, double tap = word window, long press + drag = phrase, long press = sentence translation card), highlights / labels follow the zoom. Data (Android, keep the same shapes in IndexedDB): registry {"<lang>_<lessonId>": {"doc": docId, "pages": [0-based]}}; docId = first 16 hex of the file SHA-1; per page {"v":1,"page":n,"aspect":h/w,"words":[[text,x,y,w,h,line,block]]} with x,y,w,h as page fractions. Units: reader word regex, lowercased, ’→'; a word ending its line with - (soft hyphen, ¬, ‐) after a letter + next line starting with a letter = one unit with two boxes (hyphen dropped before a small letter, kept before a capital); lesson text built with the same rule. Mapping computed on open: align lesson word tokens (sentence id, token index) with the page units: anchor at the first match of the lesson's first words, exact matches advance, on a mismatch resync at the nearest two-words-in-a-row match (skip ≤200 PDF / ≤40 lesson words), else map a look-alike (same first letter, length ±2). Pins / phrases / translations are the lesson's normal ones (shared with the text view). Files stay on the device, no sync.
   Web v1.70: Import tile «PDF-книга» (file kept in IndexedDB 'satzloop-pdf', same keys/shapes as Android: lessons.json, <doc>/doc.pdf, <doc>/page_<n>.json); pages read from the pdf.js text layer with word boxes (items spread over their characters), a scanned page (<80 letters) goes to Gemini vision OCR (line boxes, words share them by length; untested, no key in dev) or is skipped without a key; same text/units/hyphen/align/ranges rules as PdfBook.kt. Reader: PDF pages via pdf.js (pdfbook.ts, reader/PdfReader.tsx), swipe, pinch / double tap / ctrl+wheel zoom to 5x with swipe blocked while zoomed, sharper re-render when zoomed, highlights and translation pills over words, tap / double tap / long press / long press + drag as in the reader, sentence card at the bottom; ⋮ «Показать текстом» / «Показать страницы PDF».

@@ -1,27 +1,36 @@
 // PDF book: the PDF pages are shown as they are (pdf.js), an invisible layer of the lesson's words lies over them.
-// The pages are recognised once (the PDF's own text layer; a scanned page by Gemini) and kept in IndexedDB; the
+// The pages are recognised once (the PDF's own text layer; a scanned page by Tesseract, put in reading order by
+// Gemini, see ocrorder.ts) and kept in IndexedDB; the
 // recognised text is uploaded to LingQ as an ordinary lesson. When the lesson is opened, its sentences are matched
 // word by word with the recognised words, so each word box on a page knows its (sentence, token).
 // Port of Android PdfBook.kt: the same data shapes and rules.
 //
 // IndexedDB "satzloop-pdf", store "files", keys as Android's files (filesDir/pdf):
-//   lessons.json            {"<lang>_<lessonId>": {"doc": "<doc id>", "pages": [0-based page numbers]}}
+//   lessons.json            {"<lang>_<lessonId>": {"doc": "<doc id>", "pages": [0-based page numbers], "kinds"?: "bh"}}
+//                           kinds: the block kinds that went into the lesson text (absent = all words)
 //   <doc>/doc.pdf           the PDF itself (bytes; doc id = first 16 hex chars of its SHA-1)
 //   <doc>/page_<n>.json     {"v":1, "page":n, "aspect": height/width,
-//                            "words": [[text, x, y, w, h, line, block], ...]}   boxes as parts (0..1) of the page
+//                            "words": [[text, x, y, w, h, line, block, kind?], ...]}   boxes as parts (0..1) of the page
+//                           kind (scanned pages read with Gemini only): "b" body, "h" heading, "c" caption, "o" other;
+//                           absent = body
 import { ApiError } from './lingq'
 import { prefs } from './settings'
 import { ocr } from './gemini'
-import { log } from './applog'
+import { arrange, noise, orderPrompt, parseOrder, tessWords, type Kind } from './ocrorder'
+import { log, logError } from './applog'
 import { pdfjsLib } from './importer/pdf'
 import { pagesLabel } from './importer/pdf'
 import type { Sent, WordRef } from './reader/session'
 
 /** One recognised word of a PDF page: its text and box as parts (0..1) of the page width / height. */
-export interface PdfWord { t: string; x: number; y: number; w: number; h: number; line: number; block: number }
+export interface PdfWord { t: string; x: number; y: number; w: number; h: number; line: number; block: number; kind?: Kind }
 export interface PdfPage { index: number; aspect: number; words: PdfWord[] }
-/** A lesson made from a PDF book: the doc and the pages the lesson covers (0-based). */
-export interface PdfLink { doc: string; pages: number[] }
+/** A lesson made from a PDF book: the doc, the pages the lesson covers (0-based), the kinds in its text (null = all). */
+export interface PdfLink { doc: string; pages: number[]; kinds?: string | null }
+
+/** Kinds of blocks that go into the lesson text by default: body and headings (captions, boxes, page numbers not). */
+export const TEXT_KINDS = 'bh'
+const inText = (w: PdfWord, kinds?: string | null) => !kinds || kinds.includes(w.kind ?? 'b')
 /** A word of the lesson on a PDF page: its sentence / token and box (0..1 of the page). Hyphenated words have two. */
 export interface PdfTok { ref: WordRef; sent: number; token: number; x: number; y: number; w: number; h: number }
 
@@ -88,7 +97,11 @@ const r5 = (f: number) => Math.round(f * 100000) / 100000
 async function save(doc: string, p: PdfPage) {
   await putKey(pageKey(doc, p.index), JSON.stringify({
     v: 1, page: p.index, aspect: r5(p.aspect),
-    words: p.words.map((w) => [w.t, r5(w.x), r5(w.y), r5(w.w), r5(w.h), w.line, w.block]),
+    words: p.words.map((w) => {
+      const a: (string | number)[] = [w.t, r5(w.x), r5(w.y), r5(w.w), r5(w.h), w.line, w.block]
+      if (w.kind) a.push(w.kind)
+      return a
+    }),
   }))
 }
 
@@ -99,7 +112,11 @@ export async function load(doc: string, i: number): Promise<PdfPage | null> {
     const o = JSON.parse(raw)
     return {
       index: i, aspect: Number(o.aspect),
-      words: (o.words as any[]).map((w) => ({ t: String(w[0]), x: +w[1], y: +w[2], w: +w[3], h: +w[4], line: w[5] | 0, block: w[6] | 0 })),
+      words: (o.words as any[]).map((w) => {
+        const pw: PdfWord = { t: String(w[0]), x: +w[1], y: +w[2], w: +w[3], h: +w[4], line: w[5] | 0, block: w[6] | 0 }
+        if (typeof w[7] === 'string' && 'bhco'.includes(w[7]) && w[7].length === 1) pw.kind = w[7] as Kind
+        return pw
+      }),
     }
   } catch { return null }
 }
@@ -108,39 +125,6 @@ export async function load(doc: string, i: number): Promise<PdfPage | null> {
 
 /** Fewer letters than this in the text layer: a scan (as the plain PDF import). */
 const SCAN_LETTERS = 80
-
-/**
- * Recognises [pages] (0-based) of the PDF [pdf] (a pdf.js document) kept as [doc], page by page; pages recognised
- * before come from the cache. The text layer is used where there is one; a scanned page goes to Gemini (pages
- * without a Gemini key are left out and named in [scans]).
- */
-export async function recognise(doc: string, pdf: any, pages: number[], onStatus: (s: string) => void): Promise<{ pages: PdfPage[]; scans: number[]; ocr: number }> {
-  const pdfjs = await pdfjsLib()
-  const out: PdfPage[] = []
-  const scans: number[] = []
-  let ocrCount = 0
-  for (let n = 0; n < pages.length; n++) {
-    const i = pages[n]
-    onStatus(`Распознаю страницу ${i + 1} (${n + 1} из ${pages.length})…`)
-    const cached = await load(doc, i)
-    if (cached) { out.push(cached); continue }
-    const page = await pdf.getPage(i + 1)
-    try {
-      let p = await fromTextLayer(pdfjs, page, i)
-      const letters = p.words.reduce((k, w) => k + (w.t.match(/\p{L}/gu)?.length ?? 0), 0)
-      if (letters < SCAN_LETTERS) {
-        if (!prefs.geminiKey.value.trim()) { scans.push(i); out.push(p); continue }
-        onStatus(`Распознаю скан страницы ${i + 1} с Gemini (${n + 1} из ${pages.length})…`)
-        p = await fromGemini(page, i)
-        ocrCount++
-      }
-      await save(doc, p)
-      out.push(p)
-    } finally { page.cleanup() }
-  }
-  log('pdf', `PDF-книга ${doc}: стр. ${pagesLabel(pages)}, Gemini OCR: ${ocrCount}, сканов без ключа: ${scans.length}`)
-  return { pages: out, scans, ocr: ocrCount }
-}
 
 let measureCtx: CanvasRenderingContext2D | null = null
 
@@ -230,47 +214,113 @@ async function fromTextLayer(pdfjs: any, page: any, index: number): Promise<PdfP
   return { index, aspect: H / W, words }
 }
 
-const OCR_PROMPT = 'This is one page of a book. Read ALL text on it, in reading order (columns one after another), exactly ' +
-  'as printed: keep the hyphen at the end of a line, keep headings, page numbers and footnotes. Answer JSON only: ' +
-  '{"blocks":[{"lines":[{"text":"the line as printed","box":[ymin,xmin,ymax,xmax]}]}]} — a block is a paragraph or ' +
-  'heading, a line is one printed line, box is the tight box of the line in whole numbers 0..1000 of the image ' +
-  'height (y) and width (x).'
+/**
+ * Recognises [pages] (0-based) of the PDF [pdf] (a pdf.js document) kept as [doc], page by page; pages recognised
+ * before come from the cache. The text layer is used where there is one; a scanned page is read by Tesseract (word
+ * boxes) and, with a Gemini key, put into reading order by Gemini. Pages Tesseract could not read are named in [scans].
+ * [lang]: the lesson language (Tesseract's language data: that one + English).
+ */
+export async function recognise(doc: string, pdf: any, pages: number[], onStatus: (s: string) => void, lang = 'de'): Promise<{ pages: PdfPage[]; scans: number[]; ocr: number; ordered: number }> {
+  const pdfjs = await pdfjsLib()
+  const out: PdfPage[] = []
+  const scans: number[] = []
+  let ocrCount = 0, ordered = 0
+  let tess: Tess | null = null
+  try {
+    for (let n = 0; n < pages.length; n++) {
+      const i = pages[n]
+      const head = `Страница ${i + 1} (${n + 1} из ${pages.length})`
+      onStatus(`${head}: читаю…`)
+      const cached = await load(doc, i)
+      if (cached) { out.push(cached); continue }
+      const page = await pdf.getPage(i + 1)
+      try {
+        let p = await fromTextLayer(pdfjs, page, i)
+        const letters = p.words.reduce((k, w) => k + (w.t.match(/\p{L}/gu)?.length ?? 0), 0)
+        if (letters < SCAN_LETTERS) {
+          try {
+            tess ??= await tesseract(lang, (s) => onStatus(`${head}: ${s}`))
+            const r = await fromScan(page, i, tess, (s) => onStatus(`${head}: ${s}`))
+            p = r.page
+            ocrCount++
+            if (r.ordered) ordered++
+          } catch (e) {
+            logError('pdf', `Скан стр. ${i + 1}: Tesseract ✗`, e)
+            scans.push(i); out.push(p); continue
+          }
+        }
+        await save(doc, p)
+        out.push(p)
+      } finally { page.cleanup() }
+    }
+  } finally { if (tess) void tess.worker.terminate().catch(() => {}) }
+  log('pdf', `PDF-книга ${doc}: стр. ${pagesLabel(pages)}, сканов распознано: ${ocrCount} (порядок от Gemini: ${ordered}), не прочитано: ${scans.length}`)
+  return { pages: out, scans, ocr: ocrCount, ordered }
+}
 
-/** A scanned page: rendered as a picture and read by Gemini (lines with boxes; the words share the line box). */
-async function fromGemini(page: any, index: number): Promise<PdfPage> {
+/** A Tesseract worker (loaded on first use: the library, its engine and language data come from the jsDelivr CDN). */
+interface Tess { worker: any; progress: (s: string) => void }
+
+const TESS_LANG: Record<string, string> = { de: 'deu', en: 'eng', fr: 'fra', es: 'spa', it: 'ita', pt: 'por', nl: 'nld', sv: 'swe', pl: 'pol', ru: 'rus' }
+
+async function tesseract(lang: string, progress: (s: string) => void): Promise<Tess> {
+  progress('загружаю распознавание текста…')
+  const T: any = await import('tesseract.js')
+  const createWorker = T.createWorker ?? T.default?.createWorker
+  const langs = [...new Set([TESS_LANG[lang] ?? 'deu', 'eng'])]
+  const t: Tess = { worker: null, progress }
+  t.worker = await createWorker(langs, 1, {
+    logger: (m: any) => {
+      if (m?.status === 'recognizing text') t.progress(`распознаю текст… ${Math.round((m.progress ?? 0) * 100)} %`)
+      else if (/load|initiali/i.test(String(m?.status ?? ''))) t.progress(`загружаю распознавание текста (${langs.join('+')})…`)
+    },
+  })
+  // the whole page with columns (the API's default would be a single block)
+  await t.worker.setParameters({ tessedit_pageseg_mode: '3', preserve_interword_spaces: '0' })
+  return t
+}
+
+/** OCR picture of a page: about 2000 px wide (small print of magazines stays readable). */
+async function renderForOcr(page: any): Promise<HTMLCanvasElement> {
   const vp1 = page.getViewport({ scale: 1 })
-  const vp = page.getViewport({ scale: Math.min(4, 1600 / vp1.width) })
+  const vp = page.getViewport({ scale: Math.max(1, Math.min(4, 2000 / vp1.width)) })
   const c = document.createElement('canvas')
   c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height)
   const ctx = c.getContext('2d')!
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height)
   await page.render({ canvasContext: ctx, viewport: vp, canvas: c } as any).promise
-  const b64 = c.toDataURL('image/jpeg', 0.85).split(',')[1]
-  c.width = c.height = 0
-  const raw = await ocr(OCR_PROMPT, 'image/jpeg', b64)
-  let o: any
-  try { o = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) } catch { throw new ApiError(`Gemini не прочитал страницу ${index + 1}`) }
-  const words: PdfWord[] = []
-  let line = 0
-  ;(o.blocks ?? []).forEach((b: any, bi: number) => {
-    for (const l of b?.lines ?? []) {
-      const text = String(l?.text ?? '').trim()
-      const box = Array.isArray(l?.box) ? l.box.map(Number) : null
-      if (!text || !box || box.length !== 4 || box.some((v: number) => !isFinite(v))) continue
-      const [y0, x0, y1, x1] = box.map((v: number) => Math.max(0, Math.min(1000, v)) / 1000)
-      if (x1 <= x0 || y1 <= y0) continue
-      // the words share the line's width by their length (a space counts as a letter)
-      const parts = text.split(/\s+/)
-      const total = text.replace(/\s+/g, ' ').length
-      let at = 0
-      for (const p of parts) {
-        words.push({ t: p, x: x0 + ((x1 - x0) * at) / total, y: y0, w: ((x1 - x0) * p.length) / total, h: y1 - y0, line, block: bi })
-        at += p.length + 1
+  return c
+}
+
+/**
+ * A scanned page: Tesseract reads the words with their boxes; with a Gemini key, Gemini gets the picture and the
+ * numbered words and answers the reading order, the kind of each block and corrections (ocrorder.ts). Without a key,
+ * or when the answer is not usable: Tesseract's order. [ordered]: Gemini's order was used.
+ */
+async function fromScan(page: any, index: number, tess: Tess, progress: (s: string) => void): Promise<{ page: PdfPage; ordered: boolean }> {
+  const vp1 = page.getViewport({ scale: 1 })
+  const c = await renderForOcr(page)
+  try {
+    tess.progress = progress
+    progress('распознаю текст…')
+    const r = await tess.worker.recognize(c, {}, { blocks: true, text: false })
+    const tw = tessWords(r.data, c.width, c.height)
+    let order = null
+    if (tw.length && prefs.geminiKey.value.trim()) {
+      progress(`Gemini расставляет порядок чтения (${tw.length} слов)…`)
+      try {
+        const b64 = c.toDataURL('image/jpeg', 0.8).split(',')[1]
+        const raw = await ocr(orderPrompt(tw), 'image/jpeg', b64, true)
+        order = parseOrder(raw, tw)
+        if (!order) log('pdf', `Скан стр. ${index + 1}: ответ Gemini не подошёл, порядок Tesseract`)
+      } catch (e) {
+        logError('pdf', `Скан стр. ${index + 1}: Gemini ✗, порядок Tesseract`, e)
       }
-      line++
     }
-  })
-  return { index, aspect: vp1.height / vp1.width, words }
+    const words = arrange(order ? tw : tw.filter((w) => !noise(w)), order)
+    log('pdf', `Скан стр. ${index + 1}: Tesseract ${tw.length} слов${order ? `, Gemini: блоков ${order.blocks.length}, исправлено ${order.fix.size}` : ''}`)
+    return { page: { index, aspect: vp1.height / vp1.width, words }, ordered: !!order }
+  } finally { c.width = c.height = 0 }
 }
 
 // --- lesson text and word matching ---
@@ -281,7 +331,9 @@ const isLetter = (c: string | undefined) => !!c && /\p{L}/u.test(c)
 const isLower = (c: string | undefined) => !!c && /\p{Ll}/u.test(c)
 
 interface W { page: PdfPage; i: number; w: PdfWord }
-const flat = (pages: PdfPage[]): W[] => pages.flatMap((p) => p.words.map((w, i) => ({ page: p, i, w })))
+/** The words of [pages] that go into the lesson text ([kinds]: block kinds taken, null = all); [i] = index on the page. */
+const flat = (pages: PdfPage[], kinds?: string | null): W[] =>
+  pages.flatMap((p) => p.words.flatMap((w, i) => (inText(w, kinds) ? [{ page: p, i, w }] : [])))
 
 /** Word [k] ends its line with a hyphen and goes on in the next word ("Ent-" / "wicklung"). */
 function joinsNext(ws: W[], k: number): boolean {
@@ -295,9 +347,12 @@ function joinsNext(ws: W[], k: number): boolean {
 /** "Nord-" / "Süd": the hyphen stays before a capital letter, "Ent-" / "wicklung" loses it. */
 const keepsHyphen = (next: string) => !isLower(next[0])
 
-/** Lesson text of recognised pages: blocks become paragraphs unless a sentence goes on; line-end hyphens joined. */
-export function text(pages: PdfPage[]): string {
-  const ws = flat(pages)
+/**
+ * Lesson text of recognised pages: blocks become paragraphs unless a sentence goes on; line-end hyphens joined.
+ * [kinds]: only blocks of these kinds (scanned pages read with Gemini; e.g. TEXT_KINDS), null = all words.
+ */
+export function text(pages: PdfPage[], kinds?: string | null): string {
+  const ws = flat(pages, kinds)
   let sb = ''
   let paraWords = 0
   for (let k = 0; k < ws.length; k++) {
@@ -325,8 +380,8 @@ interface Piece { page: PdfPage; word: number; from: number; to: number }
 interface Wu { norm: string; parts: Piece[] }
 
 /** The words of the pages as the lesson tokenises them; a word hyphenated at a line end is one unit with two parts. */
-function units(pages: PdfPage[]): Wu[] {
-  const ws = flat(pages)
+function units(pages: PdfPage[], kinds?: string | null): Wu[] {
+  const ws = flat(pages, kinds)
   const out: Wu[] = []
   let carry: Wu | null = null
   for (let k = 0; k < ws.length; k++) {
@@ -390,8 +445,8 @@ function align(a: string[], b: string[], start = 0): Int32Array {
 }
 
 /** Before the upload: the pages each lesson text (in order) covers; null = not found. */
-export function ranges(pages: PdfPage[], texts: string[]): (number[] | null)[] {
-  const us = units(pages)
+export function ranges(pages: PdfPage[], texts: string[], kinds?: string | null): (number[] | null)[] {
+  const us = units(pages, kinds)
   const a = us.map((u) => u.norm)
   let cursor = 0
   return texts.map((t) => {
@@ -410,7 +465,7 @@ export function ranges(pages: PdfPage[], texts: string[]): (number[] | null)[] {
 /** The lesson's words on its pages ([sents] = the lesson's sentences as the reader has them). */
 export async function map(link: PdfLink, sents: Sent[]): Promise<PdfMap> {
   const pages = (await Promise.all(link.pages.map((i) => load(link.doc, i)))).filter((p): p is PdfPage => !!p)
-  const us = units(pages)
+  const us = units(pages, link.kinds)
   const refs: { sent: number; token: number }[] = []
   const b: string[] = []
   for (const st of sents) for (const t of st.tokens) if (t.isWord) { refs.push({ sent: st.id, token: t.index }); b.push(norm(t.text)) }
@@ -435,9 +490,9 @@ export async function map(link: PdfLink, sents: Sent[]): Promise<PdfMap> {
 
 // --- which lessons are PDF books ---
 
-export async function register(lang: string, lesson: number, doc: string, pages: number[]) {
+export async function register(lang: string, lesson: number, doc: string, pages: number[], kinds?: string | null) {
   const o = (await getKey<Record<string, PdfLink>>(LINKS)) ?? {}
-  o[`${lang}_${lesson}`] = { doc, pages }
+  o[`${lang}_${lesson}`] = kinds ? { doc, pages, kinds } : { doc, pages }
   await putKey(LINKS, o)
   log('pdf', `Урок ${lesson} — PDF-книга ${doc}, стр. ${pagesLabel(pages)}`)
 }
@@ -449,6 +504,6 @@ export async function link(lang: string, lesson: number): Promise<PdfLink | null
     const l = o?.[`${lang}_${lesson}`]
     if (!l || !Array.isArray(l.pages)) return null
     const has = await idb<number>('readonly', (s) => s.count(docKey(l.doc)))
-    return has ? { doc: String(l.doc), pages: l.pages.map(Number) } : null
+    return has ? { doc: String(l.doc), pages: l.pages.map(Number), kinds: typeof l.kinds === 'string' && l.kinds ? l.kinds : null } : null
   } catch { return null }
 }
