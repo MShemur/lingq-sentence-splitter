@@ -28,6 +28,9 @@ function Page({ title, children }: { title: string; children: preact.ComponentCh
 
 const Hint = ({ children }: { children: preact.ComponentChildren }) => <p class="hint">{children}</p>
 
+/** Small primary header of a group of settings rows. */
+const Group = ({ children }: { children: preact.ComponentChildren }) => <div class="settings-group">{children}</div>
+
 function Section(p: { icon: IconName; title: string; summary: string; onClick: () => void }) {
   return (
     <ListItem
@@ -43,34 +46,35 @@ export function SettingsRoot() {
   return (
     <Page title="Настройки">
       <div class="flush">
+        <Group>Сервисы</Group>
         <Section icon="account" title="Аккаунт LingQ"
           summary={(prefs.apiKey.value.trim() ? 'Ключ задан' : 'Ключ не задан') + ` · язык ${prefs.lang.value}`}
           onClick={() => go({ k: 'settingsLingq' })} />
-        <Section icon="edit" title="Перевод"
+        <Section icon="edit" title="Перевод и ИИ"
           summary={(gem ? `Gemini · ${prefs.geminiModel.value}` : prefs.translator.value === 'openai' ? `ИИ · ${prefs.aiModel.value}` : 'LingQ') + ` → ${trLang()}`}
           onClick={() => go({ k: 'settingsTranslation' })} />
         <Section icon="mic" title="Распознавание речи"
           summary={`${sttProvider(prefs.sttProvider.value).name} · ${sttKey(sttProvider(prefs.sttProvider.value).id) ? 'ключ задан' : 'ключ не задан'}`}
           onClick={() => go({ k: 'settingsSpeech' })} />
+        <Group>Чтение и звук</Group>
         <Section icon="palette" title="Чтение"
           summary={`${themeOf(prefs.readerTheme.value)?.name ?? 'Цвета системы'} · выделение: ${highlightOf(prefs.highlight.value).name.toLowerCase()}`}
           onClick={() => go({ k: 'settingsReading' })} />
+        <Group>Данные</Group>
         <Section icon="refresh" title="Синхронизация"
-          summary={prefs.syncOn.value === '1' ? (syncError.value ? 'Ошибка' : 'Включена · с телефоном') : 'Выключена'}
+          summary={prefs.syncOn.value === '1' ? (syncError.value ? 'Ошибка' : 'Включена') : 'Выключена'}
           onClick={() => go({ k: 'settingsSync' })} />
-        <Section icon="history" title="Резервные копии" summary="Уроки до исправления разбивки (3 дня)"
+        <Section icon="history" title="Резервные копии" summary="Вернуть урок к версии до исправления"
           onClick={() => go({ k: 'backups' })} />
-        <Section icon="history" title="Журнал действий" summary="Что происходило за 2 дня — для сообщения об ошибке"
-          onClick={() => go({ k: 'log' })} />
-        <Section icon="chat" title="Отзыв / задача" summary="Написать Claude, что поправить или добавить"
-          onClick={() => go({ k: 'feedback' })} />
-        <Section icon="star" title="Промпты ИИ" summary="Как Gemini или другой ИИ переводит и отвечает в чате"
-          onClick={() => go({ k: 'settingsPrompts' })} />
-        <hr />
+        <Group>Приложение</Group>
         <ListItem
-          leading={<Icon name="info" />} headline={`SatzLoop для iPad v${__VERSION__}`}
-          supporting={`Сборка ${__BUILD__} · обновляется сама при открытии`}
+          leading={<span class="primary"><Icon name="info" /></span>} headline="Обновления"
+          supporting={`SatzLoop для iPad v${__VERSION__} · сборка ${__BUILD__} · обновляется сама`}
         />
+        <Section icon="history" title="Журнал действий" summary="Для сообщения об ошибке · хранится 2 дня"
+          onClick={() => go({ k: 'log' })} />
+        <Section icon="chat" title="Отзыв / задача" summary="Написать, что поправить; Claude отвечает здесь"
+          onClick={() => go({ k: 'feedback' })} />
       </div>
       <Hint>
         Ключи и настройки хранятся только на этом устройстве (в браузере). Ключ LingQ уходит только в LingQ
@@ -150,7 +154,7 @@ export function SettingsTranslation() {
   ]
   const base = prefs.aiBase.value.trim().replace(/\/+$/, '')
   return (
-    <Page title="Перевод">
+    <Page title="Перевод и ИИ">
       <TextField label="Переводить на язык" value={prefs.trLang.value} hint="ru, en, uk …"
         onInput={(v) => { prefs.trLang.value = v.trim() }} />
       <h3 class="section-title">Переводчик</h3>
@@ -199,6 +203,11 @@ export function SettingsTranslation() {
           </Hint>
         </>
       )}
+      <div class="flush">
+        <ListItem headline="Промпты ИИ" supporting="Как Gemini или другой ИИ переводит и отвечает в чате"
+          leading={<span class="primary"><Icon name="star" /></span>} trailing={<Icon name="chevron" />}
+          onClick={() => go({ k: 'settingsPrompts' })} />
+      </div>
       {picking && (
         <Dialog title={picking === 'fast' ? 'Модель для слов и предложений' : 'Модель для чата'} onClose={() => setPicking(null)}
           actions={<button class="btn text" onClick={() => setPicking(null)}>Закрыть</button>}>
@@ -276,6 +285,7 @@ export function SettingsReading() {
   const page = { background: t?.bg ?? 'var(--surface)', backgroundImage: grainImage(t?.grain) || undefined, color: t?.fg ?? 'var(--on-surface)' }
   return (
     <Page title="Чтение">
+      <Group>Страница</Group>
       <h3 class="section-title">Фон страницы</h3>
       <div class="swatches">
         <button class={'swatch' + (theme === 'system' ? ' on' : '')} onClick={() => { prefs.readerTheme.value = 'system' }}>
@@ -310,6 +320,7 @@ export function SettingsReading() {
       <div class="hl-preview" style={page}>
         Er las das <span class="hl-word"><span style={{ color: c.text }}>книгу</span><span style={{ background: prefs.wordBg.value === '0' ? 'none' : c.bg }}>Buch</span></span> bis zum Ende.
       </div>
+      <Group>Текст</Group>
       <h3 class="section-title">Шрифт текста</h3>
       <div class="chips">
         {FACES.map(([v, label, css]) => (
@@ -322,16 +333,6 @@ export function SettingsReading() {
           <Chip key={v} label={label} selected={(prefs.readerJustify.value || '0') === v} onClick={() => { prefs.readerJustify.value = v }} />
         ))}
       </div>
-      <h3 class="section-title">Книжный режим</h3>
-      <div class="chips">
-        {[['0', 'Выключен'], ['1', 'Включён']].map(([v, label]) => (
-          <Chip key={v} label={label} selected={(prefs.readerBook.value || '0') === v} onClick={() => { prefs.readerBook.value = v }} />
-        ))}
-      </div>
-      <p class="hint">Текст на весь экран, без панелей и кнопок; страницы листаются свайпом, в альбомной ориентации — две
-        рядом. Тап по середине страницы показывает верхнюю панель (там ⋮ → «Книжный режим» выключает его), двойной тап по
-        слову — меню слова. Абзацы — отступом первой строки, перевод над словом не раздвигает строки; предложение, как в
-        книге, может продолжаться на следующей странице.</p>
       <h3 class="section-title">Расстояние между строками</h3>
       <div class="spacing-row">
         <input type="range" min={70} max={200} step={10} value={Number(prefs.lineSpacing.value) || 100} aria-label="Расстояние между строками"
@@ -349,8 +350,7 @@ export function SettingsReading() {
           <Chip label="Вернуть обычные расстояния" onClick={() => { prefs.lineSpacing.value = '100'; prefs.paraGap.value = '-1' }} />
         </div>
       )}
-      <h3 class="section-title">Перевод над словом</h3>
-      <p class="hint">Расстояние между переводом и словом под ним.</p>
+      <h3 class="section-title">Расстояние до перевода над словом</h3>
       <div class="chips">
         {[['-6', 'Вплотную'], ['-4', 'Ближе'], ['-2', 'Чуть ближе'], ['0', 'Обычно'], ['3', 'Дальше']].map(([v, label]) => (
           <Chip key={v} label={label} selected={(prefs.pinGap.value || '0') === v} onClick={() => { prefs.pinGap.value = v }} />
@@ -359,6 +359,17 @@ export function SettingsReading() {
       <div class="hl-preview reader-text pin-preview" style={{ ...page, '--pin-gap': (Number(prefs.pinGap.value) || 0) + 'px', '--green': c.text, '--green-bg': c.bg } as any}>
         Er las das <span class="w sel"><span class="pin">книгу</span><span class="wt">Buch</span></span> bis zum Ende.
       </div>
+      <Group>Режим</Group>
+      <label class="switch-row">
+        <span class="grow radio-title">Книжный режим</span>
+        <input type="checkbox" class="switch" checked={prefs.readerBook.value === '1'}
+          onChange={(e) => { prefs.readerBook.value = (e.target as HTMLInputElement).checked ? '1' : '0' }} />
+      </label>
+      <p class="hint">Текст на весь экран, без панелей и кнопок; страницы листаются свайпом, в альбомной ориентации — две
+        рядом. Тап по середине страницы показывает верхнюю панель (там ⋮ → «Книжный режим» выключает его), двойной тап по
+        слову — меню слова. Абзацы — отступом первой строки, перевод над словом не раздвигает строки; предложение, как в
+        книге, может продолжаться на следующей странице.</p>
+      <Group>Экран</Group>
       <h3 class="section-title">Экран не гаснет при чтении</h3>
       {KEEP_AWAKE.map(([k, label]) => (
         <label key={k} class="radio-row">
@@ -493,7 +504,7 @@ export function SettingsPrompts() {
     say('Стандартные промпты восстановлены')
   }
   return (
-    <Page title="Промпты Gemini">
+    <Page title="Промпты ИИ">
       <Hint>
         Подстановки: {'{lang}'} язык текста, {'{target}'} язык перевода, {'{word}'} слово, {'{sentence}'} предложение,
         {' {text}'} весь текст. Промпт слова должен просить ответ JSON с полями best, options, note.

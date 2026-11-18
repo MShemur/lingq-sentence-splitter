@@ -233,7 +233,7 @@ export class ImportSession {
     this.pdfBook = doc; this.pdfBookPages = list
     log('import', `PDF-книга ${doc}: ${list.length} из ${pdf.pages} стр., слов ${countWords(text)}, Gemini OCR: ${r.ocr}`)
     if (r.scans.length) {
-      say(`${r.scans.length === 1 ? 'Страница' : 'Страницы'} ${pagesLabel(r.scans)} — скан без текста: для распознавания нужен ключ Gemini (⚙ Настройки → Перевод)`)
+      say(`${r.scans.length === 1 ? 'Страница' : 'Страницы'} ${pagesLabel(r.scans)} — скан без текста: для распознавания нужен ключ Gemini (⚙ Настройки → Перевод и ИИ)`)
     }
     if (!text.trim()) this.error.value = 'На выбранных страницах не нашлось текста'
   }
@@ -407,7 +407,7 @@ export class ImportSession {
 
   /** Clean with AI (light model), piece by piece; the quick clean runs first and stays if AI fails. */
   async cleanAi() {
-    if (!useGemini()) { say('Для чистки с ИИ включите Gemini или другой ИИ: Настройки → Перевод'); return }
+    if (!useGemini()) { say('Для чистки с ИИ включите Gemini или другой ИИ: Настройки → Перевод и ИИ'); return }
     if (!this.before) this.snapshot()
     this.cleaning.value = true; this.cleanProgress.value = 0; this.cleanNote.value = null
     const jobs = this.targets().map(([t, set]) => [cleanText(t)[0], set] as const)

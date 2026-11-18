@@ -1,7 +1,7 @@
 # План улучшений SatzLoop
 
 Общий план для Android и веб-версии (iPad). Очередь переноса функций между платформами ведётся в `PORTING.md`.
-Обновлено: 11.11.2026 (Android v1.86, web v1.70).
+Обновлено: 18.11.2026 (Android v1.86, web v1.71).
 
 ## Не делаем (решено)
 
@@ -118,6 +118,7 @@ Book mode page break at a line end again (justified line no longer re-wraps), a 
 Book mode: long words split with a hyphen at a syllable (text flows as text, justified by the browser) (web v1.68)
 «Отзыв / задача» in the reader and sentence mode ⋮; sentence mode: a tap on the translation folds it (web v1.69)
 PDF-книга: страницы PDF как есть, слова поверх нажимаются как в тексте, зум до 5× (android v1.134, web v1.70)
+Menus and settings reorganized by MENUS.md: library without ⋮ (archive row under the courses), settings in groups, «Перевод и ИИ» → «Промпты ИИ», reader ⋮ Текст / Переводы / Урок with one «Размер текста» row and red «Удалить урок…» last, «Исправить предложение» everywhere (web v1.71)
 
 ## Оптимизация по обзору кода (10.11.2026)
 

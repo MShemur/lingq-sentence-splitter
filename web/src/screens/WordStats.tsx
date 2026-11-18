@@ -1,9 +1,9 @@
 // "Слова по урокам": new words per lesson of a course (bars) and unique words so far (line). Port of Android WordStats.kt.
 import { useLayoutEffect, useRef, useState } from 'preact/hooks'
-import { back, go, loadCourses, visibleCourses } from '../app'
-import { lang, prefs } from '../settings'
-import { IconButton, Spinner, TopBar } from '../ui'
-import { loadResult, without, WordStatsSession, type WsResult } from '../wordstats'
+import { back } from '../app'
+import { prefs } from '../settings'
+import { IconButton, TopBar } from '../ui'
+import { without, WordStatsSession, type WsResult } from '../wordstats'
 
 const num = (n: number) => n.toLocaleString('ru-RU')
 
@@ -203,32 +203,6 @@ function Details({ r, i }: { r: WsResult; i: number }) {
           <div class="chips">{c.top.map((w) => <span key={w} class="chip">{w}</span>)}</div>
         </>
       )}
-    </div>
-  )
-}
-
-/** Library ⋮ → "Слова по урокам курса…": choose the course. */
-export function WordStatsPicker() {
-  const l = lang()
-  const list = visibleCourses.value
-  if (!list) void loadCourses()
-  return (
-    <div class="screen">
-      <TopBar nav={<IconButton icon="back" label="Назад" onClick={back} />} title="Слова по урокам" />
-      <div class="screen-body scroll">
-        <div class="content page">
-          <p class="hint">Выберите курс: для каждого урока посчитается, сколько в нём новых слов, и сколько уникальных слов во всём курсе.</p>
-          {!list ? <Spinner size={24} /> : list.map((c) => {
-            const done = loadResult(l, c.id)
-            return (
-              <button key={c.id} class="ws-course" onClick={() => go({ k: 'wordStats', ws: new WordStatsSession(l, c) })}>
-                <span>{c.title || `Курс ${c.id}`}</span>
-                {done && <span class="ws-done">{num(done.unique)} уникальных слов · {done.chapters.length} уроков</span>}
-              </button>
-            )
-          })}
-        </div>
-      </div>
     </div>
   )
 }

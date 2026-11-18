@@ -9,7 +9,7 @@ import { back, go, stack } from '../app'
 import { readerStyle, useKeepAwake, lineMul, paraGapPx } from '../readerLook'
 import { useReadingTimer } from '../stats'
 import { prefs } from '../settings'
-import { Chip, Dialog, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
+import { Chip, Dialog, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuFontRow, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ReaderHelp } from './Help'
 import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef, refToken } from './session'
@@ -266,6 +266,31 @@ function ReaderActions({ s }: { s: ReaderSession }) {
         <IconButton icon="more" label="Ещё" onClick={() => { s.menuOpen.value = true }} />
         {menu && (
           <Menu onClose={close}>
+            <div class="menu-group">Текст</div>
+            <MenuFontRow size={Number(prefs.readerFont.value)} onChange={(d) => s.changeFont(d)} />
+            <MenuItem icon={isBook() ? 'check' : undefined} onClick={() => {
+              close(); s.bookBar.value = false; s.bookMenu.value = null
+              prefs.readerBook.value = isBook() ? '0' : '1'
+            }}>Книжный режим</MenuItem>
+            {s.pdfLink.value && (
+              <MenuItem icon={s.showPdf.value ? 'list' : 'file'} onClick={() => { close(); s.showPdf.value = !s.showPdf.value }}>
+                {s.showPdf.value ? 'Показать текстом' : 'Показать страницы PDF'}
+              </MenuItem>
+            )}
+            <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Настройки чтения…</MenuItem>
+            <hr />
+            <div class="menu-group">Переводы</div>
+            <MenuItem icon="translate" onClick={() => { close(); void s.translateAll() }}>
+              {s.trAll.value != null ? `Перевожу урок: ${s.trAll.value}` : 'Перевести весь урок'}
+            </MenuItem>
+            {pinCount > 0 && <MenuItem icon="list" onClick={() => { close(); s.wordsOpen.value = true }}>Слова с переводом ({pinCount})</MenuItem>}
+            {(pinCount > 0 || s.pinsHidden.value) && (
+              <MenuItem icon="translate" onClick={() => { close(); s.pinsHidden.value = !s.pinsHidden.value; s.peek.value = {} }}>
+                {s.pinsHidden.value ? 'Показать переводы над словами' : 'Временно скрыть переводы'}
+              </MenuItem>
+            )}
+            {pinCount > 0 && <MenuItem onClick={() => { s.clearPins(); close() }}>Снять переводы над словами ({pinCount})</MenuItem>}
+            <hr />
             <div class="menu-group">Урок</div>
             {s.audioUrl.value && (
               <MenuItem icon="headphones" onClick={() => {
@@ -279,35 +304,11 @@ function ReaderActions({ s }: { s: ReaderSession }) {
             <MenuItem icon="magic" onClick={() => { close(); if (s.aiClean.value == null) setAiAsk(true) }}>
               {s.aiClean.value != null ? `ИИ обрабатывает текст: ${s.aiClean.value}` : 'Обработать текст с ИИ…'}
             </MenuItem>
-            <MenuItem icon="delete" onClick={() => { close(); setDel(true) }}>Удалить урок…</MenuItem>
             <hr />
-            <div class="menu-group">Вид</div>
-            <MenuItem onClick={() => s.changeFont(+2)}>Шрифт крупнее&nbsp; A+</MenuItem>
-            <MenuItem onClick={() => s.changeFont(-2)}>Шрифт мельче&nbsp; A−</MenuItem>
-            <MenuItem icon={isBook() ? 'check' : undefined} onClick={() => {
-              close(); s.bookBar.value = false; s.bookMenu.value = null
-              prefs.readerBook.value = isBook() ? '0' : '1'
-            }}>Книжный режим</MenuItem>
-            {s.pdfLink.value && (
-              <MenuItem icon={s.showPdf.value ? 'list' : 'file'} onClick={() => { close(); s.showPdf.value = !s.showPdf.value }}>
-                {s.showPdf.value ? 'Показать текстом' : 'Показать страницы PDF'}
-              </MenuItem>
-            )}
-            <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Оформление и экран</MenuItem>
-            <MenuItem icon="translate" onClick={() => { close(); void s.translateAll() }}>
-              {s.trAll.value != null ? `Перевожу урок: ${s.trAll.value}` : 'Перевести весь урок'}
-            </MenuItem>
-            {pinCount > 0 && <MenuItem icon="list" onClick={() => { close(); s.wordsOpen.value = true }}>Слова с переводом ({pinCount})</MenuItem>}
-            {(pinCount > 0 || s.pinsHidden.value) && (
-              <MenuItem icon="translate" onClick={() => { close(); s.pinsHidden.value = !s.pinsHidden.value; s.peek.value = {} }}>
-                {s.pinsHidden.value ? 'Показать переводы над словами' : 'Временно скрыть переводы'}
-              </MenuItem>
-            )}
-            {pinCount > 0 && <MenuItem onClick={() => { s.clearPins(); close() }}>Снять переводы над словами ({pinCount})</MenuItem>}
-            <hr />
-            <div class="menu-group">Помощь</div>
             <MenuItem icon="info" onClick={() => { close(); setHelp(true) }}>Как пользоваться</MenuItem>
             <MenuItem icon="chat" onClick={() => { close(); go({ k: 'feedback' }) }}>Отзыв / задача</MenuItem>
+            <hr />
+            <MenuItem icon="delete" danger onClick={() => { close(); setDel(true) }}>Удалить урок…</MenuItem>
           </Menu>
         )}
       </div>
@@ -917,12 +918,14 @@ function BookMenuItems({ s, r, close }: { s: ReaderSession; r: WordRef; close: (
         {s.sentenceShown(id) ? 'Скрыть перевод предложения' : 'Перевод предложения'}
       </MenuItem>
       <MenuItem icon={marked ? 'bookmark' : 'bookmarkBorder'} onClick={() => { close(); s.toggleBookmark(id) }}>
-        {marked ? 'Убрать закладку' : 'Закладка на предложение'}
+        {marked ? 'Убрать закладку' : 'В закладки'}
       </MenuItem>
-      <MenuItem icon="chat" onClick={() => { close(); s.chatSentence(id) }}>Чат о предложении</MenuItem>
       <MenuItem onClick={() => { close(); void s.toggleBold(id, refToken(r), refToken(r)) }}>
         {s.isBold(id, refToken(r), refToken(r)) ? 'Убрать жирный' : 'Сделать жирным'}
       </MenuItem>
+      <MenuItem icon="edit" onClick={() => { close(); s.startEdit(id) }}>Исправить предложение</MenuItem>
+      {s.hasTime(id) && <MenuItem icon="headphones" onClick={() => { close(); s.listenFrom(id) }}>Слушать отсюда</MenuItem>}
+      <MenuItem icon="chat" onClick={() => { close(); s.chatSentence(id) }}>Чат о предложении</MenuItem>
     </>
   )
 }
@@ -958,7 +961,7 @@ function PinnedWordsDialog({ s }: { s: ReaderSession }) {
   )
 }
 
-/** Sentence mode ⋮: text size, correct the sentence, listen from it. */
+/** Sentence mode ⋮: correct the sentence, listen from it, text size, feedback. */
 function SentenceMenu({ s, id }: { s: ReaderSession; id: number }) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
@@ -967,13 +970,10 @@ function SentenceMenu({ s, id }: { s: ReaderSession; id: number }) {
       <IconButton icon="more" label="Ещё" onClick={() => setOpen(true)} />
       {open && (
         <Menu onClose={close}>
-          <div class="menu-group">Предложение</div>
-          <MenuItem icon="edit" onClick={() => { close(); s.startEdit(id) }}>Редактировать предложение</MenuItem>
+          <MenuItem icon="edit" onClick={() => { close(); s.startEdit(id) }}>Исправить предложение</MenuItem>
           {s.hasTime(id) && <MenuItem icon="headphones" onClick={() => { close(); s.listenFrom(id) }}>Слушать отсюда</MenuItem>}
           <hr />
-          <div class="menu-group">Текст</div>
-          <MenuItem onClick={() => s.changeFont(+2)}>Крупнее&nbsp; A+</MenuItem>
-          <MenuItem onClick={() => s.changeFont(-2)}>Мельче&nbsp; A−</MenuItem>
+          <MenuFontRow size={Number(prefs.readerFont.value)} onChange={(d) => s.changeFont(d)} />
           <hr />
           <MenuItem icon="chat" onClick={() => { close(); go({ k: 'feedback' }) }}>Отзыв / задача</MenuItem>
         </Menu>
@@ -991,7 +991,7 @@ function SentenceEditDialog({ s, id }: { s: ReaderSession; id: number }) {
   const saving = s.editSaving.value
   const close = () => { if (!saving) s.editing.value = null }
   return (
-    <Dialog title="Редактировать предложение" onClose={close} actions={<>
+    <Dialog title="Исправить предложение" onClose={close} actions={<>
       <button class="btn text" disabled={saving} onClick={close}>Отмена</button>
       <button class="btn text" disabled={saving || !text.trim()} onClick={() => void s.saveEdit(id, text, tr)}>
         {saving ? <Spinner size={18} /> : 'Сохранить'}

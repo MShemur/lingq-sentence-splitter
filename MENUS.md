@@ -232,18 +232,18 @@ Header: «Закладка на это место» icon · ⋮ → «Аудио
 - [ ] `CourseEdit.kt` `ArchiveScreen` empty text: fine as is.
 
 ### Web (`web/src/`)
-- [ ] `screens/Library.tsx` `CoursesScreen`: remove the ⋮ (`menu` state, `Menu`, three items); keep Закладки + Настройки icons; add the «Архив курсов (N) ›» row after the grid when N > 0.
-- [ ] `screens/Player.tsx` `MainTabs`: order Библиотека · Плеер · Подкасты. `PlayerActions`: remove `onPick` / «Другой урок».
-- [ ] `screens/WordStats.tsx` `WordStatsPicker` + route `wordStatsPick` (`app.ts`, `main.tsx`): unreachable now, remove.
-- [ ] `screens/CourseEdit.tsx` `CourseMenu`: delete item red (needs `danger` prop on `MenuItem` in `ui.tsx` + style); toast «Курс убран в архив (⋮ в библиотеке)» → «Курс убран в архив (внизу библиотеки)».
-- [ ] `screens/Settings.tsx` `SettingsRoot`: group headers and order as 3.4 (Плеер absent); «Перевод» → «Перевод и ИИ»; remove root «Промпты ИИ»; info row headline «Обновления», supporting «SatzLoop для iPad vN · сборка … · обновляется сама»; summaries as 3.4.
-- [ ] `screens/Settings.tsx` `SettingsTranslation`: last `ListItem` «Промпты ИИ ›». `SettingsPrompts`: title «Промпты ИИ», labels as 3.6 (order already right).
-- [ ] `screens/Settings.tsx` `SettingsReading`: order and headers as 3.5; Книжный режим as a `switch-row`; «Перевод над словом» → «Расстояние до перевода над словом».
-- [ ] `reader/Reader.tsx` `ReaderActions`: order and groups as 3.7 (Вид → Текст, new group Переводы, Помощь header dropped); font as one row «Размер текста A− N A+» that keeps the menu open; «Удалить урок…» last, red; «Оформление и экран» → «Настройки чтения…».
-- [ ] `reader/Reader.tsx` `SentenceMenu`: no headers; «Исправить предложение»; font row; order as 3.8.
-- [ ] `reader/Reader.tsx` `BookMenuItems`: labels and order as 3.9 («В закладки»), add «Исправить предложение» and «Слушать отсюда» (when `s.hasTime(id)`).
-- [ ] `reader/Help.tsx`: long press = sentence translation (no menu); «⋮ → «Настройки чтения»»; «⋮ → размер текста».
-- [ ] Styles for the settings group header, the menu font row and the red menu item go in `styles.css`: coordinate with the session editing PDF files there.
+- [x] `screens/Library.tsx` `CoursesScreen`: remove the ⋮ (`menu` state, `Menu`, three items); keep Закладки + Настройки icons; add the «Архив курсов (N) ›» row after the grid when N > 0.
+- [x] `screens/Player.tsx` `MainTabs`: order Библиотека · Плеер · Подкасты. `PlayerActions`: remove `onPick` / «Другой урок».
+- [x] `screens/WordStats.tsx` `WordStatsPicker` + route `wordStatsPick` (`app.ts`, `main.tsx`): unreachable now, remove.
+- [x] `screens/CourseEdit.tsx` `CourseMenu`: delete item red (needs `danger` prop on `MenuItem` in `ui.tsx` + style); toast «Курс убран в архив (⋮ в библиотеке)» → «Курс убран в архив (внизу библиотеки)».
+- [x] `screens/Settings.tsx` `SettingsRoot`: group headers and order as 3.4 (Плеер absent); «Перевод» → «Перевод и ИИ»; remove root «Промпты ИИ»; info row headline «Обновления», supporting «SatzLoop для iPad vN · сборка … · обновляется сама»; summaries as 3.4.
+- [x] `screens/Settings.tsx` `SettingsTranslation`: last `ListItem` «Промпты ИИ ›». `SettingsPrompts`: title «Промпты ИИ», labels as 3.6 (order already right).
+- [x] `screens/Settings.tsx` `SettingsReading`: order and headers as 3.5; Книжный режим as a `switch-row`; «Перевод над словом» → «Расстояние до перевода над словом».
+- [x] `reader/Reader.tsx` `ReaderActions`: order and groups as 3.7 (Вид → Текст, new group Переводы, Помощь header dropped); font as one row «Размер текста A− N A+» that keeps the menu open; «Удалить урок…» last, red; «Оформление и экран» → «Настройки чтения…».
+- [x] `reader/Reader.tsx` `SentenceMenu`: no headers; «Исправить предложение»; font row; order as 3.8.
+- [x] `reader/Reader.tsx` `BookMenuItems`: labels and order as 3.9 («В закладки»), add «Исправить предложение» and «Слушать отсюда» (when `s.hasTime(id)`).
+- [x] `reader/Help.tsx`: long press = sentence translation (no menu); «⋮ → «Настройки чтения»»; «⋮ → размер текста».
+- [x] Styles for the settings group header, the menu font row and the red menu item go in `styles.css`: coordinate with the session editing PDF files there.
 
 ### Both
 - [ ] Add a `PORTING.md` / `ROADMAP.md` line when done; raise versions (Android v1.N, web v1.N).

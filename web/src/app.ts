@@ -47,7 +47,6 @@ export type Screen =
   | { k: 'archive' }
   | { k: 'feedback' }
   | { k: 'wordStats'; ws: WordStatsSession }
-  | { k: 'wordStatsPick' }
   | { k: 'log' }
   | { k: 'player' }
   | { k: 'settingsReading' }

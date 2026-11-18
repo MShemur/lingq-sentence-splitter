@@ -16,7 +16,7 @@ import { log, logError } from './applog'
 import { PodcastFeedScreen, PodcastsScreen } from './screens/Podcasts'
 import { ArchiveScreen } from './screens/CourseEdit'
 import { FeedbackScreen } from './screens/Feedback'
-import { WordStatsPicker, WordStatsScreen } from './screens/WordStats'
+import { WordStatsScreen } from './screens/WordStats'
 
 function view(screen: Screen) {
   switch (screen.k) {
@@ -42,7 +42,6 @@ function view(screen: Screen) {
     case 'archive': return <ArchiveScreen />
     case 'feedback': return <FeedbackScreen />
     case 'wordStats': return <WordStatsScreen ws={screen.ws} />
-    case 'wordStatsPick': return <WordStatsPicker />
   }
 }
 

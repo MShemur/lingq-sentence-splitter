@@ -521,7 +521,7 @@ export class ReaderSession {
    * Backup first, the split fixer after. Port of Android Reader.kt cleanWithAi.
    */
   async cleanWithAi() {
-    if (!useGemini()) { say('Для обработки с ИИ включите ИИ: Настройки → Перевод'); return }
+    if (!useGemini()) { say('Для обработки с ИИ включите ИИ: Настройки → Перевод и ИИ'); return }
     if (this.aiClean.value != null) return
     this.aiClean.value = '…'
     log('reader', `Урок ${this.lesson.id}: обработка текста с ИИ`)
@@ -820,7 +820,7 @@ export class ReaderSession {
 
   async detectLevel() {
     if (this.levelBusy.value) return
-    if (!useGemini()) { say('Нужен Gemini или другой ИИ: Настройки → Перевод'); return }
+    if (!useGemini()) { say('Нужен Gemini или другой ИИ: Настройки → Перевод и ИИ'); return }
     const text = this.sentences.value.map((x) => x.plain).join(' ')
     if (!text.trim()) return
     this.levelBusy.value = true

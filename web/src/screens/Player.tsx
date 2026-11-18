@@ -40,11 +40,11 @@ export function MainTabs({ at }: { at: 'courses' | 'player' | 'podcasts' }) {
       <button class={at === 'courses' ? 'active' : ''} onClick={() => switchTab('courses')}>
         <span class="nav-ind"><Icon name="library" /></span><span>Библиотека</span>
       </button>
-      <button class={at === 'podcasts' ? 'active' : ''} onClick={openPodcastsTab}>
-        <span class="nav-ind"><Icon name="podcast" /></span><span>Подкасты</span>
-      </button>
       <button class={at === 'player' ? 'active' : ''} onClick={() => switchTab('player')}>
         <span class="nav-ind"><Icon name="headphones" /></span><span>Плеер</span>
+      </button>
+      <button class={at === 'podcasts' ? 'active' : ''} onClick={openPodcastsTab}>
+        <span class="nav-ind"><Icon name="podcast" /></span><span>Подкасты</span>
       </button>
     </nav>
   )
@@ -147,8 +147,8 @@ function PlayerLesson({ s }: { s: ReaderSession }) {
   )
 }
 
-/** Header buttons: bookmark this place; menu with the lesson's audio bookmarks and another lesson. */
-function PlayerActions({ s, onMarks, onPick }: { s: ReaderSession; onMarks: () => void; onPick?: () => void }) {
+/** Header buttons: bookmark this place; menu with the lesson's audio bookmarks. */
+function PlayerActions({ s, onMarks }: { s: ReaderSession; onMarks: () => void }) {
   const [menu, setMenu] = useState(false)
   return (
     <>
@@ -158,7 +158,6 @@ function PlayerActions({ s, onMarks, onPick }: { s: ReaderSession; onMarks: () =
         {menu && (
           <Menu onClose={() => setMenu(false)}>
             <MenuItem icon="bookmark" onClick={() => { setMenu(false); onMarks() }}>Аудиозакладки ({s.audioMarks().length})</MenuItem>
-            {onPick && <MenuItem icon="headphones" onClick={() => { setMenu(false); onPick() }}>Другой урок</MenuItem>}
           </Menu>
         )}
       </div>

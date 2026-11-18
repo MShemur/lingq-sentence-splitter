@@ -28,9 +28,9 @@ export function CourseMenu({ s }: { s: LessonsScreen }) {
           <MenuItem icon="chart" onClick={() => { close(); go({ k: 'wordStats', ws: new WordStatsSession(s.lang, { ...c, title: s.title.value || c.title }) }) }}>Слова по урокам</MenuItem>
           {archived
             ? <MenuItem icon="history" onClick={() => { close(); restoreCourse(s.lang, c.id); say('Курс снова в библиотеке') }}>Вернуть из архива</MenuItem>
-            : <MenuItem icon="library" onClick={() => { close(); archiveCourse(s.lang, { ...c, title: s.title.value }); say('Курс убран в архив (⋮ в библиотеке)'); back() }}>В архив</MenuItem>}
+            : <MenuItem icon="library" onClick={() => { close(); archiveCourse(s.lang, { ...c, title: s.title.value }); say('Курс убран в архив (внизу библиотеки)'); back() }}>В архив</MenuItem>}
           <hr />
-          <MenuItem icon="delete" onClick={() => { close(); setDlg('delete') }}>Удалить курс…</MenuItem>
+          <MenuItem icon="delete" danger onClick={() => { close(); setDlg('delete') }}>Удалить курс…</MenuItem>
         </Menu>
       )}
       {dlg === 'edit' && <CourseEditDialog s={s} c={c} onClose={() => setDlg(null)} />}

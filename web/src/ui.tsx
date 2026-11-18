@@ -123,12 +123,24 @@ export function Menu(p: { children: ComponentChildren; onClose: () => void; clas
   )
 }
 
-export function MenuItem(p: { icon?: IconName; children: ComponentChildren; onClick: () => void }) {
+export function MenuItem(p: { icon?: IconName; children: ComponentChildren; onClick: () => void; danger?: boolean }) {
   return (
-    <button class="menu-item" role="menuitem" onClick={p.onClick}>
+    <button class={'menu-item' + (p.danger ? ' danger' : '')} role="menuitem" onClick={p.onClick}>
       {p.icon ? <Icon name={p.icon} size={20} /> : null}
       <span>{p.children}</span>
     </button>
+  )
+}
+
+/** Menu row "Размер текста  A−  18  A+": the buttons change the size, the menu stays open. */
+export function MenuFontRow(p: { size: number; onChange: (d: number) => void }) {
+  return (
+    <div class="menu-font-row">
+      <span class="grow">Размер текста</span>
+      <button class="icon-btn" aria-label="Мельче" title="Мельче" onClick={() => p.onChange(-2)}>A−</button>
+      <span class="menu-font-val">{p.size}</span>
+      <button class="icon-btn" aria-label="Крупнее" title="Крупнее" onClick={() => p.onChange(+2)}>A+</button>
+    </div>
   )
 }
 

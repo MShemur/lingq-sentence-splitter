@@ -8,7 +8,7 @@ import {
 import { CourseMenu } from './CourseEdit'
 import { JobsRow } from './Jobs'
 import { lang, prefs } from '../settings'
-import { Chip, ClearX, ErrorBox, IconButton, Loading, Menu, MenuItem, TopBar } from '../ui'
+import { Chip, ClearX, ErrorBox, IconButton, TopBar } from '../ui'
 import { naturalCompare } from '../app'
 import type { Course, Lesson } from '../lingq'
 import { ReaderSession } from '../reader/session'
@@ -122,7 +122,6 @@ export function CoursesScreen() {
   useEffect(() => { if (prefs.apiKey.value.trim()) { void loadCourses(); void loadRecent() } }, [l, prefs.apiKey.value])
   const list = visibleCourses.value
   const err = coursesError.value
-  const [menu, setMenu] = useState(false)
   const archived = (archive.value[l] ?? []).length
   const noKey = !prefs.apiKey.value.trim()
   const rec = recent.value ?? []
@@ -134,18 +133,6 @@ export function CoursesScreen() {
           <>
             <IconButton icon="bookmark" label="Закладки" onClick={() => go({ k: 'bookmarks' })} />
             <IconButton icon="settings" label="Настройки" onClick={() => go({ k: 'settings' })} />
-            <div class="menu-anchor">
-              <IconButton icon="more" label="Ещё" onClick={() => setMenu(true)} />
-              {menu && (
-                <Menu onClose={() => setMenu(false)}>
-                  <MenuItem icon="library" onClick={() => { setMenu(false); go({ k: 'archive' }) }}>
-                    Архив курсов{archived ? ` (${archived})` : ''}
-                  </MenuItem>
-                  <MenuItem icon="chart" onClick={() => { setMenu(false); go({ k: 'wordStatsPick' }) }}>Слова по урокам курса…</MenuItem>
-                  <MenuItem icon="chat" onClick={() => { setMenu(false); go({ k: 'feedback' }) }}>Отзыв / задача</MenuItem>
-                </Menu>
-              )}
-            </div>
           </>
         }
       />
@@ -192,6 +179,13 @@ export function CoursesScreen() {
                   </div>
                 )}
               {list && !list.length && <p class="empty">Курсов нет.</p>}
+              {list && archived > 0 && !q.trim() && (
+                <button class="archive-row" onClick={() => go({ k: 'archive' })}>
+                  <Icon name="library" />
+                  <span class="grow">Архив курсов ({archived})</span>
+                  <Icon name="chevron" />
+                </button>
+              )}
             </>
           )}
         </div>

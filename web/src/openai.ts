@@ -17,8 +17,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const base = () => prefs.aiBase.value.trim().replace(/\/+$/, '')
 
 function check() {
-  if (!base()) throw new ApiError('Не задан адрес сервиса ИИ (⚙ Настройки → Перевод)')
-  if (!prefs.aiKey.value.trim()) throw new ApiError('Не задан ключ сервиса ИИ (⚙ Настройки → Перевод)')
+  if (!base()) throw new ApiError('Не задан адрес сервиса ИИ (⚙ Настройки → Перевод и ИИ)')
+  if (!prefs.aiKey.value.trim()) throw new ApiError('Не задан ключ сервиса ИИ (⚙ Настройки → Перевод и ИИ)')
 }
 
 async function send(url: string, init: RequestInit): Promise<Response> {
@@ -52,7 +52,7 @@ export const modelFor = (fast: boolean) => (fast && prefs.aiFastModel.value.trim
 export async function generate(system: string | null, messages: Msg[], json = false, fast = false): Promise<{ text: string; reasoning?: string }> {
   check()
   const model = modelFor(fast)
-  if (!model) throw new ApiError('Не выбрана модель ИИ (⚙ Настройки → Перевод)')
+  if (!model) throw new ApiError('Не выбрана модель ИИ (⚙ Настройки → Перевод и ИИ)')
   try {
     return await request(model, system, messages, json)
   } catch (e) {

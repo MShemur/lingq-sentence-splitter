@@ -166,7 +166,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                 <button class="btn tonal" onClick={() => s.cleanQuick()} disabled={s.cleaning.value || running}><Icon name="clean" size={18} />Быстро</button>
                 <button class="btn filled" onClick={() => void s.cleanAi()} disabled={s.cleaning.value || running || !useGemini()}><Icon name="magic" size={18} />С ИИ</button>
               </div>
-              {!useGemini() && <p class="small">Чистка с ИИ: включите Gemini или другой ИИ в Настройки → Перевод.</p>}
+              {!useGemini() && <p class="small">Чистка с ИИ: включите Gemini или другой ИИ в Настройки → Перевод и ИИ.</p>}
               {s.cleaning.value && (
                 <>
                   <div class="row-status"><span class="spinner-sm" />ИИ чистит текст… {Math.round(s.cleanProgress.value * 100)} %</div>
