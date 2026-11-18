@@ -105,6 +105,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.layout.offset
@@ -1671,7 +1673,7 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
         )
         DropdownMenuItem(
             text = { Text("Настройки чтения…") },
-            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Filled.Settings, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
             onClick = { menu = false; state.go(Screen.SettingsReading) },
         )
         HorizontalDivider()
@@ -1716,7 +1718,7 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
         )
         DropdownMenuItem(
             text = { Text("Исправить разбивку…") },
-            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Filled.Build, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Filled.Build, contentDescription = null) },
             onClick = { menu = false; state.checkLessons(s.lang, listOf(Lesson(s.lesson.id, s.title)), s.title) },
         )
         HorizontalDivider()
