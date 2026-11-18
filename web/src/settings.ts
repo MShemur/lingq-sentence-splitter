@@ -42,6 +42,8 @@ export const prefs = {
   paraGap: pref('paraGap', '-1'),
   /** '1': book mode (full screen, no bars, swipe only, paragraphs by indent, two pages in landscape). */
   readerBook: pref('readerBook', '0'),
+  /** PDF book base zoom: 'width' = the page fills the screen width, 'page' = the whole page fits in. */
+  pdfFit: pref('pdfFit', 'width'),
   /** '1': a word with a translation gets the highlight background; '0': none, only the translation is coloured. */
   wordBg: pref('wordBg', '1'),
   /** "Слова по урокам": words met this many times or less in the whole course are not counted (0 = all). */

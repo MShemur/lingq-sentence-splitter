@@ -277,6 +277,12 @@ function ReaderActions({ s }: { s: ReaderSession }) {
                 {s.showPdf.value ? 'Показать текстом' : 'Показать страницы PDF'}
               </MenuItem>
             )}
+            {s.pdfLink.value && s.showPdf.value && (
+              <MenuItem icon={prefs.pdfFit.value === 'page' ? 'check' : undefined}
+                onClick={() => { close(); prefs.pdfFit.value = prefs.pdfFit.value === 'page' ? 'width' : 'page' }}>
+                Страница PDF целиком
+              </MenuItem>
+            )}
             <MenuItem icon="palette" onClick={() => { close(); go({ k: 'settingsReading' }) }}>Настройки чтения…</MenuItem>
             <hr />
             <div class="menu-group">Переводы</div>

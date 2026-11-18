@@ -9,6 +9,7 @@ import { pdfjsLib } from '../importer/pdf'
 import { fileBytes, map as mapLesson, PdfMap, type PdfLink, type PdfTok } from '../pdfbook'
 import type { ReaderSession, WordRef } from './session'
 import { refSent } from './session'
+import { prefs } from '../settings'
 import { docked, glide, isBook, SentenceTranslation, stopGlide } from './Reader'
 
 /** Zoom and pan of one page: screen = offset + layout position × scale. */
@@ -18,13 +19,18 @@ class Zoom {
   vw = 0; vh = 0; left = 0; top = 0; pw = 0; ph = 0
   on: (() => void) | null = null
 
-  clamp() {
-    if (this.scale <= 1.001) { this.scale = 1; this.ox = 0; this.oy = 0 } else {
-      this.ox = this.fit(this.ox, this.vw, this.left, this.pw)
-      this.oy = this.fit(this.oy, this.vh, this.top, this.ph)
-    }
-    this.on?.()
+  /** Keeps the page in view (a page taller / wider than the view can be moved up to its edges, also unzoomed). */
+  fix() {
+    if (this.scale <= 1.001) this.scale = 1
+    this.ox = this.fit(this.ox, this.vw, this.left, this.pw)
+    this.oy = this.fit(this.oy, this.vh, this.top, this.ph)
   }
+
+  clamp() { this.fix(); this.on?.() }
+
+  /** The page sticks out of the view across / up and down (it can be moved that way). */
+  wideX() { return this.pw * this.scale > this.vw + 1 }
+  wideY() { return this.ph * this.scale > this.vh + 1 }
 
   private fit(o: number, view: number, start: number, len: number) {
     const size = len * this.scale
@@ -42,9 +48,9 @@ class Zoom {
 
   panBy(dx: number, dy: number) { this.ox += dx; this.oy += dy; this.clamp() }
 
-  /** Double tap on the page (not on a word): zoom in there, or back to the whole page. [x], [y]: in the view. */
+  /** Double tap on the page (not on a word): zoom in there, or back to the base zoom. [x], [y]: in the view. */
   toggle(x: number, y: number) {
-    if (this.scale > 1.01) { this.scale = 1; this.clamp(); return }
+    if (this.scale > 1.01) { this.zoomBy(1 / this.scale, x, y); return }
     this.zoomBy(2.5, x, y)
   }
 
@@ -60,7 +66,13 @@ function useZoom(z: Zoom, stage: { current: HTMLDivElement | null }) {
   useLayoutEffect(apply)
   useEffect(() => {
     let t = 0
-    const on = () => { apply(); clearTimeout(t); t = window.setTimeout(() => set((n) => n + 1), SETTLE_MS) }
+    // will-change only while moving: a layer kept with it is drawn once at the start scale (Chrome), so the labels
+    // (DOM text) got blurry when zoomed; without it the stage is drawn again at the zoom it settled at
+    const on = () => {
+      apply(); clearTimeout(t)
+      if (stage.current) stage.current.style.willChange = 'transform'
+      t = window.setTimeout(() => { if (stage.current) stage.current.style.willChange = 'auto'; set((n) => n + 1) }, SETTLE_MS)
+    }
     z.on = on
     return () => { clearTimeout(t); if (z.on === on) z.on = null }
   }, [z])
@@ -178,11 +190,12 @@ export function PdfReader({ s, link }: { s: ReaderSession; link: PdfLink }) {
 }
 
 /** Pixel budgets of the page pictures (iPad Safari refuses canvases above ~16 Mpx and runs out of canvas memory early):
- *  the whole page on screen, the pages beside it (seen only while swiping), the sharper visible part when zoomed.
- *  At most ~5 + 2 × 1.5 + 3.5 Mpx stay alive at once (plus one detail being drawn). */
-const BASE_PX = 5_000_000
-const SIDE_PX = 1_500_000
-const DETAIL_PX = 3_500_000
+ *  the whole page on screen, the pages beside it (seen only while swiping), the sharper visible part. The detail covers
+ *  a full iPad screen at its pixel density (1024 × 1366 × 2² = 5.6 Mpx), the base a page fit to a 1024 px wide view.
+ *  At most ~6 + 2 × 0.8 + 6 = 13.6 Mpx stay alive at once (plus one detail while it is being drawn). */
+const BASE_PX = 6_000_000
+const SIDE_PX = 800_000
+const DETAIL_PX = 6_000_000
 
 function PdfPager({ s, map, doc }: { s: ReaderSession; map: PdfMap; doc: any }) {
   const pages = map.pages
@@ -365,7 +378,8 @@ function PdfPager({ s, map, doc }: { s: ReaderSession; map: PdfMap; doc: any }) 
     const dx = e.clientX - g.x, dy = e.clientY - g.y
     if (!g.mode) {
       if (Math.hypot(dx, dy) <= 10) return
-      g.mode = z.scale > 1.001 ? 'pan' : Math.abs(dx) > Math.abs(dy) ? 'swipe' : 'done'
+      // unzoomed: across = turn the page, up / down = move a page taller than the screen (fit to width)
+      g.mode = z.scale > 1.001 ? 'pan' : Math.abs(dx) > Math.abs(dy) ? (z.wideX() ? 'pan' : 'swipe') : z.wideY() ? 'pan' : 'done'
     }
     if (g.mode === 'pan') z.panBy(e.clientX - g.lastX, e.clientY - g.lastY)
     else if (g.mode === 'swipe') el.scrollLeft = g.left - dx
@@ -401,14 +415,14 @@ function PdfPager({ s, map, doc }: { s: ReaderSession; map: PdfMap; doc: any }) 
     if (g?.mode === 'swipe') turnTo(Math.round(g.left / (pager.current?.clientWidth || 1)))
   }
 
-  /** Mouse / trackpad: ctrl + wheel (pinch on a trackpad) zooms, the wheel pans a zoomed page. */
+  /** Mouse / trackpad: ctrl + wheel (pinch on a trackpad) zooms, the wheel pans a zoomed / taller page. */
   const onWheel = (e: WheelEvent) => {
     const el = pager.current
     if (!el) return
     const z = zoomOf(s.textPage.value)
     const r = el.getBoundingClientRect()
     if (e.ctrlKey) { e.preventDefault(); z.zoomBy(Math.exp(-e.deltaY / 200), e.clientX - r.left, e.clientY - r.top) }
-    else if (z.scale > 1.001) { e.preventDefault(); z.panBy(-e.deltaX, -e.deltaY) }
+    else if (z.scale > 1.001 || z.wideY()) { e.preventDefault(); z.panBy(-e.deltaX, -e.deltaY) }
   }
 
   // sentence translations (long press on a word, or "Переводы" below) of the sentences on this page
@@ -441,10 +455,13 @@ function PdfPageView({ s, doc, page, aspect, toks, z, current, vw, vh }: {
 }) {
   const stage = useRef<HTMLDivElement>(null)
   useZoom(z, stage)
-  const pw = Math.min(vw, vh / aspect)
+  // base zoom: the page fills the screen width (a portrait page is then taller than the screen: it is moved up and
+  // down), or the whole page fits in (pref); fit to width is never smaller than the whole page
+  const pw = prefs.pdfFit.value === 'page' ? Math.min(vw, vh / aspect) : vw
   const ph = pw * aspect
   z.vw = vw; z.vh = vh; z.pw = pw; z.ph = ph
-  z.left = (vw - pw) / 2; z.top = (vh - ph) / 2
+  z.left = Math.max(0, (vw - pw) / 2); z.top = Math.max(0, (vh - ph) / 2)
+  z.fix()
 
   const [jobs] = useState(() => new PageJobs())
   const baseBox = useRef<HTMLDivElement>(null)
@@ -468,15 +485,16 @@ function PdfPageView({ s, doc, page, aspect, toks, z, current, vw, vh }: {
     })
   }, [Math.round(pw), wantK])
 
-  // zoomed in (page on screen, after the gesture settled): only the visible part is drawn again, sharper, over the
-  // base picture; the previous part stays (it lies right, only blurrier) until the new one is ready
+  // the page on screen, after the gesture settled: the visible part is drawn again at zoom × screen sharpness over the
+  // base picture when that is sharper (zoomed in, or a big page whose base is coarser than the screen); the previous
+  // part stays (it lies right, only blurrier) until the new one is ready
   let det: { x: number; y: number; w: number; h: number; k: number } | null = null
-  if (current && z.scale > 1.1) {
+  if (current) {
     const a = z.toPage(0, 0), b = z.toPage(vw, vh)
     const x = Math.max(0, Math.floor(a.x)), y = Math.max(0, Math.floor(a.y))
     const w = Math.min(pw, Math.ceil(b.x)) - x, h = Math.min(ph, Math.ceil(b.y)) - y
     const k = Math.min(z.scale * dpr, Math.sqrt(DETAIL_PX / Math.max(1, w * h)))
-    if (w > 0 && h > 0 && k > wantK * 1.15) det = { x, y, w, h, k }
+    if (w > 0 && h > 0 && k > wantK * 1.1) det = { x, y, w, h, k }
   }
   const detKey = det ? `${det.x},${det.y},${det.w},${det.h},${det.k.toFixed(3)},${Math.round(pw)}` : ''
   useEffect(() => {
@@ -499,7 +517,7 @@ function PdfPageView({ s, doc, page, aspect, toks, z, current, vw, vh }: {
         <div class="pdf-sheet" style={{ left: z.left + 'px', top: z.top + 'px', width: pw + 'px', height: ph + 'px' }}>
           <div class="pdf-canvas" ref={baseBox} />
           <div class="pdf-detail" ref={detailBox} />
-          <PdfWordLayer s={s} toks={toks} pw={pw} ph={ph} scale={z.scale} />
+          <PdfWordLayer s={s} toks={toks} pw={pw} ph={ph} />
         </div>
       </div>
     </div>
@@ -507,7 +525,7 @@ function PdfPageView({ s, doc, page, aspect, toks, z, current, vw, vh }: {
 }
 
 /** Highlights and translations above the words of a page (the boxes themselves are invisible: taps are measured). */
-function PdfWordLayer({ s, toks, pw, ph, scale }: { s: ReaderSession; toks: PdfTok[]; pw: number; ph: number; scale: number }) {
+function PdfWordLayer({ s, toks, pw, ph }: { s: ReaderSession; toks: PdfTok[]; pw: number; ph: number }) {
   const pins = s.pins.value
   const prov = s.provisional.value
   const popup = s.popup.value
@@ -536,7 +554,8 @@ function PdfWordLayer({ s, toks, pw, ph, scale }: { s: ReaderSession; toks: PdfT
     }} />)
   })
   const label = (key: string, text: string, cx: number, top: number, lineH: number, cls: string) => {
-    const font = Math.max(lineH * 0.62, 10 / scale)
+    // sized by the word's line on the page and zoomed with it (part of the page); tiny print still gets 9 px unzoomed
+    const font = Math.max(lineH * 0.65, 9)
     const pad = font * 0.25
     const est = Math.min(pw * 0.7, text.length * font * 0.55 + 2 * pad)
     const x = Math.max(0, Math.min(pw - est, cx - est / 2))
