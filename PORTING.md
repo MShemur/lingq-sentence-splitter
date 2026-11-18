@@ -28,6 +28,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- user's iPad feedback 18.11.2026 -> web v1.75 -> android: the PDF view ignored reader settings: «Без цвета» (wordBg: no background on pinned / new words and phrases, only the coloured translation; the long-press selection keeps its colour), «Расстояние до перевода над словом» (pinGap, scaled to the label size: +3 = a quarter of the label font higher, −6 = half of it closer), highlight colour (always its light-page variant, the PDF page is white). Changes apply at once.
+
 ## Done
 
 - user's iPad feedback 18.11.2026 -> web v1.74 -> android: PDF book reader: 1) the page opens fit-to-width (fills the screen width; up/down drag moves a taller page, left/right still turns pages, pinch zooms further, double tap zooms back keeping the place); ⋮ «Страница PDF целиком» toggles the whole-page view (pref pdfFit 'width' / 'page'). 2) translation pills / labels over words: font = 0.65 × the word's line height on the page (min 9 px at the base zoom), scaled together with the page when zooming (no counter-scaling). 3) zoomed: the visible part re-rendered at full screen sharpness (web caps: detail 6 Mpx, base 6 Mpx, neighbours 0.8 Mpx).

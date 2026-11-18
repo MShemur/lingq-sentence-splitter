@@ -10,6 +10,7 @@ import { fileBytes, map as mapLesson, PdfMap, type PdfLink, type PdfTok } from '
 import type { ReaderSession, WordRef } from './session'
 import { refSent } from './session'
 import { prefs } from '../settings'
+import { highlightColors } from '../readerLook'
 import { docked, glide, isBook, SentenceTranslation, stopGlide } from './Reader'
 
 /** Zoom and pan of one page: screen = offset + layout position × scale. */
@@ -553,6 +554,9 @@ function PdfWordLayer({ s, toks, pw, ph }: { s: ReaderSession; toks: PdfTok[]; p
       left: t.x * pw - m + 'px', top: t.y * ph - m + 'px', width: t.w * pw + 2 * m + 'px', height: t.h * ph + 2 * m + 'px', borderRadius: 2 * m + 'px',
     }} />)
   })
+  // "Расстояние до перевода над словом": px at the text reader's translation size (0.6 × reading font), here scaled
+  // to the label's size, so the label moves as much relative to itself as in the text
+  const gapPerFont = (Number(prefs.pinGap.value) || 0) / (0.6 * (Number(prefs.readerFont.value) || 20))
   const label = (key: string, text: string, cx: number, top: number, lineH: number, cls: string) => {
     // sized by the word's line on the page and zoomed with it (part of the page); tiny print still gets 9 px unzoomed
     const font = Math.max(lineH * 0.65, 9)
@@ -560,7 +564,7 @@ function PdfWordLayer({ s, toks, pw, ph }: { s: ReaderSession; toks: PdfTok[]; p
     const est = Math.min(pw * 0.7, text.length * font * 0.55 + 2 * pad)
     const x = Math.max(0, Math.min(pw - est, cx - est / 2))
     const lh = font * 1.25
-    const y = Math.max(lh, top - lineH * 0.08)
+    const y = Math.max(lh, top - lineH * 0.08 - gapPerFont * font)
     out.push(<div key={'l' + key} class={'pdf-label' + cls + (peek[key] ? ' peek' : '')}
       style={{ left: x + 'px', top: y + 'px', fontSize: font + 'px', lineHeight: lh + 'px', maxWidth: pw * 0.7 + 'px', padding: `0 ${pad}px`, borderRadius: lh * 0.3 + 'px' }}>{text}</div>)
   }
@@ -575,5 +579,9 @@ function PdfWordLayer({ s, toks, pw, ph }: { s: ReaderSession; toks: PdfTok[]; p
     const l = Math.min(...line.map((t) => t.x)), r = Math.max(...line.map((t) => t.x + t.w))
     label(k, tr || '…', ((l + r) / 2) * pw, first.y * ph, first.h * ph, '')
   }
-  return <div class="pdf-words">{out}</div>
+  // the PDF page is always white: the light variant of the highlight colour, whatever the reader's page colour;
+  // "Без цвета" (wordBg 0): no background under chosen words / phrases, only the translation is coloured
+  const hc = highlightColors(prefs.highlight.value, false)
+  return <div class={'pdf-words' + (prefs.wordBg.value === '0' ? ' nobg' : '')}
+    style={{ '--green': hc.text, '--green-bg': hc.bg } as JSX.CSSProperties}>{out}</div>
 }

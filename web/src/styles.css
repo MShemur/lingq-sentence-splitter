@@ -1044,6 +1044,7 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .pdf-words { position: absolute; inset: 0; pointer-events: none; }
 .pdf-hl { position: absolute; background: var(--green-bg); mix-blend-mode: multiply; }
 .pdf-hl.picked { background: color-mix(in srgb, var(--primary) 28%, transparent); }
+.pdf-words.nobg .pdf-hl:not(.picked) { display: none; }
 .pdf-label {
   position: absolute; transform: translateY(-100%); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: var(--green); background: rgba(255, 255, 255, 0.92); font-weight: 500; box-sizing: border-box;
