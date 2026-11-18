@@ -28,6 +28,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- chat 18.11.2026 -> web v1.73 -> android: PDF-книга import: no «С ИИ» cleaning (the lesson is matched word by word to the page; an AI rewrite breaks it), a short note instead; quick cleaning stays. (Web also fixed a zoom freeze on the iPad: transform only during the pinch, one full-page bitmap at screen sharpness, a sharp bitmap of the visible part after the zoom settles; check Android for the same if zoom is heavy.)
 ## Done
 
 - user request 18.11.2026 -> web v1.72: OCR of scanned PDFs on the iPad (PDF-книга), aimed at magazines like GEO / GEO Epoche

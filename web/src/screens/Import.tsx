@@ -164,9 +164,11 @@ export function ImportScreen({ s }: { s: ImportSession }) {
               <p>Убирает номера страниц, колонтитулы, сноски, ссылки и мусор с сайтов, склеивает переносы и разорванные строки. Сам текст не переписывается.</p>
               <div class="row">
                 <button class="btn tonal" onClick={() => s.cleanQuick()} disabled={s.cleaning.value || running}><Icon name="clean" size={18} />Быстро</button>
-                <button class="btn filled" onClick={() => void s.cleanAi()} disabled={s.cleaning.value || running || !useGemini()}><Icon name="magic" size={18} />С ИИ</button>
+                {/* PDF book: the lesson is matched word by word to the page, an AI rewrite would break that */}
+                {!s.isPdfBook && <button class="btn filled" onClick={() => void s.cleanAi()} disabled={s.cleaning.value || running || !useGemini()}><Icon name="magic" size={18} />С ИИ</button>}
               </div>
-              {!useGemini() && <p class="small">Чистка с ИИ: включите Gemini или другой ИИ в Настройки → Перевод и ИИ.</p>}
+              {s.isPdfBook && <p class="small">PDF-книга: чистки с ИИ нет — урок привязан к словам на странице, переписанный текст с ней не совпадёт.</p>}
+              {!s.isPdfBook && !useGemini() && <p class="small">Чистка с ИИ: включите Gemini или другой ИИ в Настройки → Перевод и ИИ.</p>}
               {s.cleaning.value && (
                 <>
                   <div class="row-status"><span class="spinner-sm" />ИИ чистит текст… {Math.round(s.cleanProgress.value * 100)} %</div>

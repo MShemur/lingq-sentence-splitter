@@ -1036,9 +1036,11 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .pdf-pager { position: absolute; inset: 0; background: var(--surface-c); }
 .pager > .page.pdf-page-slot { overflow: hidden; position: relative; }
 .pdf-view { position: absolute; inset: 0; overflow: hidden; }
-.pdf-stage { position: absolute; inset: 0; transform-origin: 0 0; }
+.pdf-stage { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
 .pdf-sheet { position: absolute; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18); }
 .pdf-canvas, .pdf-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.pdf-detail { position: absolute; inset: 0; pointer-events: none; }
+.pdf-detail canvas { position: absolute; display: block; }
 .pdf-words { position: absolute; inset: 0; pointer-events: none; }
 .pdf-hl { position: absolute; background: var(--green-bg); mix-blend-mode: multiply; }
 .pdf-hl.picked { background: color-mix(in srgb, var(--primary) 28%, transparent); }

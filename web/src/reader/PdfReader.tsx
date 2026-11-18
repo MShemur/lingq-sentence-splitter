@@ -52,10 +52,83 @@ class Zoom {
   toPage(x: number, y: number) { return { x: (x - this.ox) / this.scale - this.left, y: (y - this.oy) / this.scale - this.top } }
 }
 
-/** Re-renders the component when the zoom changes. */
-function useZoom(z: Zoom) {
+/** During a gesture only the stage's transform is written (no re-render); the component re-renders once the zoom has
+ *  stood still for SETTLE_MS (sharper picture of the visible part, label sizes). */
+function useZoom(z: Zoom, stage: { current: HTMLDivElement | null }) {
   const [, set] = useState(0)
-  useEffect(() => { z.on = () => set((n) => n + 1); return () => { if (z.on) z.on = null } }, [z])
+  const apply = () => { if (stage.current) stage.current.style.transform = `translate(${z.ox}px, ${z.oy}px) scale(${z.scale})` }
+  useLayoutEffect(apply)
+  useEffect(() => {
+    let t = 0
+    const on = () => { apply(); clearTimeout(t); t = window.setTimeout(() => set((n) => n + 1), SETTLE_MS) }
+    z.on = on
+    return () => { clearTimeout(t); if (z.on === on) z.on = null }
+  }, [z])
+}
+
+const SETTLE_MS = 250
+
+/** pdf.js renders of one page, one at a time: a newer request of the same slot cancels the running one / replaces the
+ *  waiting one ("base" = the whole page, "detail" = the visible part when zoomed). */
+type Job = { slot: string; task: any; dead: boolean }
+class PageJobs {
+  private cur: Job | null = null
+  private wait = new Map<string, (j: Job) => Promise<void>>()
+  private stopped = false
+
+  add(slot: string, run: (j: Job) => Promise<void>) {
+    if (this.stopped) return
+    this.wait.set(slot, run)
+    if (this.cur?.slot === slot) this.kill(this.cur)
+    this.next()
+  }
+
+  drop(slot: string) {
+    this.wait.delete(slot)
+    if (this.cur?.slot === slot) this.kill(this.cur)
+  }
+
+  stop() { this.stopped = true; this.wait.clear(); if (this.cur) this.kill(this.cur) }
+
+  private kill(j: Job) { j.dead = true; try { j.task?.cancel?.() } catch { /* already done */ } }
+
+  private next() {
+    if (this.cur || this.stopped || !this.wait.size) return
+    const slot = this.wait.has('base') ? 'base' : this.wait.keys().next().value!
+    const run = this.wait.get(slot)!
+    this.wait.delete(slot)
+    const j: Job = { slot, task: null, dead: false }
+    this.cur = j
+    run(j).catch(() => {}).finally(() => { this.cur = null; this.next() })
+  }
+}
+
+/** Draws the page part [x, y, w, h] (CSS px of a page [pw] wide) at [k] canvas px per CSS px. Null if cancelled. */
+async function drawPart(j: Job, pg: any, pw: number, k: number, x: number, y: number, w: number, h: number) {
+  const c = document.createElement('canvas')
+  try {
+    const vp1 = pg.getViewport({ scale: 1 })
+    const vp = pg.getViewport({ scale: (pw * k) / vp1.width, offsetX: -x * k, offsetY: -y * k })
+    c.width = Math.max(1, Math.ceil(w * k)); c.height = Math.max(1, Math.ceil(h * k))
+    const ctx = c.getContext('2d')
+    if (!ctx) throw new Error('no canvas')
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height)
+    j.task = pg.render({ canvasContext: ctx, viewport: vp, canvas: c } as any)
+    await j.task.promise
+    if (j.dead) throw new Error('cancelled')
+    return c
+  } catch (e) {
+    c.width = 0; c.height = 0
+    if (!j.dead) logError('pdf', 'Страница не нарисовалась', e)
+    return null
+  }
+}
+
+/** Frees the canvases in [box] (width = 0 gives the memory back at once in Safari), then puts [c] there. */
+function swapCanvas(box: HTMLElement | null, c: HTMLCanvasElement | null) {
+  if (!box) { if (c) { c.width = 0; c.height = 0 } return }
+  for (const old of [...box.querySelectorAll('canvas')]) { old.width = 0; old.height = 0; old.remove() }
+  if (c) box.appendChild(c)
 }
 
 export function PdfReader({ s, link }: { s: ReaderSession; link: PdfLink }) {
@@ -104,8 +177,12 @@ export function PdfReader({ s, link }: { s: ReaderSession; link: PdfLink }) {
   return <PdfPager s={s} map={map} doc={doc} />
 }
 
-/** Max pixels of one page picture (iPad Safari refuses canvases above ~16 Mpx and runs out of memory early). */
-const MAX_PX = 10_000_000
+/** Pixel budgets of the page pictures (iPad Safari refuses canvases above ~16 Mpx and runs out of canvas memory early):
+ *  the whole page on screen, the pages beside it (seen only while swiping), the sharper visible part when zoomed.
+ *  At most ~5 + 2 × 1.5 + 3.5 Mpx stay alive at once (plus one detail being drawn). */
+const BASE_PX = 5_000_000
+const SIDE_PX = 1_500_000
+const DETAIL_PX = 3_500_000
 
 function PdfPager({ s, map, doc }: { s: ReaderSession; map: PdfMap; doc: any }) {
   const pages = map.pages
@@ -362,56 +439,71 @@ function PdfPager({ s, map, doc }: { s: ReaderSession; map: PdfMap; doc: any }) 
 function PdfPageView({ s, doc, page, aspect, toks, z, current, vw, vh }: {
   s: ReaderSession; doc: any; page: number; aspect: number; toks: PdfTok[]; z: Zoom; current: boolean; vw: number; vh: number
 }) {
-  useZoom(z)
+  const stage = useRef<HTMLDivElement>(null)
+  useZoom(z, stage)
   const pw = Math.min(vw, vh / aspect)
   const ph = pw * aspect
   z.vw = vw; z.vh = vh; z.pw = pw; z.ph = ph
   z.left = (vw - pw) / 2; z.top = (vh - ph) / 2
-  // zoomed in: the page is drawn again sharper (only the page on screen)
-  const q = !current ? 1 : z.scale >= 2.5 ? 3 : z.scale >= 1.5 ? 2 : 1
-  const stage = {
-    transform: `translate(${z.ox}px, ${z.oy}px) scale(${z.scale})`,
-  } as JSX.CSSProperties
+
+  const [jobs] = useState(() => new PageJobs())
+  const baseBox = useRef<HTMLDivElement>(null)
+  const detailBox = useRef<HTMLDivElement>(null)
+  const pgP = useMemo(() => doc.getPage(page + 1) as Promise<any>, [doc, page])
+  useEffect(() => {
+    const a = baseBox.current, b = detailBox.current
+    return () => { jobs.stop(); swapCanvas(a, null); swapCanvas(b, null) }
+  }, [])
+
+  // the whole page at the screen's sharpness (a page beside the current one: coarser, it is seen only while swiping;
+  // the old picture stays until the new one is ready)
+  const dpr = window.devicePixelRatio || 1
+  const wantK = Math.min(dpr, Math.sqrt((current ? BASE_PX : SIDE_PX) / (pw * ph)))
+  useEffect(() => {
+    jobs.add('base', async (j) => {
+      const pg = await pgP
+      if (j.dead) return
+      const c = await drawPart(j, pg, pw, wantK, 0, 0, pw, ph)
+      if (c) swapCanvas(baseBox.current, c)
+    })
+  }, [Math.round(pw), wantK])
+
+  // zoomed in (page on screen, after the gesture settled): only the visible part is drawn again, sharper, over the
+  // base picture; the previous part stays (it lies right, only blurrier) until the new one is ready
+  let det: { x: number; y: number; w: number; h: number; k: number } | null = null
+  if (current && z.scale > 1.1) {
+    const a = z.toPage(0, 0), b = z.toPage(vw, vh)
+    const x = Math.max(0, Math.floor(a.x)), y = Math.max(0, Math.floor(a.y))
+    const w = Math.min(pw, Math.ceil(b.x)) - x, h = Math.min(ph, Math.ceil(b.y)) - y
+    const k = Math.min(z.scale * dpr, Math.sqrt(DETAIL_PX / Math.max(1, w * h)))
+    if (w > 0 && h > 0 && k > wantK * 1.15) det = { x, y, w, h, k }
+  }
+  const detKey = det ? `${det.x},${det.y},${det.w},${det.h},${det.k.toFixed(3)},${Math.round(pw)}` : ''
+  useEffect(() => {
+    if (!det) { jobs.drop('detail'); swapCanvas(detailBox.current, null); return }
+    const { x, y, w, h, k } = det
+    jobs.add('detail', async (j) => {
+      const pg = await pgP
+      if (j.dead) return
+      const c = await drawPart(j, pg, pw, k, x, y, w, h)
+      if (!c) return
+      c.style.left = x + 'px'; c.style.top = y + 'px'
+      c.style.width = c.width / k + 'px'; c.style.height = c.height / k + 'px'
+      swapCanvas(detailBox.current, c)
+    })
+  }, [detKey])
+
   return (
     <div class="pdf-view">
-      <div class="pdf-stage" style={stage}>
+      <div class="pdf-stage" ref={stage}>
         <div class="pdf-sheet" style={{ left: z.left + 'px', top: z.top + 'px', width: pw + 'px', height: ph + 'px' }}>
-          <PageCanvas doc={doc} page={page} pw={pw} ph={ph} q={q} />
+          <div class="pdf-canvas" ref={baseBox} />
+          <div class="pdf-detail" ref={detailBox} />
           <PdfWordLayer s={s} toks={toks} pw={pw} ph={ph} scale={z.scale} />
         </div>
       </div>
     </div>
   )
-}
-
-/** The page drawn by pdf.js; the old picture stays until the new (sharper) one is ready. */
-function PageCanvas({ doc, page, pw, ph, q }: { doc: any; page: number; pw: number; ph: number; q: number }) {
-  const box = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    let task: any = null
-    let gone = false
-    const c = document.createElement('canvas')
-    ;(async () => {
-      const pg = await doc.getPage(page + 1)
-      if (gone) return
-      const dpr = window.devicePixelRatio || 1
-      let k = q * dpr
-      while (k > 1 && pw * k * ph * k > MAX_PX) k -= 0.5
-      const vp1 = pg.getViewport({ scale: 1 })
-      const vp = pg.getViewport({ scale: (pw * k) / vp1.width })
-      c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height)
-      const ctx = c.getContext('2d')!
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height)
-      task = pg.render({ canvasContext: ctx, viewport: vp, canvas: c } as any)
-      await task.promise
-      if (gone || !box.current) return
-      for (const old of [...box.current.querySelectorAll('canvas')]) { (old as HTMLCanvasElement).width = 0; old.remove() }
-      box.current.appendChild(c)
-    })().catch(() => {})
-    return () => { gone = true; task?.cancel?.(); if (!c.isConnected) c.width = 0 }
-  }, [doc, page, Math.round(pw), q])
-  useEffect(() => () => { for (const c of [...(box.current?.querySelectorAll('canvas') ?? [])]) (c as HTMLCanvasElement).width = 0 }, [])
-  return <div class="pdf-canvas" ref={box} />
 }
 
 /** Highlights and translations above the words of a page (the boxes themselves are invisible: taps are measured). */
