@@ -271,7 +271,9 @@ private const val SEPARABLE = "\n\nУчитывай грамматику все�
     "Если «{word}» — приставка, sich или другое слово такого целого, переводи всё целое так же. " +
     "Добавь в JSON поле \"pair\": остальные слова этого целого ровно так, как они написаны в предложении, через пробел " +
     "(без самого «{word}»); пустая строка, если «{word}» — просто отдельное слово. " +
-    "Будь внимателен: одно и то же слово может стоять в предложении несколько раз в разной роли (нем. «um» — предлог " +
+    "В pair — только слова из этого предложения в той форме, как они написаны (спрягаемый глагол, а не инфинитив): " +
+    "для «an» в «Ich rufe dich morgen an» pair = «rufe», для «entgegen» в «So tritt er ihm entgegen» pair = «tritt». " +
+    "Будь внимательен: одно и то же слово может стоять в предложении несколько раз в разной роли (нем. «um» — предлог " +
     "в «erweitert sich um den Aspekt» и приставка в «treibt jeden Menschen um» → umtreiben). Если слово из pair " +
     "встречается в предложении больше одного раза, допиши к нему номер нужного вхождения, считая слева, в квадратных скобках: «um[2]»."
 
@@ -643,20 +645,50 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         if (words.isEmpty() || words.size > 6) return
         val toks = sentById[ref.sent]?.tokens ?: return
         val pos = toks.indexOfFirst { it.index == ref.token }
+        val tapped = toks.getOrNull(pos)?.text?.lowercase().orEmpty()
         val used = mutableSetOf(ref.token)
+        // the nearest unused one, but a split-off prefix stands AFTER its verb at the end of a clause
+        // (before , . ; or "und"), so such a place counts as much nearer
+        fun nearest(cands: List<Token>): Token? = cands.filter { it.index !in used }.minByOrNull { t ->
+            val i = toks.indexOf(t)
+            val next = toks.drop(i + 1).firstOrNull { it.text.isNotBlank() }
+            val clauseEnd = next == null || !next.isWord || next.text.lowercase() in setOf("und", "oder", "aber")
+            kotlin.math.abs(i - pos) - (if (i > pos && clauseEnd) 100 else 0)
+        }
         val hits = words.mapNotNull { (w, nth) ->
             val all = toks.filter { it.isWord && it.text.lowercase() == w }
             val numbered = nth?.let { all.getOrNull(it - 1) }?.takeIf { it.index !in used }
-            (numbered ?: all.filter { it.index !in used }.minByOrNull { t ->
-                // no number: the nearest one, but a split-off prefix stands AFTER its verb at the end of a clause
-                // (before , . ; or "und"), so such a place counts as much nearer
-                val i = toks.indexOf(t)
-                val next = toks.drop(i + 1).firstOrNull { it.text.isNotBlank() }
-                val clauseEnd = next == null || !next.isWord || next.text.lowercase() in setOf("und", "oder", "aber")
-                kotlin.math.abs(i - pos) - (if (i > pos && clauseEnd) 100 else 0)
-            })?.also { used += it.index }
+            val found = numbered ?: if (all.isNotEmpty()) nearest(all) else {
+                // no exact match: "entgegentreten" with "entgegen" tapped -> "treten"; then a stem match ("tritt" for "treten")
+                val w2 = if (w.startsWith(tapped) && w.length > tapped.length) w.substring(tapped.length) else w
+                val stem = when {
+                    w2.endsWith("en") && w2.length - 2 >= 3 -> w2.dropLast(2)
+                    w2.endsWith("n") && w2.length - 1 >= 3 -> w2.dropLast(1)
+                    else -> w2
+                }
+                if (stem.length < 3) null else nearest(toks.filter { t ->
+                    val x = t.text.lowercase()
+                    t.isWord && (x.startsWith(stem) || (x.length >= 3 && x.take(2) == stem.take(2) && editDistance(x, stem) <= 2))
+                })
+            }
+            found?.also { used += it.index }
         }
         if (hits.isNotEmpty()) pairs[ref] = hits.map { WordRef(ref.sent, it.index) }
+    }
+
+    /** Levenshtein distance between two words (a verb with a changed stem: "tritt" vs "treten"). */
+    private fun editDistance(a: String, b: String): Int {
+        var prev = IntArray(b.length + 1) { it }
+        for (i in 1..a.length) {
+            val cur = IntArray(b.length + 1)
+            cur[0] = i
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+            }
+            prev = cur
+        }
+        return prev[b.length]
     }
     /** Meaning chosen for a word (lower case) in this lesson. */
     val chosen = mutableStateMapOf<String, String>()
