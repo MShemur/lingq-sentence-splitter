@@ -154,6 +154,8 @@ const SEPARABLE = '\n\nУчитывай грамматику всего пред
   'Если «{word}» — приставка, sich или другое слово такого целого, переводи всё целое так же. ' +
   'Добавь в JSON поле "pair": остальные слова этого целого ровно так, как они написаны в предложении, через пробел ' +
   '(без самого «{word}»); пустая строка, если «{word}» — просто отдельное слово. ' +
+  'В pair — только слова из этого предложения в той форме, как они написаны (спрягаемый глагол, а не инфинитив): ' +
+  'для «an» в «Ich rufe dich morgen an» pair = «rufe», для «entgegen» в «So tritt er ihm entgegen» pair = «tritt». ' +
   'Будь внимателен: одно и то же слово может стоять в предложении несколько раз в разной роли (нем. «um» — предлог ' +
   'в «erweitert sich um den Aspekt» и приставка в «treibt jeden Menschen um» → umtreiben). Если слово из pair ' +
   'встречается в предложении больше одного раза, допиши к нему номер нужного вхождения, считая слева, в квадратных скобках: «um[2]».'
@@ -235,6 +237,20 @@ export class ReaderSession {
    */
   pairs = signal<Record<WordRef, WordRef[]>>({})
 
+  /** Levenshtein distance between two words (a verb with a changed stem: "tritt" vs "treten"). */
+  private editDistance(a: string, b: string): number {
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j)
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i]
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+      }
+      prev = cur
+    }
+    return prev[b.length]
+  }
+
   /** Each word of [pair] (space-separated, max 6) becomes the nearest unused word of the sentence spelled like it. */
   private markPair(r: WordRef, pair: string) {
     // "um[2]" = the second "um" of the sentence (the AI numbers a word that occurs more than once)
@@ -249,23 +265,39 @@ export class ReaderSession {
     const me = refToken(r)
     const toks = st.tokens
     const pos = toks.findIndex((t) => t.index === me)
+    const tapped = (toks[pos]?.text ?? '').toLowerCase()
     const used = new Set([me])
+    // the nearest unused one, but a split-off prefix stands AFTER its verb at the end of a clause
+    // (before , . ; or "und"), so such a place counts as much nearer (as Android v1.126)
+    const nearest = (cands: Token[]): Token | null => {
+      let best = Infinity
+      let found: Token | null = null
+      for (const t of cands) {
+        if (used.has(t.index)) continue
+        const i = toks.indexOf(t)
+        const next = toks.slice(i + 1).find((x) => x.text.trim())
+        const clauseEnd = !next || !next.isWord || ['und', 'oder', 'aber'].includes(next.text.toLowerCase())
+        const d = Math.abs(i - pos) - (i > pos && clauseEnd ? 100 : 0)
+        if (d < best) { best = d; found = t }
+      }
+      return found
+    }
     const hits: WordRef[] = []
     for (const { w, nth } of words) {
       const all = toks.filter((t) => t.isWord && t.text.toLowerCase() === w)
       let hit: Token | null = nth != null ? all[nth - 1] ?? null : null
       if (hit && used.has(hit.index)) hit = null
       if (!hit) {
-        // no number: the nearest one, but a split-off prefix stands AFTER its verb at the end of a clause
-        // (before , . ; or "und"), so such a place counts as much nearer (as Android v1.126)
-        let best = Infinity
-        for (const t of all) {
-          if (used.has(t.index)) continue
-          const i = toks.indexOf(t)
-          const next = toks.slice(i + 1).find((x) => x.text.trim())
-          const clauseEnd = !next || !next.isWord || ['und', 'oder', 'aber'].includes(next.text.toLowerCase())
-          const d = Math.abs(i - pos) - (i > pos && clauseEnd ? 100 : 0)
-          if (d < best) { best = d; hit = t }
+        if (all.length) hit = nearest(all)
+        else {
+          // no exact match: "entgegentreten" with "entgegen" tapped -> "treten"; then a stem match ("tritt" for "treten")
+          const w2 = w.startsWith(tapped) && w.length > tapped.length ? w.slice(tapped.length) : w
+          const stem = w2.endsWith('en') && w2.length - 2 >= 3 ? w2.slice(0, -2)
+            : w2.endsWith('n') && w2.length - 1 >= 3 ? w2.slice(0, -1) : w2
+          if (stem.length >= 3) hit = nearest(toks.filter((t) => {
+            const x = t.text.toLowerCase()
+            return t.isWord && (x.startsWith(stem) || (x.length >= 3 && x.slice(0, 2) === stem.slice(0, 2) && this.editDistance(x, stem) <= 2))
+          }))
         }
       }
       if (hit) { used.add(hit.index); hits.push(ref(st.id, hit.index)) }

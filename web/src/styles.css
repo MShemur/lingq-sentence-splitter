@@ -1004,8 +1004,13 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 /* a translation above a word lies in the gap between the lines: it takes no room, the lines never move apart */
 .reader.book .w, .reader.book .phrase { position: relative; }
 .reader.book .pin {
-  /* a word is an inline box lower than its line by half the leading: the same place as above a line-high box */
-  position: absolute; left: 50%; bottom: calc(50% + 0.775em * var(--line-mul, 1) - 0.24em + var(--pin-gap, 0px)); transform: translateX(-50%);
+  /* Anchored to the TOP of the word's inline box (its content area), so it is right for a word split over two lines too
+     (the box of a split inline spans both lines: bottom:50% sat on the first half, web v1.77). The gap above the text is
+     the same as in the usual mode: the pin-gap plus half the leading of a 1.35-high line ((1.35 * mul - content area) / 2,
+     in word em = /0.6 in pin em). --ca (content area height, em) and, for a split word, --pin-l (px, the centre of its first
+     part) come from placePins() in Reader.tsx. */
+  position: absolute; left: var(--pin-l, 50%); transform: translate(-50%, -100%);
+  top: calc(-1 * (var(--pin-gap, 0px) + (1.35 * var(--line-mul, 1) - var(--ca, 1.2)) / 2 / 0.6 * 1em));
   margin: 0; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 11em; pointer-events: none;
 }
 .reader.book .phrase-pin { max-width: max(100%, 14em); }

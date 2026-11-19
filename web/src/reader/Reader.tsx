@@ -1,4 +1,5 @@
 // Reader screen: text with tappable words, sentence mode, word window. Port of the UI part of Reader.kt.
+import { usePinPlace } from './pinPlace'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { Fragment, render, type JSX } from 'preact'
 import { memo } from 'preact/compat'
@@ -505,6 +506,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   const rebuilt = useRef(0)
 
   const book = isBook()
+  usePinPlace(pager, book, [prefs.readerFont.value, prefs.lineSpacing.value, prefs.pinGap.value, prefs.readerFace.value, pages, cur])
   /** Pages per screen: book mode in landscape on a big screen shows two side by side (a spread). */
   const per = book && size.w > size.h && size.w >= 900 ? 2 : 1
   const spreadOf = (i: number) => Math.floor(i / per)

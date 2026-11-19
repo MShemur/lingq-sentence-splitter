@@ -28,7 +28,18 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- user's iPad notes 19.11.2026 -> web v1.77 (web/src/reader/pinPlace.ts, styles.css `.reader.book .pin`): book mode
+  translation above a word: 1) a word hyphenated across two lines got its translation drawn on its first half; now it
+  sits above the first fragment, centred on it (measured in JS); 2) the gap translation -> word was 7-12 px smaller in
+  book mode than in normal mode; now the same (pin-gap + half the normal-mode leading). Android: check whether its book
+  mode has the same gap difference (and hyphenation, if any) and match normal mode.
+
 ## Done
+
+- note 19.11.2026 (Android) -> android v1.141 + web v1.77: split verb — tapping the separated prefix («entgegen» in
+  «So tritt er … entgegen») did not highlight the verb. The word prompt (SEPARABLE) now says pair = written form, not
+  the infinitive; markPair falls back to a stem match (tapped prefix cut off, -en/-n dropped, stem ≥ 3 letters; token
+  starts with it or same 2 first letters and Levenshtein ≤ 2). Both platforms (Reader.kt, session.ts).
 
 - user's iPad feedback 18.11.2026 -> web v1.76 -> android (if Android has block kinds; else note it): scanned PDF captions / boxes go into the lesson text BY DEFAULT (picker switch on; web pref key pdfAsides default '1'; lessons.json kinds "bhco", off = "bh"). Each caption ('c') / other ('o') block is its own paragraph, moved after the next body block that ends a sentence (. ! ? … » « " “ ” „) if Gemini put it after unfinished body text; a heading or the page end comes first -> there; headings / body keep order; the page words are stored in that order (web ocrorder.ts asideOrder, pdfbook.ts flat applies it again for older pages with "bhco"). An 'o' block with ≤ 3 letters in all (page numbers) stays out of the text. Text view: a paragraph whose mapped words are mostly 'c' / 'o' gets a small grey display-only label «Подпись к картинке» / «Врезка» above it (measured in pagination; not on a continuation; book mode: no indent there).
   Android v1.140 (with the Gemini order of web v1.72, see below): same rules (PdfOrder.asideOrder / asideWordOrder,
