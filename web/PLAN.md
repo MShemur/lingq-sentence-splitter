@@ -75,7 +75,12 @@ if blocked, proxy it the same way).
 Touch on iPad: implement tap / double tap / long press yourself (pointer events + timers); disable
 iOS text selection and double-tap zoom on the reader (`user-select:none`, `touch-action: manipulation`).
 
-## Status (2026-11-05)
+## Status
+
+This file is the original plan of 2026-11-05 and is kept for the verified API facts. Much more exists now
+(import, player, podcasts, sync, PDF book, book mode…): see `ROADMAP.md` and `PORTING.md` → Done; files in `README.md`.
+
+First version (2026-11-05):
 
 Done, everything above except import/fix: settings, library, reader (tap / double tap / long press, pins,
 word sheet, sentence translations), sentence mode (swipe, ← → keys), bookmarks, chat, PWA (manifest, icons,
