@@ -42,7 +42,7 @@ Restore a lesson: `python lingq_fix_splits.py --restore runs/<stamp>/backup/<les
 
 ## Android app (`android/`)
 
-Kotlin + Jetpack Compose app "SatzLoop" (was "LingQ Fix"; package `com.mshemur.lingqfix` stays, updates need it): uploads .txt/.md/.epub or pasted text to a LingQ course,
+Kotlin + Jetpack Compose app "SatzLoop" (was "LingQ Fix"; package `com.mshemur.lingqfix` stays, updates need it): uploads .txt/.md/.epub or pasted text to a LingQ course, reads PDF books (local, no LingQ: ML Kit + Gemini reading order, Gemini translations; see `PdfBook.kt` header),
 fixes sentence splits of new or existing lessons, keeps backups on the phone, updates itself from
 GitHub releases. `Fixer.kt` is a port of the merge rules in `lingq_fix_splits.py`:
 **when you change ABBREVIATIONS / SENTENCE_STARTERS / AMBIGUOUS / should_merge, change both.**
@@ -98,6 +98,23 @@ The sessions share one working tree; the other session's uncommitted files are a
 ## Feedback from the apps (agreed 2026-11-11)
 
 The user writes notes in the app ("Отзыв / задача"); they land as `feedback/*.json` on the `sync` branch. The Android
-session checks them hourly (`git fetch origin sync`), does the work, then writes back into the same file `status`
+session watches them, does the work, then writes back into the same file `status`
 ("work" / "done" / "no"), `doneIn` (e.g. "android v1.85") and `reply` (short Russian), committed to `sync` from a
 separate worktree (never switch the shared working tree). Web-only notes go to the web session via PORTING.md.
+Every note (also iPad ones) is done on Android too when feasible.
+
+Helpers in `tools/` (no tokens spent while waiting; the user asked for no crons and no token-spending polling):
+- `tools/watch_notes.sh`: run in the background; checks every 15 min (weekdays 03-08 and 18-20, weekends all day),
+  prints `NEW: <files>` and exits when a note has status "new". Handle the notes, then start it again.
+  If the session restarts, offer to start it.
+- `tools/notes.py`: sets status / doneIn / reply via the worktree (usage in the file header).
+- `tools/ci_wait.py <sha>`: after a push, waits for the Android CI run (up to 40 min) and prints
+  `run_number conclusion jobs_url`. Compiler errors of a failed run: take the job id from `jobs_url`, then
+  `https://api.github.com/repos/MShemur/lingq-sentence-splitter/check-runs/<job id>/annotations` (public, no token).
+
+## Working style (user's wishes)
+
+- Reply in short Russian, no code in chat, always name the versions (android v1.N, web v1.N).
+- Big tasks (a feature, a port) go to one general-purpose subagent at effort "medium"; high effort only with the
+  user's permission.
+- The two sessions talk through SendMessage (find the other with ListAgents; its name changes).
