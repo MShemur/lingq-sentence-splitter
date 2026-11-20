@@ -7,17 +7,6 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
-- OPEN notes 20.11.2026 (status still "new" on the sync branch, nobody started them; both platforms where feasible):
-  - feedback/20261120-053428-web.json: 1) the splitter cut after an ordinal number: «Dürers 400. Geburtstag» and
-    «seinem 300. Todestag 1828» were split after «400.» / «300.» (Fixer / lingq_fix_splits.py rule: number + dot +
-    noun / adjective = ordinal, merge). 2) iPad: bring back «Исправить разбивку» (re-split) in the lesson ⋮ and in the
-    import menu; instead of pasting a link, pick a course or lesson from the user's existing ones (Android too).
-    3) «Обработать текст с ИИ» on an existing lesson: pinned word translations shift by one word afterwards (word 3's
-    translation lands on word 2 …) — re-anchor pins / words / phrases to the new tokens (match by word text + context,
-    not by index). 4) option to split sentences with AI instead of the algorithm (in the re-split dialog).
-  - feedback/20261120-062204-web.json: reading setting «Отступ абзаца» (first-line indent of a paragraph, as in books),
-    in normal mode too (book mode has a fixed 1.5em indent now).
-
 - user request 18.11.2026 (both platforms, Android does it now): PDF-книга without LingQ. Import no longer creates a
   LingQ lesson: the book stays on the device (doc + page words as now), split into sentences locally (same
   abbreviation rules as Fixer / lingq_fix_splits.py), word / phrase / sentence translations come straight from Gemini
@@ -39,21 +28,20 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- user's iPad notes 19.11.2026 -> web v1.77 (web/src/reader/pinPlace.ts, styles.css `.reader.book .pin`): book mode
-  translation above a word: 1) a word hyphenated across two lines got its translation drawn on its first half; now it
-  sits above the first fragment, centred on it (measured in JS); 2) the gap translation -> word was 7-12 px smaller in
-  book mode than in normal mode; now the same (pin-gap + half the normal-mode leading). Android: check whether its book
-  mode has the same gap difference (and hyphenation, if any) and match normal mode. (User said "да, проверь" on
-  20.11.) Code read 20.11 (not run, not fixed): Reader.kt book branch ~2766-2789 places the label with a fixed
-  `lift = size * 0.24` (line ~2769, `tw.place(..., lift - tw.height)` ~2787), so it sits ~0.14·size closer than normal
-  mode, and the «Расстояние до перевода» slider (trGap / trPull, Reader.kt ~1940-1946, used at ~2799 normal, ~2686
-  phrases) does NOTHING in book mode. Suggested fix: lift = size * 0.1 ((1.55 - 1.35) / 2) and add
-  2 * pull (pull = (100 - trGap) / 100 * size * 0.45) to the label y; check on a device. Hyphenation already OK: the
-  label goes on the first part (HyphFlow ~2165-2182, HY_TAIL noTr).
-- The open notes of 20.11.2026 listed under "To do on web" apply to Android too (ordinal split, re-split picker,
-  AI-processing pin shift, AI split option, paragraph indent setting).
 
 ## Done
+
+- notes 20.11.2026 (feedback/20261120-053428-web, 20261120-062204-web) -> web v1.78-v1.80, android v1.142-v1.146, both
+  platforms: 1) fixer: ordinals with up to 3 digits («400. Geburtstag») — lingq_fix_splits.py, Fixer.kt, fixer.ts.
+  2) «Отступ абзаца» setting (0-3 em, step 0.25, default 1.5, pref paraIndent) in normal AND book mode, measured in
+  the pagination. 3) «Обработать текст с ИИ»: pins / phrases re-anchored by word-stream matching (Remap.kt /
+  remap.ts: normalized words, greedy walk with look-ahead 30, a pair counts only with a matched neighbour; phrases only
+  if all matched words stay in one sentence); a failed reload keeps the snapshot for the next load. 4) «Исправить
+  разбивку»: web got it (report screen, reader ⋮, import block «Уже на LingQ» with course / lesson picker + link);
+  Android: picker instead of the link only; «Проверить с ИИ» on both (same prompt: JSON {"merge":[numbers]}, chunks of
+  120, AI merges added to the algorithm's via fix(paragraphs, extra)); after «Применить» the stored notes of every
+  fixed lesson are re-anchored the same way (open reader reloads). 5) Android book mode: translation gap like normal
+  mode, the gap slider works there (web v1.77 did the same for the web).
 
 - note 19.11.2026 (Android) -> android v1.141 + web v1.77: split verb — tapping the separated prefix («entgegen» in
   «So tritt er … entgegen») did not highlight the verb. The word prompt (SEPARABLE) now says pair = written form, not
