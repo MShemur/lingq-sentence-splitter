@@ -298,7 +298,7 @@ data class WordRef(val sent: Int, val token: Int) {
 }
 
 /** Meanings pinned in one lesson (kept on the phone): per word position and per word. */
-private class LessonNotes(private val file: File) {
+internal class LessonNotes(private val file: File) {
     constructor(ctx: Context, lang: String, id: Int) : this(File(File(ctx.filesDir, "reader").apply { mkdirs() }, "${lang}_$id.json"))
 
     fun load(): Triple<Map<WordRef, String>, Map<String, String>, Map<String, String>> = runCatching {
@@ -319,6 +319,54 @@ private class LessonNotes(private val file: File) {
         val ph = JSONObject(); phrases.forEach { (k, v) -> if (v.isNotEmpty() && !v.startsWith("⚠")) ph.put(k, v) }
         file.writeText(JSONObject().put("pins", p).put("words", w).put("phrases", ph).put("t", System.currentTimeMillis()).toString())
     }
+}
+
+/** A lesson's paragraphs (LingQ editor JSON) -> sentences as the reader shows them; ids = running counter over the non-empty ones. */
+internal fun parseSentences(a: JSONArray): List<List<Sent>> {
+    var id = 0
+    val out = mutableListOf<List<Sent>>()
+    for (i in 0 until a.length()) {
+        val ss = a.getJSONObject(i).optJSONArray("sentences") ?: continue
+        val heading = a.getJSONObject(i).optString("style").matches(Regex("h[1-6]"))
+        val para = mutableListOf<Sent>()
+        for (j in 0 until ss.length()) {
+            val s = ss.getJSONObject(j)
+            val text = s.optString("text").trim()
+            if (text.isEmpty()) continue
+            val tr = HashMap<String, String>()
+            s.optJSONArray("translations")?.let { ta ->
+                for (k in 0 until ta.length()) {
+                    val o = ta.getJSONObject(k)
+                    val v = o.optString("text").trim()
+                    if (v.isNotEmpty()) tr.putIfAbsent(o.optString("language"), v)
+                }
+            }
+            val ts = s.optJSONArray("timestamp")
+            val start = if (ts != null && ts.length() >= 2 && !ts.isNull(0)) (ts.optDouble(0, -1.0) * 1000).toLong() else -1L
+            val end = if (ts != null && ts.length() >= 2 && !ts.isNull(1)) (ts.optDouble(1, -1.0) * 1000).toLong() else -1L
+            val sent = Sent(id, text, tr, s.optInt("index", id + 1), start, end, heading)
+            id++
+            para += sent
+        }
+        if (para.isNotEmpty()) out += para
+    }
+    return out
+}
+
+/**
+ * The lesson checker saved [after] in place of [before] (LingQ): the word translations of the lesson's notes file
+ * follow their words (same rules as ReaderSession.remapNotes). No notes file = nothing to move; an unreadable one is left.
+ */
+internal fun rewriteLessonNotes(ctx: Context, lang: String, id: Int, before: JSONArray, after: JSONArray) {
+    val file = File(File(ctx.filesDir, "reader"), "${lang}_$id.json")
+    if (!file.exists()) return
+    if (runCatching { JSONObject(file.readText()) }.isFailure) return
+    val old = wordSlots(parseSentences(before).flatten())
+    val map = matchWords(old, wordSlots(parseSentences(after).flatten()))
+    val store = LessonNotes(file)
+    val (p, w, ph) = store.load()
+    val r = remapStored(p.mapKeys { it.key.key() }, ph, map, old)
+    store.save(r.pins.mapKeys { WordRef.of(it.key) }, w, r.phrases)
 }
 
 /**
@@ -871,37 +919,12 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
      */
     private fun remapNotes(old: List<WordSlot>): Pair<Int, Int> {
         val map = matchWords(old, wordSlots(sentences))
-        fun ok(v: String) = v.isNotEmpty() && !v.startsWith("⚠")
-        var total = 0
-        var kept = 0
-        val newPins = HashMap<WordRef, String>()
-        for ((k, v) in pins.toMap()) {
-            if (ok(v)) total++
-            val nk = map[k.key()] ?: continue
-            newPins[WordRef.of(nk)] = v
-            if (ok(v)) kept++
-        }
-        val newPhrases = HashMap<String, String>()
-        for ((k, v) in phrasePins.toMap()) {
-            if (ok(v)) total++
-            val q = k.split(':')
-            if (q.size != 3) continue
-            val s = q[0].toIntOrNull() ?: continue
-            val f = q[1].toIntOrNull() ?: continue
-            val e = q[2].toIntOrNull() ?: continue
-            val a = map["$s:$f"]?.let { WordRef.of(it) } ?: continue
-            val b = map["$s:$e"]?.let { WordRef.of(it) } ?: continue
-            if (a.sent != b.sent || a.token > b.token) continue
-            // every old word of the phrase that found its place must be in the same new sentence as the ends
-            val split = old.any { slot ->
-                val p = slot.key.split(':')
-                p[0].toIntOrNull() == s && (p[1].toIntOrNull() ?: -1) in f..e &&
-                    map[slot.key]?.let { WordRef.of(it).sent != a.sent } == true
-            }
-            if (split) continue
-            newPhrases["${a.sent}:${a.token}:${b.token}"] = v
-            if (ok(v)) kept++
-        }
+        // the stored notes' rules (pins, phrases) live in Remap.kt, shared with the lesson checker's rewrite
+        val r = remapStored(pins.toMap().mapKeys { it.key.key() }, phrasePins.toMap(), map, old)
+        val kept = r.kept
+        val total = r.total
+        val newPins: Map<WordRef, String> = r.pins.mapKeys { WordRef.of(it.key) }
+        val newPhrases: Map<String, String> = r.phrases
         val newProvisional = HashMap<WordRef, Boolean>()
         for ((k, v) in provisional.toMap()) {
             val nk = map[k.key()] ?: continue
@@ -1055,39 +1078,29 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
         }
     }
 
-    private fun parse(a: JSONArray): List<List<Sent>> {
-        var id = 0
-        val out = mutableListOf<List<Sent>>()
-        for (i in 0 until a.length()) {
-            val ss = a.getJSONObject(i).optJSONArray("sentences") ?: continue
-            val heading = a.getJSONObject(i).optString("style").matches(Regex("h[1-6]"))
-            val para = mutableListOf<Sent>()
-            for (j in 0 until ss.length()) {
-                val s = ss.getJSONObject(j)
-                val text = s.optString("text").trim()
-                if (text.isEmpty()) continue
-                val tr = HashMap<String, String>()
-                s.optJSONArray("translations")?.let { ta ->
-                    for (k in 0 until ta.length()) {
-                        val o = ta.getJSONObject(k)
-                        val v = o.optString("text").trim()
-                        if (v.isNotEmpty()) tr.putIfAbsent(o.optString("language"), v)
-                    }
-                }
-                val ts = s.optJSONArray("timestamp")
-                val start = if (ts != null && ts.length() >= 2 && !ts.isNull(0)) (ts.optDouble(0, -1.0) * 1000).toLong() else -1L
-                val end = if (ts != null && ts.length() >= 2 && !ts.isNull(1)) (ts.optDouble(1, -1.0) * 1000).toLong() else -1L
-                val sent = Sent(id, text, tr, s.optInt("index", id + 1), start, end, heading)
-                id++
-                sentById[sent.id] = sent
-                para += sent
-            }
-            if (para.isNotEmpty()) out += para
-        }
-        return out
+    private fun parse(a: JSONArray): List<List<Sent>> =
+        parseSentences(a).also { out -> out.forEach { para -> para.forEach { sentById[it.id] = it } } }
+
+    /**
+     * Set while the lesson checker rewrites this lesson's notes file (AppState CheckSession.apply): nothing is written
+     * from here meanwhile, the in-memory notes are stale until [reloadAfterNotesRewrite].
+     */
+    var notesFrozen = false
+
+    /** The lesson checker merged sentences and moved the notes file: the lesson is read again, notes as on a fresh open. */
+    fun reloadAfterNotesRewrite() {
+        popup = null
+        wordMenu = null
+        closePhrase()
+        aiCache.clear(); provisional.clear(); pairs.clear()
+        pins.clear(); phrasePins.clear(); chosen.clear()
+        sentTr.clear(); shownSentences.clear(); sentById.clear()
+        // stays frozen when the read fails: an empty in-memory state must not overwrite the file
+        load { ok, _ -> if (ok) notesFrozen = false }
     }
 
     private fun persist() {
+        if (notesFrozen) return
         val p = pins.toMap(); val w = chosen.toMap(); val ph = phrasePins.toMap()
         app.scope.launch(Dispatchers.IO) { runCatching { notes.save(p, w, ph) } }
     }

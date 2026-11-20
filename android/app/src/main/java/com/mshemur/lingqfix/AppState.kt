@@ -782,9 +782,19 @@ class CheckSession(private val app: AppState, val lang: String, private val less
                 for ((i, r) in results.toList().withIndex()) {
                     if (r.lesson.id in savedIds) continue
                     status = "Записываю ${i + 1}/${results.size}: ${r.lesson.title}"
-                    withContext(Dispatchers.IO) {
-                        app.backups.save(lang, r.lesson, r.original)
-                        app.api.saveParagraphs(lang, r.lesson.id, r.fixed)
+                    // readers open on this lesson keep their notes frozen while the file is moved (see ReaderSession.notesFrozen)
+                    val readers = openReaders(r.lesson.id)
+                    readers.forEach { it.notesFrozen = true }
+                    try {
+                        withContext(Dispatchers.IO) {
+                            app.backups.save(lang, r.lesson, r.original)
+                            app.api.saveParagraphs(lang, r.lesson.id, r.fixed)
+                            // the word translations follow their words; a failure here does not undo the saved lesson
+                            runCatching { rewriteLessonNotes(app.ctx, lang, r.lesson.id, r.original, r.fixed) }
+                                .onFailure { AppLog.error("check", "Урок ${r.lesson.id}: переводы не перенесены после исправления", it) }
+                        }
+                    } finally {
+                        readers.forEach { it.reloadAfterNotesRewrite() }
                     }
                     savedIds.add(r.lesson.id)
                     delay(1000)
@@ -798,6 +808,12 @@ class CheckSession(private val app: AppState, val lang: String, private val less
             applying = false
         }
     }
+
+    /** Reader screens and the mini player that show this LingQ lesson. */
+    private fun openReaders(id: Int): List<ReaderSession> =
+        (app.stack.mapNotNull { (it as? Screen.Reader)?.session } + listOfNotNull(app.player))
+            .filter { !it.local && it.lang == lang && it.lesson.id == id }
+            .distinct()
 }
 
 class ImportItem(title: String, text: String, selected: Boolean) {

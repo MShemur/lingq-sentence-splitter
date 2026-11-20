@@ -51,3 +51,52 @@ fun matchWords(a: List<WordSlot>, b: List<WordSlot>): Map<String, String> {
     }
     return out
 }
+
+/** A translation that is kept: not empty and not an error ("⚠"). */
+fun trOk(v: String): Boolean = v.isNotEmpty() && !v.startsWith("⚠")
+
+/** Stored notes after the text changed: pins "s:t" -> translation, phrases "s:f:e" -> translation; [kept]/[total] = not errors. */
+class RemappedNotes(val pins: Map<String, String>, val phrases: Map<String, String>, val kept: Int, val total: Int)
+
+/**
+ * Moves the stored notes with the word map (old key -> new key from [matchWords]); [old] = the old word slots.
+ * Pins follow their word. Phrases keep only if both ends land in one new sentence, f <= e, and no old word of the
+ * phrase that found its place sits in another sentence. Unmatched notes are dropped. Port of web remapNotes.
+ */
+fun remapStored(pins: Map<String, String>, phrases: Map<String, String>, map: Map<String, String>, old: List<WordSlot>): RemappedNotes {
+    var total = 0
+    var kept = 0
+    val newPins = LinkedHashMap<String, String>()
+    for ((k, v) in pins) {
+        if (trOk(v)) total++
+        val nk = map[k] ?: continue
+        newPins[nk] = v
+        if (trOk(v)) kept++
+    }
+    val newPhrases = LinkedHashMap<String, String>()
+    for ((k, v) in phrases) {
+        if (trOk(v)) total++
+        val q = k.split(':')
+        if (q.size != 3) continue
+        val s = q[0].toIntOrNull() ?: continue
+        val f = q[1].toIntOrNull() ?: continue
+        val e = q[2].toIntOrNull() ?: continue
+        val a = map["$s:$f"] ?: continue
+        val b = map["$s:$e"] ?: continue
+        val ap = a.split(':')
+        val bp = b.split(':')
+        val aSent = ap[0].toInt(); val aTok = ap[1].toInt()
+        val bSent = bp[0].toInt(); val bTok = bp[1].toInt()
+        if (aSent != bSent || aTok > bTok) continue
+        // every old word of the phrase that found its place must be in the same new sentence as the ends
+        val split = old.any { slot ->
+            val p = slot.key.split(':')
+            p[0].toIntOrNull() == s && (p[1].toIntOrNull() ?: -1) in f..e &&
+                map[slot.key]?.let { it.substringBefore(':').toInt() != aSent } == true
+        }
+        if (split) continue
+        newPhrases["$aSent:$aTok:$bTok"] = v
+        if (trOk(v)) kept++
+    }
+    return RemappedNotes(newPins, newPhrases, kept, total)
+}
