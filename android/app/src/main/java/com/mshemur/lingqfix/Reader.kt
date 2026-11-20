@@ -1173,6 +1173,8 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     val lineSpacing get() = app.lineSpacing
     /** Space between paragraphs as set (usual: none in book mode, 14 dp otherwise). */
     val paraGap: Dp get() = if (app.paraGap >= 0) app.paraGap.dp else if (book) 0.dp else 14.dp
+    /** Settings: first-line indent of a paragraph, in font sizes (0 = none). */
+    val paraIndent: Float get() = app.paraIndent
     val justify get() = app.justify
 
     /** Words and phrases with a translation in this lesson, in text order, each word once: (text, translation, sentence). */
@@ -2210,9 +2212,6 @@ private fun HyphFlow(justify: Boolean, continues: Boolean, content: @Composable 
 /** Line height in font sizes: book mode leaves room for the translations above the words. */
 private fun lineMul(book: Boolean, pct: Int = 100) = (if (book) 1.55f else 1.35f) * pct / 100f
 
-/** First-line indent of a paragraph in book mode, in font sizes. */
-private const val INDENT_EM = 1.5f
-
 /** Label above a caption / box paragraph of a PDF book. */
 private val ASIDE_LABEL_STYLE = TextStyle(fontSize = 11.sp, lineHeight = 14.sp)
 
@@ -2225,10 +2224,12 @@ private class TextMetrics(
     private val m: TextMeasurer, private val d: Density, font: Int, private val width: Int, textStyle: TextStyle,
     /** Text widths, kept between rebuilds while the font is the same. */
     private val widths: HashMap<String, Int>,
-    /** Book mode: taller lines (room for the translations above words), first line of a paragraph indented. */
+    /** Book mode: taller lines (room for the translations above words). */
     book: Boolean = false,
     /** Line spacing, % of the usual one. */
     spacing: Int = 100,
+    /** First-line indent of a paragraph, in font sizes (0 = none). */
+    indentEm: Float = 0f,
     /** Lesson language: its hyphenation rules (book mode). */
     lang: String = "de",
 ) {
@@ -2271,8 +2272,8 @@ private class TextMetrics(
         }
         return -1
     }
-    /** Width of the first-line indent of a paragraph (book mode), 0 = none. */
-    val indent = if (book) px(size * INDENT_EM) else 0
+    /** Width of the first-line indent of a paragraph, 0 = none. */
+    val indent = if (indentEm > 0f) px(size * indentEm) else 0
     private fun px(dp: Float) = with(d) { dp.dp.roundToPx() }
     private val lineH = m.measure("Ag", text, maxLines = 1).size.height
     /** Height of the caption / box label above such a paragraph (PDF book) with the 6 dp gap below it. */
@@ -2350,7 +2351,7 @@ private class TextMetrics(
  * than a page is split at a line.
  */
 private suspend fun paginate(paras: List<List<Sent>>, metrics: TextMetrics, h: Int, gap: Int, cut: Boolean = false): List<List<Block>> {
-    // book mode: a paragraph starts with an indent (not a heading, not the rest of a paragraph from the last page)
+    // a paragraph starts with an indent (not a heading, not the rest of a paragraph from the last page)
     fun ind(para: List<Sent>, from: Int, fromChunk: Int) =
         if (from == 0 && fromChunk == 0 && !para[0].heading && para[0].aside.isEmpty()) metrics.indent else 0
     val pages = mutableListOf<List<Block>>()
@@ -2432,14 +2433,15 @@ private fun PagedText(s: ReaderSession, paras: List<List<Sent>>) {
         val book = s.book
         val gap = with(density) { s.paraGap.roundToPx() }
         val spacing = s.lineSpacing
+        val indentEm = s.paraIndent
         val w = (constraints.maxWidth - 2 * padH).coerceAtLeast(1)
         val h = if (constraints.hasBoundedHeight) ((constraints.maxHeight - 2 * padV) * 0.99f).toInt() else Int.MAX_VALUE
         val font = s.font
         // the old pages stay on screen until the new ones are ready
-        val pages by produceState<Pair<List<List<Block>>, Map<Long, Int>>?>(null, paras, font, w, h, gap, density, book, spacing) {
+        val pages by produceState<Pair<List<List<Block>>, Map<Long, Int>>?>(null, paras, font, w, h, gap, density, book, spacing, indentEm) {
             value = withContext(Dispatchers.Default) {
                 lock.withLock {
-                    val m = TextMetrics(measurer, density, font, w, textStyle, widths, book, spacing, s.lang)
+                    val m = TextMetrics(measurer, density, font, w, textStyle, widths, book, spacing, indentEm, s.lang)
                     paginate(paras, m, h, gap, cut = book) to HashMap(m.splits)
                 }
             }
@@ -2509,7 +2511,7 @@ private fun TextPager(s: ReaderSession, pages: List<List<Block>>) {
                     .verticalScroll(rememberScrollState()).padding(horizontal = sidePad(s), vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(s.paraGap),
             ) {
-                latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents, b.first, b.last, b.start && s.book, label = b.start) }
+                latest.getOrNull(i)?.forEach { b -> Paragraph(s, b.sents, b.first, b.last, b.start, label = b.start) }
             }
         }
         if (s.wide && !s.book) TurnButtons(pager)
@@ -2585,7 +2587,7 @@ private fun DockButton(s: ReaderSession) {
 @Composable
 private fun Paragraph(s: ReaderSession, para: List<Sent>, first: Int = 0, last: Int = -1, indent: Boolean = false, label: Boolean = false) {
     val aside = para.firstOrNull()?.aside.orEmpty()
-    val ind = if (indent && para.firstOrNull()?.heading == false && aside.isEmpty()) (s.font * INDENT_EM).dp else 0.dp
+    val ind = if (indent && para.firstOrNull()?.heading == false && aside.isEmpty()) (s.font * s.paraIndent).dp else 0.dp
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // PDF book: what this paragraph is (display only; measured in [TextMetrics.labelH])
         if (label && aside.isNotEmpty()) Text(
@@ -2617,7 +2619,7 @@ internal fun SentenceFlow(
     from: Int = 0, to: Int = -1,
     /** Words spread over each line; the last line stays left unless the text [continues] on the next page. */
     justify: Boolean = false, continues: Boolean = false,
-    /** First-line indent (book mode). */
+    /** First-line indent of a paragraph (see [Paragraph]). */
     indent: Dp = 0.dp,
 ) {
     val size = s.font * scale
@@ -2766,7 +2768,12 @@ private fun ChunkRow(
             if (s.book && area == "text" && trShown != null) {
                 // book mode: the translation lies in the gap above the line, the lines do not move apart
                 val a by animateFloatAsState(if (s.trVisible(ref.key())) 1f else 0f, tween(600), label = "wordTr")
-                val lift = with(LocalDensity.current) { (textStyle.fontSize.value * 0.24f).sp.roundToPx() }
+                // same place as in normal mode (line 1.35 vs 1.55 of the size: the label sits 0.1 size higher)
+                val lift = with(LocalDensity.current) { (textStyle.fontSize.value * 0.1f).sp.roundToPx() }
+                // the gap slider, as trPull does in normal mode: at 100 % nothing moves
+                val pull = with(LocalDensity.current) {
+                    ((100 - s.trGap).coerceIn(0, 100) / 100f * textStyle.fontSize.value * 0.45f).sp.roundToPx()
+                }
                 val trColor = if (s.provisional[ref] == true) MaterialTheme.colorScheme.outline else LocalHighlight.current.text
                 androidx.compose.ui.layout.Layout(content = {
                     Text(
@@ -2784,7 +2791,7 @@ private fun ChunkRow(
                     val tw = ms[1].measure(Constraints(maxWidth = maxOf(w.width * 3, c.maxWidth / 2).coerceAtMost(c.maxWidth)))
                     layout(w.width, w.height) {
                         w.place(0, 0)
-                        tw.place((w.width - tw.width) / 2, lift - tw.height)
+                        tw.place((w.width - tw.width) / 2, lift - tw.height + 2 * pull)
                     }
                 }
             } else {

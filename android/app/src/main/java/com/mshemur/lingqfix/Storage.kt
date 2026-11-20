@@ -175,6 +175,10 @@ class Prefs(ctx: Context) {
     var paraGap: Int
         get() = read("paraGap", "-1").toIntOrNull()?.coerceIn(-1, 60) ?: -1
         set(v) = write("paraGap", v.toString())
+    /** First-line indent of a paragraph, in font sizes (em); 0 = none. */
+    var paraIndent: Float
+        get() = read("paraIndent", "1.5").toFloatOrNull()?.coerceIn(0f, 3f) ?: 1.5f
+        set(v) = write("paraIndent", v.toString())
     /** "Слова по урокам": words met at most this many times in a course are not counted (0 = all). */
     var wsMin: Int
         get() = read("wsMin", "0").toIntOrNull()?.coerceIn(0, 10) ?: 0

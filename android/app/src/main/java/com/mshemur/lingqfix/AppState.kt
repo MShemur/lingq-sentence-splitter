@@ -262,6 +262,7 @@ class AppState(val ctx: Context) {
     var trGap by mutableStateOf(prefs.trGap)
     var lineSpacing by mutableStateOf(prefs.lineSpacing)
     var paraGap by mutableStateOf(prefs.paraGap)
+    var paraIndent by mutableStateOf(prefs.paraIndent)
     var justify by mutableStateOf(prefs.readerJustify)
     var book by mutableStateOf(prefs.readerBook)
     var pdfFit by mutableStateOf(prefs.pdfFit)
@@ -284,7 +285,7 @@ class AppState(val ctx: Context) {
         apiKey = prefs.apiKey; lang = prefs.lang; ghToken = prefs.ghToken; trLang = prefs.trLang
         readerTheme = prefs.readerTheme; highlight = prefs.highlight; keepAwake = prefs.keepAwake; trGap = prefs.trGap
         maxBright = prefs.maxBright
-        lineSpacing = prefs.lineSpacing; paraGap = prefs.paraGap
+        lineSpacing = prefs.lineSpacing; paraGap = prefs.paraGap; paraIndent = prefs.paraIndent
         justify = prefs.readerJustify
         book = prefs.readerBook; wordBg = prefs.wordBg; pdfFit = prefs.pdfFit
         if (oldLang != lang) courses = null

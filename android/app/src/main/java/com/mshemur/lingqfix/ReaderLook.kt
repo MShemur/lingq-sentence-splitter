@@ -289,6 +289,19 @@ fun SettingsReading(state: AppState) {
             )
             Text(if (state.paraGap < 0) "обычное" else "$cur dp", Modifier.width(72.dp).padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
         }
+        Text("Отступ абзаца", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val indent = state.paraIndent
+            androidx.compose.material3.Slider(
+                value = indent,
+                onValueChange = { v -> val n = (Math.round(v * 4f) / 4f).coerceIn(0f, 3f); if (n != indent) state.applyPrefs { paraIndent = n } },
+                valueRange = 0f..3f, steps = 11, modifier = Modifier.weight(1f),
+            )
+            // 1.5 -> "1,5 em", 1.0 -> "1 em", 0 -> "нет"
+            val indentText = if (indent == 0f) "нет" else
+                String.format(java.util.Locale.ROOT, "%.2f", indent).trimEnd('0').trimEnd('.').replace('.', ',') + " em"
+            Text(indentText, Modifier.width(72.dp).padding(start = 8.dp), style = MaterialTheme.typography.labelLarge)
+        }
         if (state.lineSpacing != 100 || state.paraGap >= 0) androidx.compose.material3.TextButton(
             onClick = { state.applyPrefs { lineSpacing = 100; paraGap = -1 } },
         ) { Text("Вернуть обычные расстояния") }

@@ -40,7 +40,7 @@ object Fixer {
 
     private val LAST_TOKEN = Regex("(\\S+)\\.$")
     private val FIRST_WORD = Regex("^[^\\p{L}]*(\\p{L}+)")   // Android regex has no (?U) flag
-    private val ORDINAL_OR_LETTER = Regex("\\d{1,2}|[A-ZÄÖÜ]|[IVX]{1,4}|([A-ZÄÖÜ]\\.)+[A-ZÄÖÜ]")
+    private val ORDINAL_OR_LETTER = Regex("\\d{1,3}|[A-ZÄÖÜ]|[IVX]{1,4}|([A-ZÄÖÜ]\\.)+[A-ZÄÖÜ]")
     private val WS = Regex("\\s+")
 
     fun norm(t: String) = t.replace(WS, " ").trim()

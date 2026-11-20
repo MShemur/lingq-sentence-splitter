@@ -103,7 +103,7 @@ def ends_with_abbreviation(text, nxt=""):
         return True
     # ordinal ("19." Jahrhundert, "21." Mai), initials / roman numerals ("Maximilian I.", "F.A.Z."):
     # ambiguous, a real sentence can end like that ("... zum Typ 3."), so look at what follows
-    if re.fullmatch(r"\d{1,2}|[A-ZÄÖÜ]|[IVX]{1,4}|([A-ZÄÖÜ]\.)+[A-ZÄÖÜ]", tok):
+    if re.fullmatch(r"\d{1,3}|[A-ZÄÖÜ]|[IVX]{1,4}|([A-ZÄÖÜ]\.)+[A-ZÄÖÜ]", tok):
         if nxt.lstrip()[:1] in "(0123456789":  # "Theodosius I. (379–395)", "(Abb. 1. 2)"
             return True
         return first_word(nxt) not in SENTENCE_STARTERS
