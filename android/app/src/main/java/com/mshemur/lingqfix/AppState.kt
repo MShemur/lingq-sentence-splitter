@@ -737,7 +737,7 @@ class CheckSession(private val app: AppState, val lang: String, private val less
     var ai by mutableStateOf(false)
 
     /** Turns the AI check on or off and runs the dry run again. */
-    fun setAi(on: Boolean) {
+    fun switchAi(on: Boolean) {
         if (running || applying || done || on == ai) return
         if (on && !app.useGemini) return app.say("Для проверки с ИИ включите Gemini или другой ИИ: Настройки → Перевод и ИИ")
         ai = on

@@ -454,7 +454,7 @@ private fun CheckScreen(s: CheckSession) {
                         )
                     }
                     Switch(
-                        checked = s.ai, onCheckedChange = { s.setAi(it) },
+                        checked = s.ai, onCheckedChange = { s.switchAi(it) },
                         enabled = !s.running && !s.applying && !s.done,
                     )
                 }
