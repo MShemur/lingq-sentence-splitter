@@ -7,6 +7,17 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- OPEN notes 20.11.2026 (status still "new" on the sync branch, nobody started them; both platforms where feasible):
+  - feedback/20261120-053428-web.json: 1) the splitter cut after an ordinal number: «Dürers 400. Geburtstag» and
+    «seinem 300. Todestag 1828» were split after «400.» / «300.» (Fixer / lingq_fix_splits.py rule: number + dot +
+    noun / adjective = ordinal, merge). 2) iPad: bring back «Исправить разбивку» (re-split) in the lesson ⋮ and in the
+    import menu; instead of pasting a link, pick a course or lesson from the user's existing ones (Android too).
+    3) «Обработать текст с ИИ» on an existing lesson: pinned word translations shift by one word afterwards (word 3's
+    translation lands on word 2 …) — re-anchor pins / words / phrases to the new tokens (match by word text + context,
+    not by index). 4) option to split sentences with AI instead of the algorithm (in the re-split dialog).
+  - feedback/20261120-062204-web.json: reading setting «Отступ абзаца» (first-line indent of a paragraph, as in books),
+    in normal mode too (book mode has a fixed 1.5em indent now).
+
 - user request 18.11.2026 (both platforms, Android does it now): PDF-книга without LingQ. Import no longer creates a
   LingQ lesson: the book stays on the device (doc + page words as now), split into sentences locally (same
   abbreviation rules as Fixer / lingq_fix_splits.py), word / phrase / sentence translations come straight from Gemini
@@ -32,7 +43,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   translation above a word: 1) a word hyphenated across two lines got its translation drawn on its first half; now it
   sits above the first fragment, centred on it (measured in JS); 2) the gap translation -> word was 7-12 px smaller in
   book mode than in normal mode; now the same (pin-gap + half the normal-mode leading). Android: check whether its book
-  mode has the same gap difference (and hyphenation, if any) and match normal mode.
+  mode has the same gap difference (and hyphenation, if any) and match normal mode. (User said "да, проверь" on
+  20.11; not started yet.)
+- The open notes of 20.11.2026 listed under "To do on web" apply to Android too (ordinal split, re-split picker,
+  AI-processing pin shift, AI split option, paragraph indent setting).
 
 ## Done
 
