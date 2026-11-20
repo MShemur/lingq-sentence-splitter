@@ -733,16 +733,32 @@ class CheckSession(private val app: AppState, val lang: String, private val less
     val total get() = lessons.size
     val changeCount get() = results.sumOf { it.changes.size }
 
+    /** Switch «Проверить с ИИ»: the AI merges are added to the algorithm's (union). */
+    var ai by mutableStateOf(false)
+
+    /** Turns the AI check on or off and runs the dry run again. */
+    fun setAi(on: Boolean) {
+        if (running || applying || done || on == ai) return
+        if (on && !app.useGemini) return app.say("Для проверки с ИИ включите Gemini или другой ИИ: Настройки → Перевод и ИИ")
+        ai = on
+        results.clear(); checked = 0; progress = 0f; error = null; running = true
+        start()
+    }
+
     fun start() {
+        val useAi = ai
         app.scope.launch {
             try {
                 for ((i, l0) in lessons.withIndex()) {
-                    status = "Проверяю ${i + 1}/${lessons.size}: ${l0.title}"
+                    status = (if (useAi) "ИИ проверяет " else "Проверяю ") + "${i + 1}/${lessons.size}: ${l0.title}"
                     val fix = withContext(Dispatchers.IO) {
                         val l = if (l0.title.isBlank()) app.api.lesson(lang, l0.id) else l0
                         val orig = app.api.editor(lang, l.id)
                         val fixed = JSONArray(orig.toString())
-                        LessonFix(l, orig, fixed, Fixer.fix(fixed))
+                        // numbers of the sentences the AI wants glued to the previous one (before any merge)
+                        val merges: Set<Int> = if (useAi) SplitAi.merges(app.geminiFast(), Fixer.sentenceTexts(orig)) else emptySet<Int>()
+                        val extra: ((Int) -> Boolean)? = if (useAi) ({ n: Int -> n in merges }) else null
+                        LessonFix(l, orig, fixed, Fixer.fix(fixed, extra))
                     }
                     if (lessons.size == 1) label = fix.lesson.title
                     if (fix.changes.isNotEmpty()) results.add(fix)

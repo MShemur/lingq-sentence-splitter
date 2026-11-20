@@ -55,6 +55,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
@@ -443,6 +445,21 @@ private fun CheckScreen(s: CheckSession) {
             contentPadding = PaddingValues(16.dp),
         ) {
             item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Проверить с ИИ", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "ИИ добавляет свои склейки к правилам приложения (дольше и нужен ключ ИИ)",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = s.ai, onCheckedChange = { s.setAi(it) },
+                        enabled = !s.running && !s.applying && !s.done,
+                    )
+                }
+            }
+            item {
                 Text(
                     "Проверено уроков: ${s.checked} из ${s.total} · с правками: ${s.results.size} · правок: ${s.changeCount}",
                     style = MaterialTheme.typography.titleSmall,
@@ -493,7 +510,129 @@ private fun CheckScreen(s: CheckSession) {
     )
 }
 
-// --- Import --------------------------------------------------------------------------------------
+/**
+ * «Выбрать курс или урок»: a course with its lessons (checkboxes, «Все уроки курса»), or one of the recent lessons.
+ * Checking goes through [AppState.checkLessons], the same dry run as the link field.
+ */
+@Composable
+private fun CheckPicker(state: AppState, onDismiss: () -> Unit) {
+    val lang = state.lang
+    val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var course by remember { mutableStateOf<Course?>(null) }
+    var lessons by remember { mutableStateOf<List<Lesson>?>(null) }
+    var lessonsError by remember { mutableStateOf<String?>(null) }
+    var selected by remember { mutableStateOf(setOf<Int>()) }
+    var recent by remember { mutableStateOf<List<Lesson>?>(null) }
+    var recentError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(lang) {
+        state.loadCourses()
+        runCatching { withContext(Dispatchers.IO) { state.api.recentLessons(lang, 20) } }
+            .onSuccess { recent = it }
+            .onFailure { recentError = it.message ?: it.toString() }
+    }
+    LaunchedEffect(course?.id) {
+        val c = course ?: return@LaunchedEffect
+        lessons = null; lessonsError = null; selected = emptySet()
+        runCatching { withContext(Dispatchers.IO) { state.api.lessons(lang, c.id) } }
+            .onSuccess { lessons = it.second }
+            .onFailure { lessonsError = it.message ?: it.toString() }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet) {
+        BackHandler(enabled = course != null) { course = null }
+        val c = course
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+            if (c == null) {
+                Text("Курсы", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                val list = state.courses
+                when {
+                    state.coursesError != null -> Text("Курсы не загрузились: ${state.coursesError}", color = MaterialTheme.colorScheme.error)
+                    list == null -> CircularProgressIndicator(Modifier.padding(vertical = 12.dp).size(24.dp), strokeWidth = 2.dp)
+                    list.isEmpty() -> Text("Курсов пока нет", style = MaterialTheme.typography.bodyMedium)
+                    else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 260.dp)) {
+                        items(list, key = { it.id }) { co ->
+                            ListItem(
+                                headlineContent = { Text(co.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                                trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+                                modifier = Modifier.clickable { course = co },
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    "Недавние уроки", style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp),
+                )
+                val rec = recent
+                when {
+                    recentError != null -> Text("Не загрузились: $recentError", color = MaterialTheme.colorScheme.error)
+                    rec == null -> CircularProgressIndicator(Modifier.padding(vertical = 12.dp).size(24.dp), strokeWidth = 2.dp)
+                    rec.isEmpty() -> Text("Пока пусто", style = MaterialTheme.typography.bodyMedium)
+                    else -> LazyColumn(Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
+                        items(rec, key = { it.id }) { l ->
+                            ListItem(
+                                headlineContent = { Text(l.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                                supportingContent = { Text(l.courseTitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                modifier = Modifier.clickable {
+                                    onDismiss()
+                                    state.checkLessons(lang, listOf(l), l.title)
+                                },
+                            )
+                        }
+                    }
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { course = null }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                    Text(
+                        c.title, style = MaterialTheme.typography.titleMedium, maxLines = 2,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    )
+                }
+                val ls = lessons
+                when {
+                    lessonsError != null -> Text("Уроки не загрузились: $lessonsError", color = MaterialTheme.colorScheme.error)
+                    ls == null -> CircularProgressIndicator(Modifier.padding(vertical = 12.dp).size(24.dp), strokeWidth = 2.dp)
+                    ls.isEmpty() -> Text("В курсе нет уроков", style = MaterialTheme.typography.bodyMedium)
+                    else -> {
+                        val all = selected.size == ls.size
+                        ListItem(
+                            headlineContent = { Text("Все уроки курса (${ls.size})") },
+                            leadingContent = { Checkbox(checked = all, onCheckedChange = null) },
+                            modifier = Modifier.clickable { selected = if (all) emptySet() else ls.map { it.id }.toSet() },
+                        )
+                        HorizontalDivider()
+                        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+                            items(ls, key = { it.id }) { l ->
+                                val on = l.id in selected
+                                ListItem(
+                                    headlineContent = { Text(l.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                                    leadingContent = { Checkbox(checked = on, onCheckedChange = null) },
+                                    modifier = Modifier.clickable { selected = if (on) selected - l.id else selected + l.id },
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                val pick = ls.filter { it.id in selected }
+                                onDismiss()
+                                state.checkLessons(lang, pick, c.title)
+                            },
+                            enabled = selected.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        ) { Text("Проверить: ${selected.size}") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- Import--------------------------------------------------------------------------------------
 
 /** A big source button of the import screen: icon above a label. */
 @Composable
@@ -860,6 +999,13 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
         Text("Уже на LingQ", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         Text(
             "Исправить разбивку на предложения у готового урока или курса. Для своих курсов то же есть в меню ⋮ курса и урока.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        var picking by remember { mutableStateOf(false) }
+        Button(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) { Text("Выбрать курс или урок") }
+        if (picking) CheckPicker(state) { picking = false }
+        Text(
+            "Или по ссылке:", Modifier.padding(top = 8.dp),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         var link by remember { mutableStateOf("") }

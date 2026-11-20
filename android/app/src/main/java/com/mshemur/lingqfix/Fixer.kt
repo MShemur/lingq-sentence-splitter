@@ -123,9 +123,30 @@ object Fixer {
         return m
     }
 
-    /** Fixes editor paragraphs in place and returns the list of changes. */
-    fun fix(paragraphs: JSONArray): List<Change> {
+    /**
+     * Texts of all sentences in order (paragraph by paragraph). Element k is the sentence with global
+     * 1-based number k+1, the same numbering as [fix]'s `extra` (counted before any merge).
+     */
+    fun sentenceTexts(paragraphs: JSONArray): List<String> {
+        val out = mutableListOf<String>()
+        for (pi in 0 until paragraphs.length()) {
+            val sents = paragraphs.optJSONObject(pi)?.optJSONArray("sentences") ?: continue
+            for (i in 0 until sents.length()) {
+                val s = sents.optJSONObject(i) ?: continue
+                out += str(s, "text")
+            }
+        }
+        return out
+    }
+
+    /**
+     * Fixes editor paragraphs in place and returns the list of changes.
+     * [extra]: sentences with these global 1-based numbers (see [sentenceTexts]) are merged into the previous
+     * one exactly like an algorithm merge (the first sentence of a paragraph has no previous one here, so it is not merged).
+     */
+    fun fix(paragraphs: JSONArray, extra: ((Int) -> Boolean)? = null): List<Change> {
         val changes = mutableListOf<Change>()
+        var gi = 0      // global 1-based number of the sentence, before merges
         for (pi in 0 until paragraphs.length()) {
             val p = paragraphs.optJSONObject(pi) ?: continue
             val sents = p.optJSONArray("sentences") ?: continue
@@ -144,13 +165,15 @@ object Fixer {
             val out = mutableListOf<JSONObject>()
             for (i in 0 until sents.length()) {
                 val s = sents.optJSONObject(i) ?: continue
+                gi++
+                val forced = extra?.invoke(gi) == true      // the AI asks for this one to be glued to the previous
                 val st = str(s, "text")
                 val last = out.lastOrNull()
                 val lt = if (last != null) str(last, "text") else ""
                 if (last != null && norm(lt).length > 10 && norm(st).startsWith(norm(lt))) {
                     changes += Change(ChangeKind.DUP, lt)        // LingQ duplicated a fragment
                     out[out.size - 1] = s
-                } else if (last != null && shouldMerge(lt, st)) {
+                } else if (last != null && (forced || shouldMerge(lt, st))) {
                     changes += Change(ChangeKind.MERGE, lt, st)
                     out[out.size - 1] = mergeSentences(last, s)
                 } else {

@@ -131,3 +131,44 @@ class OpenAiCompat(base: String, private val key: String, private val model: Str
         }
     }
 }
+
+/** AI check of the sentence split: sentences the model wants glued to the previous one (merged by [Fixer.fix]). */
+object SplitAi {
+    const val SYSTEM = """Ты проверяешь разбивку немецкого текста на предложения. Дан нумерованный список фрагментов (номер: текст). Найди места, где фрагмент ошибочно отрезан от предыдущего: предложение продолжается (разрыв после сокращения, порядкового числа вроде «19.» или «400.», инициала, номера и т. п.). Верни JSON {"merge":[номера]} — номера фрагментов, которые нужно приклеить к предыдущему. Если ошибок нет — {"merge":[]}. Текст не меняй и ничего не добавляй."""
+
+    /** Sentences per request; the numbering stays global. */
+    const val CHUNK = 120
+
+    /**
+     * [texts]: all sentences of the lesson in order (global 1-based numbers, before any merge; see [Fixer.sentenceTexts]).
+     * Returns the global numbers the model wants merged into the previous sentence. Blocking: use from Dispatchers.IO.
+     */
+    fun merges(llm: Llm, texts: List<String>): Set<Int> {
+        val out = mutableSetOf<Int>()
+        var from = 0                                   // 0-based start of the chunk
+        while (from < texts.size) {
+            val to = minOf(texts.size, from + CHUNK)   // exclusive
+            val msg = StringBuilder()
+            if (from > 0) msg.append("Контекст (номер не возвращать): ").append(from).append(": ")
+                .append(Fixer.norm(texts[from - 1])).append("\n\nФрагменты:\n")
+            for (k in from until to) msg.append(k + 1).append(": ").append(Fixer.norm(texts[k])).append('\n')
+            val raw = llm.generate(SYSTEM, listOf(Gemini.Msg(true, msg.toString().trimEnd())), json = true)
+            if (!raw.contains("{")) throw ApiException("ИИ не вернул JSON: ${raw.take(120)}")
+            val o = runCatching { JSONObject("{" + raw.substringAfter("{").substringBeforeLast("}") + "}") }
+                .getOrElse { throw ApiException("ИИ вернул непонятный ответ: ${raw.take(120)}") }
+            val arr = o.optJSONArray("merge") ?: JSONArray()
+            val lo = maxOf(2, from + 1)                // a sentence needs a previous one; only this chunk's numbers
+            val hi = to
+            for (k in 0 until arr.length()) {
+                val n = when (val v = arr.opt(k)) {
+                    is Number -> v.toDouble().takeIf { it % 1.0 == 0.0 }?.toInt()
+                    is String -> v.trim().toIntOrNull()
+                    else -> null
+                }
+                if (n != null && n in lo..hi) out += n
+            }
+            from = to
+        }
+        return out
+    }
+}
