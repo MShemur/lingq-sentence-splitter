@@ -7,7 +7,7 @@ import { signal } from '@preact/signals'
 import { Icon } from '../icons'
 import { Press } from '../press'
 import { back, go, stack } from '../app'
-import { readerStyle, useKeepAwake, lineMul, paraGapPx } from '../readerLook'
+import { readerStyle, useKeepAwake, lineMul, paraGapPx, paraIndentEm } from '../readerLook'
 import { useReadingTimer } from '../stats'
 import { prefs } from '../settings'
 import { Chip, Dialog, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuFontRow, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
@@ -455,8 +455,10 @@ function looseJustify(root: HTMLElement) {
       lines[lines.length - 1].push(k)
     }
     // also the last line: it is spread too when its paragraph goes on on the next page
-    for (const line of lines) {
-      let used = 0
+    const startX = flow.getBoundingClientRect().left + (parseFloat(getComputedStyle(flow).paddingLeft) || 0)
+    for (const [li, line] of lines.entries()) {
+      // the first line starts after the paragraph indent (the ::before spacer is not a child)
+      let used = li === 0 ? Math.max(0, line[0].getBoundingClientRect().left - startX) : 0
       for (const k of line) used += k.getBoundingClientRect().width + (parseFloat(getComputedStyle(k).marginRight) || 0)
       if (width - used > width * 0.2) {
         // the auto margin counts as 0 when the browser breaks lines: the word's own gap goes into a padding instead,
@@ -506,13 +508,13 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
   const rebuilt = useRef(0)
 
   const book = isBook()
-  usePinPlace(pager, book, [prefs.readerFont.value, prefs.lineSpacing.value, prefs.pinGap.value, prefs.readerFace.value, pages, cur])
+  usePinPlace(pager, book, [prefs.readerFont.value, prefs.lineSpacing.value, prefs.pinGap.value, prefs.readerFace.value, prefs.paraIndent.value, pages, cur])
   /** Pages per screen: book mode in landscape on a big screen shows two side by side (a spread). */
   const per = book && size.w > size.h && size.w >= 900 ? 2 : 1
   const spreadOf = (i: number) => Math.floor(i / per)
 
   // what changes the layout of the bare text (translations do not: the page scrolls instead)
-  const deps = [paras, prefs.readerFont.value, size.w, size.h, per, book, prefs.lineSpacing.value, prefs.paraGap.value,
+  const deps = [paras, prefs.readerFont.value, size.w, size.h, per, book, prefs.lineSpacing.value, prefs.paraGap.value, prefs.paraIndent.value,
     book ? s.shown.value : null, book && s.allSentences.value, s.asides.value]
 
   useEffect(() => {
@@ -538,7 +540,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     const cs = getComputedStyle(box)
     const h = size.h - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
     const next = paginate(box, s, paras, h, cache.current,
-      `${size.w}|${prefs.readerFont.value}|${per}|${book ? 'b' : ''}|${lineMul()}|`, paraGapPx(book), book)
+      `${size.w}|${prefs.readerFont.value}|${per}|${book ? 'b' : ''}|${lineMul()}|${paraIndentEm()}|`, paraGapPx(book), book)
     // the same text stays on screen when pages are rebuilt. The anchor is the sentence the reader got to and is NOT
     // moved to the first sentence of the new page: that crept back a little with every rebuild (font A+ / A−, the
     // window resized when switching apps) until the reading position was back at the start.

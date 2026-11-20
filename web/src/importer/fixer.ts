@@ -33,7 +33,7 @@ export const AMBIGUOUS = new Set(['Jh', 'Jhs', 'Jhdt', 'Jt', 'Jts', 'Chr', 'usw'
 
 const LAST_TOKEN = /(\S+)\.$/
 const FIRST_WORD = /^[^\p{L}]*(\p{L}+)/u
-const ORDINAL_OR_LETTER = /^(?:\d{1,2}|[A-ZÄÖÜ]|[IVX]{1,4}|([A-ZÄÖÜ]\.)+[A-ZÄÖÜ])$/
+const ORDINAL_OR_LETTER = /^(?:\d{1,3}|[A-ZÄÖÜ]|[IVX]{1,4}|([A-ZÄÖÜ]\.)+[A-ZÄÖÜ])$/
 
 export const norm = (t: string) => t.replace(/\s+/g, ' ').trim()
 export const firstWord = (t: string) => FIRST_WORD.exec(t)?.[1]?.toLowerCase() ?? ''

@@ -991,9 +991,10 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 @media (max-width: 600px) {
   .reader.book .text-area .reader-text { padding-left: max(18px, env(safe-area-inset-left)); padding-right: max(18px, env(safe-area-inset-right)); }
 }
-/* paragraphs: no gap, a first-line indent (not headings, not a paragraph going on from the page before) */
+/* paragraphs: no gap in book mode; a first-line indent in both modes (Settings → Отступ абзаца, --para-indent in em;
+   not headings, not a paragraph going on from the page before, not a paragraph with a label above it) */
 .reader.book .para { margin-bottom: 0; }
-.reader.book .para:not(.heading):not(.cont) > .flow:first-child::before { content: ''; width: 1.5em; flex-shrink: 0; display: inline-block; }
+.reader .reader-text .para:not(.heading):not(.cont) > .flow:first-child::before { content: ''; width: var(--para-indent, 1.5em); flex-shrink: 0; display: inline-block; }
 /* the words flow as text, so a long word is split with a hyphen at a syllable instead of leaving the line a third
    empty (note 20261118-032701); justified by the browser, the line before a page break too */
 .reader.book .flow { display: block; -webkit-hyphens: auto; hyphens: auto; }

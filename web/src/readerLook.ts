@@ -125,6 +125,11 @@ export const paraGapPx = (book: boolean) => {
   const g = Number(prefs.paraGap.value)
   return Number.isFinite(g) && g >= 0 ? g : book ? 0 : 14
 }
+/** First-line indent of a paragraph, em: the setting (0 = none), 1.5 if unset or wrong. */
+export const paraIndentEm = () => {
+  const g = Number(prefs.paraIndent.value)
+  return Number.isFinite(g) && g >= 0 ? Math.min(3, g) : 1.5
+}
 
 export function readerStyle(book = false): JSX.CSSProperties {
   const t = themeOf(prefs.readerTheme.value) ?? (book ? (systemDark.value ? PAPER_DARK : PAPER) : undefined)
@@ -133,6 +138,7 @@ export function readerStyle(book = false): JSX.CSSProperties {
   out['--line-mul'] = String(lineMul())
   const gap = paraGapPx(book)
   out['--para-gap'] = gap + 'px'
+  out['--para-indent'] = paraIndentEm() + 'em'
   const face = FACES.find((f) => f[0] === prefs.readerFace.value)
   if (face?.[2]) out['--reader-face'] = face[2]
   if (t) {

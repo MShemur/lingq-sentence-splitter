@@ -345,6 +345,12 @@ export function SettingsReading() {
           aria-label="Расстояние между абзацами" onInput={(e) => { prefs.paraGap.value = (e.target as HTMLInputElement).value }} />
         <span class="spacing-val">{Number(prefs.paraGap.value) >= 0 ? `${prefs.paraGap.value} px` : 'обычное'}</span>
       </div>
+      <h3 class="section-title">Отступ абзаца</h3>
+      <div class="spacing-row">
+        <input type="range" min={0} max={3} step={0.25} value={Number(prefs.paraIndent.value) >= 0 ? Number(prefs.paraIndent.value) : 1.5}
+          aria-label="Отступ абзаца" onInput={(e) => { prefs.paraIndent.value = (e.target as HTMLInputElement).value }} />
+        <span class="spacing-val">{Number(prefs.paraIndent.value) > 0 ? `${String(Number(prefs.paraIndent.value)).replace('.', ',')} em` : 'нет'}</span>
+      </div>
       {(prefs.lineSpacing.value !== '100' || prefs.paraGap.value !== '-1') && (
         <div class="chips">
           <Chip label="Вернуть обычные расстояния" onClick={() => { prefs.lineSpacing.value = '100'; prefs.paraGap.value = '-1' }} />

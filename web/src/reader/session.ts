@@ -19,6 +19,7 @@ import { log, logError } from '../applog'
 import * as audio from '../audio'
 import { asides as pdfAsides, link as pdfLinkOf, map as pdfMap, type PdfLink } from '../pdfbook'
 import { addAudioBookmark, audioBookmarks, removeBookmark, type Bookmark as Bm } from '../bookmarks'
+import { matchWords, wordSlots, type WordSlot } from './remap'
 
 // --- model ---
 
@@ -367,6 +368,8 @@ export class ReaderSession {
       const start = this.jump.value ?? positionOf(this.lang, this.lesson.id)?.s ?? null
       if (start != null && this.sentById.has(start)) { this.page.value = this.indexOf(start); this.textAnchor = start }
       this.paragraphs.value = paras
+      // a save by the AI whose read-back had failed: the notes follow their words now
+      if (this.pendingRemap) { this.lastRemap = this.remapNotes(this.pendingRemap); this.pendingRemap = null }
       if (pdf && pdf.kinds !== 'bh') {
         pdfMap(pdf, paras.flat()).then((m) => { this.asides.value = pdfAsides(m, paras) },
           (e) => logError('pdf', 'Подписи к картинкам', e))
@@ -552,6 +555,10 @@ export class ReaderSession {
 
   /** "Обработать текст с ИИ": "2 из 5" while running, null otherwise. */
   aiClean = signal<string | null>(null)
+  /** Saved by the AI but not yet read back: the old word places, remapped by the next successful load(). */
+  private pendingRemap: WordSlot[] | null = null
+  /** Result of the remap done by the last load() (read by cleanWithAi for its message). */
+  private lastRemap: { kept: number; total: number } | null = null
 
   /**
    * The lesson text is cleaned by the AI (quick clean first, then the clean prompt piece by piece) and saved back:
@@ -561,6 +568,15 @@ export class ReaderSession {
   async cleanWithAi() {
     if (!useGemini()) { say('Для обработки с ИИ включите ИИ: Настройки → Перевод и ИИ'); return }
     if (this.aiClean.value != null) return
+    // the words as they stand now: after the save, the translations follow them to their new places
+    // (an earlier save whose read-back failed: its old places are still the ones in storage)
+    const oldWords = this.pendingRemap ?? wordSlots(this.sentences.value)
+    // windows that point at old word places are closed (as when closed by hand)
+    this.closePhrase()
+    this.phraseBest.value = null
+    this.wordMenu.value = null
+    this.bookMenu.value = null
+    this.selAnchor = -1
     this.aiClean.value = '…'
     log('reader', `Урок ${this.lesson.id}: обработка текста с ИИ`)
     try {
@@ -624,12 +640,71 @@ export class ReaderSession {
         return
       }
       log('reader', `Урок ${this.lesson.id}: ИИ обработал текст, было ${count} предложений, стало ${idx}`)
-      sayLong(`Текст обработан: было ${count} предложений, стало ${idx}. Копия старого — в резервных копиях`)
+      // load() restores the notes from storage (old positions); it remaps them by pendingRemap when it succeeds
+      this.pendingRemap = oldWords
+      this.lastRemap = null
       await this.load()
+      // (written inside load(): the cast stops TypeScript from narrowing it to null here)
+      const kept = this.lastRemap as { kept: number; total: number } | null
+      this.lastRemap = null
+      sayLong(`Текст обработан: было ${count} предложений, стало ${idx}. Копия старого — в резервных копиях` +
+        (kept && kept.total > 0 ? ` · переводы сохранены: ${kept.kept} из ${kept.total}` : ''))
     } catch (e) {
       logError('reader', 'Обработать текст с ИИ', e)
       sayLong(`Обработка не получилась: ${errorText(e)}`)
     } finally { this.aiClean.value = null }
+  }
+
+  /**
+   * After the AI changed the text: the word translations follow their words (rule in reader/remap.ts). Phrases keep
+   * only if both ends land in one sentence. Words stay as they are in `chosen` (they are kept by word, not by place).
+   * Returns the translations kept out of all (non-error) ones.
+   */
+  private remapNotes(old: WordSlot[]): { kept: number; total: number } {
+    const map = matchWords(old, wordSlots(this.sentences.value))
+    const ok = (v: string) => !!v && !v.startsWith('⚠')
+    let total = 0, kept = 0
+    const pins: Record<WordRef, string> = {}
+    for (const [k, v] of Object.entries(this.pins.value)) {
+      if (ok(v)) total++
+      const nk = map.get(k)
+      if (nk) { pins[nk] = v; if (ok(v)) kept++ }
+    }
+    const phrases: Record<string, string> = {}
+    for (const [k, v] of Object.entries(this.phrasePins.value)) {
+      if (ok(v)) total++
+      const [s, f, e] = phraseParts(k)
+      const a = map.get(ref(s, f)), b = map.get(ref(s, e))
+      if (!a || !b) continue
+      const sa = refSent(a), fa = refToken(a), sb = refSent(b), eb = refToken(b)
+      if (sa !== sb || fa > eb) continue
+      // every old word of the phrase that found its place must land in the same sentence (else the AI cut the phrase)
+      const cut = old.some((w) => {
+        const [ws, wt] = w.key.split(':').map(Number)
+        const nk = ws === s && wt >= f && wt <= e ? map.get(w.key) : undefined
+        return !!nk && refSent(nk) !== sa
+      })
+      if (cut) continue
+      phrases[`${sa}:${fa}:${eb}`] = v
+      if (ok(v)) kept++
+    }
+    const prov: Record<WordRef, true> = {}
+    for (const [k, v] of Object.entries(this.provisional.value)) { const nk = map.get(k); if (nk) prov[nk] = v }
+    const pairs: Record<WordRef, WordRef[]> = {}
+    for (const [k, vs] of Object.entries(this.pairs.value)) {
+      const nk = map.get(k)
+      if (!nk) continue
+      const nv = vs.map((x) => map.get(x)).filter((x): x is WordRef => !!x)
+      if (nv.length) pairs[nk] = nv
+    }
+    this.pins.value = pins
+    this.provisional.value = prov
+    this.phrasePins.value = phrases
+    this.pairs.value = pairs
+    if (this.popup.value) this.popup.value = map.get(this.popup.value) ?? null
+    this.aiCache.clear() // keyed by old word places
+    this.persist()
+    return { kept, total }
   }
 
   /** "Перевести весь урок": "12 из 80" while running, null otherwise. */

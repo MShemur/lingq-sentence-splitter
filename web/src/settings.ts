@@ -41,6 +41,8 @@ export const prefs = {
   lineSpacing: pref('lineSpacing', '100'),
   /** px between paragraphs (0..48); '-1' = usual (book mode 0, else 14). */
   paraGap: pref('paraGap', '-1'),
+  /** First-line indent of a paragraph, em (0..3; '0' = none). Book mode and the usual one alike. */
+  paraIndent: pref('paraIndent', '1.5'),
   /** '1': book mode (full screen, no bars, swipe only, paragraphs by indent, two pages in landscape). */
   readerBook: pref('readerBook', '0'),
   /** PDF book base zoom: 'width' = the page fills the screen width, 'page' = the whole page fits in. */
