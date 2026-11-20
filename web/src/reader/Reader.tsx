@@ -5,6 +5,7 @@ import { Fragment, render, type JSX } from 'preact'
 import { memo } from 'preact/compat'
 import { signal } from '@preact/signals'
 import { Icon } from '../icons'
+import { checkLessons } from '../check'
 import { Press } from '../press'
 import { back, go, stack } from '../app'
 import { readerStyle, useKeepAwake, lineMul, paraGapPx, paraIndentEm } from '../readerLook'
@@ -311,6 +312,11 @@ function ReaderActions({ s }: { s: ReaderSession }) {
             <MenuItem icon="magic" onClick={() => { close(); if (s.aiClean.value == null) setAiAsk(true) }}>
               {s.aiClean.value != null ? `ИИ обрабатывает текст: ${s.aiClean.value}` : 'Обработать текст с ИИ…'}
             </MenuItem>
+            <MenuItem icon="check" onClick={() => {
+              close()
+              const title = s.title.value || s.lesson.title
+              checkLessons(s.lang, [{ ...s.lesson, title }], title)
+            }}>Исправить разбивку…</MenuItem>
             <hr />
             <MenuItem icon="info" onClick={() => { close(); setHelp(true) }}>Как пользоваться</MenuItem>
             <MenuItem icon="chat" onClick={() => { close(); go({ k: 'feedback' }) }}>Отзыв / задача</MenuItem>

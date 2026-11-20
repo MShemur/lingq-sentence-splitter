@@ -10,6 +10,7 @@ import { lastImportCourse, rememberImportCourse, type ImportSession } from '../i
 import { countWords } from '../importer/cleaner'
 import { wordsText } from '../stats'
 import { PdfPicker } from './PdfPicker'
+import { CheckBlock } from './CheckPicker'
 import { AudioPicker } from './AudioPicker'
 import { PodcastSession } from '../importer/podcasts'
 import { useMemo } from 'preact/hooks'
@@ -102,6 +103,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
               (PDF хранится в этом браузере).
             </p>
           )}
+          {!has && !s.loading.value && <CheckBlock lang={s.lang} />}
           {s.loading.value && <div class="row-status"><span class="spinner-sm" />{s.status.value || 'Загрузка…'}</div>}
           {s.pdfPick.value && <PdfPicker s={s} d={s.pdfPick.value} />}
           {s.audioPick.value && <AudioPicker s={s} pk={s.audioPick.value} />}

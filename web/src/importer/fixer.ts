@@ -110,9 +110,14 @@ function mergeSentences(a: Obj, b: Obj): Obj {
   return m
 }
 
-/** Fixes editor paragraphs in place and returns the list of changes. */
-export function fix(paragraphs: Obj[]): Change[] {
+/**
+ * Fixes editor paragraphs in place and returns the list of changes.
+ * [extra]: optional extra merge rule (the AI split check): called with the 1-based number of a sentence counted over
+ * all paragraphs as they came in; true = merge it into the previous sentence of its paragraph, like an algorithm merge.
+ */
+export function fix(paragraphs: Obj[], extra?: (globalIndex: number) => boolean): Change[] {
   const changes: Change[] = []
+  let gi = 0
   for (const p of paragraphs) {
     if (!p || !Array.isArray(p.sentences)) continue
     for (const s of p.sentences as Obj[]) {
@@ -127,13 +132,14 @@ export function fix(paragraphs: Obj[]): Change[] {
     const out: Obj[] = []
     for (const s of p.sentences as Obj[]) {
       if (!s) continue
+      gi++
       const st = str(s, 'text')
       const last = out[out.length - 1]
       const lt = last ? str(last, 'text') : ''
       if (last && norm(lt).length > 10 && norm(st).startsWith(norm(lt))) {
         changes.push({ kind: 'dup', a: lt }) // LingQ duplicated a fragment
         out[out.length - 1] = s
-      } else if (last && shouldMerge(lt, st)) {
+      } else if (last && (shouldMerge(lt, st) || extra?.(gi) === true)) {
         changes.push({ kind: 'merge', a: lt, b: st })
         out[out.length - 1] = mergeSentences(last, s)
       } else out.push(s)

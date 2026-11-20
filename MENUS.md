@@ -123,7 +123,7 @@ feedback is in Settings and in the reader. Settings gets the standard gear: one 
 ### 3.3 Загрузка в LingQ (import screen)
 Source tiles as now. [A] at the bottom: section «Уже на LingQ» with the field «Ссылка на урок или курс LingQ» +
 «Проверить» (moved from the hub screen; sharing a LingQ link to the app keeps working). The hub screen «Импорт» is removed.
-[W]: no split checker for existing lessons on web (not ported), so no such section.
+[W]: split checker (web v1.79): reader ⋮ → «Исправить разбивку…» (this lesson) and import screen block «Уже на LingQ» (course / lesson picker, link); report screen with «Проверить с ИИ» and «Применить».
 
 ### 3.4 Settings root (M3 list with small group headers)
 **Сервисы**

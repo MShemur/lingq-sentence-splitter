@@ -1083,3 +1083,15 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .archive-row .icon { color: var(--on-surface-variant); }
 .archive-row:active { background: color-mix(in srgb, var(--on-surface) 10%, transparent); }
 .library .tile-grid:has(+ .archive-row) { padding-bottom: 16px; }
+
+/* split checker */
+.chk-sum { margin: 8px 0 0; }
+.chk-ok { font-size: 18px; margin: 12px 0; }
+.chk-lesson { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.chk-head { display: flex; gap: 8px; align-items: center; font-size: 16px; font-weight: 500; padding-bottom: 4px; border-bottom: 1px solid var(--outline-variant, var(--outline)); }
+.chk-change { font-size: 14px; line-height: 1.4; word-break: break-word; }
+.chk-join { color: var(--primary); margin: 0 6px; }
+.pick-list { display: flex; flex-direction: column; }
+.pick-list .check-row { padding: 10px 4px; }
+.link-row { display: flex; gap: 8px; align-items: flex-end; }
+.link-row .field { flex: 1; }

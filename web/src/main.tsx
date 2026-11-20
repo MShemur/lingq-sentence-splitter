@@ -7,6 +7,7 @@ import { BookmarksScreen } from './screens/Bookmarks'
 import { SettingsLingq, SettingsLog, SettingsPrompts, SettingsReading, SettingsRoot, SettingsSpeech, SettingsSync, SettingsTranslation } from './screens/Settings'
 import { autoSync } from './sync'
 import { BackupsScreen, ImportScreen } from './screens/Import'
+import { CheckScreen } from './screens/Check'
 import { StatsScreen } from './screens/Stats'
 import { ModelSwitchDialog } from './screens/ModelSwitch'
 import { PlayerScreen } from './screens/Player'
@@ -37,6 +38,7 @@ function view(screen: Screen) {
     case 'log': return <SettingsLog />
     case 'player': return <PlayerScreen />
     case 'import': return <ImportScreen s={screen} />
+    case 'check': return <CheckScreen s={screen} />
     case 'backups': return <BackupsScreen />
     case 'stats': return <StatsScreen />
     case 'archive': return <ArchiveScreen />

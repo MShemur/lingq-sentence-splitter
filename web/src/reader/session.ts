@@ -560,6 +560,19 @@ export class ReaderSession {
   /** Result of the remap done by the last load() (read by cleanWithAi for its message). */
   private lastRemap: { kept: number; total: number } | null = null
 
+  /** The split checker (check.ts) saved this lesson with merged sentences: read it again, the translations follow their words. */
+  async reloadAfterSplitFix() {
+    this.closePhrase()
+    this.phraseBest.value = null
+    this.wordMenu.value = null
+    this.bookMenu.value = null
+    this.selAnchor = -1
+    this.pendingRemap = this.pendingRemap ?? wordSlots(this.sentences.value)
+    this.lastRemap = null
+    await this.load()
+    this.lastRemap = null
+  }
+
   /**
    * The lesson text is cleaned by the AI (quick clean first, then the clean prompt piece by piece) and saved back:
    * own sentence split; a sentence whose text is unchanged keeps its object (translation, time), new ones start empty.

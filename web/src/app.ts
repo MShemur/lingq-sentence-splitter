@@ -6,6 +6,7 @@ import { lang, otherAi, prefs, useGemini } from './settings'
 import type { ReaderSession } from './reader/session'
 import type { ChatSession } from './chat'
 import type { ImportSession } from './importer/session'
+import type { CheckSession } from './check'
 import type { PodcastSession } from './importer/podcasts'
 import type { WordStatsSession } from './wordstats'
 import { positions } from './progress'
@@ -52,6 +53,7 @@ export type Screen =
   | { k: 'settingsReading' }
   | { k: 'settingsSync' }
   | ImportSession
+  | CheckSession
   | { k: 'backups' }
   | { k: 'settings' }
   | { k: 'settingsLingq' }
