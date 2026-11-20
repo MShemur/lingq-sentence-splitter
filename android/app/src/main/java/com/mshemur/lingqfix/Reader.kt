@@ -739,6 +739,21 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     var aiClean by mutableStateOf<String?>(null)
     var askAiClean by mutableStateOf(false)
 
+    /** Words of the AI rewrite not yet moved (saved, but the lesson was not read again): moved after the next good read. */
+    private var pendingRemap: List<WordSlot>? = null
+
+    /** Runs the pending remap, if any; the failure is logged, the lesson stays as it is. */
+    private fun runPendingRemap(): Pair<Int, Int>? {
+        val old = pendingRemap ?: return null
+        pendingRemap = null
+        return try {
+            remapNotes(old)
+        } catch (e: Throwable) {
+            AppLog.error("reader", "Урок ${lesson.id}: переводы не перенесены после ИИ", e)
+            null
+        }
+    }
+
     /**
      * The lesson's text cleaned by the AI like at the import (page numbers, headers, footnotes, broken lines) and
      * written back to LingQ: backup on the phone first; sentences that stay the same keep their translation and audio
@@ -747,9 +762,16 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     fun cleanWithAi() {
         if (!app.useGemini) return app.say("Для обработки с ИИ включите ИИ: Настройки → Перевод и ИИ")
         if (aiClean != null) return
+        // the words as they stand now: after the save, the translations follow them to their new places
+        val oldWords = wordSlots(sentences)
+        // selections and the word menu keep old word places: closed (the word window stays, it is moved by the remap)
+        wordMenu = null
+        closePhrase()
+        selAnchor = -1
         aiClean = "…"
         AppLog.add("reader", "Урок ${lesson.id}: обработка текста с ИИ")
         app.scope.launch {
+            var reading = false // aiClean stays set until the lesson is read again and the remap is done
             try {
                 val (before, after, copyId) = withContext(Dispatchers.IO) {
                     val eo = app.api.editorObj(lang, lesson.id)
@@ -824,15 +846,81 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     app.sayLong("LingQ не дал перезаписать урок — сделан новый урок «$title (исправлено)» в том же курсе")
                 } else {
                     AppLog.add("reader", "Урок ${lesson.id}: ИИ обработал текст, было $before предложений, стало $after")
-                    app.sayLong("Текст обработан: было $before предложений, стало $after. Копия старого — в резервных копиях")
-                    load()
+                    val msg = "Текст обработан: было $before предложений, стало $after. Копия старого — в резервных копиях"
+                    // the save worked: the remap runs after the next good read (load() restores the notes first)
+                    pendingRemap = oldWords
+                    reading = true
+                    load { _, kept ->
+                        try {
+                            app.sayLong(msg + (if (kept != null && kept.second > 0) " · переводы сохранены: ${kept.first} из ${kept.second}" else ""))
+                        } finally { aiClean = null }
+                    }
                 }
             } catch (e: Throwable) {
                 AppLog.error("reader", "Обработать текст с ИИ", e)
                 app.sayLong("Обработка не получилась: ${e.message}")
             }
-            aiClean = null
+            if (!reading) aiClean = null
         }
+    }
+
+    /**
+     * After the AI changed the text: the word translations follow their words (rule in Remap.kt, port of web remapNotes).
+     * Phrases keep only if both ends land in one sentence. Chosen meanings (by word text) are not touched.
+     * Returns (kept, total) of the translations that were not errors.
+     */
+    private fun remapNotes(old: List<WordSlot>): Pair<Int, Int> {
+        val map = matchWords(old, wordSlots(sentences))
+        fun ok(v: String) = v.isNotEmpty() && !v.startsWith("⚠")
+        var total = 0
+        var kept = 0
+        val newPins = HashMap<WordRef, String>()
+        for ((k, v) in pins.toMap()) {
+            if (ok(v)) total++
+            val nk = map[k.key()] ?: continue
+            newPins[WordRef.of(nk)] = v
+            if (ok(v)) kept++
+        }
+        val newPhrases = HashMap<String, String>()
+        for ((k, v) in phrasePins.toMap()) {
+            if (ok(v)) total++
+            val q = k.split(':')
+            if (q.size != 3) continue
+            val s = q[0].toIntOrNull() ?: continue
+            val f = q[1].toIntOrNull() ?: continue
+            val e = q[2].toIntOrNull() ?: continue
+            val a = map["$s:$f"]?.let { WordRef.of(it) } ?: continue
+            val b = map["$s:$e"]?.let { WordRef.of(it) } ?: continue
+            if (a.sent != b.sent || a.token > b.token) continue
+            // every old word of the phrase that found its place must be in the same new sentence as the ends
+            val split = old.any { slot ->
+                val p = slot.key.split(':')
+                p[0].toIntOrNull() == s && (p[1].toIntOrNull() ?: -1) in f..e &&
+                    map[slot.key]?.let { WordRef.of(it).sent != a.sent } == true
+            }
+            if (split) continue
+            newPhrases["${a.sent}:${a.token}:${b.token}"] = v
+            if (ok(v)) kept++
+        }
+        val newProvisional = HashMap<WordRef, Boolean>()
+        for ((k, v) in provisional.toMap()) {
+            val nk = map[k.key()] ?: continue
+            newProvisional[WordRef.of(nk)] = v
+        }
+        val newPairs = HashMap<WordRef, List<WordRef>>()
+        for ((k, vs) in pairs.toMap()) {
+            val nk = map[k.key()] ?: continue
+            val nv = vs.mapNotNull { x -> map[x.key()]?.let { WordRef.of(it) } }
+            if (nv.isNotEmpty()) newPairs[WordRef.of(nk)] = nv
+        }
+        pins.clear(); pins.putAll(newPins)
+        provisional.clear(); provisional.putAll(newProvisional)
+        phrasePins.clear(); phrasePins.putAll(newPhrases)
+        pairs.clear(); pairs.putAll(newPairs)
+        popup?.let { p -> popup = map[p.key()]?.let { WordRef.of(it) } }
+        aiCache.clear() // keyed by old word places
+        persist()
+        return Pair(kept, total)
     }
 
     /** "Перевести весь урок": "12 из 80" while running, null otherwise. */
@@ -881,8 +969,9 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
     val target get() = app.trLang
 
     /** Local book: sentences from the phone, no LingQ call. */
-    private fun loadLocal() {
+    private fun loadLocal(onDone: (Boolean, Pair<Int, Int>?) -> Unit) {
         app.scope.launch {
+            var ok = false
             try {
                 val b = localBook ?: throw ApiException("PDF-книга не найдена на телефоне (удалена?)")
                 val paras = withContext(Dispatchers.IO) {
@@ -914,18 +1003,25 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 sentences = paras.flatten()
                 jump?.let { id -> page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0) }
                 paragraphs = paras
+                ok = true
                 if (!app.useGemini) app.sayLong(NO_AI_LOCAL)
             } catch (e: Throwable) {
                 AppLog.error("reader", "PDF-книга ${lesson.id} не открылась", e)
                 error = e.message ?: e.toString()
             }
+            onDone(ok, null)
         }
     }
 
-    fun load() {
+    /**
+     * [onDone] runs when the lesson is read (or failed): ok = read, kept = the pending remap's (kept, total) if one ran.
+     * A remap pending from an AI rewrite whose reading failed runs here, after the first good read.
+     */
+    fun load(onDone: (Boolean, Pair<Int, Int>?) -> Unit = { _, _ -> }) {
         error = null
-        if (local) return loadLocal()
+        if (local) return loadLocal(onDone)
         app.scope.launch {
+            var ok = false
             try {
                 var lvl = ""
                 val (t, paras, au) = withContext(Dispatchers.IO) {
@@ -949,10 +1045,13 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                 sentences = paras.flatten()
                 jump?.let { id -> page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0) }
                 paragraphs = paras
+                ok = true
             } catch (e: Throwable) {
                 AppLog.error("reader", "Урок ${lesson.id} не открылся", e)
                 error = e.message ?: e.toString()
             }
+            val kept = if (ok) runPendingRemap() else null
+            onDone(ok, kept)
         }
     }
 
