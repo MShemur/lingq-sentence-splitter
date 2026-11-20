@@ -44,7 +44,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   sits above the first fragment, centred on it (measured in JS); 2) the gap translation -> word was 7-12 px smaller in
   book mode than in normal mode; now the same (pin-gap + half the normal-mode leading). Android: check whether its book
   mode has the same gap difference (and hyphenation, if any) and match normal mode. (User said "да, проверь" on
-  20.11; not started yet.)
+  20.11.) Code read 20.11 (not run, not fixed): Reader.kt book branch ~2766-2789 places the label with a fixed
+  `lift = size * 0.24` (line ~2769, `tw.place(..., lift - tw.height)` ~2787), so it sits ~0.14·size closer than normal
+  mode, and the «Расстояние до перевода» slider (trGap / trPull, Reader.kt ~1940-1946, used at ~2799 normal, ~2686
+  phrases) does NOTHING in book mode. Suggested fix: lift = size * 0.1 ((1.55 - 1.35) / 2) and add
+  2 * pull (pull = (100 - trGap) / 100 * size * 0.45) to the label y; check on a device. Hyphenation already OK: the
+  label goes on the first part (HyphFlow ~2165-2182, HY_TAIL noTr).
 - The open notes of 20.11.2026 listed under "To do on web" apply to Android too (ordinal split, re-split picker,
   AI-processing pin shift, AI split option, paragraph indent setting).
 
