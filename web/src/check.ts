@@ -9,6 +9,9 @@ import { saveBackup } from './importer/backups'
 import { useGemini } from './settings'
 import * as gemini from './gemini'
 import { log, logError } from './applog'
+import { player } from './player'
+import { matchWords, remapPinned, wordSlots } from './reader/remap'
+import { notesKeyOf, parseSentences, type ReaderSession } from './reader/session'
 
 type Obj = Record<string, any>
 
@@ -177,6 +180,8 @@ export class CheckSession {
         this.status.value = `Записываю ${i + 1}/${list.length}: ${r.lesson.title}`
         await saveBackup(this.lang, r.lesson.id, r.lesson.title, r.original)
         await api.saveParagraphs(this.lang, r.lesson.id, r.fixed)
+        // an open lesson's notes are moved by its reader (reloadReader); the others are moved in storage here
+        if (!openSessions(this.lang, r.lesson.id).length) moveStoredNotes(this.lang, r.lesson.id, r.original, r.fixed)
         this.savedIds.value = [...this.savedIds.value, r.lesson.id]
         log('check', `Урок ${r.lesson.id}: склеено ${r.changes.length}`)
         this.reloadReader(r.lesson.id)
@@ -192,11 +197,39 @@ export class CheckSession {
     this.applying.value = false
   }
 
-  /** A reader showing this lesson reads it again (its word translations follow their words). */
+  /** A reader (or the player tab) showing this lesson reads it again (its word translations follow their words). */
   private reloadReader(id: number) {
-    for (const sc of stack.value) {
-      if (sc.k === 'reader' && sc.s.lang === this.lang && sc.s.lesson.id === id) void sc.s.reloadAfterSplitFix()
-    }
+    for (const s of openSessions(this.lang, id)) void s.reloadAfterSplitFix()
+  }
+}
+
+/** Reader sessions of this lesson that are open now: reader screens in the stack and the player tab's. */
+function openSessions(lang: string, id: number): ReaderSession[] {
+  const out: ReaderSession[] = []
+  for (const sc of stack.value) if (sc.k === 'reader' && sc.s.lang === lang && sc.s.lesson.id === id) out.push(sc.s)
+  const p = player.value
+  if (p && p.lang === lang && p.lesson.id === id && !out.includes(p)) out.push(p)
+  return out
+}
+
+/**
+ * The word translations kept on this device for a lesson (localStorage "reader.{lang}_{id}") follow their words to the
+ * new places, as in the reader's remapNotes. `words` (the chosen meanings) are kept by word and stay as they are.
+ */
+function moveStoredNotes(lang: string, id: number, before: Obj[], after: Obj[]) {
+  const key = notesKeyOf(lang, id)
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return
+    const o = JSON.parse(raw)
+    if (!o || typeof o !== 'object') return
+    const old = wordSlots(parseSentences(before).flat())
+    const map = matchWords(old, wordSlots(parseSentences(after).flat()))
+    const r = remapPinned(old, map, o.pins ?? {}, o.phrases ?? {})
+    localStorage.setItem(key, JSON.stringify({ ...o, pins: r.pins, phrases: r.phrases, t: Date.now() }))
+    log('check', `Урок ${id}: переводы слов перенесены (${r.kept} из ${r.total})`)
+  } catch (e) {
+    logError('check', `Урок ${id}: переводы слов не перенесены`, e)
   }
 }
 

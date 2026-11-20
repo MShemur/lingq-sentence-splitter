@@ -45,3 +45,43 @@ export function matchWords(a: WordSlot[], b: WordSlot[]): Map<string, string> {
   }
   return out
 }
+
+/** A translation that counts: not empty, not an error ("⚠ …"). */
+const shown = (v: string) => !!v && !v.startsWith('⚠')
+
+/**
+ * Pins ("sent:token" -> text) and phrases ("sent:from:to" -> text) moved to the new word places (map from matchWords).
+ * A pin follows its word. A phrase keeps only if both ends land in one sentence, in order, and no old word of it that
+ * found its place lands in another sentence (else the AI cut the phrase); its key is rebuilt from the new ends.
+ * total = translations (not errors) before, kept = those that stayed. Used by reader/session.ts and check.ts.
+ */
+export function remapPinned(old: WordSlot[], map: Map<string, string>, pins: Record<string, string>, phrases: Record<string, string>):
+  { pins: Record<string, string>; phrases: Record<string, string>; total: number; kept: number } {
+  let total = 0, kept = 0
+  const outPins: Record<string, string> = {}
+  for (const [k, v] of Object.entries(pins)) {
+    if (shown(v)) total++
+    const nk = map.get(k)
+    if (nk) { outPins[nk] = v; if (shown(v)) kept++ }
+  }
+  const outPhrases: Record<string, string> = {}
+  for (const [k, v] of Object.entries(phrases)) {
+    if (shown(v)) total++
+    const [s, f, e] = k.split(':').map(Number)
+    const a = map.get(`${s}:${f}`), b = map.get(`${s}:${e}`)
+    if (!a || !b) continue
+    const [sa, fa] = a.split(':').map(Number)
+    const [sb, eb] = b.split(':').map(Number)
+    if (sa !== sb || fa > eb) continue
+    // every old word of the phrase that found its place must land in the same sentence (else the AI cut the phrase)
+    const cut = old.some((w) => {
+      const [ws, wt] = w.key.split(':').map(Number)
+      const nk = ws === s && wt >= f && wt <= e ? map.get(w.key) : undefined
+      return !!nk && Number(nk.split(':')[0]) !== sa
+    })
+    if (cut) continue
+    outPhrases[`${sa}:${fa}:${eb}`] = v
+    if (shown(v)) kept++
+  }
+  return { pins: outPins, phrases: outPhrases, total, kept }
+}

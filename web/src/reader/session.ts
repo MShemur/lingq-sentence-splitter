@@ -19,7 +19,7 @@ import { log, logError } from '../applog'
 import * as audio from '../audio'
 import { asides as pdfAsides, link as pdfLinkOf, map as pdfMap, type PdfLink } from '../pdfbook'
 import { addAudioBookmark, audioBookmarks, removeBookmark, type Bookmark as Bm } from '../bookmarks'
-import { matchWords, wordSlots, type WordSlot } from './remap'
+import { matchWords, remapPinned, wordSlots, type WordSlot } from './remap'
 
 // --- model ---
 
@@ -127,11 +127,45 @@ export class Sent {
   }
 }
 
+/**
+ * The sentences of LingQ's paragraphs as the reader reads them: empty ones skipped, ids counted over the rest, per
+ * paragraph (empty paragraphs dropped). Pure: the split checker uses it for the word places before and after a merge.
+ */
+export function parseSentences(a: any[]): Sent[][] {
+  let id = 0
+  const out: Sent[][] = []
+  for (const p of a) {
+    const para: Sent[] = []
+    // LingQ's paragraph style: "h1".."h6" are headings (drawn bold), plain text is "p"
+    const heading = /^h[1-6]$/i.test(String(p?.style ?? ''))
+    for (const s of p?.sentences ?? []) {
+      const text = String(s.text ?? '').trim()
+      if (!text) continue
+      const tr: Record<string, string> = {}
+      for (const t of s.translations ?? []) {
+        const v = String(t.text ?? '').trim()
+        if (v && !(t.language in tr)) tr[t.language] = v
+      }
+      const ts = Array.isArray(s.timestamp) ? s.timestamp : null
+      const sec = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.round(v * 1000) : -1)
+      const sent = new Sent(id, text, tr, typeof s.index === 'number' ? s.index : id + 1, sec(ts?.[0]), sec(ts?.[1]))
+      sent.heading = heading
+      id++
+      para.push(sent)
+    }
+    if (para.length) out.push(para)
+  }
+  return out
+}
+
 /** Word position "sentence:token". */
 export type WordRef = string
 export const ref = (sent: number, token: number): WordRef => `${sent}:${token}`
 export const refSent = (r: WordRef) => Number(r.split(':')[0])
 export const refToken = (r: WordRef) => Number(r.split(':')[1])
+
+/** localStorage key of a lesson's notes (pins, chosen words, phrases). */
+export const notesKeyOf = (lang: string, id: number) => `reader.${lang}_${id}`
 
 const isError = (t: string | undefined) => !t || t.startsWith('⚠')
 
@@ -338,7 +372,7 @@ export class ReaderSession {
   constructor(readonly lang: string, readonly lesson: Lesson, startSent: number | null = null) {
     this.title = signal(lesson.title)
     this.jump = signal(startSent)
-    this.notesKey = `reader.${lang}_${lesson.id}`
+    this.notesKey = notesKeyOf(lang, lesson.id)
   }
 
   get target() { return trLang() }
@@ -422,30 +456,8 @@ export class ReaderSession {
   private indexOf(id: number) { return Math.max(0, this.sentences.value.findIndex((s) => s.id === id)) }
 
   private parse(a: any[]): Sent[][] {
-    let id = 0
-    const out: Sent[][] = []
-    for (const p of a) {
-      const para: Sent[] = []
-      // LingQ's paragraph style: "h1".."h6" are headings (drawn bold), plain text is "p"
-      const heading = /^h[1-6]$/i.test(String(p?.style ?? ''))
-      for (const s of p?.sentences ?? []) {
-        const text = String(s.text ?? '').trim()
-        if (!text) continue
-        const tr: Record<string, string> = {}
-        for (const t of s.translations ?? []) {
-          const v = String(t.text ?? '').trim()
-          if (v && !(t.language in tr)) tr[t.language] = v
-        }
-        const ts = Array.isArray(s.timestamp) ? s.timestamp : null
-        const sec = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.round(v * 1000) : -1)
-        const sent = new Sent(id, text, tr, typeof s.index === 'number' ? s.index : id + 1, sec(ts?.[0]), sec(ts?.[1]))
-        sent.heading = heading
-        id++
-        this.sentById.set(sent.id, sent)
-        para.push(sent)
-      }
-      if (para.length) out.push(para)
-    }
+    const out = parseSentences(a)
+    for (const s of out.flat()) this.sentById.set(s.id, s)
     return out
   }
 
@@ -675,32 +687,7 @@ export class ReaderSession {
    */
   private remapNotes(old: WordSlot[]): { kept: number; total: number } {
     const map = matchWords(old, wordSlots(this.sentences.value))
-    const ok = (v: string) => !!v && !v.startsWith('⚠')
-    let total = 0, kept = 0
-    const pins: Record<WordRef, string> = {}
-    for (const [k, v] of Object.entries(this.pins.value)) {
-      if (ok(v)) total++
-      const nk = map.get(k)
-      if (nk) { pins[nk] = v; if (ok(v)) kept++ }
-    }
-    const phrases: Record<string, string> = {}
-    for (const [k, v] of Object.entries(this.phrasePins.value)) {
-      if (ok(v)) total++
-      const [s, f, e] = phraseParts(k)
-      const a = map.get(ref(s, f)), b = map.get(ref(s, e))
-      if (!a || !b) continue
-      const sa = refSent(a), fa = refToken(a), sb = refSent(b), eb = refToken(b)
-      if (sa !== sb || fa > eb) continue
-      // every old word of the phrase that found its place must land in the same sentence (else the AI cut the phrase)
-      const cut = old.some((w) => {
-        const [ws, wt] = w.key.split(':').map(Number)
-        const nk = ws === s && wt >= f && wt <= e ? map.get(w.key) : undefined
-        return !!nk && refSent(nk) !== sa
-      })
-      if (cut) continue
-      phrases[`${sa}:${fa}:${eb}`] = v
-      if (ok(v)) kept++
-    }
+    const r = remapPinned(old, map, this.pins.value, this.phrasePins.value)
     const prov: Record<WordRef, true> = {}
     for (const [k, v] of Object.entries(this.provisional.value)) { const nk = map.get(k); if (nk) prov[nk] = v }
     const pairs: Record<WordRef, WordRef[]> = {}
@@ -710,14 +697,14 @@ export class ReaderSession {
       const nv = vs.map((x) => map.get(x)).filter((x): x is WordRef => !!x)
       if (nv.length) pairs[nk] = nv
     }
-    this.pins.value = pins
+    this.pins.value = r.pins
     this.provisional.value = prov
-    this.phrasePins.value = phrases
+    this.phrasePins.value = r.phrases
     this.pairs.value = pairs
     if (this.popup.value) this.popup.value = map.get(this.popup.value) ?? null
     this.aiCache.clear() // keyed by old word places
     this.persist()
-    return { kept, total }
+    return { kept: r.kept, total: r.total }
   }
 
   /** "Перевести весь урок": "12 из 80" while running, null otherwise. */
