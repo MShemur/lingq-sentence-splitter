@@ -28,6 +28,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+## Done
+
 - note 21.11.2026 (feedback/20261121-102339-android) -> web v1.81: AI cleaning replaces gender pair forms
   («Mathematikerinnen und Mathematiker», «Lehrer*innen», «Lehrer:innen», «LehrerInnen») with one plain form. Prompt
   CLEAN got a bullet for it plus: when at least one such change was made, the last line of the answer is exactly {mark}
@@ -36,8 +38,8 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   „Lehrer*innen“ wurden der Lesbarkeit halber durch die einfache Form ersetzt.», else a Russian line); changes are not
   listed. A stored prompt equal to the old default is replaced by the new one (web: prompts.ts CLEAN_V1, settings.ts).
   Please also mark the feedback file done.
-
-## Done
+  Android v1.147: same prompt / mark / note (Prompts.CLEAN, CLEAN_V1, GENDER_MARK, genderNote in Gemini.kt; import
+  ImportSession.cleanAi and reader «Обработать текст с ИИ»; Storage maps a stored CLEAN_V1 to the new default).
 
 - notes 20.11.2026 (feedback/20261120-053428-web, 20261120-062204-web) -> web v1.78-v1.80, android v1.142-v1.146, both
   platforms: 1) fixer: ordinals with up to 3 digits («400. Geburtstag») — lingq_fix_splits.py, Fixer.kt, fixer.ts.
