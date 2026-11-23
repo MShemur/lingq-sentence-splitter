@@ -152,7 +152,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                   {items.length > 1 && <input type="checkbox" checked={it.selected.value} onChange={(e) => { it.selected.value = (e.target as HTMLInputElement).checked }} />}
                   <div class="grow">
                     <input class="item-title" value={it.title.value} onInput={(e) => { it.title.value = (e.target as HTMLInputElement).value }} />
-                    <div class="hint">{wordsLabel(countWords(it.text.value))}</div>
+                    <div class="hint">{wordsLabel(countWords(it.text.value))}{it.pics.length ? ` · картинок: ${it.pics.length}` : ''}</div>
                   </div>
                 </div>
               ))}

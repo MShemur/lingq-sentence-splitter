@@ -2,9 +2,13 @@
 // there is no OCR on the web, scanned pages are reported as such; page choice in pdf.ts).
 import { ApiError } from '../lingq'
 import { openPdf, type PdfDoc } from './pdf'
+import { paraKey, type BookPic } from '../bookpics'
 
 /** A piece of text that becomes one LingQ lesson (or several, if it is long). */
-export interface SourceText { title: string; text: string }
+export interface SourceText { title: string; text: string
+  /** EPUB: the chapter's pictures, tied to its paragraphs (kept in this browser, shown in the lesson). */
+  pics?: BookPic[]
+}
 
 const baseName = (name: string) => name.replace(/\.[^.]+$/, '')
 
@@ -31,7 +35,7 @@ export async function readFile(file: File, onStatus: (s: string) => void): Promi
   return { name: baseName(file.name), texts: [{ title: baseName(file.name), text }] }
 }
 
-// --- EPUB: OPF spine order, XHTML -> plain text with paragraphs; images are skipped ---
+// --- EPUB: OPF spine order, XHTML -> plain text with paragraphs; pictures kept aside (bookpics.ts) ---
 
 async function readEpub(bytes: Uint8Array): Promise<{ title: string; chapters: SourceText[]; cover?: Blob }> {
   const { unzipSync, strFromU8 } = await import('fflate')
@@ -55,23 +59,30 @@ async function readEpub(bytes: Uint8Array): Promise<{ title: string; chapters: S
     if (id && href && type.includes('html')) manifest.set(id, href)
   }
   const spine = (opf.match(/<itemref\b[^>]*>/g) ?? []).map((m) => attr(m, 'idref')).filter(Boolean) as string[]
+  const cv = coverItem(opf)
+  const coverPath = cv ? resolve(base, decoded(cv.href)) : null
+  const coverType = cv?.type ?? 'image/jpeg'
   const chapters: SourceText[] = []
   for (const id of spine) {
     const href = manifest.get(id)
     if (!href) continue
     let path = href.split('#')[0]
     try { path = decodeURIComponent(path) } catch { /* keep */ }
-    const html = read(resolve(base, path))
+    const full = resolve(base, path)
+    const html = read(full)
     if (!html) continue
-    const text = htmlToMarkedText(html)
-    if (text.trim()) chapters.push({ title: chapterTitle(html), text })
+    const withPics = await chapterPics(html, files, full, coverPath)
+    const text = htmlToMarkedText(withPics.html)
+    if (!withPics.pics.length) { if (text.trim()) chapters.push({ title: chapterTitle(html), text }); continue }
+    const placed = await anchorPics(text, withPics.pics)
+    if (placed.text.trim()) chapters.push({ title: chapterTitle(html), text: placed.text, pics: placed.pics })
   }
   if (!chapters.length) throw new ApiError('в EPUB не найден текст')
-  return { title, chapters, cover: cover(opf, files, base) }
+  return { title, chapters, cover: coverPath ? blobOf(files[coverPath], coverType) : undefined }
 }
 
-/** EPUB 3 "cover-image", EPUB 2 <meta name="cover">, or an image called "cover". */
-function cover(opf: string, files: Record<string, Uint8Array>, base: string): Blob | undefined {
+/** EPUB 3 "cover-image", EPUB 2 <meta name="cover">, or an image called "cover": its href and type. */
+function coverItem(opf: string): { href: string; type: string } | null {
   const items = opf.match(/<item\b[^>]*>/g) ?? []
   const isImage = (t: string) => (attr(t, 'media-type') ?? '').startsWith('image')
   const meta = /<meta\b[^>]*\bname\s*=\s*["']cover["'][^>]*>/.exec(opf)?.[0]
@@ -80,11 +91,90 @@ function cover(opf: string, files: Record<string, Uint8Array>, base: string): Bl
     ?? (metaId ? items.find((t) => attr(t, 'id') === metaId && isImage(t)) : undefined)
     ?? items.find((t) => isImage(t) && /cover/i.test((attr(t, 'id') ?? '') + (attr(t, 'href') ?? '')))
   const href = item && attr(item, 'href')
-  if (!href) return undefined
-  let path = href
-  try { path = decodeURIComponent(href) } catch { /* keep */ }
-  const b = files[resolve(base, path)]
-  return b ? new Blob([b as BlobPart], { type: attr(item!, 'media-type') ?? 'image/jpeg' }) : undefined
+  return href ? { href, type: attr(item!, 'media-type') ?? 'image/jpeg' } : null
+}
+
+const decoded = (href: string) => { try { return decodeURIComponent(href) } catch { return href } }
+const blobOf = (b: Uint8Array | undefined, type: string) => (b ? new Blob([b as BlobPart], { type }) : undefined)
+
+const PIC_ON = '', PIC_OFF = ''
+const PIC_MARK = /(\d+)/g
+const IMG_TYPES: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' }
+
+/**
+ * The chapter's pictures (not the cover) with their captions; in the HTML each picture becomes a mark (its own
+ * paragraph when it stands alone) and its caption is taken out (shown under the picture, not lesson text).
+ */
+async function chapterPics(html: string, files: Record<string, Uint8Array>, chapter: string, cover: string | null): Promise<{ html: string; pics: { data: Blob; cap: string }[] }> {
+  if (!/<(img|image)\b/i.test(html)) return { html, pics: [] }
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  const dir = chapter.includes('/') ? chapter.slice(0, chapter.lastIndexOf('/')) : ''
+  const pics: { data: Blob; cap: string }[] = []
+  const capClass = /caption|legend|bildunter|unterschrift|figcap/i
+  for (const img of [...doc.querySelectorAll('img, image')]) {
+    if (!img.isConnected) continue
+    const src = img.getAttribute('src') ?? img.getAttribute('href') ?? img.getAttribute('xlink:href') ?? ''
+    const path = src && !/^(data|https?):/i.test(src) ? resolve(dir, decoded(src.split('#')[0])) : ''
+    const bytes = path && path !== cover ? files[path] : undefined
+    // the outermost element holding only this picture (an <svg>, a <p> or <div> around it)
+    let box: Element = img.closest('svg') ?? img
+    while (box.parentElement && box.parentElement !== doc.body && !box.parentElement.textContent?.trim()
+      && box.parentElement.querySelectorAll('img, image').length === 1) box = box.parentElement
+    const fig = img.closest('figure')
+    let capEl: Element | null = fig?.querySelector('figcaption') ?? null
+    if (!capEl) {
+      const next = (fig ?? box).nextElementSibling
+      if (next && capClass.test(next.getAttribute('class') ?? '') && (next.textContent ?? '').length < 600) capEl = next
+    }
+    if (!bytes) continue
+    const cap = capEl ? clean(capEl.textContent ?? '') : ''
+    capEl?.remove()
+    const ext = path.split('.').pop()!.toLowerCase()
+    const mark = PIC_ON + pics.length + PIC_OFF
+    pics.push({ data: new Blob([bytes as BlobPart], { type: IMG_TYPES[ext] ?? 'image/jpeg' }), cap })
+    const outer = fig ?? box
+    if (outer !== img || !outer.parentElement?.textContent?.trim()) {
+      const p = doc.createElement('p'); p.textContent = mark; outer.replaceWith(p)
+    } else outer.replaceWith(doc.createTextNode(mark))
+  }
+  return { html: doc.body.innerHTML, pics }
+}
+
+/** Size of a picture, or null when it does not open. */
+function picSize(b: Blob): Promise<{ w: number; h: number } | null> {
+  return new Promise((ok) => {
+    const url = URL.createObjectURL(b)
+    const im = new Image()
+    const done = (r: { w: number; h: number } | null) => { URL.revokeObjectURL(url); ok(r) }
+    im.onload = () => done(im.naturalWidth && im.naturalHeight ? { w: im.naturalWidth, h: im.naturalHeight } : null)
+    im.onerror = () => done(null)
+    im.src = url
+  })
+}
+
+/** The text without the picture marks; each picture tied to the paragraph after it (or before it). Tiny ones dropped. */
+async function anchorPics(text: string, raw: { data: Blob; cap: string }[]): Promise<{ text: string; pics: BookPic[] }> {
+  const paras: string[] = []
+  const pics: BookPic[] = []
+  let waiting: number[] = []
+  let prev: string | null = null
+  const sizes = await Promise.all(raw.map((r) => picSize(r.data)))
+  const pic = (n: number, before: string | null) => {
+    const sz = sizes[n]
+    if (!sz || Math.min(sz.w, sz.h) < 40 || sz.w * sz.h < 12000) return // ornaments, bullets
+    pics.push({ data: raw[n].data, w: sz.w, h: sz.h, cap: raw[n].cap, before, after: prev })
+  }
+  for (const p of text.split(/\n\n/)) {
+    const marks = [...p.matchAll(PIC_MARK)].map((m) => Number(m[1]))
+    const rest = p.replace(PIC_MARK, '').replace(/[ \t]{2,}/g, ' ').trim()
+    if (!rest) { waiting.push(...marks); continue }
+    const key = paraKey(rest)
+    for (const n of [...waiting, ...marks]) pic(n, key)
+    waiting = []
+    paras.push(rest); prev = key
+  }
+  for (const n of waiting) pic(n, null)
+  return { text: paras.join('\n\n'), pics }
 }
 
 const attr = (tag: string, name: string) => new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`).exec(tag)?.[2] ?? null

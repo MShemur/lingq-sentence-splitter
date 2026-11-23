@@ -17,6 +17,7 @@ import { chunks as textChunks, cleanText, markdownHeadings, spaceQuotes, splitSe
 import { fix } from '../importer/fixer'
 import { log, logError } from '../applog'
 import * as audio from '../audio'
+import { load as loadPics, NO_PICS, place as placePics, type PicPlaces, type ShownPic } from '../bookpics'
 import { asides as pdfAsides, link as pdfLinkOf, map as pdfMap, type PdfLink } from '../pdfbook'
 import { addAudioBookmark, audioBookmarks, removeBookmark, type Bookmark as Bm } from '../bookmarks'
 import { matchWords, remapPinned, wordSlots, type WordSlot } from './remap'
@@ -362,6 +363,10 @@ export class ReaderSession {
   showPdf = signal(false)
   /** PDF book: paragraphs from a caption ('c') or a box ('o') of a scanned page, by their first sentence id (a label). */
   asides = signal<Map<number, 'c' | 'o'>>(new Map())
+  /** EPUB pictures kept in this browser, by paragraph (bookpics.ts). */
+  pics = signal<PicPlaces>(NO_PICS)
+  /** The picture shown on the whole screen. */
+  picOpen = signal<ShownPic | null>(null)
 
   private sentById = new Map<number, Sent>()
   private hintsCache = new Map<string, Promise<string[]>>()
@@ -404,6 +409,8 @@ export class ReaderSession {
       this.paragraphs.value = paras
       // a save by the AI whose read-back had failed: the notes follow their words now
       if (this.pendingRemap) { this.lastRemap = this.remapNotes(this.pendingRemap); this.pendingRemap = null }
+      loadPics(this.lang, this.lesson.id).then((list) => { if (list?.length) this.pics.value = placePics(list, paras) },
+        (e) => logError('reader', 'Картинки урока', e))
       if (pdf && pdf.kinds !== 'bh') {
         pdfMap(pdf, paras.flat()).then((m) => { this.asides.value = pdfAsides(m, paras) },
           (e) => logError('pdf', 'Подписи к картинкам', e))

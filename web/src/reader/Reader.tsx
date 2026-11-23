@@ -15,6 +15,7 @@ import { Chip, Dialog, ErrorBox, IconButton, LinearProgress, Loading, Menu, Menu
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ReaderHelp } from './Help'
 import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef, refToken } from './session'
+import type { ShownPic } from '../bookpics'
 import { playLesson } from '../player'
 import { levelName } from '../lingq'
 import { LessonDeleteDialog } from '../screens/CourseEdit'
@@ -229,6 +230,7 @@ export function ReaderScreen({ s }: { s: ReaderSession }) {
       {!docked() && s.popup.value && <WordSheet s={s} r={s.popup.value} />}
       {!docked() && s.phrase.value && <PhraseSheet s={s} />}
       {s.wordsOpen.value && <PinnedWordsDialog s={s} />}
+      <PicViewer s={s} />
       {s.bookmarksOpen.value && <LessonBookmarksDialog s={s} onClose={() => { s.bookmarksOpen.value = false }} />}
       {s.editing.value != null && <SentenceEditDialog s={s} id={s.editing.value} />}
       {s.levelResult.value && (
@@ -382,7 +384,7 @@ interface Spec { sents: Sent[]; start?: number; cont?: boolean }
  */
 function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, prefix: string, blocks: Spec[], split = false): Measure[] {
   // [split]: a shown sentence translation ends the line there ('!' in the key), as on the page
-  const keys = blocks.map((b) => prefix + b.sents.map((x) => x.id + (split && s.sentenceShown(x.id) ? '!' : '')).join('/') + (b.start ? '@' + b.start : '') + (b.cont ? '^' : '') + (asideOf(s, b.sents, b.start, b.cont) ?? ''))
+  const keys = blocks.map((b) => prefix + b.sents.map((x) => x.id + (split && s.sentenceShown(x.id) ? '!' : '')).join('/') + (b.start ? '@' + b.start : '') + (b.cont ? '^' : '') + (asideOf(s, b.sents, b.start, b.cont) ?? '') + picsSig(s, b.sents, b.start, b.cont))
   const missing = blocks.map((_, i) => i).filter((i) => !cache.has(keys[i]))
   for (let a = 0; a < missing.length; a += 25) {
     const part = missing.slice(a, a + 25)
@@ -421,6 +423,8 @@ function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number
       // the longest run of whole sentences that still fits on this page
       let k = 0
       while (k < rest.length && used + need(m.bottoms[k]) <= h) k++
+      // all the text fits but the book's picture after it does not: the last sentence goes on with the picture
+      if (k === rest.length && s.pics.value.after.has(para[para.length - 1].id)) k--
       // a sentence taller than a whole page (nothing else on it), or any sentence in book mode: the lines that fit
       const cb = cut ? m.chunks[k] ?? [] : k === 0 && !cur.length ? m.chunks[0] ?? [] : []
       let c = 0
@@ -521,7 +525,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
 
   // what changes the layout of the bare text (translations do not: the page scrolls instead)
   const deps = [paras, prefs.readerFont.value, size.w, size.h, per, book, prefs.lineSpacing.value, prefs.paraGap.value, prefs.paraIndent.value,
-    book ? s.shown.value : null, book && s.allSentences.value, s.asides.value]
+    book ? s.shown.value : null, book && s.allSentences.value, s.asides.value, s.pics.value]
 
   useEffect(() => {
     const el = pager.current
@@ -700,6 +704,46 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
 const asideOf = (s: ReaderSession, sents: Sent[], start?: number, cont?: boolean) =>
   start || cont || !sents.length ? undefined : s.asides.value.get(sents[0].id)
 
+/** EPUB pictures before the paragraph begun by [sents] and after it (when it ends here); measured with the paragraph. */
+function picsAround(s: ReaderSession, sents: Sent[], start?: number, cont?: boolean, end?: number, cut?: boolean) {
+  if (!sents.length) return [undefined, undefined] as const
+  const before = start || cont ? undefined : s.pics.value.before.get(sents[0].id)
+  const after = end != null || cut ? undefined : s.pics.value.after.get(sents[sents.length - 1].id)
+  return [before, after] as const
+}
+const picsSig = (s: ReaderSession, sents: Sent[], start?: number, cont?: boolean) => {
+  const [b, a] = picsAround(s, sents, start, cont)
+  return b || a ? `#${b?.length ?? 0}.${a?.length ?? 0}` : ''
+}
+
+/** Pictures of the book (kept in this browser): their size is known, so pages are laid out before they load. */
+function Pics({ s, list }: { s: ReaderSession; list?: ShownPic[] }) {
+  if (!list) return null
+  return (
+    <>
+      {list.map((p, i) => (
+        <figure key={'pic' + i} class="para-pic" onClick={(e) => { e.stopPropagation(); s.picOpen.value = p }}>
+          <img src={p.url} alt={p.cap} draggable={false}
+            style={{ width: `min(100%, ${p.w}px, calc(42vh * ${(p.w / p.h).toFixed(4)}))`, aspectRatio: `${p.w} / ${p.h}` }} />
+          {p.cap && <figcaption>{p.cap}</figcaption>}
+        </figure>
+      ))}
+    </>
+  )
+}
+
+/** A picture on the whole screen; a tap closes it. */
+function PicViewer({ s }: { s: ReaderSession }) {
+  const p = s.picOpen.value
+  if (!p) return null
+  return (
+    <div class="pic-viewer" role="dialog" aria-label="Картинка" onClick={() => { s.picOpen.value = null }}>
+      <img src={p.url} alt={p.cap} />
+      {p.cap && <div class="pic-viewer-cap">{p.cap}</div>}
+    </div>
+  )
+}
+
 /** The grey label over such a paragraph: shown only, not part of the lesson text; measured with the paragraph. */
 function AsideLabel({ kind }: { kind?: 'c' | 'o' }) {
   return kind ? <div class="para-label" aria-hidden="true">{kind === 'c' ? 'Подпись к картинке' : 'Врезка'}</div> : null
@@ -720,8 +764,10 @@ function Paragraph({ s, sents, plain, start, end, cut, split, cont }: {
 }) {
   const cls = 'para' + (sents[0]?.heading ? ' heading' : '') + (end != null || cut ? ' cut' : '') + (start || cont ? ' cont' : '')
   const last = sents[sents.length - 1]
-  const label = <AsideLabel key="label" kind={asideOf(s, sents, start, cont)} />
-  if (plain && !split) return <div class={cls}>{label}<SentenceFlow s={s} sents={sents} start={start} end={end} plain /></div>
+  const [picsBefore, picsAfter] = picsAround(s, sents, start, cont, end, cut)
+  const label = [<Pics key="pics" s={s} list={picsBefore} />, <AsideLabel key="label" kind={asideOf(s, sents, start, cont)} />]
+  const tail = <Pics key="pics-after" s={s} list={picsAfter} />
+  if (plain && !split) return <div class={cls}>{label}<SentenceFlow s={s} sents={sents} start={start} end={end} plain />{tail}</div>
   if (plain) {
     const runs: Sent[][] = [[]]
     sents.forEach((x, i) => { runs[runs.length - 1].push(x); if (i < sents.length - 1 && s.sentenceShown(x.id)) runs.push([]) })
@@ -729,10 +775,11 @@ function Paragraph({ s, sents, plain, start, end, cut, split, cont }: {
       <div class={cls}>
         {label}
         {runs.map((r, i) => <SentenceFlow key={i} s={s} sents={r} start={i === 0 ? start : undefined} end={i === runs.length - 1 ? end : undefined} plain />)}
+        {tail}
       </div>
     )
   }
-  const parts: JSX.Element[] = [label]
+  const parts: JSX.Element[] = [...label]
   let run: Sent[] = []
   let first = true
   const flow = (key: string) => {
@@ -750,6 +797,7 @@ function Paragraph({ s, sents, plain, start, end, cut, split, cont }: {
     }
   }
   if (run.length) parts.push(flow('rest'))
+  parts.push(tail)
   return <div class={cls}>{parts}</div>
 }
 

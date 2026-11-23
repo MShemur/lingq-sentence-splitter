@@ -11,6 +11,7 @@ import { fix, type Change } from './fixer'
 import { readFile } from './sources'
 import { openPdf, pagesLabel, type PdfDoc } from './pdf'
 import * as pdfBook from '../pdfbook'
+import * as bookPics from '../bookpics'
 import { genderNote, takeGenderMark } from '../prompts'
 import { saveBackup } from './backups'
 import { clock, cutMp3, decodePcm, mp3Frames, playerDuration, RATE, wav, type Mp3 } from './audio'
@@ -28,7 +29,7 @@ export class ImportItem {
   title: Signal<string>
   text: Signal<string>
   selected: Signal<boolean>
-  constructor(title: string, text: string, selected: boolean) {
+  constructor(title: string, text: string, selected: boolean, readonly pics: bookPics.BookPic[] = []) {
     this.title = signal(title); this.text = signal(text); this.selected = signal(selected)
   }
 }
@@ -77,7 +78,19 @@ export function rememberImportCourse(lang: string, id: number) {
  * not fit into one LingQ import (more than LINGQ_MAX_WORDS words): it is added to the same lesson afterwards, so a
  * long podcast stays one lesson with one audio.
  */
-interface Job { title: string; text: string; rest: string; audio: Blob | null; file: string; words: TWord[] }
+interface Job { title: string; text: string; rest: string; audio: Blob | null; file: string; words: TWord[]
+  /** EPUB pictures whose paragraph is in this lesson. */
+  pics?: bookPics.BookPic[]
+}
+
+/** The pictures of [pics] whose paragraph (after them, else before them) is in [text]; [taken] = already given to a lesson. */
+function picsOf(text: string, pics: bookPics.BookPic[], taken: Set<bookPics.BookPic>): bookPics.BookPic[] {
+  const keys = text.split(/\n\s*\n/).map(bookPics.paraKey).filter(Boolean)
+  const has = (a: string | null) => a != null && keys.some((k) => bookPics.sameKey(k, a))
+  const out = pics.filter((p) => !taken.has(p) && (has(p.before) || has(p.after)))
+  out.forEach((p) => taken.add(p))
+  return out
+}
 
 /** Adds the paragraphs of [rest] after the lesson's own (sentence objects shaped like LingQ's). */
 async function extendLesson(l: string, id: number, rest: string) {
@@ -141,7 +154,11 @@ export class ImportSession {
 
   // --- source ---
 
-  private setSingle(title: string, text: string) {
+  /** EPUB pictures of the single text in the form. */
+  private singlePics: bookPics.BookPic[] = []
+
+  private setSingle(title: string, text: string, pics: bookPics.BookPic[] = []) {
+    this.singlePics = pics
     this.pasteMode.value = true; this.isBook.value = false; this.items.value = []
     this.pasteTitle.value = title; this.pasteText.value = text
   }
@@ -159,7 +176,7 @@ export class ImportSession {
   }
 
   /** An empty field to type or paste into (when the clipboard cannot be read). */
-  typeIn() { this.setSingle(this.pasteTitle.value, this.pasteText.value) }
+  typeIn() { this.setSingle(this.pasteTitle.value, this.pasteText.value, this.singlePics) }
 
   async loadFile(file: File) {
     this.startLoad('Читаю файл…')
@@ -169,11 +186,11 @@ export class ImportSession {
       this.sourceName.value = name
       if (cover) this.setCover(cover, name)
       if (pdf) { this.pdfPick.value?.close(); this.pdfPick.value = pdf; this.loading.value = false; this.status.value = ''; return }
-      if (texts.length === 1) this.setSingle(texts[0].title || name, texts[0].text)
+      if (texts.length === 1) this.setSingle(texts[0].title || name, texts[0].text, texts[0].pics)
       else {
         this.isBook.value = true
         // short EPUB parts (cover, title page, imprint) are not preselected
-        this.items.value = texts.map((t) => new ImportItem(t.title || name, t.text, countWords(t.text) >= 100))
+        this.items.value = texts.map((t) => new ImportItem(t.title || name, t.text, countWords(t.text) >= 100, t.pics))
       }
     } catch (e) {
       this.error.value = `Не удалось прочитать файл: ${(e as Error).message}`
@@ -451,10 +468,10 @@ export class ImportSession {
 
   // --- upload ---
 
-  private selectedTexts(): [string, string][] {
-    if (this.pasteMode.value) return this.pasteText.value.trim() ? [[this.pasteTitle.value.trim() || 'Текст', this.pasteText.value]] : []
+  private selectedTexts(): [string, string, bookPics.BookPic[]][] {
+    if (this.pasteMode.value) return this.pasteText.value.trim() ? [[this.pasteTitle.value.trim() || 'Текст', this.pasteText.value, this.singlePics]] : []
     return this.items.value.filter((i) => i.selected.value)
-      .map((i, n) => [this.isBook.value ? `${n + 1}: ${i.title.value}` : i.title.value, i.text.value])
+      .map((i, n) => [this.isBook.value ? `${n + 1}: ${i.title.value}` : i.title.value, i.text.value, i.pics])
   }
 
   selectedCount() { return this.pasteMode.value ? (this.pasteText.value.trim() ? 1 : 0) : this.items.value.filter((i) => i.selected.value).length }
@@ -477,10 +494,11 @@ export class ImportSession {
       const parts = splitLong(text, LINGQ_MAX_WORDS - 1000)
       jobs = [{ title, text: parts[0] ?? '', rest: parts.slice(1).join('\n\n'), audio, file: audioFile, words: this.audioWords }]
     } else {
-      jobs = this.selectedTexts().flatMap(([title, text]) => {
+      jobs = this.selectedTexts().flatMap(([title, text, pics]) => {
         const parts = splitLong(text, max)
+        const taken = new Set<bookPics.BookPic>()
         return (parts.length === 1 ? [[title, parts[0]]] : parts.map((p, i) => [`${title} (${i + 1})`, p]))
-          .map(([t, x]) => ({ title: t, text: x, rest: '', audio: null, file: '', words: [] }))
+          .map(([t, x]) => ({ title: t, text: x, rest: '', audio: null, file: '', words: [], pics: pics.length ? picsOf(x, pics, taken) : [] }))
       })
     }
     if (!jobs.length || !jobs[0].text.trim()) { say('Нечего загружать'); return }
@@ -537,6 +555,11 @@ export class ImportSession {
           this.line(base + i, `❌ ${(e as Error).message} · ${title}`); failed++; step(); continue
         }
         this.uploaded.value = [...this.uploaded.value, { id, title }]
+        const pics = jobs[i].pics ?? []
+        if (pics.length) {
+          await bookPics.save(l, id, pics).then(() => log('import', `Урок ${id}: картинок ${pics.length}`),
+            (e) => log('import', `Картинки урока ${id} ✗ ${(e as Error).message}`))
+        }
         if (book) {
           await pdfBook.register(l, id, book, bookPages[i] ?? this.pdfBookPages, this.pdfBookKinds)
             .catch((e) => log('import', `PDF-книга: урок ${id} ✗ ${(e as Error).message}`))

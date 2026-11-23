@@ -28,6 +28,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- NOT NOW (user 23.11.2026: write it down, do not do it; ROADMAP «Не делаем»): web v1.82 EPUB pictures. Import keeps
+  the book's pictures (not the cover, not tiny ones < 40 px / < 12000 px²) in IndexedDB 'satzloop-pics' per lesson, tied to
+  the paragraph after them (or before them, at a chapter end) by paraKey = first 40 letters/digits lower case, prefix
+  match of 24 (bookpics.ts). Captions (figcaption, or the next element with a caption-like class) are taken out of the
+  lesson text and shown under the picture only (not translated). Reader: picture above its paragraph (size known, so
+  pagination measures it), a picture after the lesson's last paragraph moves to the next page with the last sentence;
+  tap = whole screen. Only on the device that imported the book. Files: importer/sources.ts (chapterPics, anchorPics),
+  importer/session.ts (picsOf, bookPics.save), reader/session.ts (pics), reader/Reader.tsx (Pics, PicViewer), styles.css.
 ## Done
 
 - note 21.11.2026 (feedback/20261121-102339-android) -> web v1.81: AI cleaning replaces gender pair forms
