@@ -1161,11 +1161,13 @@ class ImportSession(private val app: AppState) {
                 val total = jobs.sumOf { TextCleaner.chunks(it.first).size }.coerceAtLeast(1)
                 var done = 0
                 for ((t, set) in jobs) {
+                    var gender = false
                     val out = TextCleaner.chunks(t).map { piece ->
-                        val r = withContext(Dispatchers.IO) { app.geminiFast().clean(app.prefs.promptClean, app.lang, piece) }
+                        val raw = withContext(Dispatchers.IO) { app.geminiFast().clean(app.prefs.promptClean, app.lang, piece) }
+                        val (r, g) = Prompts.takeGenderMark(raw); if (g) gender = true
                         done++; cleanProgress = done.toFloat() / total
                         r.ifBlank { piece }
-                    }
+                    } + if (gender) listOf(Prompts.genderNote(app.lang)) else emptyList()
                     set(TextCleaner.spaceQuotes(out.joinToString("\n\n")))
                 }
                 cleanNote = "ИИ почистил текст. Пролистайте и проверьте; если что-то пропало — «Вернуть как было»."

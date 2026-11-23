@@ -848,10 +848,13 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
                     val t0 = tmpl ?: throw ApiException("урок пустой")
                     val src = TextCleaner.clean(parts.joinToString("\n\n")).first
                     val pieces = TextCleaner.chunks(src)
-                    val cleaned = pieces.mapIndexed { i, piece ->
+                    var gender = false
+                    val cleaned = (pieces.mapIndexed { i, piece ->
                         aiClean = "${i + 1} из ${pieces.size}"
-                        app.geminiFast().clean(app.prefs.promptClean, lang, piece).ifBlank { piece }
-                    }.joinToString("\n\n").let(TextCleaner::spaceQuotes)
+                        val (r, g) = Prompts.takeGenderMark(app.geminiFast().clean(app.prefs.promptClean, lang, piece))
+                        if (g) gender = true
+                        r.ifBlank { piece }
+                    } + if (gender) listOf(Prompts.genderNote(lang)) else emptyList()).joinToString("\n\n").let(TextCleaner::spaceQuotes)
                     val out = JSONArray()
                     var idx = 0
                     for (pt in cleaned.split(Regex("\\n\\s*\\n"))) {

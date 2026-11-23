@@ -41,7 +41,7 @@ abstract class Llm {
 
     /** Cleans a piece of copied text (see [Prompts.CLEAN]). */
     fun clean(prompt: String, lang: String, text: String): String =
-        generate(null, listOf(Gemini.Msg(true, Prompts.fill(prompt, "lang" to lang, "text" to text)))).trim()
+        generate(null, listOf(Gemini.Msg(true, Prompts.fill(prompt, "lang" to lang, "text" to text, "mark" to Prompts.GENDER_MARK)))).trim()
 
     /** CEFR level of a text: LingQ level 1..6 (A1..C2) and a short reason. */
     fun level(prompt: String, lang: String, text: String): Pair<Int, String> {

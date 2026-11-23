@@ -195,7 +195,7 @@ class Prefs(ctx: Context) {
         get() = read("promptLevel", Prompts.LEVEL).ifBlank { Prompts.LEVEL }
         set(v) = p.edit().putString("promptLevel", v).apply()
     var promptClean: String
-        get() = read("promptClean", Prompts.CLEAN).ifBlank { Prompts.CLEAN }
+        get() = read("promptClean", Prompts.CLEAN).ifBlank { Prompts.CLEAN }.let { if (it == Prompts.CLEAN_V1) Prompts.CLEAN else it }
         set(v) = p.edit().putString("promptClean", v).apply()
     /** Import: quick clean right after text is pasted / read. */
     /** Import: the AI sets the level of every uploaded lesson. */

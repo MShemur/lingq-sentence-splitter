@@ -39,10 +39,33 @@ object Prompts {
 - убери номера страниц, колонтитулы, сноски и номера сносок, ссылки, подписи к картинкам, рекламу, меню и кнопки сайта («поделиться», «читать далее» и т. п.), даты и имена в комментариях и прочий мусор, который не относится к основному тексту;
 - склей слова, разорванные переносом, и строки, разорванные посреди предложения; исправь явные ошибки распознавания букв;
 - сохрани деление на абзацы и заголовки глав;
+- сохрани выделение звёздочками как есть: **жирный**, *курсив*;
+- парные и гендерные формы заменяй одной обычной формой: «Mathematikerinnen und Mathematiker», «Lehrer*innen», «Lehrer:innen», «LehrerInnen», «Student/-innen» → «Mathematiker», «Lehrer», «Studenten» (грамматику предложения согласуй). Если ты сделал хотя бы одну такую замену, последней строкой ответа напиши ровно {mark} — больше ничего про замены не пиши.
+Кроме этого сам текст не меняй: не переписывай, не сокращай, не переводи и не редактируй стиль. Ответь только очищенным текстом, без пояснений.
+
+{text}"""
+
+    /** The cleaning prompt before v1.147 (gender pairs): a stored copy of it is replaced by [CLEAN]. */
+    const val CLEAN_V1 = """Ниже текст на языке «{lang}», скопированный из книги, PDF, со скана или с сайта. Очисти его для чтения:
+- убери номера страниц, колонтитулы, сноски и номера сносок, ссылки, подписи к картинкам, рекламу, меню и кнопки сайта («поделиться», «читать далее» и т. п.), даты и имена в комментариях и прочий мусор, который не относится к основному тексту;
+- склей слова, разорванные переносом, и строки, разорванные посреди предложения; исправь явные ошибки распознавания букв;
+- сохрани деление на абзацы и заголовки глав;
 - сохрани выделение звёздочками как есть: **жирный**, *курсив*.
 Сам текст не меняй: не переписывай, не сокращай, не переводи и не редактируй стиль. Ответь только очищенным текстом, без пояснений.
 
 {text}"""
+
+    /** The line the cleaning AI ends its answer with when it replaced gender pairs (not part of the text). */
+    const val GENDER_MARK = "[[GENDER]]"
+
+    /** The answer without the mark, and whether the mark was there. */
+    fun takeGenderMark(t: String): Pair<String, Boolean> =
+        if (!t.contains(GENDER_MARK)) t to false else t.replace(GENDER_MARK, "").trim() to true
+
+    /** The line added at the end of a cleaned text whose gender pairs were replaced (the changes are not listed). */
+    fun genderNote(lang: String): String =
+        if (lang == "de") "Hinweis: Doppelformen wie „Lehrerinnen und Lehrer“ oder „Lehrer*innen“ wurden der Lesbarkeit halber durch die einfache Form ersetzt."
+        else "Примечание: парные формы по полу («учительницы и учителя») заменены одной обычной формой."
 
     const val CHAT_WORD = """Ты репетитор языка «{lang}». Ученик читает текст и спрашивает про «{word}» в этом предложении:
 «{sentence}»
