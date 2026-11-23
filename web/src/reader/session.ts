@@ -5,7 +5,7 @@ import type { Lesson } from '../lingq'
 import * as gemini from '../gemini'
 import type { WordMeaning } from '../gemini'
 import { prefs, prompt, trLang, useGemini } from '../settings'
-import { fill } from '../prompts'
+import { fill, genderNote, takeGenderMark } from '../prompts'
 import { go, say, sayLong, stack, errorText, geminiFailed, lessonOpened } from '../app'
 import { ChatSession } from '../chat'
 import { hasBookmark, toggleBookmark as toggleBm, type Bookmark } from '../bookmarks'
@@ -625,10 +625,13 @@ export class ReaderSession {
       if (!tmpl) throw new Error('урок пустой')
       const pieces = textChunks(cleanText(parts.join('\n\n'))[0])
       const cleaned: string[] = []
+      let gender = false
       for (let i = 0; i < pieces.length; i++) {
         this.aiClean.value = `${i + 1} из ${pieces.length}`
-        cleaned.push((await gemini.cleanPiece(prompt.clean(), this.lang, pieces[i])) || pieces[i])
+        const [r, g] = takeGenderMark(await gemini.cleanPiece(prompt.clean(), this.lang, pieces[i]))
+        cleaned.push(r || pieces[i]); gender ||= g
       }
+      if (gender) cleaned.push(genderNote(this.lang))
       const out: any[] = []
       let idx = 0
       for (const pt of spaceQuotes(cleaned.join('\n\n')).split(/\n\s*\n/)) {

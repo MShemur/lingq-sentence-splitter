@@ -37,8 +37,9 @@ export const Prompts = {
 - убери номера страниц, колонтитулы, сноски и номера сносок, ссылки, подписи к картинкам, рекламу, меню и кнопки сайта («поделиться», «читать далее» и т. п.), даты и имена в комментариях и прочий мусор, который не относится к основному тексту;
 - склей слова, разорванные переносом, и строки, разорванные посреди предложения; исправь явные ошибки распознавания букв;
 - сохрани деление на абзацы и заголовки глав;
-- сохрани выделение звёздочками как есть: **жирный**, *курсив*.
-Сам текст не меняй: не переписывай, не сокращай, не переводи и не редактируй стиль. Ответь только очищенным текстом, без пояснений.
+- сохрани выделение звёздочками как есть: **жирный**, *курсив*;
+- парные и гендерные формы заменяй одной обычной формой: «Mathematikerinnen und Mathematiker», «Lehrer*innen», «Lehrer:innen», «LehrerInnen», «Student/-innen» → «Mathematiker», «Lehrer», «Studenten» (грамматику предложения согласуй). Если ты сделал хотя бы одну такую замену, последней строкой ответа напиши ровно {mark} — больше ничего про замены не пиши.
+Кроме этого сам текст не меняй: не переписывай, не сокращай, не переводи и не редактируй стиль. Ответь только очищенным текстом, без пояснений.
 
 {text}`,
 
@@ -51,4 +52,30 @@ export const Prompts = {
 
 export function fill(p: string, v: Record<string, string>): string {
   return Object.entries(v).reduce((acc, [k, value]) => acc.split(`{${k}}`).join(value), p)
+}
+
+/** The cleaning prompt before web v1.81 (gender pairs): a stored copy of it is replaced by the new default. */
+export const CLEAN_V1 = `Ниже текст на языке «{lang}», скопированный из книги, PDF, со скана или с сайта. Очисти его для чтения:
+- убери номера страниц, колонтитулы, сноски и номера сносок, ссылки, подписи к картинкам, рекламу, меню и кнопки сайта («поделиться», «читать далее» и т. п.), даты и имена в комментариях и прочий мусор, который не относится к основному тексту;
+- склей слова, разорванные переносом, и строки, разорванные посреди предложения; исправь явные ошибки распознавания букв;
+- сохрани деление на абзацы и заголовки глав;
+- сохрани выделение звёздочками как есть: **жирный**, *курсив*.
+Сам текст не меняй: не переписывай, не сокращай, не переводи и не редактируй стиль. Ответь только очищенным текстом, без пояснений.
+
+{text}`
+
+/** The line the cleaning AI ends its answer with when it replaced gender pairs (not part of the text). */
+export const GENDER_MARK = '[[GENDER]]'
+
+/** The answer without the mark, and whether the mark was there. */
+export function takeGenderMark(t: string): [string, boolean] {
+  if (!t.includes(GENDER_MARK)) return [t, false]
+  return [t.split(GENDER_MARK).join('').trim(), true]
+}
+
+/** The line added at the end of a cleaned text whose gender pairs were replaced (the changes are not listed). */
+export function genderNote(lang: string): string {
+  return lang === 'de'
+    ? 'Hinweis: Doppelformen wie „Lehrerinnen und Lehrer“ oder „Lehrer*innen“ wurden der Lesbarkeit halber durch die einfache Form ersetzt.'
+    : 'Примечание: парные формы по полу («учительницы и учителя») заменены одной обычной формой.'
 }

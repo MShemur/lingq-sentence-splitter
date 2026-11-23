@@ -1,5 +1,5 @@
 import { signal, effect, type Signal } from '@preact/signals'
-import { Prompts } from './prompts'
+import { CLEAN_V1, Prompts } from './prompts'
 
 export const DEFAULT_MODEL = 'gemini-3.8-flash'
 
@@ -68,7 +68,7 @@ export const prefs = {
   promptChatSentence: pref('promptChatSentence', Prompts.CHAT_SENTENCE),
   promptChatWord: pref('promptChatWord', Prompts.CHAT_WORD),
   promptChatText: pref('promptChatText', Prompts.CHAT_TEXT),
-  promptClean: pref('promptClean', Prompts.CLEAN),
+  promptClean: pref('promptClean', Prompts.CLEAN, (v) => (v === CLEAN_V1 ? Prompts.CLEAN : v)),
   promptLevel: pref('promptLevel', Prompts.LEVEL),
   /** Import: quick clean right after pasting / opening a file. */
   /** Long texts are cut into lessons of this many words (at most LingQ's 6000). */

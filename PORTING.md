@@ -28,6 +28,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
+- note 21.11.2026 (feedback/20261121-102339-android) -> web v1.81: AI cleaning replaces gender pair forms
+  («Mathematikerinnen und Mathematiker», «Lehrer*innen», «Lehrer:innen», «LehrerInnen») with one plain form. Prompt
+  CLEAN got a bullet for it plus: when at least one such change was made, the last line of the answer is exactly {mark}
+  (= "[[GENDER]]"). Code (import AI clean and reader «Обработать текст с ИИ»): strip the mark from every piece; if any
+  piece had it, add one last paragraph genderNote(lang) (de: «Hinweis: Doppelformen wie „Lehrerinnen und Lehrer“ oder
+  „Lehrer*innen“ wurden der Lesbarkeit halber durch die einfache Form ersetzt.», else a Russian line); changes are not
+  listed. A stored prompt equal to the old default is replaced by the new one (web: prompts.ts CLEAN_V1, settings.ts).
+  Please also mark the feedback file done.
 
 ## Done
 

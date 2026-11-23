@@ -11,6 +11,7 @@ import { fix, type Change } from './fixer'
 import { readFile } from './sources'
 import { openPdf, pagesLabel, type PdfDoc } from './pdf'
 import * as pdfBook from '../pdfbook'
+import { genderNote, takeGenderMark } from '../prompts'
 import { saveBackup } from './backups'
 import { clock, cutMp3, decodePcm, mp3Frames, playerDuration, RATE, wav, type Mp3 } from './audio'
 import { align, fromSegments, matchText, sttKeyFor, sttModel, sttProvider, transcribe, type TSeg, type TWord } from './stt'
@@ -431,11 +432,13 @@ export class ImportSession {
       let done = 0
       for (const [t, set] of jobs) {
         const out: string[] = []
+        let gender = false
         for (const piece of chunks(t)) {
-          const r = await cleanPieceRetry(this.lang, piece)
+          const [r, g] = takeGenderMark(await cleanPieceRetry(this.lang, piece))
           done++; this.cleanProgress.value = done / total
-          out.push(r || piece)
+          out.push(r || piece); gender ||= g
         }
+        if (gender) out.push(genderNote(this.lang))
         set(spaceQuotes(out.join('\n\n')))
       }
       this.cleanNote.value = 'ИИ почистил текст. Пролистайте и проверьте; если что-то пропало — «Вернуть как было».'

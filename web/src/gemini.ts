@@ -2,7 +2,7 @@
 import { ApiError } from './lingq'
 import { DEFAULT_MODEL, otherAi, prefs } from './settings'
 import * as openai from './openai'
-import { fill, Prompts } from './prompts'
+import { fill, GENDER_MARK, Prompts } from './prompts'
 import { log, logError } from './applog'
 
 const hostOf = (u: string) => { try { return new URL(u).host } catch { return 'ИИ' } }
@@ -168,7 +168,7 @@ export const retranslate = (prompt: string, lang: string, target: string, senten
 
 /** Cleans a piece of copied text (light model, see Prompts.CLEAN). */
 export const cleanPiece = async (prompt: string, lang: string, text: string) =>
-  (await generate(null, [{ user: true, text: fill(prompt, { lang, text }) }], false, true)).trim()
+  (await generate(null, [{ user: true, text: fill(prompt, { lang, text, mark: GENDER_MARK }) }], false, true)).trim()
 
 /** CEFR level of a text: LingQ level 1..6 (A1..C2) and a short reason (light model). */
 export async function level(prompt: string, lang: string, text: string): Promise<[number, string]> {
