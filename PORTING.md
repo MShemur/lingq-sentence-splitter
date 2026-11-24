@@ -28,7 +28,6 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- web v1.84 (iPad note feedback/20261124-032633-web.json, "import articles from the internet right from the browser, or at least by link"; example zeit.de): web/src/importer/article.ts extractArticle(doc) (og:title/h1; container [itemprop=articleBody]/article/main or the densest <p> block; p/h2-h4/li/blockquote without nav/aside/footer/figure/comments/share/footnotes/<style>; JSON-LD articleBody only when the DOM gives < 80% of it). Way 1: a Safari bookmarklet built from extractArticle copies "SatzLoop: <title>
 
 <text>", paste() recognises the marker (title) and a bare URL (-> link). Way 2: link field, Pages Function web/functions/article.ts fetches the page (honest UA, no browser spoofing, private hosts blocked, manual redirects, 5 MB); zeit.de refuses automated fetches (403, explicit ban), then the app says to use the bookmark. Android idea: share target for text/plain (selected text or a URL from Chrome; Chrome "share" of a page gives the URL only) + the same link fetch; do not spoof a browser UA.
 - NOT NOW (user 23.11.2026: write it down, do not do it; ROADMAP «Не делаем»): web v1.82 EPUB pictures. (web v1.83: big pictures, shorter side >= 300 px, stretch to the column width limited by the page height; caption max 3 lines.) Import keeps
@@ -41,6 +40,7 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   importer/session.ts (picsOf, bookPics.save), reader/session.ts (pics), reader/Reader.tsx (Pics, PicViewer), styles.css.
 ## Done
 
+- web v1.84 (iPad note feedback/20261124-032633-web.json, "import articles from the internet right from the browser, or at least by link"; example zeit.de): web/src/importer/article.ts extractArticle(doc) (og:title/h1; container [itemprop=articleBody]/article/main or the densest <p> block; p/h2-h4/li/blockquote without nav/aside/footer/figure/comments/share/footnotes/<style>; JSON-LD articleBody only when the DOM gives < 80% of it). Way 1: a Safari bookmarklet built from extractArticle copies "SatzLoop: <title> — done android v1.148: share a URL or selected text from Chrome to SatzLoop, or paste a URL / "SatzLoop:" text in Import; jsoup port of extractArticle, OkHttp fetch with the same rules.
 - note 21.11.2026 (feedback/20261121-102339-android) -> web v1.81: AI cleaning replaces gender pair forms
   («Mathematikerinnen und Mathematiker», «Lehrer*innen», «Lehrer:innen», «LehrerInnen») with one plain form. Prompt
   CLEAN got a bullet for it plus: when at least one such change was made, the last line of the answer is exactly {mark}
