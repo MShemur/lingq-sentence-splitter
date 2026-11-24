@@ -15,7 +15,7 @@ import { Chip, Dialog, ErrorBox, IconButton, LinearProgress, Loading, Menu, Menu
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ReaderHelp } from './Help'
 import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef, refToken } from './session'
-import type { ShownPic } from '../bookpics'
+import { isBigPic, type ShownPic } from '../bookpics'
 import { playLesson } from '../player'
 import { levelName } from '../lingq'
 import { LessonDeleteDialog } from '../screens/CourseEdit'
@@ -346,7 +346,7 @@ const PARA_GAP = 14
 
 /** Renders blocks (bare text) into the hidden measuring box and reads their layout. */
 function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Spec[], split: boolean): Measure[] {
-  render(<>{blocks.map((b, i) => <Paragraph key={i} s={s} sents={b.sents} start={b.start} cont={b.cont} plain split={split} />)}</>, box)
+  render(<>{blocks.map((b, i) => <Paragraph key={i} s={s} sents={b.sents} start={b.start} cont={b.cont} plain split={split} npics={paraPicCount(s, b.whole ?? b.sents)} />)}</>, box)
   const out: Measure[] = []
   // the bottom of the line [x] ends on: book mode lays words out as text (inline), where a word's box is lower than
   // its line by half the leading; a word split by a hyphen has two boxes, the last one counts
@@ -376,7 +376,7 @@ function measureBlocks(box: HTMLElement, s: ReaderSession, blocks: Spec[], split
 /** Measured blocks, by width, font and sentences; survives page rebuilds. */
 type MeasureCache = Map<string, Measure>
 /** What is measured: sentences of a paragraph, the first from chunk [start]. */
-interface Spec { sents: Sent[]; start?: number; cont?: boolean }
+interface Spec { sents: Sent[]; start?: number; cont?: boolean; whole?: Sent[] }
 
 /**
  * Measures blocks, using the cache where nothing changed. New ones are rendered in small batches, so a long
@@ -405,7 +405,7 @@ function measureCached(box: HTMLElement, s: ReaderSession, cache: MeasureCache, 
 function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number, cache: MeasureCache, prefix: string, gap = PARA_GAP, cut = false): Block[][] {
   // book mode cuts a sentence at a line: the lines must be the ones on the page, so a shown sentence translation
   // (which starts the text after it on a new line) is laid out too, without its own height (the page scrolls for that)
-  const whole = measureCached(box, s, cache, prefix, paras.map((p) => ({ sents: p })), cut)
+  const whole = measureCached(box, s, cache, prefix, paras.map((p) => ({ sents: p, whole: p })), cut)
   const pages: Block[][] = []
   let cur: Block[] = []
   let used = 0
@@ -436,7 +436,7 @@ function paginate(box: HTMLElement, s: ReaderSession, paras: Sent[][], h: number
       } else if (k > 0) { cur.push({ para: pi, sents: rest.slice(0, k), start: st, cont }); from += k; start = 0; flush() }
       else if (cur.length) { flush(); continue }
       else { cur.push({ para: pi, sents: rest.slice(0, 1), start: st, cont }); from += 1; start = 0; flush() } // not one line fits
-      if (from < para.length) m = measureCached(box, s, cache, prefix, [{ sents: para.slice(from), start, cont: true }], cut)[0]
+      if (from < para.length) m = measureCached(box, s, cache, prefix, [{ sents: para.slice(from), start, cont: true, whole: para }], cut)[0]
     }
   })
   flush()
@@ -549,8 +549,19 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     if (!box || !size.h) return
     const cs = getComputedStyle(box)
     const h = size.h - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+    // the room for all pictures of a paragraph: the text height less one text line, never negative (CSS divides it
+    // between the pictures of a paragraph and takes the caption room and margins off; each picture is at least 48px).
+    // Set on the measuring box and on the pager alike, so a picture is laid out here as on the page.
+    const fsPx = Number(prefs.readerFont.value) || 18
+    const picMaxH = Math.max(0, h - fsPx * 1.6 * lineMul())
+    for (const el of [box, pager.current]) {
+      el?.style.setProperty('--pic-max-h', picMaxH + 'px')
+      el?.style.setProperty('--pic-cap-room', fsPx * 3 + 'px')
+    }
+    // the picture limit goes into the cache key only when the lesson has pictures (text heights do not depend on it)
+    const hasPics = s.pics.value.before.size + s.pics.value.after.size > 0
     const next = paginate(box, s, paras, h, cache.current,
-      `${size.w}|${prefs.readerFont.value}|${per}|${book ? 'b' : ''}|${lineMul()}|${paraIndentEm()}|`, paraGapPx(book), book)
+      `${size.w}|${prefs.readerFont.value}|${per}|${book ? 'b' : ''}|${lineMul()}|${paraIndentEm()}|${hasPics ? Math.round(picMaxH) + '|' : ''}`, paraGapPx(book), book)
     // the same text stays on screen when pages are rebuilt. The anchor is the sentence the reader got to and is NOT
     // moved to the first sentence of the new page: that crept back a little with every rebuild (font A+ / A−, the
     // window resized when switching apps) until the reading position was back at the start.
@@ -678,7 +689,7 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     if (!p) return <div class="reader-text page-text" key={i} style={fs} />
     return (
       <div class="reader-text page-text" lang={s.lang} key={i} style={fs} {...handlers}>
-        {p.map((b) => <Paragraph key={b.para + ':' + b.sents[0].id + ':' + (b.start ?? 0)} s={s} sents={b.sents} start={b.start} end={b.end} cont={b.cont}
+        {p.map((b) => <Paragraph key={b.para + ':' + b.sents[0].id + ':' + (b.start ?? 0)} s={s} sents={b.sents} start={b.start} end={b.end} cont={b.cont} npics={paraPicCount(s, paras[b.para])}
           cut={b.end != null || b !== p[p.length - 1] ? false : b.sents[b.sents.length - 1] !== paras[b.para][paras[b.para].length - 1]} />)}
       </div>
     )
@@ -711,23 +722,37 @@ function picsAround(s: ReaderSession, sents: Sent[], start?: number, cont?: bool
   const after = end != null || cut ? undefined : s.pics.value.after.get(sents[sents.length - 1].id)
   return [before, after] as const
 }
+/** All pictures attached to a whole paragraph (before it and after it), whichever part of it a block shows: the same count in the measure and on the page. */
+const paraPicCount = (s: ReaderSession, para: Sent[]) => para.length
+  ? (s.pics.value.before.get(para[0].id)?.length ?? 0) + (s.pics.value.after.get(para[para.length - 1].id)?.length ?? 0)
+  : 0
 const picsSig = (s: ReaderSession, sents: Sent[], start?: number, cont?: boolean) => {
   const [b, a] = picsAround(s, sents, start, cont)
   return b || a ? `#${b?.length ?? 0}.${a?.length ?? 0}` : ''
 }
 
 /** Pictures of the book (kept in this browser): their size is known, so pages are laid out before they load. */
-function Pics({ s, list }: { s: ReaderSession; list?: ShownPic[] }) {
+/** [n]: all pictures of the paragraph (before and after), which share the room of the page's text height. */
+function Pics({ s, list, n }: { s: ReaderSession; list?: ShownPic[]; n: number }) {
   if (!list) return null
   return (
     <>
-      {list.map((p, i) => (
-        <figure key={'pic' + i} class="para-pic" onClick={(e) => { e.stopPropagation(); s.picOpen.value = p }}>
-          <img src={p.url} alt={p.cap} draggable={false}
-            style={{ width: `min(100%, ${p.w}px, calc(42vh * ${(p.w / p.h).toFixed(4)}))`, aspectRatio: `${p.w} / ${p.h}` }} />
-          {p.cap && <figcaption>{p.cap}</figcaption>}
-        </figure>
-      ))}
+      {list.map((p, i) => {
+        // the height limit: the page's text height (--pic-max-h, set by TextView; 42vh / 70vh elsewhere) divided between
+        // the pictures of the paragraph, less the caption room, the picture's margins (--fs * 1.2) and the .para gap
+        // (6px, above and below it) with 2px to spare; at least 48px
+        const room = p.cap ? ' - var(--pic-cap-room, 0px)' : ''
+        const maxH = `max(48px, calc(var(--pic-max-h, ${isBigPic(p.w, p.h) ? '70vh' : '42vh'}) / ${n}${room} - var(--fs, 18px) * 1.2 - 8px))`
+        const ratio = (p.w / p.h).toFixed(4)
+        // a page illustration grows to the column / page (no natural-width cap); a small one keeps its pixel size at most
+        const width = isBigPic(p.w, p.h) ? `min(100%, calc(${maxH} * ${ratio}))` : `min(100%, ${p.w}px, calc(${maxH} * ${ratio}))`
+        return (
+          <figure key={'pic' + i} class="para-pic" onClick={(e) => { e.stopPropagation(); s.picOpen.value = p }}>
+            <img src={p.url} alt={p.cap} draggable={false} style={{ width, aspectRatio: `${p.w} / ${p.h}` }} />
+            {p.cap && <figcaption>{p.cap}</figcaption>}
+          </figure>
+        )
+      })}
     </>
   )
 }
@@ -753,8 +778,10 @@ function AsideLabel({ kind }: { kind?: 'c' | 'o' }) {
  * A paragraph flows as one text; a shown sentence translation is inserted right after its sentence.
  * [plain]: the bare text without translations and marks (how pages are laid out).
  */
-function Paragraph({ s, sents, plain, start, end, cut, split, cont }: {
+function Paragraph({ s, sents, plain, start, end, cut, split, cont, npics }: {
   s: ReaderSession; sents: Sent[]; plain?: boolean
+  /** All pictures of the whole paragraph (paraPicCount), for the height they share; the same in the measure and on the page. */
+  npics: number
   /** [plain] in book mode: the text breaks after a shown sentence translation as on the page (no translation drawn). */
   split?: boolean
   /** Goes on with a paragraph begun on the page before. */
@@ -765,8 +792,8 @@ function Paragraph({ s, sents, plain, start, end, cut, split, cont }: {
   const cls = 'para' + (sents[0]?.heading ? ' heading' : '') + (end != null || cut ? ' cut' : '') + (start || cont ? ' cont' : '')
   const last = sents[sents.length - 1]
   const [picsBefore, picsAfter] = picsAround(s, sents, start, cont, end, cut)
-  const label = [<Pics key="pics" s={s} list={picsBefore} />, <AsideLabel key="label" kind={asideOf(s, sents, start, cont)} />]
-  const tail = <Pics key="pics-after" s={s} list={picsAfter} />
+  const label = [<Pics key="pics" s={s} list={picsBefore} n={npics} />, <AsideLabel key="label" kind={asideOf(s, sents, start, cont)} />]
+  const tail = <Pics key="pics-after" s={s} list={picsAfter} n={npics} />
   if (plain && !split) return <div class={cls}>{label}<SentenceFlow s={s} sents={sents} start={start} end={end} plain />{tail}</div>
   if (plain) {
     const runs: Sent[][] = [[]]

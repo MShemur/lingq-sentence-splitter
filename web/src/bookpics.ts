@@ -15,6 +15,13 @@ export interface PicPlaces { before: Map<number, ShownPic[]>; after: Map<number,
 
 export const NO_PICS: PicPlaces = { before: new Map(), after: new Map() }
 
+/**
+ * A picture that is a page illustration (a full page, a plate): it is stretched to the column / page as large as
+ * fits, beyond its pixel size. Smaller ones (icons, small diagrams, ornaments, ~200 px) keep their natural size.
+ * Tune here: the threshold is the shorter side of the picture in pixels.
+ */
+export const isBigPic = (w: number, h: number): boolean => Math.min(w, h) >= 300
+
 /** A paragraph's anchor: its first letters and digits, lower case (stars, spaces, punctuation and hyphens dropped). */
 export function paraKey(text: string): string {
   return (text.toLowerCase().match(/[\p{L}\p{N}]/gu) ?? []).slice(0, 40).join('')
