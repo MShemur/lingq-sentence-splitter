@@ -7,6 +7,7 @@ import { prefs, useGemini } from '../settings'
 import { Icon, type IconName } from '../icons'
 import { Chip, Dialog, IconButton, ListItem, Loading, TopBar } from '../ui'
 import { lastImportCourse, rememberImportCourse, type ImportSession } from '../importer/session'
+import { articleLink, bookmarkletCode } from '../importer/article'
 import { countWords } from '../importer/cleaner'
 import { wordsText } from '../stats'
 import { PdfPicker } from './PdfPicker'
@@ -38,6 +39,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
   const file = useRef<HTMLInputElement>(null)
   const audioFile = useRef<HTMLInputElement>(null)
   const pdfFile = useRef<HTMLInputElement>(null)
+  const [article, setArticle] = useState(false)
   useEffect(() => { void loadCourses() }, [])
   const list = courses.value
   useEffect(() => {
@@ -90,7 +92,9 @@ export function ImportScreen({ s }: { s: ImportSession }) {
           </div>
           <div class="source-tiles">
             <SourceTile icon="library" label="PDF-книга" onClick={() => pdfFile.current?.click()} disabled={running || s.loading.value} />
+            <SourceTile icon="bookmark" label="Статья" onClick={() => setArticle(true)} disabled={running || s.loading.value} />
           </div>
+          {article && <ArticleDialog s={s} onClose={() => setArticle(false)} />}
           <input ref={pdfFile} type="file" hidden accept=".pdf,application/pdf"
             onChange={(e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void s.loadPdfBook(f); (e.target as HTMLInputElement).value = '' }} />
           <input ref={audioFile} type="file" hidden accept="audio/*,video/mp4,.mp3,.m4a,.ogg,.opus,.wav,.flac,.webm"
@@ -254,6 +258,47 @@ export function ImportScreen({ s }: { s: ImportSession }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/** An article: by its link (the app fetches it), or from Safari with the bookmarklet (for sites that refuse the app). */
+function ArticleDialog({ s, onClose }: { s: ImportSession; onClose: () => void }) {
+  const [link, setLink] = useState('')
+  const [copied, setCopied] = useState('')
+  const [manual, setManual] = useState(false)
+  const [linkError, setLinkError] = useState('')
+  const load = () => {
+    const u = articleLink(link)
+    if (!u) { setLinkError('Это не похоже на ссылку'); return }
+    setLinkError('')
+    onClose()
+    void s.loadUrl(u)
+  }
+  const copyBookmarklet = () => {
+    const fail = () => { setCopied('Не вышло — скопируйте текст из поля ниже'); setManual(true) }
+    try { navigator.clipboard.writeText(bookmarkletCode()).then(() => setCopied('Скопировано'), fail) } catch { fail() }
+  }
+  return (
+    <Dialog title="Статья" onClose={onClose} actions={<button class="btn text" onClick={onClose}>Закрыть</button>}>
+      <label class="field">
+        <span>Ссылка на статью</span>
+        <input type="url" inputMode="url" value={link} placeholder="zeit.de/…" onInput={(e) => { setLink((e.target as HTMLInputElement).value); setLinkError('') }}
+          onKeyDown={(e) => { if (e.key === 'Enter') load() }} />
+      </label>
+      {linkError && <p class="error-text">{linkError}</p>}
+      <button class="btn filled wide" onClick={load} disabled={!link.trim()}>Загрузить</button>
+      <h3 class="section-title">Из Safari</h3>
+      <p>Для сайтов, которые не отдают статью приложению.</p>
+      <ol>
+        <li>Нажмите «Скопировать закладку».</li>
+        <li>В Safari добавьте любую страницу в закладки, затем измените закладку: имя SatzLoop, вместо адреса вставьте скопированное.</li>
+        <li>На странице статьи откройте закладки и нажмите SatzLoop, затем «Скопировать для SatzLoop».</li>
+        <li>Здесь нажмите «Вставить».</li>
+      </ol>
+      <button class="btn outlined" onClick={copyBookmarklet}><Icon name="bookmark" size={18} />Скопировать закладку</button>
+      {copied && <p class="hint">{copied}</p>}
+      {manual && <textarea class="import-text" readOnly value={bookmarkletCode()} onFocus={(e) => (e.target as HTMLTextAreaElement).select()} />}
+    </Dialog>
   )
 }
 

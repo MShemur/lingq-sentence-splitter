@@ -9,6 +9,7 @@ import { lang, prefs, prompt, useGemini } from '../settings'
 import { addReports, chunks, cleanText, countWords, EMPTY_REPORT, LINGQ_MAX_WORDS, markdownHeadings, reportText, spaceQuotes, splitLong, splitSentences } from './cleaner'
 import { fix, type Change } from './fixer'
 import { readFile } from './sources'
+import { fetchArticle, parseMarked } from './article'
 import { openPdf, pagesLabel, type PdfDoc } from './pdf'
 import * as pdfBook from '../pdfbook'
 import * as bookPics from '../bookpics'
@@ -171,8 +172,25 @@ export class ImportSession {
   }
 
   paste(text: string) {
+    const marked = parseMarked(text)
+    // a link alone: the article is fetched (not pasted as the text of the link)
+    if (!marked && /^https?:\/\/\S+$/i.test(text.trim())) { void this.loadUrl(text.trim()); return }
     this.startLoad(''); this.loading.value = false
-    this.setSingle(this.pasteTitle.value, text)
+    // text copied by the bookmarklet from Safari: its title comes with it
+    if (marked) this.setSingle(marked.title || this.pasteTitle.value, marked.text)
+    else this.setSingle(this.pasteTitle.value, text)
+  }
+
+  /** An article by its link: the app's /article page gives the site's text (a refused site says so). */
+  async loadUrl(url: string) {
+    this.startLoad('Загружаю статью…')
+    try {
+      const a = await fetchArticle(url)
+      this.setSingle(a.title || 'Статья', a.text)
+    } catch (e) {
+      this.error.value = (e as Error).message
+    }
+    this.loading.value = false; this.status.value = ''
   }
 
   /** An empty field to type or paste into (when the clipboard cannot be read). */

@@ -28,7 +28,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on Android
 
-- NOT NOW (user 23.11.2026: write it down, do not do it; ROADMAP «Не делаем»): web v1.82 EPUB pictures. Import keeps
+- web v1.84 (iPad note feedback/20261124-032633-web.json, "import articles from the internet right from the browser, or at least by link"; example zeit.de): web/src/importer/article.ts extractArticle(doc) (og:title/h1; container [itemprop=articleBody]/article/main or the densest <p> block; p/h2-h4/li/blockquote without nav/aside/footer/figure/comments/share/footnotes/<style>; JSON-LD articleBody only when the DOM gives < 80% of it). Way 1: a Safari bookmarklet built from extractArticle copies "SatzLoop: <title>
+
+<text>", paste() recognises the marker (title) and a bare URL (-> link). Way 2: link field, Pages Function web/functions/article.ts fetches the page (honest UA, no browser spoofing, private hosts blocked, manual redirects, 5 MB); zeit.de refuses automated fetches (403, explicit ban), then the app says to use the bookmark. Android idea: share target for text/plain (selected text or a URL from Chrome; Chrome "share" of a page gives the URL only) + the same link fetch; do not spoof a browser UA.
+- NOT NOW (user 23.11.2026: write it down, do not do it; ROADMAP «Не делаем»): web v1.82 EPUB pictures. (web v1.83: big pictures, shorter side >= 300 px, stretch to the column width limited by the page height; caption max 3 lines.) Import keeps
   the book's pictures (not the cover, not tiny ones < 40 px / < 12000 px²) in IndexedDB 'satzloop-pics' per lesson, tied to
   the paragraph after them (or before them, at a chapter end) by paraKey = first 40 letters/digits lower case, prefix
   match of 24 (bookpics.ts). Captions (figcaption, or the next element with a caption-like class) are taken out of the

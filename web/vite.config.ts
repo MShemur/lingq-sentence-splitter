@@ -3,6 +3,22 @@ import preact from '@preact/preset-vite'
 import { readFileSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import type { Plugin } from 'vite'
+import { onRequest as articleFunction } from './functions/article'
+
+/** Dev server: /article?url=… is the same function as functions/article.ts (a web page for the article import). */
+const articleProxy = (): Plugin => ({
+  name: 'article-proxy',
+  configureServer(server) {
+    server.middlewares.use('/article', async (req, res) => {
+      try {
+        const r = await articleFunction({ request: new Request(new URL(req.url ?? '', 'http://localhost'), { method: req.method ?? 'GET' }) })
+        res.statusCode = r.status
+        r.headers.forEach((v, k) => res.setHeader(k, v))
+        if (r.body) Readable.fromWeb(r.body as any).pipe(res); else res.end()
+      } catch (e) { res.statusCode = 502; res.end(String(e)) }
+    })
+  },
+})
 
 /** Dev server: /fetch?url=… like functions/fetch.ts (podcast feeds, audio, covers). */
 const fetchProxy = (): Plugin => ({
@@ -40,7 +56,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 export default defineConfig(({ mode }) => {
   const env = { ...process.env, ...loadEnv(mode, process.cwd(), '') }
   return {
-    plugins: [preact(), fetchProxy()],
+    plugins: [preact(), fetchProxy(), articleProxy()],
     define: {
       // shown in Settings, so it is clear which deploy the iPad runs
       __VERSION__: JSON.stringify(pkg.version.split('.').slice(0, 2).join('.')),
