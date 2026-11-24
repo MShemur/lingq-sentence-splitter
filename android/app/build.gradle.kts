@@ -70,6 +70,8 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // import of an article from a link: HTML text extraction
+    implementation("org.jsoup:jsoup:1.17.2")
     implementation("io.coil-kt:coil-compose:2.7.0")
     // import: text recognition on the phone (photos, scanned PDFs) and PDF text layer
     implementation("com.google.mlkit:text-recognition:16.0.1")

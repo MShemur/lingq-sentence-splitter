@@ -69,9 +69,12 @@ class MainActivity : ComponentActivity() {
                     @Suppress("DEPRECATION") i.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
                 }
                 val text = i.getStringExtra(Intent.EXTRA_TEXT)
+                // a web page address (Chrome shares "Title\nhttps://…"): its article is loaded; LingQ's own links are not
+                val article = text?.let { Article.bareUrl(it) }?.takeUnless { it.contains("lingq.com") }
                 when {
                     stream != null -> state.openImportFile(stream)
                     text != null && text.contains("lingq.com") && parseTarget(text) != null -> state.openLink(text)
+                    article != null -> state.openImportArticle(article)
                     text != null -> state.openImportText(text, i.getStringExtra(Intent.EXTRA_SUBJECT))
                 }
             }

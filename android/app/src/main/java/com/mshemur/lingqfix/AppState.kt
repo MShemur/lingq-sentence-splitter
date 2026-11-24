@@ -670,6 +670,13 @@ class AppState(val ctx: Context) {
         go(Screen.Import(s))
     }
 
+    /** A web page link (shared from a browser): its article is downloaded and pasted into the import. */
+    fun openImportArticle(url: String) {
+        val s = ImportSession(this)
+        go(Screen.Import(s))
+        s.loadArticle(url)
+    }
+
     fun restore(e: Backups.Entry) {
         scope.launch {
             try {
@@ -1093,8 +1100,34 @@ class ImportSession(private val app: AppState) {
     }
 
     fun paste(text: String) {
+        // the bookmarklet's copy ("SatzLoop: <title>" + text) fills the title too
+        val marked = Article.marker(text)
+        if (marked != null) pasteTitle = marked.title
+        // a web address (not LingQ's own): the article is downloaded instead of pasting the link
+        val url = if (marked == null) Article.bareUrl(text)?.takeUnless { it.contains("lingq.com") } else null
+        if (url != null) { loadArticle(url); return }
         startLoad(""); loading = false
-        setSingle(pasteTitle, text)
+        setSingle(pasteTitle, marked?.text ?: text)
+    }
+
+    /** Downloads the article of a web page; on success it is pasted (title and text), on failure the reason is shown. */
+    fun loadArticle(url: String) {
+        // the previous paste / state stays until the article is there (a failure keeps it)
+        loading = true; status = "Загружаю статью…"; error = null
+        app.scope.launch {
+            try {
+                val a = Article.fetch(url)
+                startLoad("")
+                loading = false
+                setSingle(a.title, a.text)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                loading = false; status = ""
+                throw e
+            } catch (e: Throwable) {
+                error = Article.message(e)
+            }
+            loading = false; status = ""
+        }
     }
 
     /** Photos of pages (gallery or camera): recognised on the phone; [append] adds them to the text. */
