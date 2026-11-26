@@ -8,13 +8,19 @@ LingQ (its API has no CORS). Gemini is called straight from the browser (it allo
 
 - `src/lingq.ts`, `src/gemini.ts`, `src/openai.ts`, `src/prompts.ts` — LingQ / AI calls (ports of `LingqApi.kt`, `Gemini.kt`)
 - `src/reader/session.ts` — reader logic (port of `ReaderSession`), `src/reader/Reader.tsx` — text view, pages, book
-  mode, sentence mode; `src/reader/PdfReader.tsx` — PDF-book page view; `src/reader/Help.tsx`
+  mode, sentence mode; `src/reader/PdfReader.tsx` — PDF-book page view; `src/reader/Help.tsx`;
+  `src/reader/remap.ts` — moves word translations to their words after AI processing / split fixing;
+  `src/reader/pinPlace.ts` — book-mode translation position
+- `src/tts.ts` — text-to-speech (system voice, Gemini, OpenAI, ElevenLabs, OpenRouter; IndexedDB 'satzloop-tts')
+- `src/check.ts`, `src/screens/Check.tsx`, `src/screens/CheckPicker.tsx` — «Исправить разбивку» (dry run, AI check,
+  apply with backups, course / lesson picker)
 - `src/pdfbook.ts` — PDF book data (IndexedDB 'satzloop-pdf'), recognising pages (pdf.js text layer, scans via
   Tesseract.js + Gemini reading order in `src/ocrorder.ts`), lesson ↔ page word alignment
 - `src/importer/*` — import (paste, TXT/MD/EPUB/PDF, audio, podcasts, transcription), cleaning, fixer (= Fixer.kt), backups
 - `src/screens/*` — library, import, player, podcasts, bookmarks, chat, stats, settings, feedback (in-app notes)
 - `src/sync.ts` — phone ↔ iPad sync via the `sync` branch (GitHub token); `src/press.ts` — tap / double tap / long press
-- `functions/api/[[path]].ts` — LingQ proxy; `functions/stt`, `functions/fetch.ts` — transcription / fetch helpers
+- `functions/api/[[path]].ts` — LingQ proxy; `functions/stt` — proxy for transcription and TTS services (Groq, OpenAI,
+  Deepgram, AssemblyAI, ElevenLabs, OpenRouter); `functions/fetch.ts`, `functions/article.ts` — fetch / article import
 - `public/sw.js` — service worker (offline start, page always from network first = auto-update)
 - `scripts/make-icons.mjs` — draws the PNG icons (`npm run icons`)
 

@@ -43,7 +43,8 @@ Restore a lesson: `python lingq_fix_splits.py --restore runs/<stamp>/backup/<les
 ## Android app (`android/`)
 
 Kotlin + Jetpack Compose app "SatzLoop" (was "LingQ Fix"; package `com.mshemur.lingqfix` stays, updates need it): uploads .txt/.md/.epub or pasted text to a LingQ course, reads PDF books (local, no LingQ: ML Kit + Gemini reading order, Gemini translations; see `PdfBook.kt` header),
-fixes sentence splits of new or existing lessons, keeps backups on the phone, updates itself from
+reads text aloud (`Tts.kt`: system voice, Gemini, OpenAI, ElevenLabs, OpenRouter; web: `web/src/tts.ts`),
+fixes sentence splits of new or existing lessons (course / lesson picker, optional AI check), keeps backups on the phone, updates itself from
 GitHub releases. `Fixer.kt` is a port of the merge rules in `lingq_fix_splits.py`:
 **when you change ABBREVIATIONS / SENTENCE_STARTERS / AMBIGUOUS / should_merge, change both.**
 
@@ -71,7 +72,8 @@ feature changes.
 
 ## Keeping Android and web in step
 
-Two Claude sessions work in this repo: one on `android/`, one on `web/`. `PORTING.md` is the queue
+Two Claude sessions may work in this repo: one on `android/`, one on `web/` (since 2026-11-20 often a single session
+does both; then it still keeps `PORTING.md` and `ROADMAP.md` current). `PORTING.md` is the queue
 between them. **At the start of work, read it and port what is listed for your platform. After changing a
 reader feature, add a line for the other platform.**
 
@@ -104,9 +106,10 @@ separate worktree (never switch the shared working tree). Web-only notes go to t
 Every note (also iPad ones) is done on Android too when feasible.
 
 Helpers in `tools/` (no tokens spent while waiting; the user asked for no crons and no token-spending polling):
-- `tools/watch_notes.sh`: run in the background; checks every 15 min (weekdays 03-08 and 18-20, weekends all day),
-  prints `NEW: <files>` and exits when a note has status "new". Handle the notes, then start it again.
-  If the session restarts, offer to start it.
+- `tools/watch_notes.sh [seconds] [all]`: run in the background; prints `NEW: <files>` and exits when a note has
+  status "new". Default: every 15 min, weekdays 03-08 and 18-20, weekends all day. Since 2026-11-26 the user wants
+  `sh tools/watch_notes.sh 1800 all` (every 30 min, all day) and the found notes done right away. Handle the notes,
+  then start it again. If the session restarts, offer to start it.
 - `tools/notes.py`: sets status / doneIn / reply via the worktree (usage in the file header).
 - `tools/ci_wait.py <sha>`: after a push, waits for the Android CI run (up to 40 min) and prints
   `run_number conclusion jobs_url`. Compiler errors of a failed run: take the job id from `jobs_url`, then
@@ -115,6 +118,7 @@ Helpers in `tools/` (no tokens spent while waiting; the user asked for no crons 
 ## Working style (user's wishes)
 
 - Reply in short Russian, no code in chat, always name the versions (android v1.N, web v1.N).
-- Big tasks (a feature, a port) go to one general-purpose subagent at effort "medium"; high effort only with the
-  user's permission.
+- Big tasks (a feature, a port) go to subagents at effort "medium"; high effort only with the user's permission.
+- Subagents run on Haiku to save money (split a big task into Haiku-sized pieces); Sonnet only when Haiku clearly
+  cannot do it, and say why. Orchestration (explorer / implementer / reviewer) only when the user asks for it.
 - The two sessions talk through SendMessage (find the other with ListAgents; its name changes).

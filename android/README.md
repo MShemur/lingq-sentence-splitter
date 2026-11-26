@@ -1,4 +1,4 @@
-# LingQ Fix (Android)
+# SatzLoop (Android, was "LingQ Fix")
 
 Built by `.github/workflows/android.yml` on every push to `android/`; each build is published as
 release `v1.<run number>` with the APK attached.
