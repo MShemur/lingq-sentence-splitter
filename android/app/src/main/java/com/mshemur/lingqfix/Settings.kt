@@ -269,12 +269,12 @@ fun SettingsTts(state: AppState) {
             if (orLoading) CircularProgressIndicator()
             else {
                 val q = orFilter.trim()
-                val shownModels = orModels.filter { m ->
+                val shownModels = sortSpeechModels(orModels.filter { m ->
                     q.isEmpty() || q.lowercase() in m.name.lowercase() || q.lowercase() in m.id.lowercase()
-                }
+                })
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     shownModels.forEach { m ->
-                        FilterChip(selected = model == m.id, label = { Text(m.name) }, onClick = { model = m.id; p.setTtsModel("openrouter", m.id) })
+                        FilterChip(selected = model == m.id, label = { Text(speechLabel(m)) }, onClick = { model = m.id; p.setTtsModel("openrouter", m.id) })
                     }
                 }
                 if (orModels.isEmpty()) Hint("Список моделей пуст.")

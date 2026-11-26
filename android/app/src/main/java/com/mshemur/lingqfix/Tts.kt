@@ -73,20 +73,62 @@ fun openRouterKeyNote(p: Prefs): String = when {
     else -> "Ключ OpenRouter не задан: введите его ниже или в «Перевод и ИИ» (Другой ИИ — OpenRouter)."
 }
 
-/** One speech model of OpenRouter, from its entry in the speech models list. */
-class OrSpeechModel(val id: String, val name: String, val voices: List<String>, val formats: List<String>, val speed: Boolean)
+/**
+ * One speech model of OpenRouter. voices, formats and speed come from the speech models list;
+ * perMinute = estimated price of a minute of speech in USD (null: no price known).
+ */
+class OrSpeechModel(
+    val id: String,
+    val name: String,
+    val voices: List<String>,
+    val formats: List<String>,
+    val speed: Boolean,
+    val perMinute: Double? = null,
+)
 
-/** OpenRouter's catalogue of speech models (public list, no key). Use from Dispatchers.IO. */
+/** Free: a ":free" id, or a price of 0. */
+fun speechFree(m: OrSpeechModel): Boolean = m.id.endsWith(":free") || m.perMinute == 0.0
+
+/** Price part of a chip: «бесплатно», «~X ¢/мин» (cents per minute), «<0,1 ¢/мин», or "" when the price is unknown. */
+fun speechPriceNote(m: OrSpeechModel): String {
+    if (speechFree(m)) return "бесплатно"
+    val p = m.perMinute ?: return ""
+    val cents = p * 100
+    if (cents < 0.05) return "<0,1 ¢/мин"
+    return "~" + "%.1f".format(cents).replace('.', ',') + " ¢/мин"
+}
+
+/** Chip label: the name, then the price note. */
+fun speechLabel(m: OrSpeechModel): String {
+    val note = speechPriceNote(m)
+    return if (note.isEmpty()) m.name else m.name + "  · " + note
+}
+
+/** Free models first, then by price ascending; models without a known price last. */
+fun sortSpeechModels(list: List<OrSpeechModel>): List<OrSpeechModel> = list.sortedWith(
+    compareBy<OrSpeechModel>(
+        { !speechFree(it) && it.perMinute == null },
+        { if (speechFree(it)) 0.0 else it.perMinute ?: 0.0 },
+    ),
+)
+
+/** OpenRouter's catalogue of speech models (public lists, no key). Use from Dispatchers.IO. */
 object OpenRouterTts {
     private const val LIST = "https://openrouter.ai/api/v1/audio/speech/models"
+    /** Speech-output models with ids (incl. ":free" variants) and prices. */
+    private const val CATALOGUE = "https://openrouter.ai/api/v1/models?output_modalities=speech"
     @Volatile private var cache: List<OrSpeechModel>? = null
 
-    /** The list (data[]: id, name, voices, formats, speed), kept for the session unless [refresh]. */
+    /**
+     * The model set is the catalogue's (it has the ":free" ids and prices); voices, formats and speed come from the
+     * speech list by id. If the catalogue call fails, the speech list is the set. Kept for the session unless [refresh].
+     */
     fun models(refresh: Boolean = false): List<OrSpeechModel> {
         if (!refresh) cache?.let { return it }
-        val root = getJson()
-        val a = (root as? JSONObject)?.optJSONArray("data") ?: (root as? JSONArray) ?: JSONArray()
-        val list = (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { parse(it) } }
+        val speech = dataOf(getJson(LIST)).mapNotNull { parse(it) }
+        val byId = speech.associateBy { it.id }
+        val catalogue = runCatching { dataOf(getJson(CATALOGUE)) }.getOrDefault(emptyList())
+        val list = if (catalogue.isEmpty()) speech else catalogue.mapNotNull { fromCatalogue(it, byId) }
         if (list.isNotEmpty()) cache = list
         return list
     }
@@ -119,8 +161,42 @@ object OpenRouterTts {
         return OrSpeechModel(id, o.optString("name").trim().ifBlank { id }, voices, formats, sp.has("speed"))
     }
 
-    private fun getJson(): Any {
-        val req = Request.Builder().url(LIST).header("Accept", "application/json").get().build()
+    /** The speech entry for a catalogue id: the same id, else without ":free", then without a trailing "-free". */
+    private fun speechFor(id: String, byId: Map<String, OrSpeechModel>): OrSpeechModel? {
+        byId[id]?.let { return it }
+        return byId[id.removeSuffix(":free").removeSuffix("-free")]
+    }
+
+    /** One catalogue entry: name and price from /models, the rest from the speech entry (empty when there is none). */
+    private fun fromCatalogue(o: JSONObject, byId: Map<String, OrSpeechModel>): OrSpeechModel? {
+        val id = o.optString("id").trim().takeIf { it.isNotEmpty() } ?: return null
+        val base = speechFor(id, byId)
+        val pr = o.optJSONObject("pricing")
+        val prompt = pr?.optString("prompt")?.toDoubleOrNull()
+        val completion = pr?.optString("completion")?.toDoubleOrNull()
+        // audio-token models (completion > 0): ~1500 audio tokens and ~250 text tokens per minute; else per-minute price in prompt
+        val minute: Double? = when {
+            prompt == null && completion == null -> null
+            (completion ?: 0.0) > 0.0 -> (completion ?: 0.0) * 1500 + (prompt ?: 0.0) * 250
+            else -> (prompt ?: 0.0) * 1000
+        }
+        return OrSpeechModel(
+            id,
+            o.optString("name").trim().ifBlank { id },
+            base?.voices.orEmpty(),
+            base?.formats.orEmpty(),
+            base?.speed == true,
+            minute,
+        )
+    }
+
+    private fun dataOf(root: Any): List<JSONObject> {
+        val a = (root as? JSONObject)?.optJSONArray("data") ?: (root as? JSONArray) ?: JSONArray()
+        return (0 until a.length()).mapNotNull { i -> a.optJSONObject(i) }
+    }
+
+    private fun getJson(url: String): Any {
+        val req = Request.Builder().url(url).header("Accept", "application/json").get().build()
         val (code, text) = LingqApi.http.newCall(req).execute().use { r -> r.code to r.body?.string().orEmpty() }
         if (code !in 200..299) throw ApiException("OpenRouter: HTTP $code ${text.take(200)}")
         return JSONTokener(text).nextValue()
