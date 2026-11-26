@@ -1261,6 +1261,41 @@ class ImportSession(private val app: AppState) {
 
     fun selectedCount() = if (pasteMode) (if (pasteText.isBlank()) 0 else 1) else items.count { it.selected }
 
+    /** Merges chapter [i] + 1 into chapter [i] (text joined by an empty line); the title of [i] stays. */
+    fun mergeWithNext(i: Int) {
+        val a = items.getOrNull(i) ?: return
+        val b = items.getOrNull(i + 1) ?: return
+        a.text = a.text + "\n\n" + b.text
+        a.selected = true
+        items.removeAt(i + 1)
+    }
+
+    /**
+     * Merges every chapter under 300 words into the next one (its text goes first, the next keeps its title);
+     * a small last chapter goes into the previous one. Shows how many chapters were merged.
+     */
+    fun mergeSmallChapters() {
+        var merged = 0
+        var i = 0
+        while (items.size > 1 && i < items.size) {
+            val cur = items[i]
+            if (cur.words >= 300) { i++; continue }
+            if (i < items.lastIndex) {
+                val next = items[i + 1]
+                next.text = cur.text + "\n\n" + next.text
+                next.selected = true
+                items.removeAt(i)
+            } else {
+                val prev = items[i - 1]
+                prev.text = prev.text + "\n\n" + cur.text
+                prev.selected = true
+                items.removeAt(i)
+            }
+            merged++
+        }
+        app.say("Объединено глав: $merged")
+    }
+
     fun run() {
         val c0 = course
         val createTitle = newCourseTitle.trim()

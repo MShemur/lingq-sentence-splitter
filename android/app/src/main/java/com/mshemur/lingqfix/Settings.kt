@@ -39,6 +39,15 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +96,7 @@ fun SettingsRoot(state: AppState) {
     val p = state.prefs
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val audioMb = remember { AudioCache.size(ctx) / 1_048_576 }
+    var ttsOpen by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ListGroup("Сервисы")
         SectionItem(
@@ -101,6 +111,7 @@ fun SettingsRoot(state: AppState) {
             AppIcons.Mic, "Распознавание речи",
             sttProvider(p.sttProvider).let { it.name + if (sttKeyFor(p, it).isBlank()) " · ключ не задан" else " · ключ задан" },
         ) { state.go(Screen.SettingsSpeech) }
+        SectionItem(AppIcons.Podcasts, "Озвучка", ttsSummary(p)) { ttsOpen = true }
 
         HorizontalDivider(Modifier.padding(top = 8.dp))
         ListGroup("Чтение и звук")
@@ -138,6 +149,144 @@ fun SettingsRoot(state: AppState) {
         SectionItem(AppIcons.Chat, "Отзыв / задача", "Написать, что поправить; Claude отвечает здесь") {
             state.go(Screen.Feedback)
         }
+    }
+    if (ttsOpen) TtsDialog(state) { ttsOpen = false }
+}
+
+/** Settings → Озвучка as a full-screen page over the settings list (a Dialog, so no new Screen entry is needed). */
+@Composable
+fun TtsDialog(state: AppState, onClose: () -> Unit) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+                Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
+                    Text("Озвучка", style = MaterialTheme.typography.titleLarge)
+                }
+                Box(Modifier.weight(1f)) { SettingsTts(state) }
+            }
+        }
+    }
+}
+
+/** The page of Озвучка: service, its key and voice, Gemini model, speed, sample. */
+@Composable
+fun SettingsTts(state: AppState) {
+    val p = state.prefs
+    val scope = rememberCoroutineScope()
+    var prov by remember { mutableStateOf(p.ttsProvider) }
+    var voice by remember(prov) { mutableStateOf(p.ttsVoice(prov)) }
+    var model by remember(prov) { mutableStateOf(p.ttsModel(prov)) }
+    var rate by remember { mutableStateOf(p.ttsRate) }
+    var allModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var err by remember { mutableStateOf<String?>(null) }
+    val speakingNow by Tts.speaking
+    val keyOk = Tts.keyOf(p, prov).isNotBlank()
+
+    fun loadModels() {
+        val key = p.geminiKey
+        if (key.isBlank()) return
+        loading = true
+        err = null
+        scope.launch {
+            try {
+                allModels = withContext(Dispatchers.IO) { Gemini(key, "").models() }
+            } catch (e: Exception) {
+                err = e.message ?: "Ошибка"
+            }
+            loading = false
+        }
+    }
+
+    LaunchedEffect(prov) { if (prov == "gemini") loadModels() }
+
+    Page {
+        Hint(
+            "Озвучка текста в читалке. Системный голос бесплатен и работает без сети. Облачные голоса звучат естественнее, " +
+                "но текст уходит на сервер выбранного сервиса и оплачивается по его тарифу. Готовые куски кэшируются на телефоне (до 50 МБ).",
+        )
+        Text("Сервис", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        TTS_PROVIDERS.forEach { t ->
+            Row(
+                Modifier.fillMaxWidth()
+                    .selectable(selected = prov == t.id, role = Role.RadioButton) { prov = t.id; p.ttsProvider = t.id }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = prov == t.id, onClick = null)
+                Text(t.label, Modifier.padding(start = 12.dp), style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+        HorizontalDivider()
+        if (prov == "system") {
+            Hint("Голос зависит от телефона. Немецкий можно докачать в настройках Android: «Синтез речи».")
+        } else {
+            val from = if (prov == "gemini") "ключ Gemini из «Перевод и ИИ»" else "ключ из «Распознавание речи» (${ttsProviderName(prov)})"
+            Hint("Используется $from: " + if (keyOk) "задан." else "не задан, введите его в соответствующем разделе.")
+        }
+
+        if (prov == "elevenlabs") {
+            OutlinedTextField(
+                voice, { v -> voice = v.trim(); p.setTtsVoice(prov, v) }, Modifier.fillMaxWidth(),
+                label = { Text("ID голоса") }, singleLine = true,
+                supportingText = { Text("Голос из библиотеки ElevenLabs, его ID в карточке голоса") },
+            )
+        }
+        if (prov == "gemini" || prov == "openai") {
+            Text("Голос", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            val voices = if (prov == "gemini") TTS_VOICES_GEMINI else TTS_VOICES_OPENAI
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                voices.forEach { v ->
+                    FilterChip(selected = voice == v, label = { Text(v) }, onClick = { voice = v; p.setTtsVoice(prov, v) })
+                }
+            }
+        }
+
+        if (prov == "gemini") {
+            Text("Модель", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            val shown = model.ifBlank { Tts.pickGeminiModel(allModels) }
+            if (!keyOk) Hint("Сначала введите ключ Gemini.")
+            else if (loading) CircularProgressIndicator()
+            else {
+                val speechModels = allModels.filter { "tts" in it }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    speechModels.forEach { m ->
+                        FilterChip(selected = shown == m, label = { Text(m) }, onClick = { model = m; p.setTtsModel("gemini", m) })
+                    }
+                }
+                if (speechModels.isEmpty()) Hint("На этом ключе нет моделей озвучки.")
+                TextButton(onClick = { loadModels() }) { Text("Обновить список моделей") }
+            }
+            err?.let { Hint("Список моделей не загрузился: $it") }
+        }
+        if (prov == "openai") {
+            Text("Модель", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            val shown = model.ifBlank { TTS_MODEL_DEFAULT["openai"].orEmpty() }
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TTS_MODELS_OPENAI.forEach { m ->
+                    FilterChip(selected = shown == m, label = { Text(m) }, onClick = { model = m; p.setTtsModel("openai", m) })
+                }
+            }
+        }
+
+        Text(
+            "Скорость: " + "%.1f".format(rate).replace('.', ',') + "×",
+            style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+        )
+        Slider(
+            value = rate,
+            onValueChange = { v -> rate = Math.round(v * 10) / 10f; p.ttsRate = rate },
+            valueRange = 0.5f..1.5f, steps = 9,
+        )
+        Hint("Системный голос меняет скорость на телефоне, OpenAI — на сервере, у остальных — на телефоне.")
+
+        HorizontalDivider()
+        Button(
+            onClick = { Tts.speak(state, "Guten Tag! Das ist ein Beispiel.", "de") },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Прослушать пример") }
+        if (speakingNow) TextButton(onClick = { Tts.stop() }, modifier = Modifier.fillMaxWidth()) { Text("Остановить") }
     }
 }
 

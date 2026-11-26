@@ -772,7 +772,8 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 TextButton(onClick = { s.items.forEach { it.selected = true } }) { Text("Выбрать все") }
                 TextButton(onClick = { s.items.forEach { it.selected = false } }) { Text("Снять все") }
             }
-            s.items.forEach { item ->
+            if (s.items.size > 1) TextButton(onClick = { s.mergeSmallChapters() }) { Text("Объединить мелкие главы") }
+            s.items.forEachIndexed { index, item ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (s.items.size > 1) Checkbox(checked = item.selected, onCheckedChange = { v -> item.selected = v })
                     Column(Modifier.weight(1f)) {
@@ -784,6 +785,9 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                             "${item.words} слов", style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline,
                         )
+                    }
+                    if (index < s.items.lastIndex) IconButton(onClick = { s.mergeWithNext(index) }) {
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Объединить со следующей")
                     }
                 }
             }

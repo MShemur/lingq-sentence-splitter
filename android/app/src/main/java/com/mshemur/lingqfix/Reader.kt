@@ -145,6 +145,12 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -396,7 +402,7 @@ private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
 
 // --- session -------------------------------------------------------------------------------------
 
-class ReaderSession(private val app: AppState, val lang: String, val lesson: Lesson, startSent: Int? = null) {
+class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, startSent: Int? = null) {
     /** PDF book page at the base zoom: "width" (fills the screen width) or "page" (whole page). */
     val pdfFit: String get() = app.pdfFit
     /** Sentence to scroll to (bookmark); consumed by the screen. */
@@ -1869,7 +1875,7 @@ class ReaderSession(private val app: AppState, val lang: String, val lesson: Les
 fun SentenceEditDialog(s: ReaderSession) {
     val id = s.editing ?: return
     val sent = s.sentences.firstOrNull { it.id == id } ?: return
-    var text by remember(id) { mutableStateOf(sent.text) }
+    var text by remember(id) { mutableStateOf(TextFieldValue(sent.text)) }
     var tr by remember(id) { mutableStateOf(s.shownTranslation(id)) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = { if (!s.editSaving) s.editing = null },
@@ -1877,6 +1883,14 @@ fun SentenceEditDialog(s: ReaderSession) {
         title = { Text("Исправить предложение") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { text = toggleEmphasis(text, 1) }, enabled = !s.editSaving) {
+                        Text("Ж", fontWeight = FontWeight.Bold)
+                    }
+                    OutlinedButton(onClick = { text = toggleEmphasis(text, 2) }, enabled = !s.editSaving) {
+                        Text("К", fontStyle = FontStyle.Italic)
+                    }
+                }
                 OutlinedTextField(
                     text, { text = it }, Modifier.fillMaxWidth(), label = { Text("Предложение") },
                     minLines = 2, enabled = !s.editSaving,
@@ -1895,12 +1909,111 @@ fun SentenceEditDialog(s: ReaderSession) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { s.saveEdit(id, text, tr) }, enabled = !s.editSaving && text.isNotBlank()) {
+            TextButton(onClick = { s.saveEdit(id, text.text, tr) }, enabled = !s.editSaving && text.text.isNotBlank()) {
                 if (s.editSaving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Сохранить")
             }
         },
         dismissButton = { TextButton(onClick = { s.editing = null }, enabled = !s.editSaving) { Text("Отмена") } },
     )
+}
+
+/** Visible text of a lesson sentence (markers hidden) with the emphasis per visible char, read as Sent.emphSpans reads it. */
+private class EmphMarkup(raw: String) {
+    val vis: String
+    /** Per visible char: 1 bold, 2 italic, 3 both (0 plain). */
+    val style: IntArray
+    /** Raw index of each visible char. */
+    val rawAt: IntArray
+
+    init {
+        val hide = BooleanArray(raw.length)
+        val st = IntArray(raw.length)
+        for (x in Sent.emphSpans(raw)) {
+            for (k in x.at until x.cs) hide[k] = true
+            for (k in x.ce until x.end) hide[k] = true
+            val f = when (x.mk.length) { 3 -> 3; 2 -> 1; else -> 2 }
+            for (k in x.cs until x.ce) st[k] = st[k] or f
+        }
+        val sb = StringBuilder()
+        val sty = ArrayList<Int>()
+        val at = ArrayList<Int>()
+        for (k in raw.indices) if (!hide[k]) { sb.append(raw[k]); sty += st[k]; at += k }
+        vis = sb.toString()
+        style = sty.toIntArray()
+        rawAt = at.toIntArray()
+    }
+
+    companion object {
+        /** Markers for a style: ** bold, * italic, *** both (what Sent.emphSpans parses). */
+        fun mark(st: Int) = when (st) { 1 -> "**"; 2 -> "*"; else -> "***" }
+    }
+}
+
+/**
+ * Bold (flag 1) or italic (flag 2) on the selection; if every word of it has it already, it is taken off.
+ * With no selection the word under the cursor is used. The selection is widened to whole words, spaces stay
+ * outside the markers, and the caret/selection is kept on the same words afterwards.
+ */
+private fun toggleEmphasis(v: TextFieldValue, flag: Int): TextFieldValue {
+    val m = EmphMarkup(v.text)
+    val n = m.vis.length
+    fun wordCh(k: Int) = m.vis[k].isLetterOrDigit()
+    var a = m.rawAt.count { it < v.selection.min }
+    var b = m.rawAt.count { it < v.selection.max }
+    if (a == b) {
+        while (a > 0 && wordCh(a - 1)) a--
+        while (b < n && wordCh(b)) b++
+    }
+    while (a < b && m.vis[a].isWhitespace()) a++
+    while (b > a && m.vis[b - 1].isWhitespace()) b--
+    if (a >= b) return v
+    while (a > 0 && wordCh(a) && wordCh(a - 1)) a--
+    while (b < n && wordCh(b) && wordCh(b - 1)) b++
+    val on = (a until b).any { (m.style[it] and flag) == 0 }
+    val st = m.style.copyOf()
+    for (k in a until b) st[k] = if (on) st[k] or flag else st[k] and flag.inv()
+    val out = StringBuilder()
+    val pos = IntArray(n)
+    var k = 0
+    while (k < n) {
+        val s0 = st[k]
+        var e = k
+        while (e < n && st[e] == s0) e++
+        var p = k
+        var q = e
+        if (s0 != 0) {
+            while (p < q && m.vis[p].isWhitespace()) p++
+            while (q > p && m.vis[q - 1].isWhitespace()) q--
+        }
+        if (s0 == 0 || p >= q) {
+            for (j in k until e) { pos[j] = out.length; out.append(m.vis[j]) }
+        } else {
+            for (j in k until p) { pos[j] = out.length; out.append(m.vis[j]) }
+            val mk = EmphMarkup.mark(s0)
+            out.append(mk)
+            for (j in p until q) { pos[j] = out.length; out.append(m.vis[j]) }
+            out.append(mk)
+            for (j in q until e) { pos[j] = out.length; out.append(m.vis[j]) }
+        }
+        k = e
+    }
+    return TextFieldValue(out.toString(), TextRange(pos[a], pos[b - 1] + 1))
+}
+
+/** Speaker icons (not in material-icons-core, like AppIcons). */
+private object SpeakIcons {
+    private fun icon(name: String, path: String) = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
+        .addPath(addPathNodes(path), fill = SolidColor(Color.Black))
+        .build()
+
+    val VolumeUp: ImageVector by lazy {
+        icon(
+            "VolumeUp",
+            "M3,9v6h4l5,5V4L7,9H3zM16.5,12c0,-1.77 -1.02,-3.29 -2.5,-4.03v8.05c1.48,-0.73 2.5,-2.25 2.5,-4.02z" +
+                "M14,3.23v2.06c2.89,0.86 5,3.54 5,6.71s-2.11,5.85 -5,6.71v2.06c4.01,-0.91 7,-4.49 7,-8.77s-2.99,-7.86 -7,-8.77z",
+        )
+    }
+    val Stop: ImageVector by lazy { icon("Stop", "M6,6h12v12H6z") }
 }
 
 // --- UI ------------------------------------------------------------------------------------------
@@ -3055,6 +3168,8 @@ private fun RetranslateButton(s: ReaderSession, id: Int) {
 /** Sentence mode lies over the text: slides up from the bottom, the arrow collapses it back. */
 @Composable
 fun SentenceOverlay(s: ReaderSession) {
+    // closing the mode stops the speech at once
+    LaunchedEffect(s.sentenceMode) { if (!s.sentenceMode) Tts.stop() }
     AnimatedVisibility(
         visible = s.sentenceMode && s.sentences.isNotEmpty(),
         enter = slideInVertically(tween(320, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(200)),
@@ -3062,8 +3177,14 @@ fun SentenceOverlay(s: ReaderSession) {
     ) {
         BackHandler { s.closeSentenceMode() }
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-            SentencePager(s)
-            WordMenuLayer(s, "sent") { ref, close -> ReaderMenuItems(s, ref, close) }
+            Box(Modifier.fillMaxSize()) {
+                SentencePager(s)
+                // speaker button, bottom-left, above the system bars
+                s.sentences.getOrNull(s.page)?.let { cur ->
+                    SpeakSentenceButton(s, cur.plain, Modifier.align(Alignment.BottomStart).systemBarsPadding().padding(16.dp))
+                }
+                WordMenuLayer(s, "sent") { ref, close -> ReaderMenuItems(s, ref, close) }
+            }
         }
     }
 }
@@ -3075,6 +3196,7 @@ private fun SentencePager(s: ReaderSession) {
     val pager = rememberPagerState(initialPage = s.page.coerceIn(0, maxOf(0, list.size - 1))) { list.size }
     LaunchedEffect(pager.currentPage) {
         s.page = pager.currentPage
+        Tts.stop()
         list.getOrNull(pager.currentPage)?.let { s.reached(it.id, it.id) }
     }
     LaunchedEffect(s.jump) {
@@ -3126,7 +3248,7 @@ private fun SentencePager(s: ReaderSession) {
             list.getOrNull(pager.currentPage)?.let {
                 Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
                     BookmarkButton(s, it.id)
-                    SentenceMenu(s, it.id)
+                    SentenceMenu(s, it.id, it.plain)
                 }
             }
         }
@@ -3170,11 +3292,16 @@ private fun SentencePager(s: ReaderSession) {
 
 /** Sentence mode ⋮: edit the sentence, listen from it, text size. */
 @Composable
-private fun SentenceMenu(s: ReaderSession, id: Int) {
+private fun SentenceMenu(s: ReaderSession, id: Int, text: String) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.heightIn(max = menuMaxHeight())) {
+            DropdownMenuItem(
+                text = { Text("Озвучить предложение") },
+                leadingIcon = { Icon(SpeakIcons.VolumeUp, contentDescription = null) },
+                onClick = { open = false; Tts.speak(s.app, text, s.lang) },
+            )
             DropdownMenuItem(
                 text = { Text("Исправить предложение") },
                 leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
@@ -3296,7 +3423,7 @@ private fun WordContent(s: ReaderSession, ref: WordRef) {
                     onClick = { s.chatWord(ref.sent, word) }, label = { Text("Спросить") },
                     leadingIcon = { Icon(AppIcons.Chat, contentDescription = null, Modifier.size(18.dp)) },
                 )
-                BoldChip(s, ref.sent, ref.token, ref.token)
+                SpeakChip(s.app, word, s.lang)
             }
         }
 }
@@ -3351,6 +3478,34 @@ private fun BoldChip(s: ReaderSession, id: Int, from: Int, to: Int) {
         onClick = { s.toggleBold(id, from, to) },
         label = { Text(if (on) "Убрать жирный" else "Жирным", fontWeight = if (on) null else FontWeight.Bold) },
     )
+}
+
+/** Word window: speaks the word (Tts); while it speaks, the same button stops it. */
+@Composable
+private fun SpeakChip(app: AppState, text: String, lang: String) {
+    val speaking by Tts.speaking
+    AssistChip(
+        onClick = { if (speaking) Tts.stop() else Tts.speak(app, text, lang) },
+        label = { Text(if (speaking) "Стоп" else "Озвучить") },
+        leadingIcon = {
+            Icon(if (speaking) SpeakIcons.Stop else SpeakIcons.VolumeUp, contentDescription = null, Modifier.size(18.dp))
+        },
+    )
+}
+
+/** Sentence mode, bottom-left: speaks the sentence; while it speaks, the button stops it. */
+@Composable
+private fun SpeakSentenceButton(s: ReaderSession, text: String, modifier: Modifier) {
+    val speaking by Tts.speaking
+    FilledTonalIconButton(
+        onClick = { if (speaking) Tts.stop() else Tts.speak(s.app, text, s.lang) },
+        modifier = modifier,
+    ) {
+        Icon(
+            if (speaking) SpeakIcons.Stop else SpeakIcons.VolumeUp,
+            contentDescription = if (speaking) "Стоп" else "Озвучить предложение",
+        )
+    }
 }
 
 /** Window for several words translated together. */

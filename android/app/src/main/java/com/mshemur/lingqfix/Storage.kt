@@ -234,6 +234,19 @@ class Prefs(ctx: Context) {
     var readerFont: Int
         get() = p.getInt("readerFont", 19)
         set(v) = p.edit().putInt("readerFont", v).apply()
+    /** Text to speech (Tts.kt): "system" (free), "gemini", "openai" or "elevenlabs". */
+    var ttsProvider: String
+        get() = read("ttsProvider", "system")
+        set(v) = write("ttsProvider", v)
+    /** Per service: model (Gemini: blank = resolved from the key's list) and voice (ElevenLabs: voice id). */
+    fun ttsModel(id: String) = read("ttsModel.$id", TTS_MODEL_DEFAULT[id].orEmpty())
+    fun setTtsModel(id: String, v: String) = write("ttsModel.$id", v.trim())
+    fun ttsVoice(id: String) = read("ttsVoice.$id", TTS_VOICE_DEFAULT[id].orEmpty())
+    fun setTtsVoice(id: String, v: String) = write("ttsVoice.$id", v.trim())
+    /** Speed of the voice, 0.5–1.5. */
+    var ttsRate: Float
+        get() = read("ttsRate", "1.0").toFloatOrNull()?.coerceIn(0.5f, 1.5f) ?: 1f
+        set(v) = write("ttsRate", v.coerceIn(0.5f, 1.5f).toString())
 }
 
 /** Copies of lessons taken before every write, so a lesson can be put back. Kept [KEEP_DAYS] days. */
