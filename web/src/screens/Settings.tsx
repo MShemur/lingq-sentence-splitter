@@ -292,6 +292,23 @@ const ttsCur = (): TtsProvider => {
   return v === 'gemini' || v === 'openai' || v === 'elevenlabs' || v === 'openrouter' ? v : 'system'
 }
 
+/** A model of OpenRouter is free: price 0 or a ":free" id. */
+const ttsOrFree = (m: OrModel) => m.perMin === 0 || m.id.endsWith(':free')
+
+/** The model chip's label: name and price ("бесплатно", "~X ¢/мин"); the name alone when the price is unknown. */
+const ttsOrLabel = (m: OrModel): string => {
+  if (ttsOrFree(m)) return `${m.name} · бесплатно`
+  if (m.perMin === null) return m.name
+  const c = m.perMin * 100
+  return `${m.name} · ${c < 0.1 ? '<0,1' : `~${c.toFixed(1).replace('.', ',')}`} ¢/мин`
+}
+
+/** Free models first, then by price; unknown prices last. */
+const ttsOrSorted = (l: OrModel[]): OrModel[] => {
+  const rank = (m: OrModel) => (ttsOrFree(m) ? 0 : m.perMin === null ? 2 : 1)
+  return [...l].sort((a, b) => rank(a) - rank(b) || (a.perMin ?? 0) - (b.perMin ?? 0) || a.name.localeCompare(b.name))
+}
+
 /** Settings → Озвучка → OpenRouter: model chips (the model's name; a filter when the list is long), voice chips of the chosen model, or a text field. */
 function TtsOpenRouter() {
   const [models, setModels] = useState<OrModel[] | null>(null)
@@ -319,7 +336,7 @@ function TtsOpenRouter() {
   }, [models, model])
 
   const f = filter.trim().toLowerCase()
-  const shown = (models ?? []).filter((m) => !f || m.id.toLowerCase().includes(f) || m.name.toLowerCase().includes(f))
+  const shown = ttsOrSorted(models ?? []).filter((m) => !f || m.id.toLowerCase().includes(f) || m.name.toLowerCase().includes(f))
   return (
     <>
       <h3 class="section-title">Модель OpenRouter</h3>
@@ -329,7 +346,7 @@ function TtsOpenRouter() {
       {models && models.length > 0 ? (
         <div class="chips">
           {shown.map((m) => (
-            <Chip key={m.id} label={m.name} selected={model === m.id} onClick={() => { prefs.ttsModel_openrouter.value = m.id }} />
+            <Chip key={m.id} label={ttsOrLabel(m)} selected={model === m.id} onClick={() => { prefs.ttsModel_openrouter.value = m.id }} />
           ))}
         </div>
       ) : (

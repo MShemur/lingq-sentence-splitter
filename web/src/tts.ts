@@ -245,28 +245,65 @@ async function fetchEleven(key: string, voice: string, text: string): Promise<Bl
   return r.blob()
 }
 
-/** A speech model of OpenRouter: its voices, response formats, and whether it takes the speed. */
-export type OrModel = { id: string; name: string; voices: string[]; formats: string[]; speed: boolean }
+/** A speech model of OpenRouter: its voices, response formats, whether it takes the speed, and the estimated price of a minute in USD (null: unknown). */
+export type OrModel = { id: string; name: string; voices: string[]; formats: string[]; speed: boolean; perMin: number | null }
 
 let orCache: OrModel[] | null = null
 
-/** The speech models of OpenRouter with what each takes (from GET .../audio/speech/models); remembered once read. Throws when the list cannot be read. */
-export async function openrouterModels(): Promise<OrModel[]> {
-  if (orCache) return orCache
-  const r = await send('OpenRouter', `${OPENROUTER_SPEECH}/models`, { headers: openrouterHeaders() })
+/** GET an OpenRouter list through the site's proxy (the query string is forwarded); throws when not OK. */
+async function openrouterList(path: string): Promise<any[]> {
+  const r = await send('OpenRouter', path, { headers: openrouterHeaders() })
   if (!r.ok) throw new Error(`OpenRouter: HTTP ${r.status} ${await failText(r)}`)
   const o: any = await r.json()
-  const arr: any[] = Array.isArray(o?.data) ? o.data : Array.isArray(o) ? o : []
+  return Array.isArray(o?.data) ? o.data : Array.isArray(o) ? o : []
+}
+
+/** The base id of a free variant: "fish-audio/s2.1-pro-free:free" -> "fish-audio/s2.1-pro". */
+function baseId(id: string): string {
+  return id.replace(/:free$/, '').replace(/-free$/, '')
+}
+
+/** What a speech-list entry takes: voices, response formats, speed. */
+function speechParams(m: any): { voices: string[]; formats: string[]; speed: boolean } {
   const strings = (x: unknown): string[] => (Array.isArray(x) ? x.map((v) => String(v).trim()).filter(Boolean) : [])
-  const out: OrModel[] = []
-  for (const m of arr) {
+  const speech = (Array.isArray(m?.output_modalities) ? m.output_modalities : []).find((x: any) => x?.type === 'speech')
+  const sp: any = speech?.supported_parameters ?? {}
+  return { voices: strings(sp.voice?.values), formats: strings(sp.response_format?.values), speed: !!sp.speed }
+}
+
+/** Estimate of a minute of speech in USD (1000 chars ≈ 1 min ≈ 1500 audio tokens); null when the pricing is unknown. */
+function perMinute(pricing: any): number | null {
+  const prompt = parseFloat(pricing?.prompt)
+  const completion = parseFloat(pricing?.completion)
+  if (!Number.isFinite(prompt) && !Number.isFinite(completion)) return null
+  const p = Number.isFinite(prompt) ? prompt : 0
+  const c = Number.isFinite(completion) ? completion : 0
+  return c > 0 ? c * 1500 + p * 250 : p * 1000
+}
+
+/** The speech models of OpenRouter: ids and prices from GET /models?output_modalities=speech (free variants included), voices/formats/speed from GET .../audio/speech/models (same id, else the base id). Falls back to the speech list when the full list fails. Remembered once read. Throws when neither list can be read. */
+export async function openrouterModels(): Promise<OrModel[]> {
+  if (orCache) return orCache
+  const [speechR, fullR] = await Promise.allSettled([
+    openrouterList(`${OPENROUTER_SPEECH}/models`),
+    openrouterList('/stt/openrouter/v1/models?output_modalities=speech'),
+  ])
+  if (speechR.status === 'rejected' && fullR.status === 'rejected') throw speechR.reason
+  const speech = speechR.status === 'fulfilled' ? speechR.value : []
+  const full = fullR.status === 'fulfilled' ? fullR.value : speech
+  const bySpeech = new Map<string, any>()
+  for (const m of speech) {
     const id = String(m?.id ?? '').trim()
-    if (!id) continue
-    const speech = (Array.isArray(m.output_modalities) ? m.output_modalities : []).find((x: any) => x?.type === 'speech')
-    const sp: any = speech?.supported_parameters ?? {}
-    out.push({
-      id, name: String(m.name || id), voices: strings(sp.voice?.values), formats: strings(sp.response_format?.values), speed: !!sp.speed,
-    })
+    if (id) bySpeech.set(id, m)
+  }
+  const out: OrModel[] = []
+  const seen = new Set<string>()
+  for (const m of full) {
+    const id = String(m?.id ?? '').trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    const sp = speechParams(bySpeech.get(id) ?? bySpeech.get(baseId(id)))
+    out.push({ id, name: String(m.name || id), ...sp, perMin: perMinute(m.pricing) })
   }
   orCache = out
   return out
