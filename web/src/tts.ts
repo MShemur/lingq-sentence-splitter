@@ -322,7 +322,12 @@ async function openrouterInfo(model: string): Promise<OrModel | null> {
 async function fetchOpenRouter(key: string, model: string, text: string, voice: string, rate: number, info: OrModel | null): Promise<Blob> {
   const f = info?.formats ?? []
   const format = f.length === 0 || f.includes('mp3') ? 'mp3' : f.includes('wav') ? 'wav' : 'pcm'
-  const body: Record<string, unknown> = { model, input: text, voice, response_format: format }
+  // a model with a voice list gets one of its voices; a model without one (Fish Audio: free voice ids) gets the typed id
+  // or none at all (its own default voice)
+  const list = info?.voices ?? []
+  const v = list.length ? (list.includes(voice) ? voice : list.includes(OPENROUTER_DEFAULT_VOICE) ? OPENROUTER_DEFAULT_VOICE : list[0]) : voice
+  const body: Record<string, unknown> = { model, input: text, response_format: format }
+  if (v) body.voice = v
   if (info?.speed) body.speed = rate
   const r = await send('OpenRouter', OPENROUTER_SPEECH, {
     method: 'POST',
@@ -341,7 +346,7 @@ function openrouterHeaders(): Record<string, string> {
 
 /** OpenRouter audio from the cache or the network. [sped]: the speed is already in the audio (else the element plays it faster). */
 async function openrouterAudio(key: string, text: string, rate: number): Promise<{ blob: Blob; sped: boolean }> {
-  const voice = prefs.ttsVoice_openrouter.value.trim() || OPENROUTER_DEFAULT_VOICE
+  const voice = prefs.ttsVoice_openrouter.value.trim()
   const model = prefs.ttsModel_openrouter.value.trim() || OPENROUTER_DEFAULT_MODEL
   const info = await openrouterInfo(model)
   const sped = !!info?.speed

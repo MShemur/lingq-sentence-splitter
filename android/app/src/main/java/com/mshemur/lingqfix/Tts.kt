@@ -448,7 +448,14 @@ object Tts {
     /** OpenRouter speech: the answer is the audio itself (mp3, or wav for Gemini models); errors come as JSON. */
     private fun openRouterSpeech(key: String, m: OrSpeechModel?, model: String, voice: String, text: String, rate: Float): ByteArray {
         val format = OpenRouterTts.format(m)
-        val json = JSONObject().put("model", model).put("input", text).put("voice", voice).put("response_format", format)
+        // a model with a voice list gets one of its voices; a model without one (Fish Audio: free voice ids) gets the
+        // typed id, or none at all (its own default voice) when only the default "Kore" was filled in
+        val def = TTS_VOICE_DEFAULT["openrouter"].orEmpty()
+        val list = m?.voices.orEmpty()
+        val v = if (list.isNotEmpty()) (if (voice in list) voice else if (def in list) def else list.first())
+            else if (voice == def) "" else voice
+        val json = JSONObject().put("model", model).put("input", text).put("response_format", format)
+        if (v.isNotBlank()) json.put("voice", v)
         // speed only when the model lists it; otherwise the phone speeds the voice up
         if (m?.speed == true) json.put("speed", rate.toDouble())
         val bytes = post(
