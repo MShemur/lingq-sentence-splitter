@@ -163,13 +163,14 @@ async function syncOnce() {
 
 // --- keys (encrypted) ---
 
-const KEY_NAMES = ['lingq', 'gemini', 'aiBase', 'aiKey', 'aiModel', 'aiFastModel'] as const
+const KEY_NAMES = ['lingq', 'gemini', 'aiBase', 'aiKey', 'aiModel', 'aiFastModel', 'ttsOpenrouter'] as const
 type Keys = Record<(typeof KEY_NAMES)[number], string> & { stt?: Record<string, string> }
 
 const localKeys = (): Keys => {
   const k: Keys = {
     lingq: prefs.apiKey.value, gemini: prefs.geminiKey.value, aiBase: prefs.aiBase.value,
     aiKey: prefs.aiKey.value, aiModel: prefs.aiModel.value, aiFastModel: prefs.aiFastModel.value,
+    ttsOpenrouter: prefs.ttsKey_openrouter.value,
   }
   // speech recognition keys, only when there are any (as Android: older versions do not know them)
   const stt = Object.fromEntries(STT_PROVIDERS.map((p) => [p.id, sttKey(p.id)]).filter(([, v]) => v))
@@ -253,6 +254,7 @@ async function applyKeys(k: Obj) {
   if (v('aiKey')) prefs.aiKey.value = v('aiKey')
   if (v('aiModel')) prefs.aiModel.value = v('aiModel')
   if ('aiFastModel' in k) prefs.aiFastModel.value = v('aiFastModel')
+  if (v('ttsOpenrouter')) prefs.ttsKey_openrouter.value = v('ttsOpenrouter')
   if (k.stt && typeof k.stt === 'object') {
     for (const [id, key] of Object.entries(k.stt)) if (String(key ?? '').trim()) setSttKey(id, String(key))
   }

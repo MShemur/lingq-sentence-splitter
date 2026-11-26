@@ -7,6 +7,8 @@ const STT_HOSTS: Record<string, string> = {
   deepgram: 'https://api.deepgram.com/v1',
   assemblyai: 'https://api.assemblyai.com/v2',
   elevenlabs: 'https://api.elevenlabs.io/v1',
+  // speech (TTS) too: /stt/openrouter/v1/audio/speech -> https://openrouter.ai/api/v1/audio/speech
+  openrouter: 'https://openrouter.ai/api',
 }
 const PASS_HEADERS = ['authorization', 'xi-api-key', 'content-type', 'accept']
 

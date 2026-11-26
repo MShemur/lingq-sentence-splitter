@@ -1,5 +1,5 @@
 // Settings: a list of sections, each opens its own page. Every change is saved at once. Port of Settings.kt.
-import { useState } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
 import { Icon, type IconName } from '../icons'
 import { back, errorText, go, say } from '../app'
 import { prefs, trLang, useGemini } from '../settings'
@@ -13,7 +13,7 @@ import { Chip, Dialog, IconButton, ListItem, Loading, SecretField, Spinner, Text
 import { FACES, HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, grainImage, highlightColors, highlightOf, themeOf } from '../readerLook'
 import { groqSummary, STT_PRICES_CHECKED, STT_PROVIDERS, setSttKey, setSttModel, sttCost, sttHourPrice, sttKey, sttModel, sttPrice, sttProvider } from '../importer/stt'
 import { clearLog, lastLines, log, logText, logVersion } from '../applog'
-import { geminiTtsModels, ttsKeyFor, ttsSpeak, ttsSpeaking, ttsStop, ttsSystemVoiceName, ttsVoicesReady, type TtsProvider } from '../tts'
+import { geminiTtsModels, openrouterModels, type OrModel, ttsKeyFor, ttsOpenrouterKeySource, ttsSpeak, ttsSpeaking, ttsStop, ttsSystemVoiceName, ttsVoicesReady, type TtsProvider } from '../tts'
 
 declare const __BUILD__: string
 declare const __VERSION__: string
@@ -279,7 +279,8 @@ export function SettingsSpeech() {
   )
 }
 
-const TTS_NAMES: Record<TtsProvider, string> = { system: 'Системный голос', gemini: 'Gemini', openai: 'OpenAI', elevenlabs: 'ElevenLabs' }
+const TTS_NAMES: Record<TtsProvider, string> = { system: 'Системный голос', gemini: 'Gemini', openai: 'OpenAI', elevenlabs: 'ElevenLabs', openrouter: 'OpenRouter' }
+const TTS_OPENROUTER_FILTER_MIN = 12
 const TTS_GEMINI_VOICES = ['Kore', 'Puck', 'Charon', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr']
 const TTS_OPENAI_VOICES = ['alloy', 'ash', 'coral', 'echo', 'nova', 'onyx', 'sage', 'shimmer']
 const TTS_OPENAI_MODELS = ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd']
@@ -288,7 +289,68 @@ const TTS_SAMPLE = 'Guten Tag! Das ist ein Beispiel.'
 /** The provider in use; an unknown saved value counts as the system voice. */
 const ttsCur = (): TtsProvider => {
   const v = prefs.ttsProvider.value
-  return v === 'gemini' || v === 'openai' || v === 'elevenlabs' ? v : 'system'
+  return v === 'gemini' || v === 'openai' || v === 'elevenlabs' || v === 'openrouter' ? v : 'system'
+}
+
+/** Settings → Озвучка → OpenRouter: model chips (the model's name; a filter when the list is long), voice chips of the chosen model, or a text field. */
+function TtsOpenRouter() {
+  const [models, setModels] = useState<OrModel[] | null>(null)
+  const [modelErr, setModelErr] = useState('')
+  const [filter, setFilter] = useState('')
+  const model = prefs.ttsModel_openrouter.value.trim()
+  const voice = prefs.ttsVoice_openrouter.value.trim()
+  const info = models?.find((m) => m.id === model) ?? null
+  const voices = info?.voices ?? []
+
+  useEffect(() => {
+    let off = false
+    openrouterModels().then(
+      (l) => { if (!off) { setModels(l); setModelErr('') } },
+      (e) => { if (!off) setModelErr(errorText(e)) },
+    )
+    return () => { off = true }
+  }, [])
+
+  // the chosen voice is not one of this model's voices: take the model's first one
+  useEffect(() => {
+    if (info && info.voices.length && !info.voices.includes(prefs.ttsVoice_openrouter.value.trim())) {
+      prefs.ttsVoice_openrouter.value = info.voices[0]
+    }
+  }, [models, model])
+
+  const f = filter.trim().toLowerCase()
+  const shown = (models ?? []).filter((m) => !f || m.id.toLowerCase().includes(f) || m.name.toLowerCase().includes(f))
+  return (
+    <>
+      <h3 class="section-title">Модель OpenRouter</h3>
+      {models && models.length > TTS_OPENROUTER_FILTER_MIN && (
+        <TextField label="Фильтр моделей" value={filter} onInput={(v) => setFilter(v)} />
+      )}
+      {models && models.length > 0 ? (
+        <div class="chips">
+          {shown.map((m) => (
+            <Chip key={m.id} label={m.name} selected={model === m.id} onClick={() => { prefs.ttsModel_openrouter.value = m.id }} />
+          ))}
+        </div>
+      ) : (
+        <TextField label="ID модели" value={prefs.ttsModel_openrouter.value}
+          onInput={(v) => { prefs.ttsModel_openrouter.value = v.trim() }} />
+      )}
+      {modelErr && <Hint>Список моделей не загружен: {modelErr}. Введите ID модели вручную.</Hint>}
+      <h3 class="section-title">Голос OpenRouter</h3>
+      {voices.length > 0 ? (
+        <div class="chips">
+          {voices.map((v) => (
+            <Chip key={v} label={v} selected={voice === v} onClick={() => { prefs.ttsVoice_openrouter.value = v }} />
+          ))}
+        </div>
+      ) : (
+        <TextField label="ID голоса" value={prefs.ttsVoice_openrouter.value}
+          onInput={(v) => { prefs.ttsVoice_openrouter.value = v.trim() }} />
+      )}
+      {info && !info.speed && <Hint>Эта модель не берёт скорость: скорость применяется в плеере.</Hint>}
+    </>
+  )
 }
 
 /** Settings → Озвучка: provider, voice, Gemini model, speed, a sample. Keys live in their own screens. */
@@ -310,6 +372,7 @@ export function SettingsTts() {
   const key = cur === 'system' ? '' : ttsKeyFor(cur)
   const rate = Number(prefs.ttsRate.value) || 1
   const keyWhere = cur === 'gemini' ? '«Перевод и ИИ»' : '«Распознавание речи»'
+  const orSource = ttsOpenrouterKeySource()
   const voiceName = ttsSystemVoiceName(prefs.lang.value || 'de')
   return (
     <Page title="Озвучка">
@@ -318,7 +381,7 @@ export function SettingsTts() {
         звучат естественнее, но это платные сервисы: нужен ключ этого сервиса.
       </Hint>
       <h3 class="section-title">Голос</h3>
-      {(['system', 'gemini', 'openai', 'elevenlabs'] as TtsProvider[]).map((p) => (
+      {(['system', 'gemini', 'openai', 'elevenlabs', 'openrouter'] as TtsProvider[]).map((p) => (
         <label key={p} class="radio-row">
           <input type="radio" name="ttsProvider" checked={cur === p} onChange={() => { prefs.ttsProvider.value = p; ttsStop() }} />
           <span>
@@ -333,11 +396,23 @@ export function SettingsTts() {
           {' '}Другой голос — в настройках iPad: «Универсальный доступ» → «Устный контент» → «Голоса».
         </Hint>
       )}
-      {cur !== 'system' && (
+      {cur === 'openrouter' && (
+        <>
+          <SecretField label="Ключ OpenRouter (для озвучки)" value={prefs.ttsKey_openrouter.value}
+            onInput={(v) => { prefs.ttsKey_openrouter.value = v.trim() }} />
+          <Hint>
+            {orSource === 'own' ? 'Ключ OpenRouter берётся из этого поля.'
+              : orSource === 'ai' ? 'Поле пусто: берётся ключ из «Перевод и ИИ» (там адрес openrouter.ai).'
+              : 'Ключ не задан: вставьте его в это поле или выберите OpenRouter в «Перевод и ИИ». Пока без ключа звучит системный голос.'}
+          </Hint>
+        </>
+      )}
+      {cur !== 'system' && cur !== 'openrouter' && (
         <Hint>
           {key ? `Ключ ${TTS_NAMES[cur]} задан и берётся из ${keyWhere}.` : `Ключ ${TTS_NAMES[cur]} не задан: вставьте его в ${keyWhere}. Пока без ключа звучит системный голос.`}
         </Hint>
       )}
+      {cur === 'openrouter' && <TtsOpenRouter />}
       {cur === 'gemini' && (
         <>
           <h3 class="section-title">Голос Gemini</h3>

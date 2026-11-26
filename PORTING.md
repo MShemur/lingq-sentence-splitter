@@ -53,6 +53,12 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   2) EPUB import: per chapter «объединить со следующей», «Объединить мелкие главы» (< 300 words into the next one,
   chained; the last small one into the previous). 3) web: EPUB picture + 3-line caption always fit on one page
   (caption room = real caption metrics, caption max-height 3.9em, no 48 px floor for captioned pictures).
+- user 26.11.2026 -> android v1.151, web v1.86: TTS provider OpenRouter: POST https://openrouter.ai/api/v1/audio/speech
+  {model, input, voice, response_format, speed?} (Bearer; web via /stt/openrouter proxy). Models + voices + formats from
+  GET /api/v1/audio/speech/models (data[].output_modalities[type=speech].supported_parameters.voice.values /
+  response_format.values / speed); format mp3, else wav, else pcm wrapped as WAV (24 kHz, heygen 44.1 kHz); speed only
+  when listed. Default google/gemini-3.8-flash-tts, voice Kore. Key: own (ttsKey openrouter, synced as ttsOpenrouter),
+  else the «Другой ИИ» key when its base is openrouter.ai.
 
 - web v1.84 (iPad note feedback/20261124-032633-web.json, "import articles from the internet right from the browser, or at least by link"; example zeit.de): web/src/importer/article.ts extractArticle(doc) (og:title/h1; container [itemprop=articleBody]/article/main or the densest <p> block; p/h2-h4/li/blockquote without nav/aside/footer/figure/comments/share/footnotes/<style>; JSON-LD articleBody only when the DOM gives < 80% of it). Way 1: a Safari bookmarklet built from extractArticle copies "SatzLoop: <title> — done android v1.148: share a URL or selected text from Chrome to SatzLoop, or paste a URL / "SatzLoop:" text in Import; jsoup port of extractArticle, OkHttp fetch with the same rules.
 - note 21.11.2026 (feedback/20261121-102339-android) -> web v1.81: AI cleaning replaces gender pair forms

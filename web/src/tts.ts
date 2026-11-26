@@ -1,5 +1,5 @@
 // Text-to-speech ("Озвучка"): one engine for the whole app, with providers. 'system' is the device's own voice (free,
-// no network). The cloud ones (Gemini, OpenAI, ElevenLabs) are called with the user's key; their audio plays in a
+// no network). The cloud ones (Gemini, OpenAI, ElevenLabs, OpenRouter) are called with the user's key; their audio plays in a
 // separate <audio> element (primed inside the tap, so iPad lets it start later) and is cached on this device.
 // Contract for the reader: ttsSpeaking, ttsSpeak(text, lang), ttsStop().
 import { signal } from '@preact/signals'
@@ -15,12 +15,16 @@ export const ttsSpeaking = signal(false)
 /** Goes up when the device's voices are loaded (the settings page shows the voice found). */
 export const ttsVoicesReady = signal(0)
 
-export type TtsProvider = 'system' | 'gemini' | 'openai' | 'elevenlabs'
-const CLOUD: TtsProvider[] = ['gemini', 'openai', 'elevenlabs']
+export type TtsProvider = 'system' | 'gemini' | 'openai' | 'elevenlabs' | 'openrouter'
+const CLOUD: TtsProvider[] = ['gemini', 'openai', 'elevenlabs', 'openrouter']
 
 const GEMINI_API = 'https://generativelanguage.googleapis.com/v1beta'
 const GEMINI_FALLBACK_MODEL = 'gemini-2.5-flash-preview-tts'
 const ELEVEN_MODEL = 'eleven_multilingual_v2'
+/** OpenRouter speech through the site's proxy (functions/stt: /stt/openrouter/<path of openrouter.ai/api>). */
+const OPENROUTER_SPEECH = '/stt/openrouter/v1/audio/speech'
+export const OPENROUTER_DEFAULT_MODEL = 'google/gemini-3.8-flash-tts'
+export const OPENROUTER_DEFAULT_VOICE = 'Kore'
 const CACHE_MAX = 200
 /** Same silent file as audio.ts: starting it inside a tap unlocks the element on iPad / iPhone. */
 const SILENCE = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA='
@@ -79,7 +83,19 @@ export function ttsKeyFor(p: TtsProvider): string {
   if (p === 'gemini') return prefs.geminiKey.value.trim()
   if (p === 'openai') return sttKey('openai')
   if (p === 'elevenlabs') return sttKey('elevenlabs')
+  if (p === 'openrouter') return ttsOpenrouterKey()
   return ''
+}
+
+/** Where the OpenRouter speech key comes from: its own field, else the «Перевод и ИИ» key when that service is OpenRouter. */
+export function ttsOpenrouterKeySource(): 'own' | 'ai' | '' {
+  if (prefs.ttsKey_openrouter.value.trim()) return 'own'
+  return prefs.aiBase.value.includes('openrouter.ai') && prefs.aiKey.value.trim() ? 'ai' : ''
+}
+
+function ttsOpenrouterKey(): string {
+  const s = ttsOpenrouterKeySource()
+  return s === 'own' ? prefs.ttsKey_openrouter.value.trim() : s === 'ai' ? prefs.aiKey.value.trim() : ''
 }
 
 // --- system voice ---
@@ -229,14 +245,88 @@ async function fetchEleven(key: string, voice: string, text: string): Promise<Bl
   return r.blob()
 }
 
-/** Audio of [text] from a cloud provider: from the cache on this device, else fetched and cached. */
-async function cloudAudio(p: TtsProvider, text: string, rate: number): Promise<Blob> {
+/** A speech model of OpenRouter: its voices, response formats, and whether it takes the speed. */
+export type OrModel = { id: string; name: string; voices: string[]; formats: string[]; speed: boolean }
+
+let orCache: OrModel[] | null = null
+
+/** The speech models of OpenRouter with what each takes (from GET .../audio/speech/models); remembered once read. Throws when the list cannot be read. */
+export async function openrouterModels(): Promise<OrModel[]> {
+  if (orCache) return orCache
+  const r = await send('OpenRouter', `${OPENROUTER_SPEECH}/models`, { headers: openrouterHeaders() })
+  if (!r.ok) throw new Error(`OpenRouter: HTTP ${r.status} ${await failText(r)}`)
+  const o: any = await r.json()
+  const arr: any[] = Array.isArray(o?.data) ? o.data : Array.isArray(o) ? o : []
+  const strings = (x: unknown): string[] => (Array.isArray(x) ? x.map((v) => String(v).trim()).filter(Boolean) : [])
+  const out: OrModel[] = []
+  for (const m of arr) {
+    const id = String(m?.id ?? '').trim()
+    if (!id) continue
+    const speech = (Array.isArray(m.output_modalities) ? m.output_modalities : []).find((x: any) => x?.type === 'speech')
+    const sp: any = speech?.supported_parameters ?? {}
+    out.push({
+      id, name: String(m.name || id), voices: strings(sp.voice?.values), formats: strings(sp.response_format?.values), speed: !!sp.speed,
+    })
+  }
+  orCache = out
+  return out
+}
+
+/** The model's entry, or null when the list cannot be read (then: mp3, and the element applies the speed). */
+async function openrouterInfo(model: string): Promise<OrModel | null> {
+  try {
+    return (await openrouterModels()).find((m) => m.id === model) ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Audio in the format the model takes: mp3, else wav, else pcm (wrapped into WAV). Speed goes in the request only if the model takes it. */
+async function fetchOpenRouter(key: string, model: string, text: string, voice: string, rate: number, info: OrModel | null): Promise<Blob> {
+  const f = info?.formats ?? []
+  const format = f.length === 0 || f.includes('mp3') ? 'mp3' : f.includes('wav') ? 'wav' : 'pcm'
+  const body: Record<string, unknown> = { model, input: text, voice, response_format: format }
+  if (info?.speed) body.speed = rate
+  const r = await send('OpenRouter', OPENROUTER_SPEECH, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json', accept: 'audio/*' },
+    body: JSON.stringify(body),
+  })
+  if (!r.ok) throw new Error(`OpenRouter: HTTP ${r.status} ${await failText(r)}`)
+  if (format === 'pcm') return pcmToWav(new Uint8Array(await r.arrayBuffer()), model.startsWith('heygen/') ? 44100 : 24000)
+  return r.blob()
+}
+
+function openrouterHeaders(): Record<string, string> {
+  const key = ttsOpenrouterKey()
+  return { accept: 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) }
+}
+
+/** OpenRouter audio from the cache or the network. [sped]: the speed is already in the audio (else the element plays it faster). */
+async function openrouterAudio(key: string, text: string, rate: number): Promise<{ blob: Blob; sped: boolean }> {
+  const voice = prefs.ttsVoice_openrouter.value.trim() || OPENROUTER_DEFAULT_VOICE
+  const model = prefs.ttsModel_openrouter.value.trim() || OPENROUTER_DEFAULT_MODEL
+  const info = await openrouterInfo(model)
+  const sped = !!info?.speed
+  const cacheKey = ['openrouter', model, voice, rate, text].join('|')
+  const hit = await cacheGet(cacheKey)
+  if (hit) return { blob: hit, sped }
+  const blob = await fetchOpenRouter(key, model, text, voice, rate, info)
+  void cachePut(cacheKey, blob)
+  return { blob, sped }
+}
+
+/** Audio of [text] from a cloud provider: from the cache on this device, else fetched and cached. [sped]: the speed is already in the audio. */
+async function cloudAudio(p: TtsProvider, text: string, rate: number): Promise<{ blob: Blob; sped: boolean }> {
   const key = ttsKeyFor(p)
-  const names: Record<string, string> = { gemini: 'Gemini', openai: 'OpenAI', elevenlabs: 'ElevenLabs' }
+  const names: Record<string, string> = { gemini: 'Gemini', openai: 'OpenAI', elevenlabs: 'ElevenLabs', openrouter: 'OpenRouter' }
   if (!key) {
-    const where = p === 'gemini' ? '⚙ Перевод и ИИ' : '⚙ Распознавание речи'
+    const where = p === 'gemini' ? '⚙ Перевод и ИИ'
+      : p === 'openrouter' ? '⚙ Озвучка или ⚙ Перевод и ИИ'
+      : '⚙ Распознавание речи'
     throw new Error(`Нет ключа для озвучки: ${names[p]} (${where})`)
   }
+  if (p === 'openrouter') return openrouterAudio(key, text, rate)
   const voice = p === 'gemini' ? prefs.ttsVoice_gemini.value
     : p === 'openai' ? prefs.ttsVoice_openai.value
     : prefs.ttsVoice_elevenlabs.value.trim()
@@ -247,12 +337,12 @@ async function cloudAudio(p: TtsProvider, text: string, rate: number): Promise<B
   // only OpenAI takes the speed in the request; Gemini and ElevenLabs are sped up by the element, so the rate is not in their key
   const cacheKey = [p, model, voice, p === 'openai' ? rate : '', text].join('|')
   const hit = await cacheGet(cacheKey)
-  if (hit) return hit
+  if (hit) return { blob: hit, sped: p === 'openai' }
   const blob = p === 'gemini' ? await fetchGemini(key, model, text, voice)
     : p === 'openai' ? await fetchOpenAi(key, model, text, voice, rate)
     : await fetchEleven(key, voice, text)
   void cachePut(cacheKey, blob)
-  return blob
+  return { blob, sped: p === 'openai' }
 }
 
 // --- cache in IndexedDB: 'satzloop-tts', at most CACHE_MAX entries, the oldest go first ---
@@ -350,8 +440,8 @@ export function ttsSpeak(text: string, lang: string): void {
   }
   void (async () => {
     try {
-      const blob = await cloudAudio(provider, clean, rate)
-      await playCloud(a, blob, provider === 'openai' ? 1 : rate, token, onFail)
+      const { blob, sped } = await cloudAudio(provider, clean, rate)
+      await playCloud(a, blob, sped ? 1 : rate, token, onFail)
     } catch (e) {
       if (token === seq) logError('tts', `${provider} ✗`, e)
       onFail((e as Error).message || String(e))

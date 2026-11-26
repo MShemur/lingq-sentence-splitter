@@ -82,9 +82,13 @@ export const prefs = {
   sttProvider: pref('sttProvider', 'groq'),
   sttKeys: pref('sttKeys', '{}'),
   sttModels: pref('sttModels', '{}'),
-  /** Text-to-speech (Озвучка): 'system' (free, the device's voice), 'gemini', 'openai' or 'elevenlabs'; rate 0.5..1.5. */
+  /** Text-to-speech (Озвучка): 'system' (free, the device's voice), 'gemini', 'openai', 'elevenlabs' or 'openrouter'; rate 0.5..1.5. */
   ttsProvider: pref('ttsProvider', 'system'),
   ttsRate: pref('ttsRate', '1'),
+  /** OpenRouter speech key; '' = the «Перевод и ИИ» key when that service is openrouter.ai (tts.ts). */
+  ttsKey_openrouter: pref('ttsKey_openrouter', ''),
+  ttsModel_openrouter: pref('ttsModel_openrouter', 'google/gemini-3.8-flash-tts'),
+  ttsVoice_openrouter: pref('ttsVoice_openrouter', 'Kore'),
   /** Gemini TTS model: '' = the first "tts"+"flash" model of the key's list (tts.ts). */
   ttsModel_gemini: pref('ttsModel_gemini', ''),
   ttsVoice_gemini: pref('ttsVoice_gemini', 'Kore'),
