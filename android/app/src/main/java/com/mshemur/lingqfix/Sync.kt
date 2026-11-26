@@ -51,7 +51,7 @@ import java.util.Locale
  * - stats: {"<device>": {"<date>": [seconds, words, listenSeconds]}} — every device writes only its own part
  *   (seconds = all time, listening included; the third number may be missing in old data);
  * - seen: {"<lang>_<lessonId>": index} — max.
- * - secrets: {v, iter, salt, iv, ct, t} — the keys (LingQ, Gemini, other AI), encrypted with the sync password
+ * - secrets: {v, iter, salt, iv, ct, t} — the keys (LingQ, Gemini, other AI, speech keys, OpenRouter voice), encrypted with the sync password
  *   (PBKDF2-SHA256 → AES-256-GCM, tag appended to ct, base64); the later `t` wins. See [KeyVault].
  */
 class SyncService(private val app: AppState) {
@@ -217,6 +217,8 @@ class SyncService(private val app: AppState) {
                 val stt = JSONObject()
                 STT_PROVIDERS.forEach { s -> p.sttKey(s.id).takeIf { it.isNotBlank() }?.let { stt.put(s.id, it) } }
                 if (stt.length() > 0) o.put("stt", stt)
+                // OpenRouter voice key, only when set (older versions do not know it)
+                p.ttsKey("openrouter").takeIf { it.isNotBlank() }?.let { o.put("ttsOpenrouter", it) }
             }
     }
 
@@ -281,6 +283,7 @@ class SyncService(private val app: AppState) {
             if (v("aiModel").isNotEmpty()) aiModel = v("aiModel")
             if (k.has("aiFastModel")) aiFastModel = v("aiFastModel")
             k.optJSONObject("stt")?.let { o -> o.keys().forEach { id -> o.optString(id).trim().takeIf { it.isNotEmpty() }?.let { setSttKey(id, it) } } }
+            if (v("ttsOpenrouter").isNotEmpty()) setTtsKey("openrouter", v("ttsOpenrouter"))
         }
         val now = localKeys()
         val e = prefs.edit().putString("keysHash", hash(now.toString()))

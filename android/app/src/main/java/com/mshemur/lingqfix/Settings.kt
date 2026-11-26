@@ -201,6 +201,31 @@ fun SettingsTts(state: AppState) {
 
     LaunchedEffect(prov) { if (prov == "gemini") loadModels() }
 
+    // OpenRouter: the model catalogue (public list) and the voices of the chosen model
+    var orModels by remember { mutableStateOf<List<OrSpeechModel>>(emptyList()) }
+    var orLoading by remember { mutableStateOf(false) }
+    var orErr by remember { mutableStateOf<String?>(null) }
+    var orFilter by remember { mutableStateOf("") }
+    var orKey by remember { mutableStateOf(p.ttsKey("openrouter")) }
+    // voices of the chosen model come with the list (empty → text field)
+    val orVoices = orModels.firstOrNull { it.id == model }?.voices.orEmpty()
+
+    fun loadOrModels() {
+        orLoading = true
+        orErr = null
+        scope.launch {
+            try {
+                orModels = withContext(Dispatchers.IO) { OpenRouterTts.models() }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                orErr = e.message ?: "Ошибка"
+            }
+            orLoading = false
+        }
+    }
+
+    LaunchedEffect(prov) { if (prov == "openrouter" && orModels.isEmpty()) loadOrModels() }
+
     Page {
         Hint(
             "Озвучка текста в читалке. Системный голос бесплатен и работает без сети. Облачные голоса звучат естественнее, " +
@@ -221,6 +246,9 @@ fun SettingsTts(state: AppState) {
         HorizontalDivider()
         if (prov == "system") {
             Hint("Голос зависит от телефона. Немецкий можно докачать в настройках Android: «Синтез речи».")
+        } else if (prov == "openrouter") {
+            Hint(openRouterKeyNote(p))
+            SecretField(orKey, "Ключ OpenRouter", "SatzLoop: ключ OpenRouter") { orKey = it; p.setTtsKey("openrouter", it) }
         } else {
             val from = if (prov == "gemini") "ключ Gemini из «Перевод и ИИ»" else "ключ из «Распознавание речи» (${ttsProviderName(prov)})"
             Hint("Используется $from: " + if (keyOk) "задан." else "не задан, введите его в соответствующем разделе.")
@@ -232,6 +260,43 @@ fun SettingsTts(state: AppState) {
                 label = { Text("ID голоса") }, singleLine = true,
                 supportingText = { Text("Голос из библиотеки ElevenLabs, его ID в карточке голоса") },
             )
+        }
+        if (prov == "openrouter") {
+            Text("Модель", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            OutlinedTextField(
+                orFilter, { orFilter = it }, Modifier.fillMaxWidth(), label = { Text("Поиск модели") }, singleLine = true,
+            )
+            if (orLoading) CircularProgressIndicator()
+            else {
+                val q = orFilter.trim()
+                val shownModels = orModels.filter { m ->
+                    q.isEmpty() || q.lowercase() in m.name.lowercase() || q.lowercase() in m.id.lowercase()
+                }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    shownModels.forEach { m ->
+                        FilterChip(selected = model == m.id, label = { Text(m.name) }, onClick = { model = m.id; p.setTtsModel("openrouter", m.id) })
+                    }
+                }
+                if (orModels.isEmpty()) Hint("Список моделей пуст.")
+                else if (shownModels.isEmpty()) Hint("Нет моделей по запросу «$q».")
+                TextButton(onClick = { loadOrModels() }) { Text("Обновить список моделей") }
+            }
+            orErr?.let { Hint("Список моделей не загрузился: $it") }
+
+            Text("Голос", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+            if (orVoices.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    orVoices.forEach { v ->
+                        FilterChip(selected = voice == v, label = { Text(v) }, onClick = { voice = v; p.setTtsVoice("openrouter", v) })
+                    }
+                }
+            } else {
+                OutlinedTextField(
+                    voice, { v -> voice = v.trim(); p.setTtsVoice("openrouter", v) }, Modifier.fillMaxWidth(),
+                    label = { Text("ID голоса") }, singleLine = true,
+                    supportingText = { Text("У этой модели нет списка голосов — введите имя голоса") },
+                )
+            }
         }
         if (prov == "gemini" || prov == "openai") {
             Text("Голос", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
@@ -279,7 +344,7 @@ fun SettingsTts(state: AppState) {
             onValueChange = { v -> rate = Math.round(v * 10) / 10f; p.ttsRate = rate },
             valueRange = 0.5f..1.5f, steps = 9,
         )
-        Hint("Системный голос меняет скорость на телефоне, OpenAI — на сервере, у остальных — на телефоне.")
+        Hint("Системный голос меняет скорость на телефоне, OpenAI и OpenRouter — на сервере, у остальных — на телефоне.")
 
         HorizontalDivider()
         Button(

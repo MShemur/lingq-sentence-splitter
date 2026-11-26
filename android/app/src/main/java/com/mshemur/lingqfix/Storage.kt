@@ -234,10 +234,13 @@ class Prefs(ctx: Context) {
     var readerFont: Int
         get() = p.getInt("readerFont", 19)
         set(v) = p.edit().putInt("readerFont", v).apply()
-    /** Text to speech (Tts.kt): "system" (free), "gemini", "openai" or "elevenlabs". */
+    /** Text to speech (Tts.kt): "system" (free), "gemini", "openai", "elevenlabs" or "openrouter". */
     var ttsProvider: String
         get() = read("ttsProvider", "system")
         set(v) = write("ttsProvider", v)
+    /** Own key of a speech service (OpenRouter; blank = the key of «Другой ИИ» when that is OpenRouter). */
+    fun ttsKey(id: String) = read("ttsKey.$id")
+    fun setTtsKey(id: String, v: String) = write("ttsKey.$id", v.trim())
     /** Per service: model (Gemini: blank = resolved from the key's list) and voice (ElevenLabs: voice id). */
     fun ttsModel(id: String) = read("ttsModel.$id", TTS_MODEL_DEFAULT[id].orEmpty())
     fun setTtsModel(id: String, v: String) = write("ttsModel.$id", v.trim())
