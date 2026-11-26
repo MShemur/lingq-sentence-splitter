@@ -59,6 +59,10 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   response_format.values / speed); format mp3, else wav, else pcm wrapped as WAV (24 kHz, heygen 44.1 kHz); speed only
   when listed. Default google/gemini-3.8-flash-tts, voice Kore. Key: own (ttsKey openrouter, synced as ttsOpenrouter),
   else the «Другой ИИ» key when its base is openrouter.ai.
+  android v1.152, web v1.87: model set from GET /api/v1/models?output_modalities=speech (has the ":free" variants and
+  pricing); voices/formats from the speech list by id, else by base id (strip ":free", then "-free"). Price per minute
+  ≈ completion·1500 + prompt·250 when completion > 0 (audio tokens), else prompt·1000; chips «· бесплатно» / «· ~X ¢/мин»,
+  free first, then by price.
 
 - web v1.84 (iPad note feedback/20261124-032633-web.json, "import articles from the internet right from the browser, or at least by link"; example zeit.de): web/src/importer/article.ts extractArticle(doc) (og:title/h1; container [itemprop=articleBody]/article/main or the densest <p> block; p/h2-h4/li/blockquote without nav/aside/footer/figure/comments/share/footnotes/<style>; JSON-LD articleBody only when the DOM gives < 80% of it). Way 1: a Safari bookmarklet built from extractArticle copies "SatzLoop: <title> — done android v1.148: share a URL or selected text from Chrome to SatzLoop, or paste a URL / "SatzLoop:" text in Import; jsoup port of extractArticle, OkHttp fetch with the same rules.
 - note 21.11.2026 (feedback/20261121-102339-android) -> web v1.81: AI cleaning replaces gender pair forms
