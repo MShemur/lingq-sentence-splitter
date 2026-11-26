@@ -149,6 +149,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                 <div class="row">
                   <button class="btn text" onClick={() => items.forEach((i) => { i.selected.value = true })}>Выбрать все</button>
                   <button class="btn text" onClick={() => items.forEach((i) => { i.selected.value = false })}>Снять все</button>
+                  <button class="btn text" onClick={() => s.mergeSmall()}>Объединить мелкие главы</button>
                 </div>
               )}
               {items.map((it, i) => (
@@ -158,6 +159,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                     <input class="item-title" value={it.title.value} onInput={(e) => { it.title.value = (e.target as HTMLInputElement).value }} />
                     <div class="hint">{wordsLabel(countWords(it.text.value))}{it.pics.length ? ` · картинок: ${it.pics.length}` : ''}</div>
                   </div>
+                  {i < items.length - 1 && <IconButton icon="down" label="Объединить со следующей" onClick={() => s.mergeWithNext(i)} />}
                 </div>
               ))}
             </>

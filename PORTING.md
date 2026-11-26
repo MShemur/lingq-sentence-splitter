@@ -40,6 +40,20 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   importer/session.ts (picsOf, bookPics.save), reader/session.ts (pics), reader/Reader.tsx (Pics, PicViewer), styles.css.
 ## Done
 
+- user 26.11.2026 + note feedback/20261126-033025-web -> android v1.150, web v1.85 (both platforms):
+  1) Text-to-speech «Озвучка» (Settings → Сервисы, after «Распознавание речи»): providers system voice (free, default;
+  Android TextToSpeech, web speechSynthesis), Gemini (geminiKey; generateContent with responseModalities AUDIO,
+  PCM s16le 24 kHz → WAV; model = first «tts»+«flash» from the list, voices Kore/Puck/…), OpenAI (/v1/audio/speech,
+  STT openai key, web via /stt proxy), ElevenLabs (STT elevenlabs key, voice id). Prefs ttsProvider, ttsRate,
+  ttsModel/ttsVoice per provider. Cloud audio cached (Android filesDir/tts ≤ 50 MB, web IndexedDB 'satzloop-tts' ≤ 200).
+  Error / no key → message + system voice. Lesson player paused while speaking. Android: Tts.kt; web: tts.ts.
+  Reader: word card «Озвучить» (the «Жирным» chip is gone from the word card; phrase window keeps it), sentence mode ⋮
+  «Озвучить предложение» first, round speak button bottom-left in sentence mode; speech stops on page change / close.
+  Sentence edit dialog: Ж / К buttons toggle ** / * (*** both) on the selected whole words, selection kept.
+  2) EPUB import: per chapter «объединить со следующей», «Объединить мелкие главы» (< 300 words into the next one,
+  chained; the last small one into the previous). 3) web: EPUB picture + 3-line caption always fit on one page
+  (caption room = real caption metrics, caption max-height 3.9em, no 48 px floor for captioned pictures).
+
 - web v1.84 (iPad note feedback/20261124-032633-web.json, "import articles from the internet right from the browser, or at least by link"; example zeit.de): web/src/importer/article.ts extractArticle(doc) (og:title/h1; container [itemprop=articleBody]/article/main or the densest <p> block; p/h2-h4/li/blockquote without nav/aside/footer/figure/comments/share/footnotes/<style>; JSON-LD articleBody only when the DOM gives < 80% of it). Way 1: a Safari bookmarklet built from extractArticle copies "SatzLoop: <title> — done android v1.148: share a URL or selected text from Chrome to SatzLoop, or paste a URL / "SatzLoop:" text in Import; jsoup port of extractArticle, OkHttp fetch with the same rules.
 - note 21.11.2026 (feedback/20261121-102339-android) -> web v1.81: AI cleaning replaces gender pair forms
   («Mathematikerinnen und Mathematiker», «Lehrer*innen», «Lehrer:innen», «LehrerInnen») with one plain form. Prompt

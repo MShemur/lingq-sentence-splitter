@@ -56,12 +56,15 @@ Prompts page: field order differs (Android: …Чат о предложении,
 | — Как пользоваться · Отзыв / задача · — · Удалить урок… (red) | **Помощь**: Как пользоваться · Отзыв / задача |
 
 ### 1.5 Sentence mode ⋮
-- Android: Редактировать предложение · Слушать отсюда · Отзыв / задача · — · Размер текста row.
+- Android: **Озвучить предложение** · Редактировать предложение · Слушать отсюда · Отзыв / задача · — · Размер текста row. Plus a round speaker button at the bottom-left of the sentence page (above the system bars): speaks the sentence, shows Stop while it speaks; speech stops when the mode closes or the page changes.
 - Web: «Предложение»: Редактировать предложение · Слушать отсюда · — «Текст»: Крупнее A+ · Мельче A− · — Отзыв / задача.
+  [W] done: **Озвучить предложение** is the first item of ⋮, and a round speaker button at the bottom-left of the sentence page (Стоп while it speaks); both stop when the mode closes or the page changes.
 
 ### 1.6 Word menus
 - Android long press (text and sentence mode; double tap in book mode): [book: Перевод слова] · Перевод предложения · В закладки · [book: Слово жирным] · **Исправить предложение** · Слушать отсюда · Чат о предложении.
+- Android word window (card, under the translations): Перевод предложения · Закладка · Спросить · **Озвучить** (speaks the word; the same button shows Стоп while it speaks). The «Жирным» button is gone from the card; the long-press item «Сделать жирным» stays. The phrase window keeps «Жирным».
 - Web: no long-press menu in text mode (user's iPad wish, ROADMAP web v1.38: long press = sentence translation). Book-mode double tap: Перевод слова · Перевод предложения · Закладка на предложение · Чат о предложении · Сделать жирным (no Исправить / Слушать отсюда).
+- [W] done, word card on web: Перевод · Закладка · Спросить · **Озвучить** (Стоп while speaking). «Жирным» is gone from the card (the phrase card keeps it).
 - Player long press: Перевод слова · Перевод предложения · Начало повтора · Конец повтора (same on both).
 
 ### 1.7 Player
@@ -130,19 +133,20 @@ Source tiles as now. [A] at the bottom: section «Уже на LingQ» with the f
 1. Аккаунт LingQ — «Ключ задан · язык de»
 2. **Перевод и ИИ** — «Gemini · model → ru» (page gets a last row **«Промпты ИИ ›»**)
 3. Распознавание речи — «Groq · ключ задан»
+4. **Озвучка** [A][W] — «Системный голос · 1,0×» / «Gemini · ключ задан · 1,0×» (page: Сервис: Системный голос — бесплатно / Gemini / OpenAI / ElevenLabs; строка про ключ; голос (чипы, ElevenLabs — поле ID); модель Gemini из списка ключа, OpenAI — чипы; скорость 0,5–1,5×; «Прослушать пример». [A]: полноэкранное окно поверх списка)
 
 **Чтение и звук**
-4. Чтение — «<фон> · выделение: <цвет>»
-5. **Плеер** [A] — «Наушники · кэш аудио N МБ» (page: «Кнопка «вперёд» читает перевод» + «Очистить кэш аудио»)
+5. Чтение — «<фон> · выделение: <цвет>»
+6. **Плеер** [A] — «Наушники · кэш аудио N МБ» (page: «Кнопка «вперёд» читает перевод» + «Очистить кэш аудио»)
 
 **Данные**
-6. Синхронизация — «Включена» / «Выключена» / «Ошибка» (page also holds **Токен GitHub** on both)
-7. Резервные копии — «Вернуть урок к версии до исправления»
+7. Синхронизация — «Включена» / «Выключена» / «Ошибка» (page also holds **Токен GitHub** on both)
+8. Резервные копии — «Вернуть урок к версии до исправления»
 
 **Приложение**
-8. Обновления — [A] «Версия vN» → page: version, Проверить обновления, Установить (token: a hint + link to Синхронизация if missing); [W] info row, not clickable: «SatzLoop для iPad vN · обновляется сама»
-9. Журнал действий — «Для сообщения об ошибке · хранится 2 дня»
-10. Отзыв / задача — «Написать, что поправить; Claude отвечает здесь»
+9. Обновления — [A] «Версия vN» → page: version, Проверить обновления, Установить (token: a hint + link to Синхронизация if missing); [W] info row, not clickable: «SatzLoop для iPad vN · обновляется сама»
+10. Журнал действий — «Для сообщения об ошибке · хранится 2 дня»
+11. Отзыв / задача — «Написать, что поправить; Claude отвечает здесь»
 
 [W] keeps its footer hint about keys stored in the browser.
 
@@ -191,15 +195,18 @@ Deliberate shortcuts: «Книжный режим» (also in Settings → Чте
 2. Слушать отсюда (sentence has a time)
 — 3. Размер текста  A−  18  A+ (one row)
 — 4. Отзыв / задача
+(0. **Озвучить предложение**, first item; the bottom-left speaker button does the same.) [W] done on web.
 
 ### 3.9 Word menu (long press; double tap in book mode)
 1. Перевод слова (book mode only)
 2. Перевод предложения / Скрыть перевод предложения
 3. **В закладки** / Убрать закладку
 4. **Сделать жирным** / Убрать жирный (book mode only)
-5. Исправить предложение
+5. Исправить предложение (edit dialog: **Ж** / **К** buttons above the text wrap the selected words in bold / italic, or take it off; no selection = the word under the cursor) [W] done on web (same rules).
 6. Слушать отсюда (sentence has a time)
 7. Чат о предложении
+
+Word window card (not the long-press menu): Перевод предложения · Закладка · Спросить · **Озвучить** (Стоп while speaking). [W] done on web.
 
 Same on both (user confirmed 18.11.2026): in text mode a long press = sentence translation (long press + drag = phrase), no menu;
 the book-mode double-tap menu uses the full list above. The player keeps its long-press menu.

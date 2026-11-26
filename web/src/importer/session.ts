@@ -216,6 +216,46 @@ export class ImportSession {
     this.loading.value = false; this.status.value = ''
   }
 
+  // --- chapters: merging (EPUB and other multi-part sources) ---
+
+  /** The undo snapshot is by index: after a merge it no longer fits, so it goes. */
+  private resetUndo() { this.before = null; this.canUndo.value = false }
+
+  /** Chapter i takes chapter i+1 after it (text, pictures); the title of i stays, i+1 is removed. */
+  mergeWithNext(i: number) {
+    const list = this.items.value
+    const a = list[i], b = list[i + 1]
+    if (!a || !b) return
+    const m = new ImportItem(a.title.value, a.text.value + '\n\n' + b.text.value, true, [...a.pics, ...b.pics])
+    this.items.value = [...list.slice(0, i), m, ...list.slice(i + 2)]
+    this.resetUndo()
+  }
+
+  /** Chapters under 300 words go into the next one (chained: a receiver still small moves on); the last small one
+   * goes into the previous chapter. The receiver keeps its title. */
+  mergeSmall() {
+    const src = this.items.value
+    const out: ImportItem[] = []
+    let carry: ImportItem | null = null // a small chapter waiting to join the next one
+    const join = (a: ImportItem, b: ImportItem) => new ImportItem(b.title.value, a.text.value + '\n\n' + b.text.value, true, [...a.pics, ...b.pics])
+    for (const it of src) {
+      const cur: ImportItem = carry ? join(carry, it) : it
+      carry = null
+      if (countWords(cur.text.value) < 300) carry = cur
+      else out.push(cur)
+    }
+    if (carry) {
+      const c: ImportItem = carry
+      if (out.length) {
+        const prev = out[out.length - 1]
+        out[out.length - 1] = new ImportItem(prev.title.value, prev.text.value + '\n\n' + c.text.value, true, [...prev.pics, ...c.pics])
+      } else out.push(c)
+    }
+    const n = src.length - out.length
+    if (n > 0) { this.items.value = out; this.resetUndo() }
+    say(`Объединено глав: ${n}`)
+  }
+
   // --- PDF: which pages ---
 
   /** A PDF of several pages waiting for the page choice (the picker sheet is open). */

@@ -4,7 +4,7 @@ import { CoursesScreen, LessonsView } from './screens/Library'
 import { ReaderScreen } from './reader/Reader'
 import { ChatScreen } from './screens/Chat'
 import { BookmarksScreen } from './screens/Bookmarks'
-import { SettingsLingq, SettingsLog, SettingsPrompts, SettingsReading, SettingsRoot, SettingsSpeech, SettingsSync, SettingsTranslation } from './screens/Settings'
+import { SettingsLingq, SettingsLog, SettingsPrompts, SettingsReading, SettingsRoot, SettingsSpeech, SettingsSync, SettingsTranslation, SettingsTts } from './screens/Settings'
 import { autoSync } from './sync'
 import { BackupsScreen, ImportScreen } from './screens/Import'
 import { CheckScreen } from './screens/Check'
@@ -30,6 +30,7 @@ function view(screen: Screen) {
     case 'settingsLingq': return <SettingsLingq />
     case 'settingsTranslation': return <SettingsTranslation />
     case 'settingsSpeech': return <SettingsSpeech />
+    case 'settingsTts': return <SettingsTts />
     case 'podcasts': return <PodcastsScreen s={screen} />
     case 'podcastFeed': return <PodcastFeedScreen s={screen.s} />
     case 'settingsPrompts': return <SettingsPrompts />

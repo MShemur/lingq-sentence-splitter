@@ -248,9 +248,9 @@ div.list-item { cursor: default; }
 .para { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 /* PDF book: «Подпись к картинке» / «Врезка» over a paragraph from a caption / box (display only, measured with it) */
 .para-label { font-size: 0.62em; line-height: 1.3; letter-spacing: 0.02em; color: var(--outline); font-style: normal; text-indent: 0; text-align: left; }
-.para-pic { margin: 0.4em 0 0.7em; text-indent: 0; text-align: center; cursor: zoom-in; }
-.para-pic img { display: block; margin: 0 auto; height: auto; border-radius: 4px; }
-.para-pic figcaption { margin-top: 0.35em; font-size: 0.62em; line-height: 1.3; color: var(--outline); font-style: normal; text-align: center; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.para-pic { margin: 0.4em 0 0.7em; text-indent: 0; text-align: center; cursor: zoom-in; max-width: 100%; min-width: 0; }
+.para-pic img { display: block; margin: 0 auto; height: auto; max-width: 100%; border-radius: 4px; }
+.para-pic figcaption { margin-top: 0.35em; font-size: 0.62em; line-height: 1.3; color: var(--outline); font-style: normal; text-align: center; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; max-height: 3.9em; }
 .pic-viewer { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.92); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
 .pic-viewer img { max-width: 100%; max-height: calc(100% - 4em); object-fit: contain; }
 .pic-viewer-cap { margin-top: 0.8em; color: #ddd; font-size: 15px; text-align: center; max-width: 60em; }
@@ -334,6 +334,24 @@ div.list-item { cursor: default; }
 .tr-toggle:active { background: color-mix(in srgb, var(--primary) 12%, transparent); }
 .tr-chevron { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 .tr-toggle.open .tr-chevron { transform: rotate(180deg); }
+/* sentence mode: round speaker button at the bottom-left (Material tonal; Stop = filled while it speaks) */
+.sm-speak {
+  position: absolute; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 6;
+  width: 48px; height: 48px; border-radius: 50%; border: 0; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; background: var(--secondary-container); color: var(--on-secondary-container); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.sm-speak:active { filter: brightness(0.92); }
+.sm-speak.on { background: var(--primary); color: var(--on-primary); }
+/* edit sentence dialog: Ж / К above the text */
+.sty-row { display: flex; gap: 6px; }
+.sty-btn {
+  min-width: 40px; height: 32px; padding: 0 10px; border-radius: 16px; border: 1px solid var(--outline);
+  background: none; color: var(--primary); font-size: 15px; cursor: pointer;
+}
+.sty-btn.b { font-weight: 700; }
+.sty-btn.i { font-style: italic; }
+.sty-btn:active { background: color-mix(in srgb, var(--primary) 12%, transparent); }
+.sty-btn:disabled { opacity: 0.4; }
 
 /* reader with the docked word panel at the right */
 .reader-body { display: flex; }

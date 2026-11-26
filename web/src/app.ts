@@ -59,6 +59,7 @@ export type Screen =
   | { k: 'settingsLingq' }
   | { k: 'settingsTranslation' }
   | { k: 'settingsSpeech' }
+  | { k: 'settingsTts' }
   | PodcastSession
   | { k: 'podcastFeed'; s: PodcastSession }
   | { k: 'settingsPrompts' }

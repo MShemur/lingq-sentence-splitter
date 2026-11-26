@@ -14,12 +14,13 @@ import { prefs } from '../settings'
 import { Chip, Dialog, ErrorBox, IconButton, LinearProgress, Loading, Menu, MenuFontRow, MenuItem, ProgressPill, Sheet, Spinner, TopBar } from '../ui'
 import { LessonBookmarksDialog } from '../screens/Bookmarks'
 import { ReaderHelp } from './Help'
-import { ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef, refToken } from './session'
+import { emphSpans, ref as wordRef, refSent, type ReaderSession, type Sent, type Token, type WordRef, refToken } from './session'
 import { isBigPic, type ShownPic } from '../bookpics'
 import { playLesson } from '../player'
 import { levelName } from '../lingq'
 import { LessonDeleteDialog } from '../screens/CourseEdit'
 import { PdfReader } from './PdfReader'
+import { ttsSpeak, ttsSpeaking, ttsStop } from '../tts'
 
 /** A long-press selection is being dragged: the page must not scroll under the finger (iOS). */
 let selecting = false
@@ -550,13 +551,17 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     const cs = getComputedStyle(box)
     const h = size.h - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
     // the room for all pictures of a paragraph: the text height less one text line, never negative (CSS divides it
-    // between the pictures of a paragraph and takes the caption room and margins off; each picture is at least 48px).
+    // between the pictures of a paragraph and takes the caption room and margins off; a picture without a caption
+    // is at least 48px, one with a caption may shrink to 0 so that its caption never goes below the page).
     // Set on the measuring box and on the pager alike, so a picture is laid out here as on the page.
     const fsPx = Number(prefs.readerFont.value) || 18
     const picMaxH = Math.max(0, h - fsPx * 1.6 * lineMul())
+    // a caption's real height: at most 3 lines (CSS line clamp) of 0.62em at line-height 1.3, plus its 0.35em margin above
+    const capEm = fsPx * 0.62
+    const capRoom = capEm * 1.3 * 3 + capEm * 0.35
     for (const el of [box, pager.current]) {
       el?.style.setProperty('--pic-max-h', picMaxH + 'px')
-      el?.style.setProperty('--pic-cap-room', fsPx * 3 + 'px')
+      el?.style.setProperty('--pic-cap-room', capRoom.toFixed(2) + 'px')
     }
     // the picture limit goes into the cache key only when the lesson has pictures (text heights do not depend on it)
     const hasPics = s.pics.value.before.size + s.pics.value.after.size > 0
@@ -739,10 +744,12 @@ function Pics({ s, list, n }: { s: ReaderSession; list?: ShownPic[]; n: number }
     <>
       {list.map((p, i) => {
         // the height limit: the page's text height (--pic-max-h, set by TextView; 42vh / 70vh elsewhere) divided between
-        // the pictures of the paragraph, less the caption room, the picture's margins (--fs * 1.2) and the .para gap
-        // (6px, above and below it) with 2px to spare; at least 48px
+        // the pictures of the paragraph, less the caption's real height (--pic-cap-room: 3 lines), the picture's margins
+        // (0.4em + 0.7em = 1.1 * --fs) and the .para gaps (6px above and below it: 12px) with 2px to spare. A picture with
+        // a caption may shrink to 0 so the caption stays on the page; without one it is at least 48px.
         const room = p.cap ? ' - var(--pic-cap-room, 0px)' : ''
-        const maxH = `max(48px, calc(var(--pic-max-h, ${isBigPic(p.w, p.h) ? '70vh' : '42vh'}) / ${n}${room} - var(--fs, 18px) * 1.2 - 8px))`
+        const floor = p.cap ? '0px' : '48px'
+        const maxH = `max(${floor}, calc(var(--pic-max-h, ${isBigPic(p.w, p.h) ? '70vh' : '42vh'}) / ${n}${room} - var(--fs, 18px) * 1.2 - 14px))`
         const ratio = (p.w / p.h).toFixed(4)
         // a page illustration grows to the column / page (no natural-width cap); a small one keeps its pixel size at most
         const width = isBigPic(p.w, p.h) ? `min(100%, calc(${maxH} * ${ratio}))` : `min(100%, ${p.w}px, calc(${maxH} * ${ratio}))`
@@ -1063,6 +1070,15 @@ function PinnedWordsDialog({ s }: { s: ReaderSession }) {
   )
 }
 
+/** Reads the sentence aloud (its plain text; the markup stars are not read). */
+function speakSent(s: ReaderSession, id: number) {
+  const x = s.sentences.value.find((y) => y.id === id)
+  if (x) ttsSpeak(x.plain, s.lang)
+}
+
+const SPEAKER_PATH = 'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z'
+const STOP_PATH = 'M6 6h12v12H6z'
+
 /** Sentence mode ⋮: correct the sentence, listen from it, text size, feedback. */
 function SentenceMenu({ s, id }: { s: ReaderSession; id: number }) {
   const [open, setOpen] = useState(false)
@@ -1072,6 +1088,7 @@ function SentenceMenu({ s, id }: { s: ReaderSession; id: number }) {
       <IconButton icon="more" label="Ещё" onClick={() => setOpen(true)} />
       {open && (
         <Menu onClose={close}>
+          <MenuItem icon="play" onClick={() => { close(); speakSent(s, id) }}>Озвучить предложение</MenuItem>
           <MenuItem icon="edit" onClick={() => { close(); s.startEdit(id) }}>Исправить предложение</MenuItem>
           {s.hasTime(id) && <MenuItem icon="headphones" onClick={() => { close(); s.listenFrom(id) }}>Слушать отсюда</MenuItem>}
           <hr />
@@ -1084,14 +1101,103 @@ function SentenceMenu({ s, id }: { s: ReaderSession; id: number }) {
   )
 }
 
+const isLetterCh = (c: string | undefined) => !!c && /[\p{L}\p{N}]/u.test(c)
+const isWordCh = (c: string | undefined) => isLetterCh(c) || c === '’' || c === "'" || c === '-'
+
+/**
+ * Bold (bit 1) or italic (bit 2) on the words of [from, to) in the lesson markup (** / * / ***, read as the reader
+ * reads them: emphSpans). The words are taken whole; all of them with the style -> it is taken off, else put on.
+ * The markers of the spans that touch the words are rewritten; the rest of the text is not touched.
+ * Returns the new text and the selection of the same words in it, or null when there is no word.
+ */
+function styleMarkup(text: string, from: number, to: number, bit: number): { text: string; start: number; end: number } | null {
+  let a = from, b = to
+  while (a > 0 && isWordCh(text[a - 1])) a--
+  while (b < text.length && isWordCh(text[b])) b++
+  let hasLetter = false
+  for (let k = a; k < b; k++) if (isLetterCh(text[k])) { hasLetter = true; break }
+  if (!hasLetter) return null
+  const spans = emphSpans(text)
+  // a span that touches the words is rewritten as a whole
+  let A = a, E = b
+  for (let changed = true; changed;) {
+    changed = false
+    for (const x of spans) {
+      if (x.end <= A || x.at >= E) continue
+      if (x.at < A) { A = x.at; changed = true }
+      if (x.end > E) { E = x.end; changed = true }
+    }
+  }
+  const mark = new Uint8Array(E - A), st = new Uint8Array(E - A) // mark: marker char; st: bit 1 bold, 2 italic
+  for (const x of spans) {
+    if (x.end <= A || x.at >= E) continue
+    const bits = (x.mk.length >= 2 ? 1 : 0) | (x.mk.length === 1 || x.mk.length === 3 ? 2 : 0)
+    for (let k = x.at; k < x.end; k++) {
+      if (k < x.cs || k >= x.ce) mark[k - A] = 1
+      else st[k - A] |= bits
+    }
+  }
+  const idx: number[] = [] // the text without the markers
+  for (let k = A; k < E; k++) if (!mark[k - A]) idx.push(k)
+  const inSel = (k: number) => k >= a && k < b
+  const letters = idx.filter((k) => inSel(k) && isLetterCh(text[k]))
+  const on = !letters.every((k) => (st[k - A] & bit) !== 0)
+  for (const k of idx) if (inSel(k)) st[k - A] = on ? st[k - A] | bit : st[k - A] & ~bit
+  // markup again: one run of equal style per pair of markers, the markers stay outside the spaces at its edges
+  let out = ''
+  const pos = new Map<number, number>()
+  for (let i = 0; i < idx.length;) {
+    const f = st[idx[i] - A]
+    let j = i
+    while (j < idx.length && st[idx[j] - A] === f) j++
+    const chars = idx.slice(i, j)
+    const seg = chars.map((k) => text[k]).join('')
+    const mk = f === 3 ? '***' : f === 1 ? '**' : f === 2 ? '*' : ''
+    const core = seg.trim()
+    const outStart = out.length
+    if (!mk || !core) {
+      out += seg
+      chars.forEach((k, q) => pos.set(k, outStart + q))
+    } else {
+      const lead = seg.length - seg.trimStart().length
+      const cut = lead + core.length
+      out += seg.slice(0, lead) + mk + core + mk + seg.slice(cut)
+      chars.forEach((k, q) => pos.set(k, outStart + (q < lead ? q : q < cut ? q + mk.length : q + 2 * mk.length)))
+    }
+    i = j
+  }
+  const wordsIn = idx.filter((k) => inSel(k) && isWordCh(text[k]))
+  if (!wordsIn.length) return null
+  return {
+    text: text.slice(0, A) + out + text.slice(E),
+    start: A + (pos.get(wordsIn[0]) ?? 0),
+    end: A + (pos.get(wordsIn[wordsIn.length - 1]) ?? 0) + 1,
+  }
+}
+
 /** Window to correct a sentence and its translation; saving writes them into the lesson on LingQ. */
 function SentenceEditDialog({ s, id }: { s: ReaderSession; id: number }) {
   const sent = s.sentences.value.find((x) => x.id === id)
   const [text, setText] = useState(sent?.text ?? '')
   const [tr, setTr] = useState(() => s.shownTranslation(id))
+  const taRef = useRef<HTMLTextAreaElement>(null)
   if (!sent) return null
   const saving = s.editSaving.value
   const close = () => { if (!saving) s.editing.value = null }
+  /** Ж / К: the selection (or the word under the caret) gets the style; the selection stays on the same words. */
+  const style = (bit: number) => {
+    const ta = taRef.current
+    if (!ta) return
+    const r = styleMarkup(text, ta.selectionStart, ta.selectionEnd, bit)
+    if (!r) return
+    setText(r.text)
+    requestAnimationFrame(() => {
+      if (document.activeElement !== ta) ta.focus()
+      ta.setSelectionRange(r.start, r.end)
+    })
+  }
+  // the buttons must not take the focus (and the selection) from the textarea
+  const keep = (e: Event) => e.preventDefault()
   return (
     <Dialog title="Исправить предложение" onClose={close} actions={<>
       <button class="btn text" disabled={saving} onClick={close}>Отмена</button>
@@ -1102,7 +1208,13 @@ function SentenceEditDialog({ s, id }: { s: ReaderSession; id: number }) {
       <div class="edit-sent">
         <label class="field">
           <span>Предложение</span>
-          <textarea rows={3} value={text} disabled={saving} onInput={(e) => setText((e.target as HTMLTextAreaElement).value)} />
+          <div class="sty-row">
+            <button type="button" class="sty-btn b" aria-label="Жирным" title="Жирным" disabled={saving}
+              onPointerDown={keep} onMouseDown={keep} onClick={() => style(1)}>Ж</button>
+            <button type="button" class="sty-btn i" aria-label="Курсивом" title="Курсивом" disabled={saving}
+              onPointerDown={keep} onMouseDown={keep} onClick={() => style(2)}>К</button>
+          </div>
+          <textarea ref={taRef} rows={3} value={text} disabled={saving} onInput={(e) => setText((e.target as HTMLTextAreaElement).value)} />
         </label>
         <label class="field">
           <span>Перевод</span>
@@ -1139,6 +1251,20 @@ function RetranslateButton({ s, id }: { s: ReaderSession; id: number }) {
   return <IconButton icon="refresh" label="Перевести заново" size={20} class="small primary" onClick={() => void s.retranslate(id)} />
 }
 
+/** Round speaker button at the bottom-left of sentence mode: reads the sentence; a stop button while it speaks. */
+function SpeakSentence({ s, id }: { s: ReaderSession; id: number }) {
+  const on = ttsSpeaking.value
+  const label = on ? 'Стоп' : 'Озвучить предложение'
+  return (
+    <button class={'sm-speak' + (on ? ' on' : '')} aria-label={label} title={label}
+      onClick={() => (on ? ttsStop() : speakSent(s, id))}>
+      <svg width={24} height={24} viewBox="0 0 24 24" aria-hidden="true">
+        <path d={on ? STOP_PATH : SPEAKER_PATH} fill="currentColor" />
+      </svg>
+    </button>
+  )
+}
+
 /** Sentence mode lies over the text: slides up from the bottom, the arrow collapses it back. */
 function SentenceOverlay({ s }: { s: ReaderSession }) {
   const open = s.sentenceMode.value && s.sentences.value.length > 0
@@ -1147,6 +1273,12 @@ function SentenceOverlay({ s }: { s: ReaderSession }) {
   useEffect(() => {
     if (open) setMounted(true)
     else { const t = setTimeout(() => setMounted(false), 500); return () => clearTimeout(t) }
+  }, [open])
+  // closing sentence mode stops the voice
+  const wasOpen = useRef(open)
+  useEffect(() => {
+    if (wasOpen.current && !open) ttsStop()
+    wasOpen.current = open
   }, [open])
   return (
     <div class={'sentence-overlay' + (open ? ' open' : '')} aria-hidden={!open}>
@@ -1193,6 +1325,13 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
   }
   // opened, or the page changed from outside (bookmark): show it
   useLayoutEffect(() => { if (open) snap() }, [open, page])
+  // another sentence: the voice of the old one stops
+  const lastPage = useRef(page)
+  useEffect(() => {
+    if (lastPage.current === page) return
+    lastPage.current = page
+    ttsStop()
+  }, [page])
   // sentence mode remembers where reading stopped too
   useEffect(() => { const c = list[page]; if (open && c) s.savePos(c.id, c.id) }, [open, page])
   // the page width changes with the window and when the word panel is docked / undocked
@@ -1252,6 +1391,7 @@ function SentencePager({ s, open }: { s: ReaderSession; open: boolean }) {
         ))}
       </div>
       <TurnButtons at={page} count={list.length} turn={turn} />
+      {cur && <SpeakSentence s={s} id={cur.id} />}
       </div>
       {/* the docked word panel stays beside the sentence (sentence mode lies over the text view and its panel) */}
       {docked() && <DockedPanel s={s} />}
@@ -1339,7 +1479,8 @@ function WordContent({ s, r, head }: { s: ReaderSession; r: WordRef; head?: JSX.
         {!tr && <Chip icon="translate" label="Перевод" onClick={() => (docked() ? s.ensureSentence(sid) : s.toggleSentence(sid))} />}
         <Chip icon={marked ? 'bookmark' : 'bookmarkBorder'} label={marked ? 'В закладках' : 'Закладка'} onClick={() => s.toggleBookmark(sid)} />
         <Chip icon="chat" label="Спросить" onClick={() => s.chatWord(sid, word)} />
-        <BoldChip s={s} id={sid} from={refToken(r)} to={refToken(r)} />
+        <Chip icon={ttsSpeaking.value ? undefined : 'play'} label={ttsSpeaking.value ? 'Стоп' : 'Озвучить'}
+          onClick={() => (ttsSpeaking.value ? ttsStop() : ttsSpeak(word, s.lang))} />
       </div>
     </div>
   )

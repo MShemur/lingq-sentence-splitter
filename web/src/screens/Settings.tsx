@@ -13,6 +13,7 @@ import { Chip, Dialog, IconButton, ListItem, Loading, SecretField, Spinner, Text
 import { FACES, HIGHLIGHTS, KEEP_AWAKE, READER_THEMES, darkPage, grainImage, highlightColors, highlightOf, themeOf } from '../readerLook'
 import { groqSummary, STT_PRICES_CHECKED, STT_PROVIDERS, setSttKey, setSttModel, sttCost, sttHourPrice, sttKey, sttModel, sttPrice, sttProvider } from '../importer/stt'
 import { clearLog, lastLines, log, logText, logVersion } from '../applog'
+import { geminiTtsModels, ttsKeyFor, ttsSpeak, ttsSpeaking, ttsStop, ttsSystemVoiceName, ttsVoicesReady, type TtsProvider } from '../tts'
 
 declare const __BUILD__: string
 declare const __VERSION__: string
@@ -56,6 +57,9 @@ export function SettingsRoot() {
         <Section icon="mic" title="Распознавание речи"
           summary={`${sttProvider(prefs.sttProvider.value).name} · ${sttKey(sttProvider(prefs.sttProvider.value).id) ? 'ключ задан' : 'ключ не задан'}`}
           onClick={() => go({ k: 'settingsSpeech' })} />
+        <Section icon="play" title="Озвучка"
+          summary={`${TTS_NAMES[ttsCur()]}${ttsCur() === 'system' ? '' : ttsKeyFor(ttsCur()) ? ' · ключ задан' : ' · ключ не задан'}`}
+          onClick={() => go({ k: 'settingsTts' })} />
         <Group>Чтение и звук</Group>
         <Section icon="palette" title="Чтение"
           summary={`${themeOf(prefs.readerTheme.value)?.name ?? 'Цвета системы'} · выделение: ${highlightOf(prefs.highlight.value).name.toLowerCase()}`}
@@ -270,6 +274,125 @@ export function SettingsSpeech() {
       <Hint>
         Аудио уходит в выбранный сервис через прокси этого сайта (он ничего не хранит). Ключи синхронизируются с
         телефоном зашифрованными, если задан пароль синхронизации.
+      </Hint>
+    </Page>
+  )
+}
+
+const TTS_NAMES: Record<TtsProvider, string> = { system: 'Системный голос', gemini: 'Gemini', openai: 'OpenAI', elevenlabs: 'ElevenLabs' }
+const TTS_GEMINI_VOICES = ['Kore', 'Puck', 'Charon', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr']
+const TTS_OPENAI_VOICES = ['alloy', 'ash', 'coral', 'echo', 'nova', 'onyx', 'sage', 'shimmer']
+const TTS_OPENAI_MODELS = ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd']
+const TTS_SAMPLE = 'Guten Tag! Das ist ein Beispiel.'
+
+/** The provider in use; an unknown saved value counts as the system voice. */
+const ttsCur = (): TtsProvider => {
+  const v = prefs.ttsProvider.value
+  return v === 'gemini' || v === 'openai' || v === 'elevenlabs' ? v : 'system'
+}
+
+/** Settings → Озвучка: provider, voice, Gemini model, speed, a sample. Keys live in their own screens. */
+export function SettingsTts() {
+  void ttsVoicesReady.value // re-render when the device's voices are loaded
+  const cur = ttsCur()
+  const [models, setModels] = useState<string[] | null>(null)
+  const [loadingModels, setLoadingModels] = useState(false)
+  const loadModels = async () => {
+    setLoadingModels(true)
+    try {
+      setModels(await geminiTtsModels())
+    } catch (e) {
+      say(errorText(e))
+    } finally {
+      setLoadingModels(false)
+    }
+  }
+  const key = cur === 'system' ? '' : ttsKeyFor(cur)
+  const rate = Number(prefs.ttsRate.value) || 1
+  const keyWhere = cur === 'gemini' ? '«Перевод и ИИ»' : '«Распознавание речи»'
+  const voiceName = ttsSystemVoiceName(prefs.lang.value || 'de')
+  return (
+    <Page title="Озвучка">
+      <Hint>
+        Голос для чтения вслух. Системный голос бесплатен и работает без интернета. Голоса Gemini, OpenAI и ElevenLabs
+        звучат естественнее, но это платные сервисы: нужен ключ этого сервиса.
+      </Hint>
+      <h3 class="section-title">Голос</h3>
+      {(['system', 'gemini', 'openai', 'elevenlabs'] as TtsProvider[]).map((p) => (
+        <label key={p} class="radio-row">
+          <input type="radio" name="ttsProvider" checked={cur === p} onChange={() => { prefs.ttsProvider.value = p; ttsStop() }} />
+          <span>
+            <span class="radio-title">{TTS_NAMES[p]}{p !== 'system' && ttsKeyFor(p) ? ' · ключ задан' : ''}</span>
+          </span>
+        </label>
+      ))}
+      <hr />
+      {cur === 'system' && (
+        <Hint>
+          {voiceName ? `Голос для «${prefs.lang.value || 'de'}»: ${voiceName}.` : `Голос для «${prefs.lang.value || 'de'}» не найден: будет голос по умолчанию устройства.`}
+          {' '}Другой голос — в настройках iPad: «Универсальный доступ» → «Устный контент» → «Голоса».
+        </Hint>
+      )}
+      {cur !== 'system' && (
+        <Hint>
+          {key ? `Ключ ${TTS_NAMES[cur]} задан и берётся из ${keyWhere}.` : `Ключ ${TTS_NAMES[cur]} не задан: вставьте его в ${keyWhere}. Пока без ключа звучит системный голос.`}
+        </Hint>
+      )}
+      {cur === 'gemini' && (
+        <>
+          <h3 class="section-title">Голос Gemini</h3>
+          <div class="chips">
+            {TTS_GEMINI_VOICES.map((v) => (
+              <Chip key={v} label={v} selected={prefs.ttsVoice_gemini.value === v} onClick={() => { prefs.ttsVoice_gemini.value = v }} />
+            ))}
+          </div>
+          <h3 class="section-title">Модель Gemini</h3>
+          <div class="chips">
+            <Chip label="Самая новая (по умолчанию)" selected={prefs.ttsModel_gemini.value === ''} onClick={() => { prefs.ttsModel_gemini.value = '' }} />
+            {(models ?? (prefs.ttsModel_gemini.value.trim() ? [prefs.ttsModel_gemini.value.trim()] : [])).map((m) => (
+              <Chip key={m} label={m} selected={prefs.ttsModel_gemini.value === m} onClick={() => { prefs.ttsModel_gemini.value = m }} />
+            ))}
+          </div>
+          <button class="btn text" type="button" disabled={loadingModels} onClick={() => void loadModels()}>
+            {loadingModels ? 'Загружаю…' : 'Показать модели Gemini для озвучки'}
+          </button>
+        </>
+      )}
+      {cur === 'openai' && (
+        <>
+          <h3 class="section-title">Голос OpenAI</h3>
+          <div class="chips">
+            {TTS_OPENAI_VOICES.map((v) => (
+              <Chip key={v} label={v} selected={prefs.ttsVoice_openai.value === v} onClick={() => { prefs.ttsVoice_openai.value = v }} />
+            ))}
+          </div>
+          <h3 class="section-title">Модель OpenAI</h3>
+          <div class="chips">
+            {TTS_OPENAI_MODELS.map((m) => (
+              <Chip key={m} label={m} selected={prefs.ttsModel_openai.value === m} onClick={() => { prefs.ttsModel_openai.value = m }} />
+            ))}
+          </div>
+        </>
+      )}
+      {cur === 'elevenlabs' && (
+        <>
+          <TextField label="ID голоса ElevenLabs" value={prefs.ttsVoice_elevenlabs.value}
+            onInput={(v) => { prefs.ttsVoice_elevenlabs.value = v.trim() }} />
+          <Hint>ID голоса (Voice ID) берётся в библиотеке голосов ElevenLabs. Модель: eleven_multilingual_v2.</Hint>
+        </>
+      )}
+      <h3 class="section-title">Скорость речи</h3>
+      <div class="spacing-row">
+        <input type="range" min={0.5} max={1.5} step={0.1} value={rate} aria-label="Скорость речи"
+          onInput={(e) => { prefs.ttsRate.value = (e.target as HTMLInputElement).value }} />
+        <span class="spacing-val">{rate.toFixed(1).replace('.', ',')}×</span>
+      </div>
+      <div class="chips">
+        <button class="btn tonal" type="button" onClick={() => ttsSpeak(TTS_SAMPLE, 'de')}>Прослушать пример</button>
+        {ttsSpeaking.value && <button class="btn outlined" type="button" onClick={() => ttsStop()}>Остановить</button>}
+      </div>
+      <Hint>
+        Облачные голоса отправляют текст только в свой сервис. Готовая озвучка хранится в этом браузере (до 200 фраз).
       </Hint>
     </Page>
   )

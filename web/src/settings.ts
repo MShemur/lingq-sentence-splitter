@@ -82,6 +82,15 @@ export const prefs = {
   sttProvider: pref('sttProvider', 'groq'),
   sttKeys: pref('sttKeys', '{}'),
   sttModels: pref('sttModels', '{}'),
+  /** Text-to-speech (Озвучка): 'system' (free, the device's voice), 'gemini', 'openai' or 'elevenlabs'; rate 0.5..1.5. */
+  ttsProvider: pref('ttsProvider', 'system'),
+  ttsRate: pref('ttsRate', '1'),
+  /** Gemini TTS model: '' = the first "tts"+"flash" model of the key's list (tts.ts). */
+  ttsModel_gemini: pref('ttsModel_gemini', ''),
+  ttsVoice_gemini: pref('ttsVoice_gemini', 'Kore'),
+  ttsModel_openai: pref('ttsModel_openai', 'gpt-4o-mini-tts'),
+  ttsVoice_openai: pref('ttsVoice_openai', 'alloy'),
+  ttsVoice_elevenlabs: pref('ttsVoice_elevenlabs', 'JBFqnCBsd6RMkjVDRZzb'),
 }
 
 /** Prompt with fallback to the default when the field was emptied. */
