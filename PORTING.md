@@ -40,6 +40,16 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   importer/session.ts (picsOf, bookPics.save), reader/session.ts (pics), reader/Reader.tsx (Pics, PicViewer), styles.css.
 ## Done
 
+- notes 27.11.2026 (Android 052400 / 052956 / 053348 / 053530) -> android v1.159-v1.160, web v1.90 (both):
+  1) ONE player: a podcast episode opens the normal lesson player. ReaderSession got a podcast source (web
+  podSession(ep, lang) / session.pod / canEdit; Android podSession(app, ep) / podEp / isPod): no LingQ calls,
+  sentences from the saved transcript and setPodSentences() while «Run AI» runs (earlier ids kept), audioKey = episode
+  key, translations like local books (Android AI only; web LingQ hints/translate + Gemini), notes per episode key,
+  bookmarks off. Without text: centred big cover, title, podcast, a «✨ Run AI» card above the usual controls; player ⋮
+  for pods: «Загрузить как урок», «Открыть подкаст». The separate podcast player screen is gone.
+  2) Green dot at the top-right of a podcast tile with new episodes. 3) Android back from Player / Podcasts → library.
+  4) OPML import / export of podcast subscriptions (Podcasts ⋮ / buttons). 5) ✕ on the mini player stops and hides it.
+
 - note feedback/20261127-042852-web -> android v1.155-v1.158, web v1.89 (both platforms):
   1) Pictures in in-app notes: up to 4, scaled to 1600 px JPEG 0.8, uploaded to the sync branch as
   feedback/<stamp>-<web|android>-<n>.jpg, note JSON field "images": [...] (always present). 2) Chapter merge (EPUB
