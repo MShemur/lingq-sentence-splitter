@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -46,6 +47,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -96,6 +101,17 @@ fun PlayerScreen(state: AppState) {
         snapshotFlow { if (AudioEngine.key == s.audioKey) AudioEngine.position else -1L }
             .collect { ms -> s.trackAudio(if (ms < 0) null else s.sentenceAt(ms)) }
     }
+    // a podcast episode: the transcript (Run AI, saved copy) reaches the session as it grows; before the load it is read there
+    LaunchedEffect(s) {
+        if (!s.isPod) return@LaunchedEffect
+        snapshotFlow { Pod.sents.toList() }.collect { list ->
+            if (s.paragraphs != null && Pod.now.value?.key == s.podEp?.key) s.setPodSentences(list)
+        }
+    }
+    if (s.isPod) Pod.sheet.value?.let { j -> EpisodeSheet(state, j) { Pod.sheet.value = null } }
+    // no text yet: the Snipd-like page (cover, title, «Run AI», the player's controls)
+    val pod = s.podEp
+    if (pod != null && s.sentences.isEmpty()) { PodNoText(state, s, pod); return }
     var expanded by rememberSaveable { mutableStateOf(false) }
     var picker by remember { mutableStateOf(false) }
     var marks by remember { mutableStateOf(false) }
@@ -298,19 +314,81 @@ private fun PlayerMenuItems(s: ReaderSession, ref: WordRef, close: () -> Unit) {
 /** Header buttons: bookmark this place; menu with the lesson's audio bookmarks. */
 @Composable
 private fun PlayerActions(s: ReaderSession, onMarks: () -> Unit) {
-    IconButton(onClick = { s.markAudio() }, enabled = s.audioUrl != null) {
+    val pod = s.podEp
+    if (pod == null) IconButton(onClick = { s.markAudio() }, enabled = s.audioUrl != null) {
         Icon(AppIcons.BookmarkBorder, contentDescription = "Закладка на это место")
     }
     var menu by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(
+            if (pod != null) {
+                // a podcast episode: no bookmarks; it can go to LingQ as a lesson or its podcast opens
+                DropdownMenuItem(
+                    text = { Text("Загрузить как урок") },
+                    onClick = { menu = false; if (pod.audio.isNotBlank()) Pod.toLesson(s.app, pod) },
+                )
+                DropdownMenuItem(
+                    text = { Text("Открыть подкаст") },
+                    onClick = {
+                        menu = false
+                        if (pod.feedUrl.isNotBlank()) s.app.podcastTab().openFeed(Podcast(pod.feedTitle, "", pod.feedUrl, pod.cover))
+                    },
+                )
+            } else DropdownMenuItem(
                 text = { Text("Аудиозакладки (${s.audioMarks().size})") },
                 leadingIcon = { Icon(AppIcons.Bookmark, contentDescription = null) },
                 onClick = { menu = false; onMarks() },
             )
         }
+    }
+}
+
+/**
+ * A podcast episode without text yet: the cover big and centred, the title and the podcast, a card with «Run AI»
+ * (its status and progress while it runs), then the lesson player's controls at the bottom.
+ */
+@Composable
+private fun PodNoText(state: AppState, s: ReaderSession, ep: PodEpisode) {
+    val busy = PodAi.isRunning(ep.key)
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(end = 4.dp, top = 4.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            PlayerActions(s, onMarks = {})
+        }
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Cover(ep.cover, ep.title, Modifier.fillMaxWidth(0.72f).padding(top = 8.dp))
+            Text(
+                ep.title, Modifier.padding(top = 20.dp), style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis,
+            )
+            if (ep.feedTitle.isNotBlank()) Text(
+                ep.feedTitle, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            Card(
+                Modifier.fillMaxWidth().padding(top = 24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Button(
+                        onClick = { PodAi.run(state) },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32), contentColor = Color.White),
+                    ) { Text("✨ Run AI", style = MaterialTheme.typography.titleMedium) }
+                    if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
+                    if (Pod.status.value.isNotBlank()) Text(
+                        Pod.status.value, Modifier.padding(top = 10.dp),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+        AudioBar(s)
     }
 }
 

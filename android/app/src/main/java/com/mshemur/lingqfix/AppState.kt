@@ -50,9 +50,6 @@ sealed interface Screen {
     data object Bookmarks : Screen
     class Chat(val session: ChatSession) : Screen
     class Reader(val session: ReaderSession) : Screen
-    /** The podcast episode in the player (Pod.now); no LingQ lesson behind it. */
-    data object PodPlayer : Screen
-
     /** Lessons of a course: [reader] = open the lesson for reading, otherwise check/fix it. */
     class Lessons(val lang: String, course: Course, val reader: Boolean = false) : Screen {
         /** Changes after "Изменить курс" (title, cover). */
@@ -352,18 +349,11 @@ class AppState(val ctx: Context) {
     private var podTab: PodcastSession? = null
     fun podcastTab(): PodcastSession = podTab ?: PodcastSession(this, ImportSession(this)).also { podTab = it }
 
-    /** The player tab; while a podcast sounds it is the podcast player ([lesson] = a lesson tab, its audio may not be loaded yet). */
+    /** The player tab (a podcast episode plays in it too, as a session of its own: see [openSounding]). */
     fun switchTab(s: Screen, lesson: Boolean = false) {
-        if (s == Screen.Player && !lesson && isPodKey(AudioEngine.key)) { openPodPlayer(); return }
         if (stack.size == 1 && stack[0] == s) return
         stack.clear(); stack.add(s)
         AppLog.add("nav", "Вкладка ${s.javaClass.simpleName}")
-    }
-
-    /** The podcast player on top of the library (back leads there). */
-    fun openPodPlayer() {
-        if (screen == Screen.PodPlayer) return
-        toRoot(); go(Screen.PodPlayer)
     }
 
     /** "Слушать все": lessons are being prepared (their audio addresses fetched). */
@@ -421,7 +411,12 @@ class AppState(val ctx: Context) {
     /** Mini player: the player tab on the lesson that is sounding (also after the app screen was recreated). */
     fun openSounding() {
         val k = AudioEngine.key
-        if (isPodKey(k)) { openPodPlayer(); return }
+        if (isPodKey(k)) {
+            // the episode in the player tab: its session is made again when the app was recreated
+            if (player?.audioKey != k) Pod.current()?.let { ep -> player = podSession(this, ep).apply { sentenceAtBottom = true } }
+            switchTab(Screen.Player)
+            return
+        }
         if (k != null && player?.audioKey != k) {
             val q = queueLessons[k]
             val id = k.substringAfter('_').toIntOrNull()

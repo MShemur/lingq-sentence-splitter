@@ -195,7 +195,6 @@ fun App(state: AppState) {
                                 }
                             }
                             is Screen.Lessons -> if (screen.reader) CourseMenu(state, screen)
-                            Screen.PodPlayer -> PodPlayerMenu(state)
                             else -> {}
                         }
                     },
@@ -207,7 +206,7 @@ fun App(state: AppState) {
                     Screen.Player -> MainTabs(state, screen)
                     Screen.ReaderCourses -> Column { MiniPlayer(state); MainTabs(state, screen) }
                     is Screen.Podcasts -> if (state.stack.size == 1) Column { MiniPlayer(state); MainTabs(state, screen) } else MiniPlayer(state)
-                    is Screen.Chat, is Screen.Import, Screen.PodPlayer -> {}
+                    is Screen.Chat, is Screen.Import -> {}
                     else -> MiniPlayer(state)
                 }
             },
@@ -267,7 +266,6 @@ fun App(state: AppState) {
                     is Screen.Lessons -> LessonsScreen(state, screen)
                     is Screen.Check -> CheckScreen(screen.session)
                     is Screen.Import -> ImportScreen(state, screen.session)
-                    Screen.PodPlayer -> PodPlayerScreen(state)
                 }
                 }
             }
@@ -364,7 +362,6 @@ private fun titleOf(state: AppState, s: Screen): String = when (s) {
     is Screen.Lessons -> s.title
     is Screen.Check -> s.session.label
     is Screen.Import -> "Загрузка в LingQ"
-    Screen.PodPlayer -> Pod.current()?.feedTitle?.ifBlank { null } ?: "Подкаст"
 }
 
 @Composable

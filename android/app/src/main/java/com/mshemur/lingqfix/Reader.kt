@@ -397,12 +397,39 @@ internal class TranslationCache(private val file: File) {
 /** PDF book on the phone without an AI key. */
 internal const val NO_AI_LOCAL = "Для переводов в PDF-книге нужен ключ Gemini (или другого ИИ): Настройки → Перевод и ИИ"
 
+/**
+ * Id of a podcast episode in the reader: negative like a local PDF book ([PdfBooks.localId] uses 0 .. -2^30),
+ * but in its own range (-2^31 .. -2^30-1), so the two never clash. Stable for the same episode key.
+ */
+fun podLessonId(key: String): Int = -(0x40000000 + (key.hashCode() and 0x3fffffff)) - 1
+
+/** Files of a podcast episode's reader data in filesDir/pod (next to its transcript <key>.json). */
+private fun podFile(ctx: Context, key: String, suffix: String) = File(File(ctx.filesDir, "pod").apply { mkdirs() }, "$key.$suffix")
+
+/** Transcript -> sentences: id = position + 1 (stable while the transcript grows), 5 sentences per paragraph. */
+private fun podParagraphs(list: List<PodSent>): List<List<Sent>> =
+    list.mapIndexedNotNull { i, p ->
+        p.text.trim().replace(Regex("\\s+"), " ").takeIf { it.isNotEmpty() }
+            ?.let { Sent(i + 1, it, emptyMap(), i + 1, p.start, p.end) }
+    }.chunked(5)
+
+/**
+ * A podcast episode opened in the normal lesson player: no LingQ (AI translations only, like a local book),
+ * the episode's audio and position (audio key = the episode key), its transcript as the sentences.
+ */
+fun podSession(app: AppState, ep: PodEpisode): ReaderSession =
+    ReaderSession(app, app.lang, Lesson(podLessonId(ep.key), ep.title, ep.cover, courseTitle = ep.feedTitle), null, ep)
+
 private val LETTERS = Regex("\\p{L}+")
 private val NON_WORD = Regex("[^\\p{L}\\p{N}]+")
 
 // --- session -------------------------------------------------------------------------------------
 
-class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, startSent: Int? = null) {
+/** [podEp]: the podcast episode when this session plays one (see [podSession]); null = a LingQ lesson or a local book. */
+class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, startSent: Int? = null, val podEp: PodEpisode? = null) {
+    /** A podcast episode (no LingQ at all; the transcript comes from [setPodSentences]). */
+    val isPod: Boolean get() = podEp != null
+
     /** PDF book page at the base zoom: "width" (fills the screen width) or "page" (whole page). */
     val pdfFit: String get() = app.pdfFit
     /** Sentence to scroll to (bookmark); consumed by the screen. */
@@ -414,7 +441,7 @@ class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, sta
         val i = sentences.indexOfFirst { it.id == last }
         app.progress.save(lang, lesson.id, first, (i + 1f) / sentences.size)
         val f = sentences.indexOfFirst { it.id == first }
-        if (f >= 0 && i >= f) app.stats.read(lang, lesson.id, f, i) { k -> sentences[k].tokens.count { it.isWord } }
+        if (f >= 0 && i >= f && !isPod) app.stats.read(lang, lesson.id, f, i) { k -> sentences[k].tokens.count { it.isWord } }
     }
 
     fun jumpTo(id: Int) {
@@ -422,9 +449,11 @@ class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, sta
         page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0)
     }
 
-    fun isBookmarked(id: Int) = app.bookmarks.has(lesson.id, id)
+    /** Pod: no bookmarks by lesson id (none are kept for an episode). */
+    fun isBookmarked(id: Int) = !isPod && app.bookmarks.has(lesson.id, id)
 
     fun toggleBookmark(id: Int) {
+        if (isPod) return
         val s = sentById[id] ?: return
         val tr = sentTr[id]?.takeIf { it.isNotEmpty() && !it.startsWith("⚠") } ?: s.translations[target].orEmpty()
         val on = app.bookmarks.toggle(lang, Lesson(lesson.id, title), id, s.plain, tr)
@@ -757,14 +786,21 @@ class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, sta
     private val aiCache = HashMap<WordRef, WordMeaning>()
 
     /** A PDF book kept on the phone only (PdfBook.kt, id < 0): no LingQ at all, translations straight from the AI. */
+    // A podcast episode has a negative id too (podLessonId): local = no LingQ for it as well.
     val local = lesson.id < 0
-    private val localBook: LocalPdfBook? = if (local) PdfBooks.localBook(app.ctx, lesson.id) else null
-    private val notes = localBook?.let { LessonNotes(PdfBooks.notesFile(app.ctx, it)) } ?: LessonNotes(app.ctx, lang, lesson.id)
+    private val localBook: LocalPdfBook? = if (local && !isPod) PdfBooks.localBook(app.ctx, lesson.id) else null
+    // a pod keeps its notes / translations / AI meanings in filesDir/pod/<key>.* (the same stores as a local book)
+    private val notes = localBook?.let { LessonNotes(PdfBooks.notesFile(app.ctx, it)) }
+        ?: podEp?.let { LessonNotes(podFile(app.ctx, it.key, "notes.json")) }
+        ?: LessonNotes(app.ctx, lang, lesson.id)
     private val trCache by lazy {
-        localBook?.let { TranslationCache(PdfBooks.trFile(app.ctx, it, target)) } ?: TranslationCache(app.ctx, lang, lesson.id, target)
+        localBook?.let { TranslationCache(PdfBooks.trFile(app.ctx, it, target)) }
+            ?: podEp?.let { TranslationCache(podFile(app.ctx, it.key, "tr_$target.json")) }
+            ?: TranslationCache(app.ctx, lang, lesson.id, target)
     }
-    /** Local book: AI meanings of words and phrases kept on the phone ("w:sent:token", "p:sent:from:to"). */
-    private val meaningStore = localBook?.let { MeaningStore(PdfBooks.aiFile(app.ctx, it)) }
+    /** Local book / pod: AI meanings of words and phrases kept on the phone ("w:sent:token", "p:sent:from:to"). */
+    private val meaningStore: MeaningStore? = localBook?.let { MeaningStore(PdfBooks.aiFile(app.ctx, it)) }
+        ?: podEp?.let { MeaningStore(podFile(app.ctx, it.key, "ai.json")) }
     private val meanings = HashMap<String, WordMeaning>()
 
     private fun keepMeaning(key: String, m: WordMeaning) {
@@ -814,6 +850,7 @@ class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, sta
      * time; then the sentence split is fixed as after an import and the lesson is read again.
      */
     fun cleanWithAi() {
+        if (local) return          // a PDF book / podcast episode: no LingQ lesson to rewrite
         if (!app.useGemini) return app.say("Для обработки с ИИ включите ИИ: Настройки → Перевод и ИИ")
         if (aiClean != null) return
         // the words as they stand now: after the save, the translations follow them to their new places
@@ -1046,11 +1083,89 @@ class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, sta
     }
 
     /**
+     * Podcast episode: the transcript as sentences (the player's copy of it, else the one saved on the phone).
+     * The transcript keeps growing while it is transcribed: the UI calls [setPodSentences] again.
+     */
+    private fun loadPod(ep: PodEpisode, onDone: (Boolean, Pair<Int, Int>?) -> Unit) {
+        app.scope.launch {
+            var ok = false
+            try {
+                val mine = if (Pod.now.value?.key == ep.key) Pod.sents.toList() else null
+                val list = mine ?: withContext(Dispatchers.IO) { Pod.loadTranscript(app.ctx, ep.key) }.orEmpty()
+                audioUrl = ep.audio.takeIf { it.isNotBlank() }
+                title = ep.title
+                val saved = withContext(Dispatchers.IO) { trCache.load() }
+                trSaved.putAll(saved)
+                setPodSentences(list)            // before the notes: their words are looked up in the sentences
+                val (p, w, ph) = withContext(Dispatchers.IO) { notes.load() }
+                pins.putAll(p); chosen.putAll(w); phrasePins.putAll(ph)
+                val ms = withContext(Dispatchers.IO) { meaningStore?.load().orEmpty() }
+                meanings.putAll(ms)
+                ms.forEach { (k, m) ->
+                    val q = k.split(':')
+                    if (q.size == 3 && q[0] == "w") {
+                        val ref = WordRef(q[1].toIntOrNull() ?: return@forEach, q[2].toIntOrNull() ?: return@forEach)
+                        aiCache[ref] = m
+                        if (m.pair.isNotBlank()) markPair(ref, m.pair)
+                    }
+                }
+                jump?.let { id -> page = sentences.indexOfFirst { it.id == id }.coerceAtLeast(0) }
+                if (autoPlay && audioUrl != null) { autoPlay = false; togglePlay() }
+                ok = true
+            } catch (e: Throwable) {
+                AppLog.error("reader", "Подкаст ${ep.key} не открылся", e)
+                error = e.message ?: e.toString()
+            }
+            onDone(ok, null)
+        }
+    }
+
+    /**
+     * Podcast episode: the transcript ([PodSent]) becomes the sentences; called again while it grows.
+     * Sentence ids are positions, so the earlier ones keep theirs; a sentence whose text or time changed loses its pins,
+     * meanings, translation and open window. The sentence sounding now stays the current one (by time).
+     */
+    fun setPodSentences(list: List<PodSent>) {
+        if (!isPod) return
+        val old = HashMap(sentById)
+        val fresh = podParagraphs(list).map { p ->
+            p.map { n -> old[n.id]?.takeIf { it.text == n.text && it.start == n.start && it.end == n.end } ?: n }
+        }
+        val flat = fresh.flatten()
+        val byId = HashMap<Int, Sent>().also { m -> flat.forEach { m[it.id] = it } }
+        val changed = old.keys.filter { byId[it] !== old[it] }.toSet()
+        if (changed.isNotEmpty()) {
+            changed.forEach { id -> sentTr.remove(id); shownSentences.remove(id) }
+            pins.keys.filter { it.sent in changed }.forEach { pins.remove(it) }
+            provisional.keys.filter { it.sent in changed }.forEach { provisional.remove(it) }
+            pairs.keys.filter { it.sent in changed }.forEach { pairs.remove(it) }
+            aiCache.keys.filter { it.sent in changed }.forEach { aiCache.remove(it) }
+            phrasePins.keys.filter { (it.substringBefore(':').toIntOrNull() ?: -1) in changed }.forEach { phrasePins.remove(it) }
+            val dropped = meanings.keys.filter { (it.split(':').getOrNull(1)?.toIntOrNull() ?: -1) in changed }
+            if (dropped.isNotEmpty()) {
+                dropped.forEach { meanings.remove(it) }
+                meaningStore?.let { st -> st.save(HashMap(meanings)) }
+            }
+            popup?.let { if (it.sent in changed) popup = null }
+            persist()
+        }
+        sentById.clear(); sentById.putAll(byId)
+        // translations saved for the same text come back on the sentences that are new
+        flat.forEach { s -> if (!sentTr.containsKey(s.id)) trSaved[s.plain]?.let { sentTr[s.id] = it } }
+        paragraphs = fresh
+        sentences = flat
+        page = page.coerceIn(0, (flat.size - 1).coerceAtLeast(0))
+        if (AudioEngine.key == audioKey) sentenceAt(AudioEngine.position)?.let { playingSent = it }
+        if (sentenceAtBottom && audioUrl != null) AudioEngine.setStarts(audioKey, flat.map { it.start })
+    }
+
+    /**
      * [onDone] runs when the lesson is read (or failed): ok = read, kept = the pending remap's (kept, total) if one ran.
      * A remap pending from an AI rewrite whose reading failed runs here, after the first good read.
      */
     fun load(onDone: (Boolean, Pair<Int, Int>?) -> Unit = { _, _ -> }) {
         error = null
+        podEp?.let { return loadPod(it, onDone) }
         if (local) return loadLocal(onDone)
         app.scope.launch {
             var ok = false
@@ -1519,7 +1634,8 @@ class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, sta
 
     /** MP3 of the lesson on LingQ (null = the lesson has no audio). */
     var audioUrl by mutableStateOf<String?>(null)
-    val audioKey get() = "${lang}_${lesson.id}"
+    /** A podcast episode plays under its own key: the position and the player match the podcast player. */
+    val audioKey get() = podEp?.key ?: "${lang}_${lesson.id}"
     /** Sentence sounding now (highlighted). */
     var playingSent by mutableStateOf<Int?>(null)
     /** Sentences have times in the audio. */
@@ -1541,7 +1657,7 @@ class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, sta
 
     /** Audio bookmark at the place sounding now (its sentence start). */
     fun markAudio() {
-        if (!ensureAudio()) return
+        if (isPod || !ensureAudio()) return
         val pos = AudioEngine.position
         val id = sentenceAt(pos)
         val st = id?.let { sentById[it] }
@@ -1550,7 +1666,7 @@ class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, sta
         app.say("Закладка ${fmtTime(st?.start?.takeIf { it >= 0 } ?: pos)}")
     }
 
-    fun audioMarks() = app.bookmarks.audioFor(lesson.id)
+    fun audioMarks(): List<Bookmark> = if (isPod) emptyList() else app.bookmarks.audioFor(lesson.id)
 
     fun removeMark(b: Bookmark) = app.bookmarks.remove(b)
 
@@ -1620,6 +1736,7 @@ class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, sta
 
     /** Reader: listen from this sentence in the player tab. */
     fun listenFrom(id: Int) {
+        if (isPod) return playFrom(id)     // the episode plays here, not in the LingQ player tab
         val st = sentById[id] ?: return
         if (st.start < 0) return
         app.listenAt(lang, Lesson(lesson.id, title, lesson.imageUrl, courseTitle = lesson.courseTitle), st.start)
@@ -1733,6 +1850,7 @@ class ReaderSession(val app: AppState, val lang: String, val lesson: Lesson, sta
 
     /** Reads the lesson again, keeps a backup, changes only sentence [s] (text, translation), saves the structure as is. */
     private suspend fun writeSentence(s: Sent, newText: String, newTr: String) {
+        if (isPod) throw ApiException("Расшифровку подкаста пока нельзя править")
         val b = localBook
         if (b != null) {
             // local book: the sentence file on the phone; the translation goes to the book's translation cache
@@ -2087,7 +2205,8 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
         )
         HorizontalDivider()
         MenuGroup("Урок")
-        if (s.audioUrl != null) DropdownMenuItem(
+        // a podcast episode already plays in its own player (no LingQ player tab for it)
+        if (s.audioUrl != null && !s.isPod) DropdownMenuItem(
             text = { Text("Слушать в плеере") },
             leadingIcon = { Icon(AppIcons.Headphones, contentDescription = null) },
             onClick = { menu = false; state.playLesson(s.lang, Lesson(s.lesson.id, s.title, s.lesson.imageUrl, courseTitle = s.lesson.courseTitle)) },
@@ -2122,12 +2241,15 @@ fun ReaderActions(state: AppState, s: ReaderSession) {
             onClick = { menu = false; s.openFeedback() },
         )
         // the only action that cannot be undone: last, apart, in red
-        HorizontalDivider()
-        DropdownMenuItem(
-            text = { Text(if (s.local) "Удалить книгу…" else "Удалить урок…", color = MaterialTheme.colorScheme.error) },
-            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            onClick = { menu = false; delete = true },
-        )
+        // a podcast episode is removed from the podcast list, not here
+        if (!s.isPod) {
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(if (s.local) "Удалить книгу…" else "Удалить урок…", color = MaterialTheme.colorScheme.error) },
+                leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                onClick = { menu = false; delete = true },
+            )
+        }
     }
 }
 
@@ -3413,7 +3535,8 @@ private fun WordContent(s: ReaderSession, ref: WordRef) {
                     leadingIcon = { Icon(AppIcons.Translate, contentDescription = null, Modifier.size(18.dp)) },
                 )
                 val marked = s.isBookmarked(ref.sent)
-                AssistChip(
+                // a podcast episode keeps no bookmarks
+                if (!s.isPod) AssistChip(
                     onClick = { s.toggleBookmark(ref.sent) }, label = { Text(if (marked) "В закладках" else "Закладка") },
                     leadingIcon = {
                         Icon(if (marked) AppIcons.Bookmark else AppIcons.BookmarkBorder, contentDescription = null, Modifier.size(18.dp))

@@ -95,7 +95,10 @@ object Pod {
         return PodEpisode(k, pod.feed, pod.title, pod.image, g, ep.title.ifBlank { "Выпуск" }, ep.audio, date, ep.duration)
     }
 
-    /** Starts the episode from its saved place and opens the player. */
+    /**
+     * Starts the episode from its saved place in the normal player tab (the same player as for lessons).
+     * A new episode gets its own session: it loads and plays when the player screen shows it (autoPlay).
+     */
     fun play(app: AppState, ep: PodEpisode) {
         if (now.value?.key != ep.key) {
             sents.clear()
@@ -103,12 +106,13 @@ object Pod {
             status.value = ""
         }
         now.value = ep
-        AudioEngine.load(
-            app.ctx, ep.key, ep.audio, ep.title, AudioEngine.savedPos(app.ctx, ep.key), ep.cover,
-            ep.feedTitle.ifBlank { "SatzLoop" },
-        )
-        AudioEngine.play()
-        if (app.screen !is Screen.PodPlayer) app.go(Screen.PodPlayer)
+        val cur = app.player
+        if (cur != null && cur.audioKey == ep.key) {
+            if (AudioEngine.key != ep.key || !AudioEngine.playing) cur.togglePlay()
+        } else {
+            app.player = podSession(app, ep).apply { sentenceAtBottom = true; autoPlay = true }
+        }
+        app.switchTab(Screen.Player)
     }
 
     /** The episode in the player: the one played, or (after a restart) the one the audio engine still holds; null = none. */
@@ -152,165 +156,5 @@ object Pod {
         val j = BgJob(app, e, p, saved = saved)
         app.bgJobs.add(0, j)
         sheet.value = j
-    }
-}
-
-/** Speeds of the podcast player (the speed button steps through them). */
-private val POD_SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
-
-private fun speedLabel(v: Float): String =
-    (if (v == v.toInt().toFloat()) "${v.toInt()}" else "%.2f".format(v).replace(",", ".").trimEnd('0')) + "×"
-
-/** ⋮ of the podcast player's top bar. */
-@Composable
-fun PodPlayerMenu(state: AppState) {
-    var menu by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Ещё") }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            DropdownMenuItem(
-                text = { Text("Загрузить как урок") },
-                onClick = {
-                    menu = false
-                    Pod.current()?.takeIf { it.audio.isNotBlank() }?.let { Pod.toLesson(state, it) }
-                },
-            )
-            DropdownMenuItem(
-                text = { Text("Открыть подкаст") },
-                onClick = {
-                    menu = false
-                    Pod.current()?.takeIf { it.feedUrl.isNotBlank() }?.let { ep ->
-                        state.podcastTab().openFeed(Podcast(ep.feedTitle, "", ep.feedUrl, ep.cover))
-                    }
-                },
-            )
-        }
-    }
-}
-
-/** The podcast player: cover, title, controls; the transcript (current sentence highlighted, tap = seek) or "Run AI". */
-@Composable
-fun PodPlayerScreen(state: AppState) {
-    val ep = Pod.current()
-    if (ep == null) {
-        Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-            Text("Сейчас ничего не играет из подкастов.", style = MaterialTheme.typography.bodyLarge)
-        }
-    } else {
-        PodBody(state, ep)
-    }
-}
-
-@Composable
-private fun PodBody(state: AppState, ep: PodEpisode) {
-    val ctx = LocalContext.current
-    LaunchedEffect(ep.key) {
-        if (Pod.sents.isEmpty()) Pod.loadTranscript(ctx, ep.key)?.let { Pod.sents.addAll(it) }
-    }
-    Pod.sheet.value?.let { j -> EpisodeSheet(state, j) { Pod.sheet.value = null } }
-
-    val mine = AudioEngine.key == ep.key
-    val canPlay = mine || ep.audio.isNotBlank()
-    val dur = if (mine && AudioEngine.duration > 0) AudioEngine.duration else ep.durationS * 1000L
-    val pos = if (mine) AudioEngine.position else AudioEngine.savedPos(ctx, ep.key)
-    val cur = if (mine) AudioEngine.nowMs() else pos
-    var drag by remember(ep.key) { mutableStateOf<Float?>(null) }
-    val sents = Pod.sents
-    val hasText = sents.isNotEmpty()
-    val busy = PodAi.isRunning(ep.key)
-    val digits = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum")
-
-    // a place in the episode; the episode starts first when it is not the one loaded
-    fun jump(ms: Long) {
-        if (!mine) Pod.play(state, ep)
-        AudioEngine.seekTo(ms.coerceAtLeast(0L))
-    }
-
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
-        Cover(ep.cover, ep.title, Modifier.fillMaxWidth(if (hasText) 0.4f else 0.75f))
-        Text(
-            ep.title, Modifier.padding(top = 14.dp),
-            style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis,
-        )
-        if (ep.feedTitle.isNotBlank()) Text(
-            ep.feedTitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(fmtTime(drag?.let { (it * dur).toLong() } ?: pos), style = digits, modifier = Modifier.width(52.dp))
-            Slider(
-                value = drag ?: if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f,
-                onValueChange = { drag = it },
-                onValueChangeFinished = { drag?.let { jump((it * dur).toLong()) }; drag = null },
-                enabled = canPlay && dur > 0,
-                modifier = Modifier.weight(1f),
-            )
-            Text(if (dur > 0) fmtTime(dur) else "–:––", style = digits, modifier = Modifier.width(52.dp))
-        }
-        Row(
-            Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = {
-                val i = POD_SPEEDS.indexOfFirst { kotlin.math.abs(it - AudioEngine.speed) < 0.01f }
-                AudioEngine.setSpeed(ctx, POD_SPEEDS[(i + 1) % POD_SPEEDS.size])
-            }) { Text(speedLabel(AudioEngine.speed)) }
-            IconButton(onClick = { jump(cur - 15_000) }, enabled = canPlay) {
-                Icon(AppIcons.Replay, contentDescription = "Назад на 15 секунд")
-            }
-            FilledIconButton(
-                onClick = { if (mine) AudioEngine.toggle() else Pod.play(state, ep) },
-                enabled = canPlay, modifier = Modifier.size(64.dp),
-            ) {
-                Icon(
-                    if (mine && AudioEngine.playing) AppIcons.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (mine && AudioEngine.playing) "Пауза" else "Слушать",
-                    modifier = Modifier.size(36.dp),
-                )
-            }
-            IconButton(onClick = { jump(cur + 30_000) }, enabled = canPlay) {
-                Icon(AppIcons.Forward, contentDescription = "Вперёд на 30 секунд")
-            }
-        }
-
-        if (hasText) {
-            val idx = sents.indexOfLast { it.start <= cur }
-            val list = rememberLazyListState()
-            LaunchedEffect(idx) { if (idx >= 0) list.animateScrollToItem(maxOf(0, idx - 1)) }
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 6.dp))
-            if (Pod.status.value.isNotBlank()) Text(
-                Pod.status.value, Modifier.padding(top = 6.dp),
-                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(vertical = 12.dp)) {
-                itemsIndexed(sents) { i, s ->
-                    val on = i == idx
-                    Text(
-                        s.text,
-                        Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(10.dp))
-                            .clickable(enabled = canPlay) { jump(s.start) }
-                            .background(if (on) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (on) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                        fontWeight = if (on) FontWeight.SemiBold else null,
-                    )
-                }
-            }
-        } else {
-            Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Center) {
-                Button(
-                    onClick = { PodAi.run(state) },
-                    enabled = !busy,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32), contentColor = Color.White),
-                ) { Text("Run AI", style = MaterialTheme.typography.titleMedium) }
-                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
-                if (Pod.status.value.isNotBlank()) Text(
-                    Pod.status.value, Modifier.padding(top = 12.dp),
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
     }
 }
