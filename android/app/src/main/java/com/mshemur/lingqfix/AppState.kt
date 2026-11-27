@@ -50,6 +50,8 @@ sealed interface Screen {
     data object Bookmarks : Screen
     class Chat(val session: ChatSession) : Screen
     class Reader(val session: ReaderSession) : Screen
+    /** The podcast episode in the player (Pod.now); no LingQ lesson behind it. */
+    data object PodPlayer : Screen
 
     /** Lessons of a course: [reader] = open the lesson for reading, otherwise check/fix it. */
     class Lessons(val lang: String, course: Course, val reader: Boolean = false) : Screen {
@@ -347,10 +349,18 @@ class AppState(val ctx: Context) {
     private var podTab: PodcastSession? = null
     fun podcastTab(): PodcastSession = podTab ?: PodcastSession(this, ImportSession(this)).also { podTab = it }
 
-    fun switchTab(s: Screen) {
+    /** The player tab; while a podcast sounds it is the podcast player ([lesson] = a lesson tab, its audio may not be loaded yet). */
+    fun switchTab(s: Screen, lesson: Boolean = false) {
+        if (s == Screen.Player && !lesson && isPodKey(AudioEngine.key)) { openPodPlayer(); return }
         if (stack.size == 1 && stack[0] == s) return
         stack.clear(); stack.add(s)
         AppLog.add("nav", "Вкладка ${s.javaClass.simpleName}")
+    }
+
+    /** The podcast player on top of the library (back leads there). */
+    fun openPodPlayer() {
+        if (screen == Screen.PodPlayer) return
+        toRoot(); go(Screen.PodPlayer)
     }
 
     /** "Слушать все": lessons are being prepared (their audio addresses fetched). */
@@ -388,7 +398,7 @@ class AppState(val ctx: Context) {
                     AudioEngine.savedPos(ctx, "${lang}_${first.id}"),
                 )
                 AudioEngine.play()
-                switchTab(Screen.Player)
+                switchTab(Screen.Player, lesson = true)
             } catch (e: Throwable) {
                 AppLog.error("audio", "Слушать все", e)
                 say(e.message ?: "Не удалось собрать очередь")
@@ -408,6 +418,7 @@ class AppState(val ctx: Context) {
     /** Mini player: the player tab on the lesson that is sounding (also after the app screen was recreated). */
     fun openSounding() {
         val k = AudioEngine.key
+        if (isPodKey(k)) { openPodPlayer(); return }
         if (k != null && player?.audioKey != k) {
             val q = queueLessons[k]
             val id = k.substringAfter('_').toIntOrNull()
@@ -433,7 +444,7 @@ class AppState(val ctx: Context) {
         } else {
             player = ReaderSession(this, lang, l).apply { sentenceAtBottom = true; autoPlay = true; startAt = ms }
         }
-        switchTab(Screen.Player)
+        switchTab(Screen.Player, lesson = true)
     }
 
     /** Listen to a lesson in the player tab (starts playing when its audio is known). */
@@ -442,7 +453,7 @@ class AppState(val ctx: Context) {
         if (cur == null || cur.lesson.id != l.id || cur.lang != lang) {
             player = ReaderSession(this, lang, l).apply { sentenceAtBottom = true; autoPlay = true }
         } else if (AudioEngine.key != cur.audioKey || !AudioEngine.playing) cur.togglePlay()
-        switchTab(Screen.Player)
+        switchTab(Screen.Player, lesson = true)
     }
 
     /** Lessons opened lately, for the "continue" row of the library. */

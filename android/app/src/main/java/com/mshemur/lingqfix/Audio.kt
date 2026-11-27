@@ -83,7 +83,7 @@ import androidx.media3.session.SessionToken
  */
 object AudioEngine {
     /** One lesson of a "play all" queue. */
-    class Track(val key: String, val url: String, val title: String, val image: String)
+    class Track(val key: String, val url: String, val title: String, val image: String, val artist: String = "SatzLoop")
 
     /** Audio of a lesson was loaded (key, title, cover, url): the player's "recent" list. */
     var onListen: ((String, String, String, String) -> Unit)? = null
@@ -191,7 +191,7 @@ object AudioEngine {
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == Player.STATE_BUFFERING
                 if (p.duration > 0) {
-                    if (duration != p.duration) key?.let { k -> onDuration?.invoke(k, p.duration) }
+                    if (duration != p.duration) key?.let { k -> if (!isPodKey(k)) onDuration?.invoke(k, p.duration) }
                     duration = p.duration
                 }
                 if (state == Player.STATE_ENDED) {
@@ -212,7 +212,7 @@ object AudioEngine {
                 clearLoop(); stopAt = -1
                 duration = 0
                 AppLog.add("audio", "Дальше в очереди: $k")
-                onListen?.invoke(k, title, image, item.localConfiguration?.uri?.toString().orEmpty())
+                if (!isPodKey(k)) onListen?.invoke(k, title, image, item.localConfiguration?.uri?.toString().orEmpty())
                 onTrack?.invoke(k)
             }
 
@@ -236,7 +236,7 @@ object AudioEngine {
     }
 
     /** Loads the audio of a lesson (if it is not the one loaded), at [startMs]. */
-    fun load(ctx: Context, k: String, url: String, lessonTitle: String, startMs: Long, cover: String = "") {
+    fun load(ctx: Context, k: String, url: String, lessonTitle: String, startMs: Long, cover: String = "", artist: String = "SatzLoop") {
         if (key == k) return
         val p = get(ctx)
         save()
@@ -248,18 +248,19 @@ object AudioEngine {
         duration = 0
         position = startMs
         image = cover
-        p.setMediaItem(item(Track(k, url, lessonTitle, cover)), startMs)
+        p.setMediaItem(item(Track(k, url, lessonTitle, cover, artist)), startMs)
         queueSize = 1; queueIndex = 0
         p.prepare()
         connect(ctx)
         PlayerWidget.refresh(ctx)
         AppLog.add("audio", "Загружено аудио урока $k с ${fmtTime(startMs)}")
-        onListen?.invoke(k, lessonTitle, cover, url)
+        // a podcast episode is not a lesson: it stays out of the "recent" list
+        if (!isPodKey(k)) onListen?.invoke(k, lessonTitle, cover, url)
     }
 
     private fun item(t: Track): MediaItem = MediaItem.Builder().setUri(t.url).setMediaId(t.key)
         .setMediaMetadata(
-            MediaMetadata.Builder().setTitle(t.title).setArtist("SatzLoop")
+            MediaMetadata.Builder().setTitle(t.title).setArtist(t.artist)
                 .apply { if (t.image.isNotBlank()) setArtworkUri(android.net.Uri.parse(t.image)) }.build(),
         )
         .build()

@@ -72,6 +72,8 @@ data class Episode(
     val description: String, val transcript: String, val transcriptType: String,
     /** A transcript without times (plain text or HTML), "" = none. */
     val textUrl: String = "",
+    /** The feed's unique id of the episode ("" = none; the audio address then stands in). */
+    val guid: String = "",
 )
 
 object PodcastApi {
@@ -146,7 +148,7 @@ object PodcastApi {
                             if (trRank(t) > trRank(c["trType"].orEmpty())) { c["tr"] = u; c["trType"] = t }
                             else if (trRank(t) == 0 && u.isNotBlank() && (c["txt"] == null || t.contains("plain"))) c["txt"] = u
                         }
-                        "title", "pubDate", "duration", "description", "summary", "encoded" -> {
+                        "title", "pubDate", "duration", "description", "summary", "encoded", "guid" -> {
                             val v = text()
                             if (c[n].isNullOrBlank()) c[n] = v
                         }
@@ -166,7 +168,7 @@ object PodcastApi {
                                 duration(c["duration"].orEmpty()),
                                 Epub.htmlToText(c["description"].orEmpty().ifBlank { c["summary"].orEmpty() }.ifBlank { c["encoded"].orEmpty() })
                                     .replace(Regex("\\s+"), " ").take(400),
-                                c["tr"].orEmpty(), c["trType"].orEmpty(), c["txt"].orEmpty(),
+                                c["tr"].orEmpty(), c["trType"].orEmpty(), c["txt"].orEmpty(), c["guid"].orEmpty(),
                             )
                         }
                         cur = null
@@ -679,7 +681,7 @@ fun PodcastFeedScreen(s: PodcastSession) {
                             if (ep.description.isNotBlank()) Text(ep.description, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     },
-                    modifier = Modifier.clickable { s.startJob(ep) },
+                    modifier = Modifier.clickable { Pod.play(s.app, Pod.of(ep, p)) },
                 )
                 HorizontalDivider()
             }
