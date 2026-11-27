@@ -10,7 +10,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -348,43 +353,70 @@ private fun PlayerActions(s: ReaderSession, onMarks: () -> Unit) {
  * A podcast episode without text yet: the cover big and centred, the title and the podcast, a card with «Run AI»
  * (its status and progress while it runs), then the lesson player's controls at the bottom.
  */
+/**
+ * A podcast episode without text yet (Snipd-like page): a gradient from the cover's colour, the cover big and centred,
+ * the title and the podcast (tap = its feed), a card with «Run AI» (its status and progress while it runs), then the
+ * lesson player's controls at the bottom. Everything scrolls on a small screen.
+ */
 @Composable
 private fun PodNoText(state: AppState, s: ReaderSession, ep: PodEpisode) {
     val busy = PodAi.isRunning(ep.key)
-    Column(Modifier.fillMaxSize()) {
+    val tint = rememberCoverTint(ep.cover)
+    val top = tint ?: MaterialTheme.colorScheme.surfaceVariant
+    val bottom = if (tint != null) MaterialTheme.colorScheme.surface else top
+    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom)))) {
         Row(Modifier.fillMaxWidth().padding(end = 4.dp, top = 4.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             PlayerActions(s, onMarks = {})
         }
         Column(
-            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Cover(ep.cover, ep.title, Modifier.fillMaxWidth(0.72f).padding(top = 8.dp))
+            PodArt(ep.cover, ep.title, Modifier.fillMaxWidth(0.8f).widthIn(max = 360.dp).padding(top = 8.dp), radius = 20.dp, elevation = 12.dp)
             Text(
-                ep.title, Modifier.padding(top = 20.dp), style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                ep.title, Modifier.padding(top = 24.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
             if (ep.feedTitle.isNotBlank()) Text(
-                ep.feedTitle, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                ep.feedTitle,
+                Modifier.padding(top = 6.dp).clip(RoundedCornerShape(8.dp)).clickable {
+                    state.podcastTab().openFeed(Podcast(ep.feedTitle, "", ep.feedUrl, ep.cover))
+                }.padding(horizontal = 8.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
-            Card(
-                Modifier.fillMaxWidth().padding(top = 24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Button(
-                        onClick = { PodAi.run(state) },
-                        enabled = !busy,
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32), contentColor = Color.White),
-                    ) { Text("✨ Run AI", style = MaterialTheme.typography.titleMedium) }
-                    if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
-                    if (Pod.status.value.isNotBlank()) Text(
-                        Pod.status.value, Modifier.padding(top = 10.dp),
+                Column(
+                    Modifier.fillMaxWidth().padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Text(
+                        Pod.status.value.ifBlank { "Текст ещё не готов" },
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                     )
+                    Button(
+                        onClick = { PodAi.run(state) },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2E7D5B), contentColor = Color.White,
+                            disabledContainerColor = Color(0xFF2E7D5B).copy(alpha = 0.6f), disabledContentColor = Color.White,
+                        ),
+                    ) {
+                        if (busy) {
+                            CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                            Spacer(Modifier.width(10.dp))
+                        }
+                        Text("✨ Run AI", style = MaterialTheme.typography.titleMedium)
+                    }
+                    if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), strokeCap = StrokeCap.Round)
                 }
             }
         }

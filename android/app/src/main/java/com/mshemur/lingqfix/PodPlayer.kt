@@ -50,6 +50,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
+import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
 
@@ -156,5 +171,59 @@ object Pod {
         val j = BgJob(app, e, p, saved = saved)
         app.bgJobs.add(0, j)
         sheet.value = j
+    }
+}
+
+// ---- the look of the podcast screens: the cover's colour, the cover picture with rounded corners and a shadow ----
+
+/**
+ * The cover's average colour (an 8×8 sample, decoded once per picture off the main thread): darker in the dark theme,
+ * lighter in the light one. Null while it loads, without a picture or on any error (the caller then takes surfaceVariant).
+ */
+@Composable
+fun rememberCoverTint(url: String): Color? {
+    val ctx = LocalContext.current
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val avg by produceState<Color?>(null, url) { value = if (url.isBlank()) null else coverAverage(ctx, url) }
+    val c = avg ?: return null
+    return if (dark) lerp(c, Color.Black, 0.55f) else lerp(c, Color.White, 0.55f)
+}
+
+private suspend fun coverAverage(ctx: Context, url: String): Color? = runCatching<Color?> {
+    val req = ImageRequest.Builder(ctx).data(url).size(8, 8).allowHardware(false).build()
+    val bmp = (ctx.imageLoader.execute(req).drawable as? BitmapDrawable)?.bitmap ?: return@runCatching null
+    withContext(Dispatchers.Default) {
+        val px = IntArray(64)
+        Bitmap.createScaledBitmap(bmp, 8, 8, true).getPixels(px, 0, 8, 0, 0, 8, 8)
+        var r = 0
+        var g = 0
+        var b = 0
+        for (p in px) {
+            r += android.graphics.Color.red(p)
+            g += android.graphics.Color.green(p)
+            b += android.graphics.Color.blue(p)
+        }
+        Color(r / 64f / 255f, g / 64f / 255f, b / 64f / 255f)
+    }
+}.getOrNull()
+
+/** A cover with corners of [radius] and a shadow of [elevation]; without a picture a colour tile with the first letter. */
+@Composable
+fun PodArt(url: String, title: String, modifier: Modifier, radius: Dp, elevation: Dp = 0.dp) {
+    val shape = RoundedCornerShape(radius)
+    val hue = ((title.hashCode() and 0x7fffffff) % 360).toFloat()
+    Box(
+        modifier.aspectRatio(1f).shadow(elevation, shape).clip(shape).background(
+            Brush.linearGradient(listOf(Color.hsv(hue, 0.45f, 0.75f), Color.hsv((hue + 40f) % 360f, 0.55f, 0.55f))),
+        ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            title.trim().firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: "•",
+            style = MaterialTheme.typography.displaySmall, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold,
+        )
+        if (url.isNotBlank()) AsyncImage(
+            model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+        )
     }
 }

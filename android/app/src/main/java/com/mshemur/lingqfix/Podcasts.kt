@@ -27,6 +27,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -655,20 +665,64 @@ private fun fmtDur(s: Int) = when {
     else -> "${(s + 30) / 60} мин"
 }
 
-/** A podcast as a square cover tile; [badge] > 0 (new episodes) = a green dot at the top-right corner of the cover. */
+/** A podcast as a cover tile (corners 16 dp, a soft shadow); [badge] > 0 (new episodes) = a green dot at the cover's top-right corner. */
 @Composable
 private fun PodTile(p: Podcast, badge: Int, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Box(Modifier.fillMaxWidth()) {
-            Cover(p.image, p.title, Modifier.fillMaxWidth())
+            PodArt(p.image, p.title, Modifier.fillMaxWidth(), radius = 16.dp, elevation = 4.dp)
             if (badge > 0) Box(
-                Modifier.align(Alignment.TopEnd).padding(6.dp).size(12.dp).clip(CircleShape).background(Color(0xFF43A047)),
+                Modifier.align(Alignment.TopEnd).padding(8.dp).size(12.dp).clip(CircleShape).background(Color(0xFF43A047)),
             )
         }
         Text(
-            p.title, Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp),
-            style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            p.title, Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp),
+            style = MaterialTheme.typography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/** Play / pause of an episode from the feed or «Продолжить»: pauses it while it sounds, else starts it in the player. */
+private fun podToggle(app: AppState, ep: PodEpisode) {
+    if (AudioEngine.key == ep.key && AudioEngine.playing) AudioEngine.toggle() else Pod.play(app, ep)
+}
+
+/** «Продолжить»: the episode played last in this session, its place as a thin bar and a play button. */
+@Composable
+private fun ContinueCard(state: AppState, ep: PodEpisode) {
+    val here = AudioEngine.key == ep.key
+    val sounding = here && AudioEngine.playing
+    val pos = if (here) AudioEngine.position else AudioEngine.savedPos(state.ctx, ep.key)
+    val dur = if (here && AudioEngine.duration > 0) AudioEngine.duration else ep.durationS * 1000L
+    val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            PodArt(ep.cover, ep.title, Modifier.size(72.dp), radius = 12.dp)
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Продолжить", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    ep.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                if (ep.feedTitle.isNotBlank()) Text(
+                    ep.feedTitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                LinearProgressIndicator(
+                    progress = { frac }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp), strokeCap = StrokeCap.Round,
+                )
+            }
+            FilledIconButton(onClick = { podToggle(state, ep) }) {
+                Icon(
+                    if (sounding) AppIcons.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (sounding) "Пауза" else "Слушать",
+                )
+            }
+        }
     }
 }
 
@@ -679,17 +733,19 @@ fun PodcastsScreen(state: AppState, s: PodcastSession) {
     val pickOpml = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) s.importOpml(uri) }
     val saveOpml = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/xml")) { uri -> if (uri != null) s.exportOpml(uri) }
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 104.dp),
+        columns = GridCells.Adaptive(minSize = 110.dp),
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.padding(top = 12.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.padding(top = 16.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Подкасты", Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
-                    s.query, { s.query = it }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp),
-                    label = { Text("Название подкаста или ссылка на RSS") },
+                    s.query, { s.query = it }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(50),
+                    placeholder = { Text("Поиск подкастов или ссылка на RSS") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { s.search() }),
                     trailingIcon = {
@@ -721,6 +777,7 @@ fun PodcastsScreen(state: AppState, s: PodcastSession) {
             }
             gridItems(res, key = { "r" + it.feed }) { p -> PodTile(p, 0) { s.openFeed(p) } }
         } else {
+            Pod.now.value?.let { cont -> item(span = { GridItemSpan(maxLineSpan) }) { ContinueCard(state, cont) } }
             if (s.subs.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
                 Text("Пока нет подписок", Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -751,21 +808,26 @@ private fun FeedBody(s: PodcastSession, p: Podcast) {
     val playing = Pod.now.value?.key
     LazyColumn(Modifier.fillMaxSize()) {
         item {
+            // the cover's colour fades into the page; the cover big with a shadow, the title, the author, the subscribe pill
+            val tint = rememberCoverTint(p.image)
+            val top = tint ?: MaterialTheme.colorScheme.surfaceVariant
+            val bottom = if (tint != null) MaterialTheme.colorScheme.surface else top
             Column(
-                Modifier.fillMaxWidth().padding(16.dp),
+                Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(top, bottom)))
+                    .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Cover(p.image, p.title, Modifier.fillMaxWidth(0.55f))
+                PodArt(p.image, p.title, Modifier.size(140.dp), radius = 16.dp, elevation = 10.dp)
                 Text(
-                    p.title, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.titleLarge,
-                    textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    p.title, Modifier.padding(top = 10.dp), style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis,
                 )
                 if (p.author.isNotBlank()) Text(
-                    p.author, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    p.author, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                if (s.subscribed) OutlinedButton(onClick = { s.toggleSub() }) { Text("Вы подписаны ✓") }
-                else FilledTonalButton(onClick = { s.toggleSub() }) { Text("Подписаться") }
+                if (s.subscribed) FilledTonalButton(onClick = { s.toggleSub() }, shape = RoundedCornerShape(50)) { Text("Вы подписаны ✓") }
+                else Button(onClick = { s.toggleSub() }, shape = RoundedCornerShape(50)) { Text("Подписаться") }
             }
         }
         s.downloading?.let { ep ->
@@ -796,27 +858,44 @@ private fun FeedBody(s: PodcastSession, p: Podcast) {
             itemsIndexed(eps, key = { _, ep -> ep.audio }) { i, ep ->
                 val k = keys.getOrElse(i) { "" }
                 val on = k.isNotEmpty() && k == playing
+                // sounding now = this episode is the one in the player and the audio runs
+                val sounding = on && AudioEngine.key == k && AudioEngine.playing
                 val isNew = ep.date > s.seenBefore
-                val meta = listOf(fmtDate(ep.date), fmtDur(ep.duration)).filter { it.isNotBlank() }.joinToString(" · ")
+                val date = fmtDate(ep.date).uppercase()
+                val dur = fmtDur(ep.duration)
                 Row(
-                    Modifier.fillMaxWidth().clickable { Pod.play(s.app, Pod.of(ep, p)) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth()
+                        .background(if (on) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
+                        .clickable { Pod.play(s.app, Pod.of(ep, p)) }
+                        .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (isNew) Box(Modifier.padding(end = 6.dp).size(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+                            if (date.isNotBlank()) Text(
+                                date, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                            )
+                        }
                         Text(
-                            ep.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            ep.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis,
                             color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            fontWeight = if (on) FontWeight.SemiBold else null,
                         )
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (dur.isNotBlank()) Text(dur, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (k in aiKeys) Box(
                                 Modifier.background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(6.dp))
                                     .padding(horizontal = 6.dp, vertical = 1.dp),
                             ) { Text("AI", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer) }
                         }
                     }
-                    if (isNew) Box(Modifier.padding(start = 10.dp).size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+                    if (sounding) FilledIconButton(
+                        onClick = { podToggle(s.app, Pod.of(ep, p)) }, modifier = Modifier.padding(start = 8.dp).size(44.dp),
+                    ) { Icon(AppIcons.Pause, contentDescription = "Пауза") }
+                    else FilledTonalIconButton(
+                        onClick = { podToggle(s.app, Pod.of(ep, p)) }, modifier = Modifier.padding(start = 8.dp).size(44.dp),
+                    ) { Icon(Icons.Filled.PlayArrow, contentDescription = "Слушать") }
                 }
                 HorizontalDivider()
             }
