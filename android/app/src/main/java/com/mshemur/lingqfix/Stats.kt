@@ -306,6 +306,7 @@ private fun DaysChart(st: ReadingStats, now: LocalDate) {
     val max = maxOf(mins.maxOrNull() ?: 0f, 10f)
     var picked by remember { mutableStateOf(dates.size - 1) }
     // fixed colours: the theme may be grey (dynamic colours from a grey wallpaper), the chart must stay readable
+    val readColor = StatRead
     val listenColor = StatListen
     val gapColor = MaterialTheme.colorScheme.surfaceContainerLow
     val base = MaterialTheme.colorScheme.outlineVariant
