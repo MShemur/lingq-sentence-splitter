@@ -7,6 +7,15 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
 
 ## To do on web
 
+- note 20261127-054348-android -> android v1.162 (Player.kt PodNoText, Podcasts.kt, PodPlayer.kt rememberCoverTint /
+  PodArt): podcast design pass. Player without text: vertical gradient from the cover's average colour (8×8 average,
+  darker in dark theme) to the surface; cover ~80% width (max 360) rounded 20 with shadow; title titleLarge 2 lines,
+  podcast name clickable → feed; «Run AI» card rounded 20 with caption «Текст ещё не готов» / status, green button
+  #2E7D5B 52 px rounded 16 with a spinner while running. Podcasts tab: big title, pill search, «Продолжить» card for the
+  last played episode (cover, title, progress), rounded tiles with shadow, green dot. Feed: gradient header, cover 140
+  rounded 16, pill «Подписаться» / tonal «Вы подписаны ✓», rows: uppercase date, title 2 lines bold, duration + AI chip,
+  round play/pause button on the right, current row highlighted. Port the look to the web.
+
 - user request 18.11.2026 (both platforms, Android does it now): PDF-книга without LingQ. Import no longer creates a
   LingQ lesson: the book stays on the device (doc + page words as now), split into sentences locally (same
   abbreviation rules as Fixer / lingq_fix_splits.py), word / phrase / sentence translations come straight from Gemini
