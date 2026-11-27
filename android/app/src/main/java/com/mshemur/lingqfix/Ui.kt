@@ -643,9 +643,9 @@ private fun SourceTile(icon: androidx.compose.ui.graphics.vector.ImageVector, la
         onClick = onClick, enabled = enabled, modifier = modifier, shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
-        Column(Modifier.padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(26.dp))
-            Text(label, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelLarge)
+            Text(label, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }
@@ -718,7 +718,7 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
             SourceTile(AppIcons.Headphones, "Подкаст", Modifier.weight(1f), !s.running && !s.loading) {
                 state.go(Screen.Podcasts(PodcastSession(state, s)))
             }
-            SourceTile(AppIcons.Mic, "Аудиофайл → текст", Modifier.weight(1f), !s.running && !s.loading) {
+            SourceTile(AppIcons.Mic, "Аудио → текст", Modifier.weight(1f), !s.running && !s.loading) {
                 audioPicker.launch(arrayOf("audio/*", "video/mp4", "application/ogg"))
             }
             SourceTile(AppIcons.Book, "PDF-книга", Modifier.weight(1f), !s.running && !s.loading) {

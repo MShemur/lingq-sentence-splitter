@@ -814,7 +814,7 @@ fun SettingsSpeech(state: AppState) {
     Page {
         Hint(
             "Аудио без текста (подкаст, запись) превращается в урок: текст распознаётся, аудио загружается в LingQ вместе с ним, " +
-                "у каждого предложения своё время. Загрузить → «Аудиофайл → текст».",
+                "у каждого предложения своё время. Загрузить → «Аудио → текст».",
         )
         Text("Сервис", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         STT_PROVIDERS.forEach { s ->
