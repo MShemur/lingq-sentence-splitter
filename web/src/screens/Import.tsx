@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { back, backTo, courses, coursesError, go, LessonsScreen, loadCourses, say, stack, type Screen } from '../app'
 import { prefs, useGemini } from '../settings'
 import { Icon, type IconName } from '../icons'
-import { Chip, Dialog, IconButton, ListItem, Loading, TopBar } from '../ui'
-import { lastImportCourse, rememberImportCourse, type ImportSession } from '../importer/session'
+import { Chip, Dialog, IconButton, ListItem, Loading, Sheet, TopBar } from '../ui'
+import { lastImportCourse, planPair, planSmall, rememberImportCourse, type ImportSession, type MergeSeg } from '../importer/session'
 import { articleLink, bookmarkletCode } from '../importer/article'
 import { countWords } from '../importer/cleaner'
 import { wordsText } from '../stats'
@@ -40,6 +40,8 @@ export function ImportScreen({ s }: { s: ImportSession }) {
   const audioFile = useRef<HTMLInputElement>(null)
   const pdfFile = useRef<HTMLInputElement>(null)
   const [article, setArticle] = useState(false)
+  /** The merge sheet is open: for all small chapters (pair null) or for chapter pair and pair+1. */
+  const [merge, setMerge] = useState<{ pair: number | null } | null>(null)
   useEffect(() => { void loadCourses() }, [])
   const list = courses.value
   useEffect(() => {
@@ -95,6 +97,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
             <SourceTile icon="bookmark" label="Статья" onClick={() => setArticle(true)} disabled={running || s.loading.value} />
           </div>
           {article && <ArticleDialog s={s} onClose={() => setArticle(false)} />}
+          {merge && <MergeSheet s={s} pair={merge.pair} onClose={() => setMerge(null)} />}
           <input ref={pdfFile} type="file" hidden accept=".pdf,application/pdf"
             onChange={(e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void s.loadPdfBook(f); (e.target as HTMLInputElement).value = '' }} />
           <input ref={audioFile} type="file" hidden accept="audio/*,video/mp4,.mp3,.m4a,.ogg,.opus,.wav,.flac,.webm"
@@ -149,7 +152,7 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                 <div class="row">
                   <button class="btn text" onClick={() => items.forEach((i) => { i.selected.value = true })}>Выбрать все</button>
                   <button class="btn text" onClick={() => items.forEach((i) => { i.selected.value = false })}>Снять все</button>
-                  <button class="btn text" onClick={() => s.mergeSmall()}>Объединить мелкие главы</button>
+                  <button class="btn text" onClick={() => setMerge({ pair: null })}>Объединить мелкие главы</button>
                 </div>
               )}
               {items.map((it, i) => (
@@ -158,8 +161,9 @@ export function ImportScreen({ s }: { s: ImportSession }) {
                   <div class="grow">
                     <input class="item-title" value={it.title.value} onInput={(e) => { it.title.value = (e.target as HTMLInputElement).value }} />
                     <div class="hint">{wordsLabel(countWords(it.text.value))}{it.pics.length ? ` · картинок: ${it.pics.length}` : ''}</div>
+                    {it.merged.length > 0 && <div class="merged-note">объединено: {it.merged.join(', ')}</div>}
                   </div>
-                  {i < items.length - 1 && <IconButton icon="down" label="Объединить со следующей" onClick={() => s.mergeWithNext(i)} />}
+                  {i < items.length - 1 && <IconButton icon="down" label="Объединить со следующей" onClick={() => setMerge({ pair: i })} />}
                 </div>
               ))}
             </>
@@ -301,6 +305,43 @@ function ArticleDialog({ s, onClose }: { s: ImportSession; onClose: () => void }
       {copied && <p class="hint">{copied}</p>}
       {manual && <textarea class="import-text" readOnly value={bookmarkletCode()} onFocus={(e) => (e.target as HTMLTextAreaElement).select()} />}
     </Dialog>
+  )
+}
+
+/** «Объединить главы»: the planned groups (target line, then the chapters merged into it, each with ✕ «не объединять»). */
+function MergeSheet({ s, pair, onClose }: { s: ImportSession; pair: number | null; onClose: () => void }) {
+  const [excluded, setExcluded] = useState<number[]>([])
+  const list = s.items.value
+  const ex = new Set(excluded)
+  const words = list.map((it) => countWords(it.text.value))
+  const segs: MergeSeg[] = pair == null ? planSmall(words, ex) : planPair(pair, ex)
+  const groups = segs.filter((g) => g.idx.length > 1)
+  const n = groups.reduce((a, g) => a + g.idx.length - 1, 0)
+  return (
+    <Sheet onClose={onClose}>
+      <div class="sheet-title">Объединить главы</div>
+      <div class="merge-sheet">
+        {!groups.length ? <p class="hint">Мелких глав нет</p> : groups.map((g) => (
+          <div key={g.target} class="merge-group">
+            <div class="merge-target">
+              <span class="grow">{list[g.target].title.value}</span>
+              <span class="hint">{wordsLabel(words[g.target])}</span>
+            </div>
+            {g.idx.filter((k) => k !== g.target).map((k) => (
+              <div key={k} class="merge-member">
+                <span class="grow">{list[k].title.value}</span>
+                <span class="hint">{wordsLabel(words[k])}</span>
+                <IconButton icon="close" label="Не объединять" size={20} class="small" onClick={() => setExcluded([...excluded, k])} />
+              </div>
+            ))}
+          </div>
+        ))}
+        <div class="row">
+          <button class="btn text" onClick={onClose}>Отмена</button>
+          <button class="btn filled grow" disabled={!n} onClick={() => { s.applyMerge(groups); onClose() }}>Объединить ({n})</button>
+        </div>
+      </div>
+    </Sheet>
   )
 }
 

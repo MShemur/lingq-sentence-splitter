@@ -6,13 +6,16 @@ import { log } from './applog'
 import { setListening, tickTime } from './stats'
 
 /** One lesson of a "play all" queue; [key] = "<lang>_<lessonId>". */
-export interface Track { key: string; url: string; title: string; image: string }
+/** [artist]: the podcast's name (lock screen); lessons have none. */
+export interface Track { key: string; url: string; title: string; image: string; artist?: string }
 
 /** "<lang>_<lessonId>" of the loaded audio, null = nothing loaded. */
 export const audioKey = signal<string | null>(null)
 export const audioTitle = signal('')
 /** Cover of the lesson playing ('' = none). */
 export const audioImage = signal('')
+/** Artist for the lock screen ('' = the app name). */
+export const audioArtist = signal('')
 export const playing = signal(false)
 export const buffering = signal(false)
 export const position = signal(0)
@@ -121,6 +124,7 @@ function setSrc(t: Track, startMs: number) {
   audioKey.value = t.key
   audioTitle.value = t.title
   audioImage.value = t.image
+  audioArtist.value = t.artist ?? ''
   audioError.value = null
   clearLoop()
   duration.value = 0
@@ -289,7 +293,7 @@ function metadata() {
   if (!('mediaSession' in navigator)) return
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: audioTitle.value, artist: 'SatzLoop',
+      title: audioTitle.value, artist: audioArtist.value || 'SatzLoop',
       artwork: audioImage.value ? [{ src: audioImage.value, sizes: '512x512' }] : [{ src: '/icon-512.png', sizes: '512x512', type: 'image/png' }],
     })
   } catch { /* old browser */ }

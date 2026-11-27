@@ -30,9 +30,54 @@ export class ImportItem {
   title: Signal<string>
   text: Signal<string>
   selected: Signal<boolean>
-  constructor(title: string, text: string, selected: boolean, readonly pics: bookPics.BookPic[] = []) {
-    this.title = signal(title); this.text = signal(text); this.selected = signal(selected)
+  /** Titles of the chapters merged into this one (shown as «объединено: …»). */
+  merged: string[]
+  constructor(title: string, text: string, selected: boolean, readonly pics: bookPics.BookPic[] = [], merged: string[] = []) {
+    this.title = signal(title); this.text = signal(text); this.selected = signal(selected); this.merged = merged
   }
+  /** A copy with its own signals (for the undo snapshot). */
+  copy() { return new ImportItem(this.title.value, this.text.value, this.selected.value, this.pics, this.merged) }
+}
+
+/** One chapter of a merge plan: the chapters [idx] (in order) become one, with the title of chapter [target]. */
+export interface MergeSeg { idx: number[]; target: number }
+
+/** The merge plan rule: chapters under 300 words chain into the next one (a receiver still small moves on);
+ * the last small one goes into the previous chapter (of its run). Excluded chapters stay separate: they cut the
+ * list into runs, and each run is planned alone. Returns one segment per resulting chapter. */
+export function planSmall(words: number[], excluded: ReadonlySet<number>): MergeSeg[] {
+  const out: MergeSeg[] = []
+  let run: number[] = []
+  const flush = () => { out.push(...planRun(run, words)); run = [] }
+  words.forEach((_, k) => {
+    if (excluded.has(k)) { flush(); out.push({ idx: [k], target: k }); return }
+    run.push(k)
+  })
+  flush()
+  return out
+}
+
+function planRun(run: number[], words: number[]): MergeSeg[] {
+  const segs: MergeSeg[] = []
+  const count = (ks: number[]) => ks.reduce((n, k) => n + words[k], 0)
+  let carry: number[] = [] // small chapters waiting to join the next one
+  for (const k of run) {
+    const cur = [...carry, k]
+    carry = []
+    if (count(cur) < 300) carry = cur
+    else segs.push({ idx: cur, target: k })
+  }
+  if (carry.length) {
+    const prev = segs[segs.length - 1]
+    if (prev) segs[segs.length - 1] = { idx: [...prev.idx, ...carry], target: prev.target }
+    else segs.push({ idx: carry, target: carry[carry.length - 1] })
+  }
+  return segs
+}
+
+/** The row button «Объединить со следующей»: chapter i takes chapter i+1 (unless that one is excluded). */
+export function planPair(i: number, excluded: ReadonlySet<number>): MergeSeg[] {
+  return excluded.has(i + 1) ? [{ idx: [i], target: i }] : [{ idx: [i, i + 1], target: i }]
 }
 
 /** A lesson whose split was fixed after the upload (for the report). */
@@ -218,42 +263,31 @@ export class ImportSession {
 
   // --- chapters: merging (EPUB and other multi-part sources) ---
 
-  /** The undo snapshot is by index: after a merge it no longer fits, so it goes. */
-  private resetUndo() { this.before = null; this.canUndo.value = false }
-
-  /** Chapter i takes chapter i+1 after it (text, pictures); the title of i stays, i+1 is removed. */
-  mergeWithNext(i: number) {
-    const list = this.items.value
-    const a = list[i], b = list[i + 1]
-    if (!a || !b) return
-    const m = new ImportItem(a.title.value, a.text.value + '\n\n' + b.text.value, true, [...a.pics, ...b.pics])
-    this.items.value = [...list.slice(0, i), m, ...list.slice(i + 2)]
-    this.resetUndo()
-  }
-
-  /** Chapters under 300 words go into the next one (chained: a receiver still small moves on); the last small one
-   * goes into the previous chapter. The receiver keeps its title. */
-  mergeSmall() {
+  /** Applies a merge plan (only the segments of 2+ chapters). Each one becomes a chapter with the title of its target,
+   * the texts and pictures in order, and «объединено» = the titles of the others. The list before goes to undo.
+   * Returns how many chapters went away. */
+  applyMerge(segs: MergeSeg[]): number {
     const src = this.items.value
+    const groups = segs.filter((g) => g.idx.length > 1)
+    const n = groups.reduce((a, g) => a + g.idx.length - 1, 0)
+    if (!n) return 0
+    const start = new Map<number, MergeSeg>()
+    const inside = new Set<number>()
+    for (const g of groups) { start.set(g.idx[0], g); g.idx.slice(1).forEach((k) => inside.add(k)) }
     const out: ImportItem[] = []
-    let carry: ImportItem | null = null // a small chapter waiting to join the next one
-    const join = (a: ImportItem, b: ImportItem) => new ImportItem(b.title.value, a.text.value + '\n\n' + b.text.value, true, [...a.pics, ...b.pics])
-    for (const it of src) {
-      const cur: ImportItem = carry ? join(carry, it) : it
-      carry = null
-      if (countWords(cur.text.value) < 300) carry = cur
-      else out.push(cur)
-    }
-    if (carry) {
-      const c: ImportItem = carry
-      if (out.length) {
-        const prev = out[out.length - 1]
-        out[out.length - 1] = new ImportItem(prev.title.value, prev.text.value + '\n\n' + c.text.value, true, [...prev.pics, ...c.pics])
-      } else out.push(c)
-    }
-    const n = src.length - out.length
-    if (n > 0) { this.items.value = out; this.resetUndo() }
+    src.forEach((_, k) => {
+      if (inside.has(k)) return
+      const g = start.get(k)
+      if (!g) { out.push(src[k]); return }
+      const parts = g.idx.map((j) => src[j])
+      const merged = parts.flatMap((p, x) => (g.idx[x] === g.target ? p.merged : [p.title.value, ...p.merged]))
+      out.push(new ImportItem(src[g.target].title.value, parts.map((p) => p.text.value).join('\n\n'), true, parts.flatMap((p) => p.pics), merged))
+    })
+    this.before = { kind: 'merge', items: src.map((it) => it.copy()) }
+    this.canUndo.value = true
+    this.items.value = out
     say(`Объединено глав: ${n}`)
+    return n
   }
 
   // --- PDF: which pages ---
@@ -469,15 +503,22 @@ export class ImportSession {
   cleanProgress = signal(0)
   cleanNote = signal<string | null>(null)
   canUndo = signal(false)
-  private before: [string, string[]] | null = null
+  /** Undo of the last step: the texts before a clean, or the whole chapter list before a merge. */
+  private before: { kind: 'clean'; text: string; texts: string[] } | { kind: 'merge'; items: ImportItem[] } | null = null
 
-  private snapshot() { this.before = [this.pasteText.value, this.items.value.map((i) => i.text.value)]; this.canUndo.value = true }
+  private snapshot() {
+    this.before = { kind: 'clean', text: this.pasteText.value, texts: this.items.value.map((i) => i.text.value) }
+    this.canUndo.value = true
+  }
 
   undoClean() {
     const b = this.before
     if (!b) return
-    this.pasteText.value = b[0]
-    this.items.value.forEach((it, i) => { if (b[1][i] != null) it.text.value = b[1][i] })
+    if (b.kind === 'merge') this.items.value = b.items
+    else {
+      this.pasteText.value = b.text
+      this.items.value.forEach((it, i) => { if (b.texts[i] != null) it.text.value = b.texts[i] })
+    }
     this.before = null; this.canUndo.value = false; this.cleanNote.value = null
   }
 
@@ -489,7 +530,7 @@ export class ImportSession {
 
   /** Quick clean on the device (rules, no AI). */
   cleanQuick() {
-    if (!this.before) this.snapshot()
+    if (this.before?.kind !== 'clean') this.snapshot()
     let r = EMPTY_REPORT
     for (const [t, set] of this.targets()) { const [c, rep] = cleanText(t); r = addReports(r, rep); set(c) }
     this.cleanNote.value = reportText(r)
@@ -498,7 +539,7 @@ export class ImportSession {
   /** Clean with AI (light model), piece by piece; the quick clean runs first and stays if AI fails. */
   async cleanAi() {
     if (!useGemini()) { say('Для чистки с ИИ включите Gemini или другой ИИ: Настройки → Перевод и ИИ'); return }
-    if (!this.before) this.snapshot()
+    if (this.before?.kind !== 'clean') this.snapshot()
     this.cleaning.value = true; this.cleanProgress.value = 0; this.cleanNote.value = null
     const jobs = this.targets().map(([t, set]) => [cleanText(t)[0], set] as const)
     for (const [t, set] of jobs) set(t)

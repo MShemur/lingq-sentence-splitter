@@ -4,7 +4,8 @@ import * as api from './lingq'
 import type { Lesson } from './lingq'
 import * as audio from './audio'
 import { ReaderSession } from './reader/session'
-import { say, stack, type Screen } from './app'
+import { go, say, stack, type Screen } from './app'
+import { isPodKey } from './podplay'
 import type { Bookmark } from './bookmarks'
 import { log, logError } from './applog'
 
@@ -80,6 +81,7 @@ export async function playAll(lang: string, lessons: Lesson[]) {
 
 /** The queue went on to the next lesson: the player shows its text. */
 function onTrack(k: string) {
+  if (isPodKey(k)) return
   const v = queueLessons.get(k)
   if (!v) return
   if (player.value?.audioKey !== k) { const s = session(v[0], v[1]); player.value = s; void s.load() }
@@ -110,6 +112,11 @@ export function listenAt(lang: string, l: Lesson, ms: number) {
  */
 export function openPlaying() {
   const k = audio.audioKey.value
+  if (isPodKey(k)) {
+    // a podcast episode: its own screen, not a lesson session
+    if (stack.value.at(-1)?.k !== 'podPlayer') go({ k: 'podPlayer' })
+    return
+  }
   const cur = player.value
   if (k && cur?.audioKey !== k) {
     const q = queueLessons.get(k)

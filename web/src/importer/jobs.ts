@@ -7,6 +7,7 @@ import { log } from '../applog'
 import { ImportSession } from './session'
 import { bytes, download, episodeExt, plainText, transcript, type Episode, type Podcast } from './podcasts'
 import type { TSeg } from './stt'
+import type { PodSent } from '../podplay'
 
 export interface JobTarget {
   /** null = a new course named [newTitle]. */
@@ -34,7 +35,7 @@ export class BgJob {
   readonly abort = new AbortController()
   private downloaded: Promise<[Blob, TSeg[] | null, string | null, Blob | null]>
 
-  constructor(readonly ep: Episode, readonly pod: Podcast | null, lang: string) {
+  constructor(readonly ep: Episode, readonly pod: Podcast | null, lang: string, readonly saved: PodSent[] | null = null) {
     this.lang = lang
     this.downloaded = this.fetch()
     this.downloaded.catch(() => { /* reported in run() */ })
@@ -50,7 +51,9 @@ export class BgJob {
       if (!this.target.value || this.status.value.startsWith('Скачиваю')) this.status.value = `Скачиваю: ${mb(d)} из ${t > 0 ? mb(t) : '?'} МБ`
     }, this.abort.signal)
     let tr: TSeg[] | null = null, text: string | null = null
-    if (this.ep.transcript) {
+    // a transcript saved on the device (AI) is used as it is: ms -> s, no recognition later
+    if (this.saved?.length) tr = this.saved.map((s) => ({ text: s.text, start: s.start / 1000, end: s.end / 1000 }))
+    else if (this.ep.transcript) {
       try { tr = await transcript(this.ep.transcript, this.ep.transcriptType) } catch (e) { log('podcast', `Расшифровка ✗ ${(e as Error).message}`) }
       if (!tr?.length) tr = null
     }
@@ -114,9 +117,9 @@ export class BgJob {
 export const bgJobs = signal<BgJob[]>([])
 export const runningJobs = computed(() => bgJobs.value.filter((j) => !j.done.value && !j.error.value).length)
 
-/** Starts the download of [ep] at once; the destination is chosen while it runs. */
-export function startJob(ep: Episode, pod: Podcast | null, lang: string): BgJob {
-  const j = new BgJob(ep, pod, lang)
+/** Starts the download of [ep] at once; the destination is chosen while it runs. [saved]: the episode's transcript already on the device. */
+export function startJob(ep: Episode, pod: Podcast | null, lang: string, saved: PodSent[] | null = null): BgJob {
+  const j = new BgJob(ep, pod, lang, saved)
   bgJobs.value = [j, ...bgJobs.value]
   return j
 }

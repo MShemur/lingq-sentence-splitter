@@ -983,6 +983,12 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .vb-hint { font-size: 12px; color: var(--outline); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fb-voice { display: flex; align-items: center; gap: 10px; }
 .fb-voice .hint { margin: 0; }
+.fb-pics { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fb-pics .hint { margin: 0; }
+.fb-thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+.fb-thumb { position: relative; width: 76px; height: 76px; border-radius: 8px; overflow: hidden; border: 1px solid var(--outline); }
+.fb-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.fb-x { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; border-radius: 50%; border: none; padding: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; line-height: 24px; cursor: pointer; }
 .fab-send.mic.on { animation: mic-pulse 1.2s ease-in-out infinite; }
 @keyframes mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--error) 45%, transparent); } 50% { box-shadow: 0 0 0 8px transparent; } }
 /* LingQ heading paragraphs (h1..h6): the words bold, translations as usual */
@@ -1119,3 +1125,11 @@ button.player-head-text:active { background: color-mix(in srgb, var(--on-surface
 .pick-list .check-row { padding: 10px 4px; }
 .link-row { display: flex; gap: 8px; align-items: flex-end; }
 .link-row .field { flex: 1; }
+
+/* chapter merge: the sheet and the "объединено" line under a merged chapter */
+.merged-note { font-size: 12px; color: var(--outline); margin-top: 2px; }
+.merge-sheet { display: flex; flex-direction: column; gap: 12px; padding: 0 16px 16px; }
+.merge-group { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-bottom: 1px solid var(--outline-variant, #cac4d0); }
+.merge-target { display: flex; align-items: baseline; gap: 8px; font-weight: 500; }
+.merge-member { display: flex; align-items: center; gap: 8px; padding-left: 16px; font-size: 14px; }
+.merge-member .hint { white-space: nowrap; }

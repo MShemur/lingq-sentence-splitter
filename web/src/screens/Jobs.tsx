@@ -26,7 +26,9 @@ export function EpisodeSheet({ j, onClose }: { j: BgJob; onClose: () => void }) 
   const [course, setCourse] = useState<string>(same ? String(same.id) : 'new')
   const [newTitle, setNewTitle] = useState(pod?.title ?? '')
   const [len, setLen] = useState<number | null>(null)
-  const hasTr = !!j.ep.transcript, hasText = !hasTr && !!j.ep.textUrl
+  // a transcript saved on the device (AI) replaces the recognition; else the feed's own one
+  const saved = !!j.saved?.length
+  const hasTr = saved || !!j.ep.transcript, hasText = !hasTr && !!j.ep.textUrl
   const [useTr, setUseTr] = useState(hasTr)
   const [useText, setUseText] = useState(false)
   const [cover, setCover] = useState(!same)
@@ -67,7 +69,8 @@ export function EpisodeSheet({ j, onClose }: { j: BgJob; onClose: () => void }) 
         <div class="chips">
           {LENGTHS.map(([t, v]) => <Chip key={t} label={t} selected={len === v} onClick={() => setLen(v)} />)}
         </div>
-        {hasTr && (
+        {saved && <p class="hint">Расшифровка уже есть — будет использована</p>}
+        {hasTr && !saved && (
           <label class="switch-row">
             <input type="checkbox" class="switch" checked={useTr} onChange={(e) => setUseTr((e.target as HTMLInputElement).checked)} />
             <span>Готовая расшифровка подкаста<br /><span class="hint">{useTr ? 'Бесплатно, без распознавания' : 'Распознает сервис из настроек'}</span></span>

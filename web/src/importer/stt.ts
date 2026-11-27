@@ -91,8 +91,12 @@ const WHISPER_TYPES = new Set(['flac', 'mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'ogg
 /** The audio to recognise: a file or a cut part; [mp3] its frames when it is an MP3, [pcm] when already decoded. */
 export interface SttInput { blob: Blob; name: string; mp3: Mp3 | null; pcm: Int16Array | null }
 
-/** Recognises [a] in language [lang]; [status] reports progress. */
-export async function transcribe(a: SttInput, lang: string, p: SttProvider, key: string, model: string, status: (s: string) => void): Promise<Transcript> {
+/**
+ * Recognises [a] in language [lang]; [status] reports progress. [onPart], if given, gets the words of every piece as
+ * soon as it is recognised (times already absolute, in the whole audio), with the piece's index and the piece count.
+ */
+export async function transcribe(a: SttInput, lang: string, p: SttProvider, key: string, model: string, status: (s: string) => void,
+  onPart?: (words: TWord[], partIndex: number, partCount: number) => void): Promise<Transcript> {
   if (!key) throw new Error(`не задан ключ ${p.name} (⚙ Настройки → Распознавание речи)`)
   const m = model || p.models[0]
   const ext = a.name.split('.').pop()?.toLowerCase() ?? ''
@@ -115,7 +119,9 @@ export async function transcribe(a: SttInput, lang: string, p: SttProvider, key:
     status(pieces.length > 1 ? `Распознаю: ${p.name}, часть ${i + 1} из ${pieces.length}…` : `Распознаю: ${p.name}…`)
     const [s, w] = await send(p, key, m, lang, pc.blob, pc.name)
     segs.push(...s.map((x) => ({ ...x, start: x.start + pc.offset, end: x.end + pc.offset })))
-    words.push(...w.map((x) => ({ ...x, start: x.start + pc.offset, end: x.end + pc.offset })))
+    const pw = w.map((x) => ({ ...x, start: x.start + pc.offset, end: x.end + pc.offset }))
+    words.push(...pw)
+    onPart?.(pw, i, pieces.length)
   }
   const text = paragraphs(dropHallucinations(segs))
   log('stt', `${p.name} ${m}: ${words.length} слов, ${Math.round((Date.now() - t0) / 1000)} с${pieces.length > 1 ? ` (частей: ${pieces.length})` : ''}`)

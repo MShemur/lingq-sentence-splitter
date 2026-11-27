@@ -15,6 +15,7 @@ import { useRef } from 'preact/hooks'
 import './styles.css'
 import { log, logError } from './applog'
 import { PodcastFeedScreen, PodcastsScreen } from './screens/Podcasts'
+import { PodPlayerScreen } from './screens/PodPlayer'
 import { ArchiveScreen } from './screens/CourseEdit'
 import { FeedbackScreen } from './screens/Feedback'
 import { WordStatsScreen } from './screens/WordStats'
@@ -33,6 +34,7 @@ function view(screen: Screen) {
     case 'settingsTts': return <SettingsTts />
     case 'podcasts': return <PodcastsScreen s={screen} />
     case 'podcastFeed': return <PodcastFeedScreen s={screen.s} />
+    case 'podPlayer': return <PodPlayerScreen />
     case 'settingsPrompts': return <SettingsPrompts />
     case 'settingsReading': return <SettingsReading />
     case 'settingsSync': return <SettingsSync />

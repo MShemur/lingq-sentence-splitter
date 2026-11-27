@@ -10,6 +10,8 @@ import { log } from '../applog'
 export interface Podcast { title: string; author: string; feed: string; image: string }
 export interface Episode {
   title: string; date: number; audio: string; type: string; duration: number
+  /** The item's <guid> (the audio address when the feed has none): identifies the episode. */
+  guid: string
   description: string; transcript: string; transcriptType: string
   /** A transcript without times (plain text or HTML), '' = none. */
   textUrl: string
@@ -83,7 +85,7 @@ export async function feed(url: string): Promise<[Podcast, Episode[]]> {
     const date = Date.parse(txt(it, 'pubDate'))
     eps.push({
       title: txt(it, 'title'), date: Number.isFinite(date) ? date : 0, audio, type: enc.getAttribute('type') ?? '',
-      duration: duration(txt(it, 'duration')),
+      duration: duration(txt(it, 'duration')), guid: txt(it, 'guid') || audio,
       description: htmlToText(txt(it, 'description') || txt(it, 'summary') || txt(it, 'encoded')).replace(/\s+/g, ' ').slice(0, 400),
       transcript: tr, transcriptType: trType, textUrl: txtUrl,
     })

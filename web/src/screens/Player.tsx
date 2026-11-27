@@ -22,6 +22,8 @@ import { Press } from '../press'
 import { useReadingTimer } from '../stats'
 import { PodcastSession } from '../importer/podcasts'
 import { ImportSession } from '../importer/session'
+import { podNow } from '../podplay'
+import { PodPlayerScreen } from './PodPlayer'
 
 // --- bottom tabs and the mini player ---
 
@@ -76,6 +78,8 @@ export function MiniPlayer() {
 // --- the tab ---
 
 export function PlayerScreen() {
+  // a podcast episode is sounding: the podcast player (its own screen, same tab)
+  if (podNow.value && audio.audioKey.value === podNow.value.key) return <PodPlayerScreen tab />
   const s = player.value
   if (!s) {
     return (
@@ -333,7 +337,7 @@ function loopRange() {
 }
 
 /** Speed: slider 0.5–2.0 in steps of 0.05 and presets. */
-function SpeedSheet({ onClose }: { onClose: () => void }) {
+export function SpeedSheet({ onClose }: { onClose: () => void }) {
   const v = audio.speed.value
   return (
     <Sheet onClose={onClose}>

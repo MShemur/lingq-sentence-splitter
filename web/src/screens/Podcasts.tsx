@@ -1,25 +1,27 @@
-// Podcasts: search / subscriptions, and the episodes of one podcast. Port of Android PodcastsScreen / PodcastFeedScreen.
+// Podcasts: search / subscriptions as a grid of covers, and the episodes of one podcast. Port of Android PodcastsScreen / PodcastFeedScreen.
 import { useEffect, useState } from 'preact/hooks'
-import { startJob, type BgJob } from '../importer/jobs'
-import { EpisodeSheet } from './Jobs'
+import { loadTranscript, playEpisode, podEpisodeOf, podKey, podNow } from '../podplay'
 import { back, stack } from '../app'
 import { MainTabs, MiniPlayer } from './Player'
 import { isSub, subs, type Podcast, type PodcastSession } from '../importer/podcasts'
 import { ClearX, IconButton, TopBar } from '../ui'
+import { Icon } from '../icons'
 import { Cover } from './Library'
+import './Podcasts.css'
 
 const fmtDate = (t: number) => (t > 0 ? new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
 const fmtDur = (s: number) => (s <= 0 ? '' : s >= 3600 ? `${Math.floor(s / 3600)} ч ${Math.floor(s / 60) % 60} мин` : `${Math.floor((s + 30) / 60)} мин`)
 
-function PodcastRow({ p, badge, onClick }: { p: Podcast; badge?: string; onClick: () => void }) {
+/** A podcast as a square cover with its title under it; [badge] = new episodes. */
+function PodTile({ p, badge, onClick }: { p: Podcast; badge?: number; onClick: () => void }) {
+  const title = p.title || p.feed
   return (
-    <button class="pod-row" onClick={onClick}>
-      <Cover url={p.image} title={p.title} class="pod-cover" />
-      <span class="grow">
-        <span class="pod-title">{p.title || p.feed}</span>
-        {p.author && <span class="hint pod-author">{p.author}</span>}
+    <button class="pc-tile" onClick={onClick} aria-label={title}>
+      <span class="pc-cover-wrap">
+        <Cover url={p.image} title={title} class="pc-cover" />
+        {!!badge && badge > 0 && <span class="pc-badge">{badge}</span>}
       </span>
-      {badge && <span class="pod-badge">{badge}</span>}
+      <span class="pc-tile-title">{title}</span>
     </button>
   )
 }
@@ -35,7 +37,7 @@ export function PodcastsScreen({ s }: { s: PodcastSession }) {
         <div class="content page">
           <form class="pod-search" onSubmit={(e) => { e.preventDefault(); void s.search() }}>
             <label class="field grow">
-              <span>Название подкаста или ссылка на RSS</span>
+              <span>Поиск</span>
               <div class="clearable">
                 <input type="search" enterkeyhint="search" value={s.query.value} autocapitalize="off"
                   onInput={(e) => { s.query.value = (e.target as HTMLInputElement).value }} />
@@ -49,20 +51,22 @@ export function PodcastsScreen({ s }: { s: PodcastSession }) {
           {res ? (
             <>
               <div class="row">
-                <h3 class="section-title grow">Найдено: {res.length}</h3>
+                <span class="grow hint">Найдено: {res.length}</span>
                 <button class="btn text" onClick={() => { s.results.value = null; s.query.value = '' }}>Мои подкасты</button>
               </div>
-              {res.map((p) => <PodcastRow key={p.feed} p={p} onClick={() => s.openFeed(p)} />)}
+              <div class="pc-grid">
+                {res.map((p) => <PodTile key={p.feed} p={p} onClick={() => s.openFeed(p)} />)}
+              </div>
             </>
+          ) : subs.value.length ? (
+            <div class="pc-grid">
+              {subs.value.map((sub) => (
+                <PodTile key={sub.podcast.feed} p={sub.podcast} badge={s.newCount.value[sub.podcast.feed] ?? 0}
+                  onClick={() => s.openFeed(sub.podcast)} />
+              ))}
+            </div>
           ) : (
-            <>
-              <h3 class="section-title">Мои подкасты</h3>
-              {!subs.value.length && <p class="hint">Пока нет. Найдите подкаст и нажмите «Подписаться» — новые выпуски будут отмечены здесь.</p>}
-              {subs.value.map((sub) => {
-                const n = s.newCount.value[sub.podcast.feed] ?? 0
-                return <PodcastRow key={sub.podcast.feed} p={sub.podcast} badge={n > 0 ? `${n} нов.` : undefined} onClick={() => s.openFeed(sub.podcast)} />
-              })}
-            </>
+            <p class="hint">Подписок пока нет</p>
           )}
         </div>
       </div>
@@ -74,21 +78,33 @@ export function PodcastsScreen({ s }: { s: PodcastSession }) {
 
 export function PodcastFeedScreen({ s }: { s: PodcastSession }) {
   const p = s.podcast.value
-  if (!p) return null
   const eps = s.episodes.value
+  // keys of the episodes that have a saved (AI) transcript, read once per list
+  const [withTr, setWithTr] = useState<Set<string>>(() => new Set())
+  useEffect(() => {
+    if (!p || !eps) return
+    let alive = true
+    void Promise.all(eps.map(async (ep) => {
+      const k = podKey(p.feed, ep.guid || ep.audio)
+      const v = await loadTranscript(k).catch(() => null)
+      return v?.length ? k : ''
+    })).then((ks) => { if (alive) setWithTr(new Set(ks.filter(Boolean))) })
+    return () => { alive = false }
+  }, [p?.feed, eps])
+  if (!p) return null
   const dl = s.downloading.value
   const subbed = isSub(p.feed) // reads subs.value: re-renders on (un)subscribe
-  const [job, setJob] = useState<BgJob | null>(null)
+  const playing = podNow.value?.key
   return (
     <div class="screen">
       <TopBar nav={<IconButton icon="back" label="Назад" onClick={() => { s.cancel(); back() }} />} title={p.title || 'Подкаст'} />
       <div class="screen-body scroll">
         <div class="content page">
-          <div class="pod-head">
-            <Cover url={p.image} title={p.title} class="pod-cover-big" />
-            <div class="grow">
-              <div class="pod-head-title">{p.title}</div>
-              {p.author && <p class="hint">{p.author}</p>}
+          <div class="pc-head">
+            <Cover url={p.image} title={p.title} class="pc-head-cover" />
+            <div class="pc-head-main">
+              <div class="pc-head-title">{p.title}</div>
+              {p.author && <div class="pc-head-author">{p.author}</div>}
               {subbed
                 ? <button class="btn outlined" onClick={() => s.toggleSub()}>Вы подписаны ✓</button>
                 : <button class="btn tonal" onClick={() => s.toggleSub()}>Подписаться</button>}
@@ -106,26 +122,26 @@ export function PodcastFeedScreen({ s }: { s: PodcastSession }) {
           )}
           {s.feedError.value && <p class="error-text">{s.feedError.value}</p>}
           {!eps && !s.feedError.value && <div class="row-status"><span class="spinner-sm" />Загружаю выпуски…</div>}
-          {eps && (
-            <>
-              <p class="hint">Выпусков: {eps.length}. Нажмите на выпуск: он начнёт скачиваться, а вы тем временем выберете курс.</p>
-              {eps.map((ep) => (
-                <button key={ep.audio} class="pod-ep" disabled={!!dl} onClick={() => setJob(startJob(ep, p, s.lang))}>
-                  {ep.date > s.seenBefore && <span class="pod-new" />}
-                  <span class="grow">
-                    <span class="pod-title">{ep.title}</span>
-                    <span class="pod-meta">
-                      {[fmtDate(ep.date), fmtDur(ep.duration), ep.transcript ? 'есть расшифровка' : ep.textUrl ? 'есть текст (без времени)' : ''].filter(Boolean).join(' · ')}
-                    </span>
-                    {ep.description && <span class="hint pod-desc">{ep.description}</span>}
+          {eps && eps.map((ep) => {
+            const key = podKey(p.feed, ep.guid || ep.audio)
+            const on = playing === key
+            return (
+              <button key={ep.audio} class={'pc-ep' + (on ? ' playing' : '')} disabled={!!dl}
+                onClick={() => playEpisode(podEpisodeOf(ep, p), { ep, pod: p })}>
+                {ep.date > s.seenBefore && <span class="pc-new" />}
+                <span class="pc-ep-main">
+                  <span class="pc-ep-title">{ep.title}</span>
+                  <span class="pc-ep-meta">
+                    <span>{[fmtDate(ep.date), fmtDur(ep.duration)].filter(Boolean).join(' · ')}</span>
+                    {withTr.has(key) && <span class="pc-ai">AI</span>}
                   </span>
-                </button>
-              ))}
-            </>
-          )}
+                </span>
+                {on && <Icon name="play" size={18} />}
+              </button>
+            )
+          })}
         </div>
       </div>
-      {job && <EpisodeSheet j={job} onClose={() => setJob(null)} />}
     </div>
   )
 }
