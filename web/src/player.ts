@@ -4,8 +4,8 @@ import * as api from './lingq'
 import type { Lesson } from './lingq'
 import * as audio from './audio'
 import { ReaderSession } from './reader/session'
-import { go, say, stack, type Screen } from './app'
-import { isPodKey } from './podplay'
+import { say, stack, type Screen } from './app'
+import { ensurePodSession, isPodKey, podNow } from './podplay'
 import type { Bookmark } from './bookmarks'
 import { log, logError } from './applog'
 
@@ -113,8 +113,10 @@ export function listenAt(lang: string, l: Lesson, ms: number) {
 export function openPlaying() {
   const k = audio.audioKey.value
   if (isPodKey(k)) {
-    // a podcast episode: its own screen, not a lesson session
-    if (stack.value.at(-1)?.k !== 'podPlayer') go({ k: 'podPlayer' })
+    // a podcast episode: the player tab with its pod session (re-created if the tab shows another)
+    const ep = podNow.value
+    if (ep && ep.key === k) ensurePodSession(ep)
+    switchTab('player')
     return
   }
   const cur = player.value

@@ -1,0 +1,33 @@
+/* The podcast episode in the player tab without text yet (screens/Player.tsx PodRunCard). The text window, the bar and
+   the menus are the lesson player's. */
+
+.pp-head {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  text-align: center; padding: 8px 16px 0;
+}
+.pp-head-actions { position: absolute; top: 4px; right: 8px; display: flex; }
+.pp-cover {
+  width: min(70vw, 320px); aspect-ratio: 1 / 1; margin: 40px auto 0; border-radius: 18px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.pp-title { margin: 14px 0 0; font-size: 1.2rem; line-height: 1.3; font-weight: 700; }
+.pp-podcast { color: var(--on-surface-variant); font-size: 0.95rem; }
+
+.pp-run-card {
+  margin: 20px 16px 8px; padding: 16px; border-radius: 16px;
+  background: var(--surface-variant, rgba(0, 0, 0, 0.05));
+  display: flex; flex-direction: column; gap: 10px;
+}
+.pp-run-btn {
+  width: 100%; border: 0; border-radius: 999px; padding: 14px 0; font-size: 1.1rem; font-weight: 700;
+  background: var(--green); color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); cursor: pointer;
+}
+.pp-run-btn:active { transform: scale(0.98); }
+.pp-run-btn:disabled { opacity: 0.6; cursor: default; }
+
+.pp-status {
+  display: flex; flex-direction: column; gap: 6px; margin-top: 4px;
+  color: var(--on-surface-variant); font-size: 0.85rem; text-align: center;
+}
+.pp-thin { height: 3px; border-radius: 2px; background: rgba(0, 0, 0, 0.1); overflow: hidden; }
+.pp-thin i { display: block; height: 100%; background: var(--green); transition: width 0.3s; }

@@ -21,6 +21,7 @@ import { load as loadPics, NO_PICS, place as placePics, type PicPlaces, type Sho
 import { asides as pdfAsides, link as pdfLinkOf, map as pdfMap, type PdfLink } from '../pdfbook'
 import { addAudioBookmark, audioBookmarks, removeBookmark, type Bookmark as Bm } from '../bookmarks'
 import { matchWords, remapPinned, wordSlots, type WordSlot } from './remap'
+import { loadTranscript, type PodEpisode, type PodSent } from '../podplay'
 
 // --- model ---
 
@@ -374,16 +375,26 @@ export class ReaderSession {
   private loadingSentences = new Set<number>()
   private notesKey: string
 
-  constructor(readonly lang: string, readonly lesson: Lesson, startSent: number | null = null) {
+  /**
+   * [pod]: a podcast episode instead of a LingQ lesson (see podSession): no LingQ calls, no LingQ writes, the
+   * transcript from the device as the sentences, the episode's audio.
+   */
+  constructor(readonly lang: string, readonly lesson: Lesson, startSent: number | null = null,
+    readonly pod: PodEpisode | null = null) {
     this.title = signal(lesson.title)
     this.jump = signal(startSent)
-    this.notesKey = notesKeyOf(lang, lesson.id)
+    this.notesKey = pod ? 'reader.pod_' + pod.key : notesKeyOf(lang, lesson.id)
+    if (pod) this.audioUrl.value = pod.audio
   }
 
   get target() { return trLang() }
 
+  /** False for a podcast episode: the LingQ lesson functions (edit, bold, AI clean, split fix, level, bookmarks) are off. */
+  get canEdit() { return !this.pod }
+
   async load() {
     this.error.value = null
+    if (this.pod) return this.loadPod(this.pod)
     try {
       const [l, o, pdf] = await Promise.all([
         this.lesson.title ? Promise.resolve(this.lesson) : api.lesson(this.lang, this.lesson.id),
@@ -422,11 +433,72 @@ export class ReaderSession {
     }
   }
 
+  /** Podcast episode: the saved transcript as the sentences (no LingQ calls). */
+  private async loadPod(ep: PodEpisode) {
+    try {
+      this.loadNotes()
+      this.applySents((await loadTranscript(ep.key).catch(() => null)) ?? [], false)
+      void this.applyCachedTr()
+      const start = this.jump.value ?? positionOf(this.lang, this.lesson.id)?.s ?? null
+      if (start != null && this.sentById.has(start)) { this.page.value = this.indexOf(start); this.textAnchor = start }
+      if (this.autoPlay && this.audioUrl.value) { this.autoPlay = false; this.togglePlay() }
+    } catch (e) {
+      logError('reader', `Подкаст ${ep.key} не открылся`, e)
+      this.error.value = errorText(e)
+    }
+  }
+
+  /**
+   * Podcast episode: the sentences are replaced by [list] (the transcript grows while it runs). Ids are places. With
+   * [prune], a sentence whose text changed (or is gone) loses its pins, translations and word pairs; the rest keep them.
+   * The page stays on the same sentence. Without [prune] (load) nothing is dropped.
+   */
+  private applySents(list: PodSent[], prune: boolean) {
+    const oldText = new Map<number, string>()
+    for (const s of this.sentences.value) oldText.set(s.id, s.plain)
+    const pageId = this.sentences.value[this.page.value]?.id
+    const fresh: Sent[] = []
+    for (const x of list) {
+      const text = String(x.text ?? '').trim()
+      if (!text) continue
+      fresh.push(new Sent(fresh.length, text, {}, fresh.length + 1, x.start, x.end))
+    }
+    const ok = (id: number) => !prune || (oldText.has(id) && oldText.get(id) === fresh[id]?.plain)
+    const keep = <V>(r: Record<string, V>) => Object.fromEntries(Object.entries(r).filter(([k]) => ok(Number(k.split(':')[0]))))
+    this.sentById.clear()
+    for (const s of fresh) this.sentById.set(s.id, s)
+    const paras: Sent[][] = []
+    for (let i = 0; i < fresh.length; i += 5) paras.push(fresh.slice(i, i + 5))
+    this.pins.value = keep(this.pins.value)
+    this.provisional.value = keep(this.provisional.value)
+    this.phrasePins.value = keep(this.phrasePins.value)
+    this.pairs.value = keep(this.pairs.value)
+    this.sentTr.value = keep(this.sentTr.value)
+    this.shown.value = keep(this.shown.value)
+    for (const k of [...this.aiCache.keys()]) if (!ok(refSent(k))) this.aiCache.delete(k)
+    this.sentences.value = fresh
+    this.paragraphs.value = paras
+    if (pageId != null && this.sentById.has(pageId)) this.page.value = this.indexOf(pageId)
+    else this.page.value = Math.min(this.page.value, Math.max(0, fresh.length - 1))
+    this.persist()
+  }
+
+  /** Podcast episode: the transcript sentences as they are now (the transcription calls this again as it grows). */
+  setPodSentences(list: PodSent[]): void {
+    if (!this.pod) return
+    this.applySents(list, true)
+  }
+
+  /** Key of the translation cache: the lesson's, or the episode's for a podcast. */
+  private trCacheKey() {
+    return this.pod ? `${this.lang}_${this.pod.key}_${this.target}` : trKey(this.lang, this.lesson.id, this.target)
+  }
+
   /** AI / machine sentence translations kept on this device from earlier visits (sentence text -> translation). */
   private trMap: Record<string, string> = {}
 
   private async applyCachedTr() {
-    const m = await loadTr(trKey(this.lang, this.lesson.id, this.target))
+    const m = await loadTr(this.trCacheKey())
     this.trMap = { ...m, ...this.trMap }
     const add: Record<number, string> = {}
     for (const s of this.sentences.value) { const t = m[s.plain]; if (t && !this.sentTr.value[s.id]) add[s.id] = t }
@@ -436,7 +508,7 @@ export class ReaderSession {
   private keepTr(text: string, tr: string) {
     if (!tr.trim() || isError(tr) || this.trMap[text] === tr) return
     this.trMap = { ...this.trMap, [text]: tr }
-    rememberTr(trKey(this.lang, this.lesson.id, this.target), this.trMap)
+    rememberTr(this.trCacheKey(), this.trMap)
   }
 
   /** For the library's "Продолжить" row (the cover is fetched if missing). */
@@ -457,7 +529,7 @@ export class ReaderSession {
     // statistics: words of sentences seen for the first time
     const f = this.indexOf(first)
     const list = this.sentences.value
-    if (i >= f) countRead(this.lang, this.lesson.id, f, i, (k) => list[k].tokens.filter((t) => t.isWord).length)
+    if (!this.pod && i >= f) countRead(this.lang, this.lesson.id, f, i, (k) => list[k].tokens.filter((t) => t.isWord).length)
   }
 
   private indexOf(id: number) { return Math.max(0, this.sentences.value.findIndex((s) => s.id === id)) }
@@ -520,11 +592,11 @@ export class ReaderSession {
 
   // --- bookmarks ---
 
-  isBookmarked(id: number) { return hasBookmark(this.lesson.id, id) }
+  isBookmarked(id: number) { return !this.pod && hasBookmark(this.lesson.id, id) }
 
   toggleBookmark(id: number) {
     const s = this.sentById.get(id)
-    if (!s) return
+    if (!s || this.pod) return
     const cur = this.sentTr.value[id]
     const tr = !isError(cur) ? cur : s.translations[this.target] ?? ''
     const on = toggleBm(this.lang, this.lesson.id, this.title.value, id, s.plain, tr)
@@ -581,6 +653,7 @@ export class ReaderSession {
 
   /** The split checker (check.ts) saved this lesson with merged sentences: read it again, the translations follow their words. */
   async reloadAfterSplitFix() {
+    if (this.pod) return
     this.closePhrase()
     this.phraseBest.value = null
     this.wordMenu.value = null
@@ -598,6 +671,7 @@ export class ReaderSession {
    * Backup first, the split fixer after. Port of Android Reader.kt cleanWithAi.
    */
   async cleanWithAi() {
+    if (this.pod) return // the LingQ lesson text only
     if (!useGemini()) { say('Для обработки с ИИ включите ИИ: Настройки → Перевод и ИИ'); return }
     if (this.aiClean.value != null) return
     // the words as they stand now: after the save, the translations follow them to their new places
@@ -768,6 +842,7 @@ export class ReaderSession {
   async retranslate(id: number) {
     const s = this.sentById.get(id)
     if (!s || this.retranslating.value[id]) return
+    if (this.pod && !useGemini()) { say('Для перевода заново включите ИИ: Настройки → Перевод и ИИ'); return }
     put(this.retranslating, id, true)
     try {
       const cur = this.sentTr.value[id]
@@ -809,7 +884,8 @@ export class ReaderSession {
 
   /** MP3 of the lesson on LingQ (null = the lesson has no audio). */
   audioUrl = signal<string | null>(null)
-  get audioKey() { return `${this.lang}_${this.lesson.id}` }
+  /** Podcast: the episode's key (the same as in the podcast player, so the position matches). */
+  get audioKey() { return this.pod ? this.pod.key : `${this.lang}_${this.lesson.id}` }
   /** This session is the player tab's: a tap seeks, a long press opens the word menu, sentence translation at the bottom. */
   player = false
   /** Start playing as soon as the lesson (and its audio) is loaded. */
@@ -828,6 +904,7 @@ export class ReaderSession {
   listenFrom(id: number) {
     const st = this.sentById.get(id)
     if (!st || st.start < 0) return
+    if (this.pod) { this.seekToSentence(id); audio.play(); return }
     void import('../player').then((p) => p.listenAt(this.lang,
       { ...this.lesson, title: this.title.value, audio: this.audioUrl.value ?? '' }, st.start))
   }
@@ -866,7 +943,7 @@ export class ReaderSession {
 
   /** Audio bookmark at the place sounding now (its sentence start). */
   markAudio() {
-    if (!this.ensureAudio()) return
+    if (this.pod || !this.ensureAudio()) return
     const pos = audio.position.value
     const id = this.sentenceAt(pos)
     const st = id != null ? this.sentById.get(id) : undefined
@@ -876,7 +953,7 @@ export class ReaderSession {
     say(`Закладка ${audio.fmtTime(ms)}`)
   }
 
-  audioMarks() { return audioBookmarks(this.lesson.id) }
+  audioMarks() { return this.pod ? [] : audioBookmarks(this.lesson.id) }
   removeMark(b: Bm) { removeBookmark(b) }
 
   /** Player tab: play from the start of sentence [id]. */
@@ -950,7 +1027,7 @@ export class ReaderSession {
     say('ИИ оценивает уровень…')
     try {
       const r = await gemini.level(prompt.level(), this.lang, text)
-      await api.setLevel(this.lang, this.lesson.id, r[0])
+      if (!this.pod) await api.setLevel(this.lang, this.lesson.id, r[0]) // a podcast has no level on LingQ
       log('reader', `Уровень урока ${this.lesson.id}: ${api.levelName(r[0])}`)
       this.levelResult.value = r
     } catch (e) {
@@ -982,7 +1059,7 @@ export class ReaderSession {
    */
   async saveEdit(id: number, text: string, translation: string) {
     const s = this.sentById.get(id)
-    if (!s) return
+    if (!s || this.pod) return
     const newText = text.trim().replace(/\s+/g, ' ')
     const newTr = translation.trim()
     if (!newText) { this.editError.value = 'Предложение не может быть пустым'; return }
@@ -1031,7 +1108,7 @@ export class ReaderSession {
    */
   async toggleBold(id: number, from: number, to: number) {
     const s = this.sentById.get(id)
-    if (!s || this.boldBusy) return
+    if (!s || this.boldBusy || this.pod) return
     const raw = tokenize(s.text)
     let pos = 0, a = -1, e = -1
     for (const t of raw) {
@@ -1529,6 +1606,19 @@ export class ReaderSession {
     const sys = fill(prompt.chatSentence(), { lang: this.lang, target: this.target, sentence: s.plain })
     go({ k: 'chat', c: new ChatSession('Чат о предложении', sys, s.plain) })
   }
+}
+
+/** Lesson-like id of a podcast episode: negative (LingQ lesson ids are positive), from a hash of the episode key. */
+export function podLessonId(key: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193)
+  return -((h >>> 0) % 2000000000 + 1)
+}
+
+/** Reader session for a podcast episode: the normal lesson player, without LingQ (see ReaderSession.pod). */
+export function podSession(ep: PodEpisode, lang: string): ReaderSession {
+  const lesson: Lesson = { id: podLessonId(ep.key), title: ep.title, audio: ep.audio, imageUrl: ep.cover, courseTitle: ep.feedTitle }
+  return new ReaderSession(lang, lesson, null, ep)
 }
 
 /** "Go to source" of a bookmark: the open reader of that lesson jumps there, otherwise the lesson opens. */

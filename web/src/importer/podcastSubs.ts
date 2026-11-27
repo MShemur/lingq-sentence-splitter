@@ -36,6 +36,31 @@ export function markSeen(feed: string, t: number) {
   saveSubs(subs.value.map((s) => (s.podcast.feed === feed && t > s.seen ? { ...s, seen: t } : s)))
 }
 
+/** OPML (from other podcast apps): every <outline xmlUrl="…"> at any depth, once per feed; the text / title = its name. */
+export function parseOpml(xml: string): { feed: string; title: string }[] {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml')
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('это не OPML-файл')
+  const out: { feed: string; title: string }[] = []
+  const seen = new Set<string>()
+  for (const el of Array.from(doc.getElementsByTagName('outline'))) {
+    const feed = (el.getAttribute('xmlUrl') ?? '').trim()
+    if (!feed || seen.has(feed)) continue
+    seen.add(feed)
+    out.push({ feed, title: (el.getAttribute('text') || el.getAttribute('title') || '').trim() })
+  }
+  return out
+}
+
+/** The subscriptions as an OPML file text (for other podcast apps). */
+export function subsOpml(): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const rows = subs.value.map((s) => {
+    const t = esc(s.podcast.title || s.podcast.feed)
+    return `    <outline type="rss" text="${t}" title="${t}" xmlUrl="${esc(s.podcast.feed)}"/>`
+  })
+  return ['<?xml version="1.0" encoding="UTF-8"?>', '<opml version="2.0">', '  <head><title>Подписки</title></head>', '  <body>', ...rows, '  </body>', '</opml>', ''].join('\n')
+}
+
 export function exportSubs(): Record<string, unknown> {
   const o: Record<string, unknown> = {}
   for (const s of subs.value) {

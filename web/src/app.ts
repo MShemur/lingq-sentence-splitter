@@ -62,7 +62,6 @@ export type Screen =
   | { k: 'settingsTts' }
   | PodcastSession
   | { k: 'podcastFeed'; s: PodcastSession }
-  | { k: 'podPlayer' }
   | { k: 'settingsPrompts' }
 
 export const stack = signal<Screen[]>([{ k: 'courses' }])

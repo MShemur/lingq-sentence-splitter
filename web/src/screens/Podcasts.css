@@ -6,9 +6,9 @@
   color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .pc-cover-wrap { position: relative; display: block; }
 .pc-cover { display: block; width: 100%; height: auto; aspect-ratio: 1; border-radius: 14px; }
-.pc-badge { position: absolute; top: 6px; right: 6px; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box;
-  border-radius: 11px; background: var(--primary); color: var(--surface, #fff); font-size: 12px; font-weight: 700;
-  line-height: 22px; text-align: center; }
+/* new episodes: a green dot at the top-right corner of the cover */
+.pc-dot { position: absolute; top: 6px; right: 6px; width: 12px; height: 12px; box-sizing: border-box; border-radius: 50%;
+  background: var(--green); border: 2px solid var(--surface, #fff); }
 .pc-tile-title { font-size: 13px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 .pc-head { display: flex; gap: 16px; align-items: flex-end; margin: 4px 0 18px; }

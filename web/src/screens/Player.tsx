@@ -1,12 +1,13 @@
-// The player tab: a lesson's audio with its text. Collapsed: a window with the sentence sounding now (bold) and its
-// neighbours; a tap opens the whole text, which follows the audio. Without a lesson: what to listen to.
+// The player tab: a lesson's or a podcast episode's audio with its text. Collapsed: a window with the sentence sounding now
+// (bold) and its neighbours; a tap opens the whole text, which follows the audio. A podcast episode without text yet:
+// the cover, the title and the "Run AI" card. Without a lesson: what to listen to.
 // Port of Android Player.kt and the audio parts of Audio.kt / Extras.kt.
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { JSX } from 'preact'
 import { effect } from '@preact/signals'
 import * as audio from '../audio'
 import { fmtLength, fmtSpeed, fmtTime } from '../audio'
-import { listened, loadCourses, naturalCompare, stack, visibleCourses } from '../app'
+import { listened, loadCourses, naturalCompare, say, stack, visibleCourses } from '../app'
 import { lang, prefs } from '../settings'
 import * as api from '../lingq'
 import type { Course, Lesson } from '../lingq'
@@ -22,8 +23,11 @@ import { Press } from '../press'
 import { useReadingTimer } from '../stats'
 import { PodcastSession } from '../importer/podcasts'
 import { ImportSession } from '../importer/session'
-import { podNow } from '../podplay'
-import { PodPlayerScreen } from './PodPlayer'
+import { loadTranscript, podSourceOf, podStatus, type PodEpisode } from '../podplay'
+import { aiProgress, aiRunKey, runAi } from '../podai'
+import { startJob, type BgJob } from '../importer/jobs'
+import { EpisodeSheet } from './Jobs'
+import './PlayerPod.css'
 
 // --- bottom tabs and the mini player ---
 
@@ -69,6 +73,7 @@ export function MiniPlayer() {
         <span onClick={(e) => e.stopPropagation()} class="mini-buttons">
           <IconButton icon="replay" label="Назад на 5 секунд" onClick={() => audio.seekBy(-5000)} />
           <IconButton icon={audio.playing.value ? 'pause' : 'play'} label={audio.playing.value ? 'Пауза' : 'Слушать'} onClick={() => audio.toggle()} size={30} />
+          <IconButton icon="close" label="Остановить и закрыть плеер" onClick={() => audio.stop()} size={20} />
         </span>
       </div>
     </div>
@@ -78,8 +83,6 @@ export function MiniPlayer() {
 // --- the tab ---
 
 export function PlayerScreen() {
-  // a podcast episode is sounding: the podcast player (its own screen, same tab)
-  if (podNow.value && audio.audioKey.value === podNow.value.key) return <PodPlayerScreen tab />
   const s = player.value
   if (!s) {
     return (
@@ -98,6 +101,7 @@ function PlayerLesson({ s }: { s: ReaderSession }) {
   const [expanded, setExpanded] = useState(false)
   const [picker, setPicker] = useState(false)
   const [marks, setMarks] = useState(false)
+  const [job, setJob] = useState<BgJob | null>(null)
   const top = stack.value.at(-1)
   // reading the text in the player counts as study time too (listening is counted by the audio)
   useReadingTimer(top?.k === 'player' && expanded && !audio.playing.value)
@@ -105,14 +109,24 @@ function PlayerLesson({ s }: { s: ReaderSession }) {
   const err = s.error.value
   const url = s.audioUrl.value
   const lesson = s.lesson
+  // a podcast episode without text yet: the Snipd-like layout (big cover, title, Run AI card)
+  const bare = !!s.pod && !s.sentences.value.length
+  const headExpanded = expanded && !bare
   return (
     <div class="screen player" style={readerStyle()}>
-      {expanded ? (
+      {headExpanded ? (
         <header class="top-bar">
           <div class="top-bar-nav"><IconButton icon="down" label="Свернуть текст" onClick={() => setExpanded(false)} /></div>
           <div class="top-bar-title player-title-small">{s.title.value}</div>
-          <div class="top-bar-actions"><PlayerActions s={s} onMarks={() => setMarks(true)} /></div>
+          <div class="top-bar-actions"><PlayerActions s={s} onMarks={() => setMarks(true)} onJob={setJob} /></div>
         </header>
+      ) : bare ? (
+        <div class="pp-head">
+          <div class="pp-head-actions"><PlayerActions s={s} onMarks={() => setMarks(true)} onJob={setJob} /></div>
+          <Cover url={lesson.imageUrl} title={s.title.value || '♪'} class="pp-cover" />
+          <h2 class="pp-title">{s.title.value}</h2>
+          {!!lesson.courseTitle && <div class="pp-podcast">{lesson.courseTitle}</div>}
+        </div>
       ) : (
         <div class="player-head">
           <Cover url={lesson.imageUrl} title={s.title.value || '♪'} class="player-cover" />
@@ -120,15 +134,18 @@ function PlayerLesson({ s }: { s: ReaderSession }) {
             <span class="player-title-row"><span class="player-title">{s.title.value || `Урок ${lesson.id}`}</span><Icon name="down" size={20} class="title-chevron" /></span>
             {!!lesson.courseTitle && <span class="player-course">{lesson.courseTitle}</span>}
           </button>
-          <PlayerActions s={s} onMarks={() => setMarks(true)} />
+          <PlayerActions s={s} onMarks={() => setMarks(true)} onJob={setJob} />
         </div>
       )}
       <div class="screen-body player-body">
         {err ? <ErrorBox text={err} retry={() => void s.load()} />
+          : bare ? <PodRunCard s={s} />
           : !paras ? <div class="player-skeleton"><div class="skeleton line" /><div class="skeleton line wide" /><div class="skeleton line" /></div>
           : !url ? <p class="empty">У этого урока нет аудио на LingQ.</p>
-          : expanded ? <FullText s={s} />
-          : <TextWindow s={s} onOpen={() => setExpanded(true)} />}
+          : <>
+            {s.pod && <PodStatus pod={s.pod} />}
+            {expanded ? <FullText s={s} /> : <TextWindow s={s} onOpen={() => setExpanded(true)} />}
+          </>}
       </div>
       {s.bottomSent.value != null && <BottomTranslation s={s} id={s.bottomSent.value} />}
       {url && <AudioBar s={s} />}
@@ -139,6 +156,7 @@ function PlayerLesson({ s }: { s: ReaderSession }) {
         </WordMenuAt>
       )}
       {marks && <MarksSheet s={s} onClose={() => setMarks(false)} />}
+      {job && <EpisodeSheet j={job} onClose={() => setJob(null)} />}
       {picker && (
         <Sheet onClose={() => setPicker(false)}>
           <div class="sheet-title">Что слушать</div>
@@ -151,21 +169,66 @@ function PlayerLesson({ s }: { s: ReaderSession }) {
   )
 }
 
-/** Header buttons: bookmark this place; menu with the lesson's audio bookmarks. */
-function PlayerActions({ s, onMarks }: { s: ReaderSession; onMarks: () => void }) {
+/**
+ * Header buttons: bookmark this place and the menu with the lesson's audio bookmarks (LingQ lessons only). For a podcast
+ * episode the menu has "Загрузить как урок" and "Открыть подкаст"; [onJob] shows the upload sheet.
+ */
+function PlayerActions({ s, onMarks, onJob }: { s: ReaderSession; onMarks: () => void; onJob: (j: BgJob) => void }) {
   const [menu, setMenu] = useState(false)
+  const pod = s.pod
+  const loadAsLesson = async () => {
+    setMenu(false)
+    if (!pod) return
+    const src = podSourceOf(pod.key)
+    if (!src) { say('Выпуск не найден в ленте. Откройте его из подкаста.'); return }
+    // a transcript already saved for this episode is used instead of recognising it again
+    const saved = await loadTranscript(pod.key).catch(() => null)
+    onJob(startJob(src.ep, src.pod, lang(), saved))
+  }
+  const openPodcast = () => {
+    setMenu(false)
+    if (!pod) return
+    const ps = new PodcastSession(new ImportSession(), lang())
+    ps.openFeed({ title: pod.feedTitle, author: '', feed: pod.feedUrl, image: pod.cover })
+  }
   return (
     <>
-      <IconButton icon="bookmarkBorder" label="Закладка на это место" disabled={!s.audioUrl.value} onClick={() => s.markAudio()} />
+      {s.canEdit && <IconButton icon="bookmarkBorder" label="Закладка на это место" disabled={!s.audioUrl.value} onClick={() => s.markAudio()} />}
       <div class="menu-anchor">
         <IconButton icon="more" label="Ещё" onClick={() => setMenu(true)} />
         {menu && (
           <Menu onClose={() => setMenu(false)}>
-            <MenuItem icon="bookmark" onClick={() => { setMenu(false); onMarks() }}>Аудиозакладки ({s.audioMarks().length})</MenuItem>
+            {s.canEdit && <MenuItem icon="bookmark" onClick={() => { setMenu(false); onMarks() }}>Аудиозакладки ({s.audioMarks().length})</MenuItem>}
+            {pod && <MenuItem icon="upload" onClick={() => void loadAsLesson()}>Загрузить как урок</MenuItem>}
+            {pod && <MenuItem icon="podcast" onClick={openPodcast}>Открыть подкаст</MenuItem>}
           </Menu>
         )}
       </div>
     </>
+  )
+}
+
+/** The "Run AI" card of a podcast episode without text: a green full-width button, the status and a thin progress. */
+function PodRunCard({ s }: { s: ReaderSession }) {
+  const running = !!s.pod && aiRunKey.value === s.pod.key
+  return (
+    <div class="pp-run-card">
+      <button class="pp-run-btn" disabled={running} onClick={() => runAi()}>✨ Run AI</button>
+      {s.pod && <PodStatus pod={s.pod} />}
+    </div>
+  )
+}
+
+/** The status of a running transcription (podStatus) and its progress; nothing when idle without a status. */
+function PodStatus({ pod }: { pod: PodEpisode }) {
+  const running = aiRunKey.value === pod.key
+  const st = podStatus.value
+  if (!running && !st) return null
+  return (
+    <div class="pp-status">
+      {st && <span>{st}</span>}
+      {running && <div class="pp-thin"><i style={{ width: `${Math.round(aiProgress.value * 100)}%` }} /></div>}
+    </div>
   )
 }
 
