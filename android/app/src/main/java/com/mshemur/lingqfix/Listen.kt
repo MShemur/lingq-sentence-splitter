@@ -28,9 +28,6 @@ object ListenTranslate {
     private class Seg(val text: String, val start: Long, val lingq: String?)
 
     private val segs = HashMap<String, List<Seg>>()
-    private var tts: TextToSpeech? = null
-    private var ttsReady = false
-    private var pendingSpeak: (() -> Unit)? = null
     @Volatile var speaking = false
         private set
     private var resumeAfter = false
@@ -146,33 +143,10 @@ object ListenTranslate {
 
     /** Reads [text] in the translation language, then plays on if the audio was playing. */
     private fun say(ctx: Context, text: String) {
+        // the voice chosen in Settings → Озвучка (system, Gemini, OpenAI, ElevenLabs, OpenRouter), as in the reader
         main.post {
             val app = app(ctx)
-            val go = {
-                tts?.let { t ->
-                    t.language = Locale.forLanguageTag(app.trLang)
-                    t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tr")
-                }
-                Unit
-            }
-            val t = tts
-            if (t == null) {
-                pendingSpeak = go
-                tts = TextToSpeech(ctx.applicationContext) { st ->
-                    main.post {
-                        ttsReady = st == TextToSpeech.SUCCESS
-                        if (ttsReady) pendingSpeak?.invoke() else { AppLog.add("listen", "Синтез речи недоступен"); done() }
-                        pendingSpeak = null
-                    }
-                }.apply {
-                    setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                        override fun onStart(utteranceId: String?) {}
-                        override fun onDone(utteranceId: String?) { main.post { done() } }
-                        @Deprecated("Deprecated in Java")
-                        override fun onError(utteranceId: String?) { main.post { done() } }
-                    })
-                }
-            } else if (ttsReady) go() else pendingSpeak = go
+            Tts.speak(app, text, app.trLang) { done() }
         }
     }
 
@@ -187,7 +161,7 @@ object ListenTranslate {
     }
 
     /** A single press while reading: stop reading and play on. */
-    fun stopSpeaking() { tts?.stop(); done() }
+    fun stopSpeaking() { Tts.stop(); done() }
 
     /** Translates every sentence of the lesson ahead (kept in its translation cache, the reader uses it too). */
     /** Returns (sentences to translate, how many failed). Stops when the first 3 all fail. */

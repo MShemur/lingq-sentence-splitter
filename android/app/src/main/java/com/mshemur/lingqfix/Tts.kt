@@ -255,11 +255,12 @@ object Tts {
         models.firstOrNull { "tts" in it && "flash" in it } ?: "gemini-2.5-flash-preview-tts"
 
     /** Speaks [text] in [lang] (BCP 47 tag, e.g. "de"). Stops anything playing first; strips * markup. */
-    fun speak(app: AppState, text: String, lang: String) {
+    fun speak(app: AppState, text: String, lang: String, done: (() -> Unit)? = null) {
         val clean = text.replace("*", "").trim()
         onMain {
             stop()
-            if (clean.isEmpty()) return@onMain
+            onDone = done
+            if (clean.isEmpty()) { fireDone(); return@onMain }
             _speaking.value = true
             if (AudioEngine.playing) AudioEngine.pause()
             val g = gen
@@ -295,6 +296,7 @@ object Tts {
         job?.cancel()
         job = null
         sysPending = null
+        onDone = null
         releasePlayer()
         runCatching { sys?.stop() }
         _speaking.value = false
@@ -303,7 +305,13 @@ object Tts {
     private fun finish() {
         releasePlayer()
         _speaking.value = false
+        fireDone()
     }
+
+    /** Called once when the current speech ends by itself (not on [stop]): the headphone translation plays on then. */
+    private var onDone: (() -> Unit)? = null
+
+    private fun fireDone() { val d = onDone; onDone = null; d?.invoke() }
 
     private fun releasePlayer() {
         val mp = player ?: return
@@ -344,6 +352,7 @@ object Tts {
                         AppLog.add("tts", "Системный синтез речи недоступен")
                         app.say("Системный синтез речи недоступен")
                         _speaking.value = false
+                        fireDone()
                     }
                 }
             }.apply {
