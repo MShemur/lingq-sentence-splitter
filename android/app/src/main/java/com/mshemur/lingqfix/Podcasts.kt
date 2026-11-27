@@ -39,6 +39,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -58,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -333,6 +337,43 @@ object PodcastApi {
     }
 }
 
+/** OPML subscription lists, the format other podcast apps export and import. */
+object Opml {
+    /** (title, feed address) of every outline with an xmlUrl, at any depth. */
+    fun read(ctx: Context, uri: Uri): List<Pair<String, String>> {
+        val out = mutableListOf<Pair<String, String>>()
+        val input = ctx.contentResolver.openInputStream(uri) ?: throw ApiException("файл не открылся")
+        input.use { stream ->
+            val p = Xml.newPullParser()
+            p.setInput(stream, null)
+            while (true) {
+                val ev = p.next()
+                if (ev == XmlPullParser.END_DOCUMENT) break
+                if (ev == XmlPullParser.START_TAG && p.name.equals("outline", ignoreCase = true)) {
+                    val attrs = (0 until p.attributeCount).associate { p.getAttributeName(it).lowercase() to p.getAttributeValue(it).orEmpty() }
+                    val url = attrs["xmlurl"].orEmpty().trim()
+                    if (url.startsWith("http", ignoreCase = true)) out += (attrs["text"] ?: attrs["title"]).orEmpty().trim() to url
+                }
+            }
+        }
+        return out
+    }
+
+    /** The subscriptions as an OPML document. */
+    fun build(subs: List<PodcastSubs.Sub>): String {
+        fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+        return buildString {
+            append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<opml version=\"2.0\">\n")
+            append("<head><title>SatzLoop: подкасты</title></head>\n<body>\n")
+            subs.forEach { s ->
+                val t = esc(s.podcast.title.ifBlank { s.podcast.feed })
+                append("<outline type=\"rss\" text=\"$t\" title=\"$t\" xmlUrl=\"${esc(s.podcast.feed)}\"/>\n")
+            }
+            append("</body>\n</opml>\n")
+        }
+    }
+}
+
 /**
  * Subscribed podcasts and when each was last looked at (newer episodes are "new").
  * Synced with the iPad as "podcasts": {feed: {title, author, image, seen, t}} or {del: true, t} for a removed one;
@@ -494,6 +535,67 @@ class PodcastSession(val app: AppState, private val imp: ImportSession) {
         reloadSubs()
     }
 
+    /** OPML line of the Podcasts tab: import progress or the export result ("" = none). */
+    var opmlText by mutableStateOf("")
+
+    /** Subscribes to every feed of an OPML file not subscribed yet; the feeds are fetched 3 at a time for title and cover. */
+    fun importOpml(uri: Uri) {
+        app.scope.launch {
+            val feeds = try {
+                withContext(Dispatchers.IO) { Opml.read(app.ctx, uri) }
+            } catch (e: Throwable) {
+                AppLog.error("podcast", "OPML: чтение", e); app.say("Не удалось прочитать файл: ${e.message}"); return@launch
+            }
+            val todo = feeds.distinctBy { it.second }.filter { !subsStore.has(it.second) }
+            if (todo.isEmpty()) { app.say("Новых подписок нет (в файле: ${feeds.size})"); return@launch }
+            var added = 0
+            var done = 0
+            val lim = Semaphore(3)
+            opmlText = "Импорт: 0 из ${todo.size}"
+            coroutineScope {
+                todo.forEach { (outlineTitle, url) ->
+                    launch {
+                        val fetched = lim.withPermit {
+                            runCatching { withContext(Dispatchers.IO) { PodcastApi.feed(url) } }.getOrNull()
+                        }
+                        // back on the main thread (the scope's): the store is written from here only
+                        if (!subsStore.has(url)) {
+                            val pod = fetched?.first?.let { info ->
+                                Podcast(info.title.ifBlank { outlineTitle }, info.author, url, info.image)
+                            } ?: Podcast(outlineTitle, "", url, "")
+                            // like a normal subscribe: the episodes that exist now are not "new"
+                            val seen = fetched?.second?.maxOfOrNull { it.date } ?: System.currentTimeMillis()
+                            subsStore.add(pod, seen)
+                            added++
+                            reloadSubs()
+                        }
+                        done++
+                        opmlText = "Импорт: $done из ${todo.size}"
+                    }
+                }
+            }
+            opmlText = ""
+            app.say("Подписок добавлено: $added")
+        }
+    }
+
+    /** Writes the subscriptions as OPML to [uri] (chosen with "save as"). */
+    fun exportOpml(uri: Uri) {
+        app.scope.launch {
+            val subsNow = subsStore.list()
+            try {
+                val text = Opml.build(subsNow)
+                withContext(Dispatchers.IO) {
+                    app.ctx.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                        ?: throw ApiException("файл не открылся для записи")
+                }
+                app.say("Подписок сохранено: ${subsNow.size}")
+            } catch (e: Throwable) {
+                AppLog.error("podcast", "OPML: запись", e); app.say("Не удалось сохранить: ${e.message}")
+            }
+        }
+    }
+
     fun cancel() { job?.cancel(); job = null; downloading = null }
 
     /** Downloads the episode (and its transcript and the cover), then the audio import asks which part to take. */
@@ -553,17 +655,15 @@ private fun fmtDur(s: Int) = when {
     else -> "${(s + 30) / 60} мин"
 }
 
-/** A podcast as a square cover tile; the badge = new episodes. */
+/** A podcast as a square cover tile; [badge] > 0 (new episodes) = a green dot at the top-right corner of the cover. */
 @Composable
 private fun PodTile(p: Podcast, badge: Int, onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Box(Modifier.fillMaxWidth()) {
             Cover(p.image, p.title, Modifier.fillMaxWidth())
             if (badge > 0) Box(
-                Modifier.align(Alignment.TopEnd).padding(6.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 7.dp, vertical = 1.dp),
-            ) { Text("$badge", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall) }
+                Modifier.align(Alignment.TopEnd).padding(6.dp).size(12.dp).clip(CircleShape).background(Color(0xFF43A047)),
+            )
         }
         Text(
             p.title, Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp),
@@ -576,6 +676,8 @@ private fun PodTile(p: Podcast, badge: Int, onClick: () -> Unit) {
 @Composable
 fun PodcastsScreen(state: AppState, s: PodcastSession) {
     LaunchedEffect(Unit) { s.reloadSubs(); s.refreshNew() }
+    val pickOpml = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) s.importOpml(uri) }
+    val saveOpml = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/xml")) { uri -> if (uri != null) s.exportOpml(uri) }
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 104.dp),
         modifier = Modifier.fillMaxSize(),
@@ -602,6 +704,11 @@ fun PodcastsScreen(state: AppState, s: PodcastSession) {
                     Text("Ищу…", Modifier.padding(start = 10.dp))
                 }
                 s.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { pickOpml.launch(arrayOf("text/xml", "application/xml", "text/x-opml", "*/*")) }) { Text("Импорт подписок (OPML)") }
+                    TextButton(onClick = { saveOpml.launch("satzloop-podcasts.opml") }) { Text("Экспорт") }
+                    if (s.opmlText.isNotEmpty()) Text(s.opmlText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         val res = s.results

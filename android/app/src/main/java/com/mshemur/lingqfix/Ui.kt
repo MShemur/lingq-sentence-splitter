@@ -157,7 +157,8 @@ fun App(state: AppState) {
     MaterialTheme(colorScheme = scheme) {
       androidx.compose.runtime.CompositionLocalProvider(LocalHighlight provides highlightColors(state.highlight, darkPage, state.wordBg)) {
         val screen = state.screen
-        BackHandler(enabled = state.stack.size > 1) { state.back() }
+        // system back: pops the stack; at the root of Плеер / Подкасты it goes to the library (closes nothing there)
+        BackHandler(enabled = state.stack.size > 1 || screen != Screen.ReaderCourses) { state.back() }
         Box(
             Modifier.fillMaxSize().pointerInput(Unit) {
                 // any touch keeps the screen awake while reading (see KeepScreenOn)

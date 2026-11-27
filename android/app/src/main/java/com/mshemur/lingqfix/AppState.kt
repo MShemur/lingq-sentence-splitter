@@ -244,9 +244,12 @@ class AppState(val ctx: Context) {
         loadCourses(force = true)
         go(Screen.Reader(ReaderSession(this, lang, l)))
     }
-    fun back(): Boolean = if (stack.size > 1) {
-        stack.removeAt(stack.lastIndex); AppLog.add("nav", "← ${screenName(stack.last())}"); true
-    } else false
+    /** Back: pops the stack; a tab root other than the library (Плеер, Подкасты) goes to the library, the library closes nothing here. */
+    fun back(): Boolean = when {
+        stack.size > 1 -> { stack.removeAt(stack.lastIndex); AppLog.add("nav", "← ${screenName(stack.last())}"); true }
+        stack.size == 1 && stack[0] != Screen.ReaderCourses -> { switchTab(Screen.ReaderCourses); true }
+        else -> false
+    }
     fun say(msg: String) { AppLog.add("msg", msg); scope.launch { snackbar.showSnackbar(msg) } }
 
     /** A result to read at leisure: stays until closed with its ✕. */
