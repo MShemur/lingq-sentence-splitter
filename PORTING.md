@@ -16,14 +16,6 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   rounded 16, pill «Подписаться» / tonal «Вы подписаны ✓», rows: uppercase date, title 2 lines bold, duration + AI chip,
   round play/pause button on the right, current row highlighted. Port the look to the web.
 
-- note 20261127-071253-android -> android v1.164 (AppState.kt back / switchTab history): «назад» = the screen seen
-  before. A tab opened from inside a screen (player from the podcast list / a feed / a lesson / the mini player) keeps
-  the previous stack; back restores it. Bottom-bar taps clear that history (back on a tab root → library). Back never
-  lands on the import screen (source / course choice) from a lesson opened out of it. Check the web player / podcasts
-  back the same way.
-- note 20261127-071028-android -> android v1.164 (Settings.kt Choices): model / voice choices in Озвучка: up to 5 as
-  chips wrapping onto several lines, 6 and more as a drop-down list. Same rule on the web if it differs.
-
 - user request 18.11.2026 (both platforms, Android does it now): PDF-книга without LingQ. Import no longer creates a
   LingQ lesson: the book stays on the device (doc + page words as now), split into sentences locally (same
   abbreviation rules as Fixer / lingq_fix_splits.py), word / phrase / sentence translations come straight from Gemini
@@ -56,6 +48,17 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   tap = whole screen. Only on the device that imported the book. Files: importer/sources.ts (chapterPics, anchorPics),
   importer/session.ts (picsOf, bookPics.save), reader/session.ts (pics), reader/Reader.tsx (Pics, PicViewer), styles.css.
 ## Done
+
+- notes 20261127-071253-android / 20261127-072943-web -> android v1.164, web v1.91: «назад» = the screen seen before.
+  A tab opened from inside a screen (player from the podcast list / a feed / a lesson / the mini player) keeps the
+  previous stack (AppState.kt history / app.ts tabHistory, filled in switchTab); back restores it; bottom-bar taps clear
+  it (back on a tab root → library); never back to the import screen. Web: the podcast player without text has a top
+  bar with ← and ⋮, the cover is a square of at most 360 px / 42vh and the page scrolls.
+- note 20261127-071028-android -> android v1.164 (Settings.kt Choices): Озвучка model / voice: up to 5 as wrapping chips,
+  6+ as a drop-down. Web already wraps them (no change).
+- note 20261127-073204-web -> web v1.91 (Reader.tsx picMaxH): book mode keeps 3 text lines free under a picture, so a
+  caption paragraph after it stays on its page; «Книжный режим» has a book icon in the reader menu and settings (both
+  platforms; Android v1.165 settings, its menu had it already).
 
 - notes 27.11.2026 (Android 052400 / 052956 / 053348 / 053530) -> android v1.159-v1.160, web v1.90 (both):
   1) ONE player: a podcast episode opens the normal lesson player. ReaderSession got a podcast source (web

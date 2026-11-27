@@ -7,7 +7,7 @@ import type { JSX } from 'preact'
 import { effect } from '@preact/signals'
 import * as audio from '../audio'
 import { fmtLength, fmtSpeed, fmtTime } from '../audio'
-import { listened, loadCourses, naturalCompare, say, stack, visibleCourses } from '../app'
+import { back, listened, loadCourses, naturalCompare, say, stack, visibleCourses } from '../app'
 import { lang, prefs } from '../settings'
 import * as api from '../lingq'
 import type { Course, Lesson } from '../lingq'
@@ -37,16 +37,16 @@ let podTab: PodcastSession | null = null
 function openPodcastsTab() {
   const l = lang()
   if (!podTab || podTab.lang !== l) podTab = new PodcastSession(new ImportSession(), l)
-  switchTab('podcasts', podTab)
+  switchTab('podcasts', podTab, true)
 }
 
 export function MainTabs({ at }: { at: 'courses' | 'player' | 'podcasts' }) {
   return (
     <nav class="bottom-nav tabs">
-      <button class={at === 'courses' ? 'active' : ''} onClick={() => switchTab('courses')}>
+      <button class={at === 'courses' ? 'active' : ''} onClick={() => switchTab('courses', undefined, true)}>
         <span class="nav-ind"><Icon name="library" /></span><span>Библиотека</span>
       </button>
-      <button class={at === 'player' ? 'active' : ''} onClick={() => switchTab('player')}>
+      <button class={at === 'player' ? 'active' : ''} onClick={() => switchTab('player', undefined, true)}>
         <span class="nav-ind"><Icon name="headphones" /></span><span>Плеер</span>
       </button>
       <button class={at === 'podcasts' ? 'active' : ''} onClick={openPodcastsTab}>
@@ -121,12 +121,11 @@ function PlayerLesson({ s }: { s: ReaderSession }) {
           <div class="top-bar-actions"><PlayerActions s={s} onMarks={() => setMarks(true)} onJob={setJob} /></div>
         </header>
       ) : bare ? (
-        <div class="pp-head">
-          <div class="pp-head-actions"><PlayerActions s={s} onMarks={() => setMarks(true)} onJob={setJob} /></div>
-          <Cover url={lesson.imageUrl} title={s.title.value || '♪'} class="pp-cover" />
-          <h2 class="pp-title">{s.title.value}</h2>
-          {!!lesson.courseTitle && <div class="pp-podcast">{lesson.courseTitle}</div>}
-        </div>
+        <header class="top-bar pp-bar">
+          <div class="top-bar-nav"><IconButton icon="back" label="Назад" onClick={back} /></div>
+          <div class="top-bar-title" />
+          <div class="top-bar-actions"><PlayerActions s={s} onMarks={() => setMarks(true)} onJob={setJob} /></div>
+        </header>
       ) : (
         <div class="player-head">
           <Cover url={lesson.imageUrl} title={s.title.value || '♪'} class="player-cover" />
@@ -137,9 +136,14 @@ function PlayerLesson({ s }: { s: ReaderSession }) {
           <PlayerActions s={s} onMarks={() => setMarks(true)} onJob={setJob} />
         </div>
       )}
-      <div class="screen-body player-body">
+      <div class={'screen-body player-body' + (bare ? ' scroll' : '')}>
         {err ? <ErrorBox text={err} retry={() => void s.load()} />
-          : bare ? <PodRunCard s={s} />
+          : bare ? <div class="pp-head">
+            <Cover url={lesson.imageUrl} title={s.title.value || '♪'} class="pp-cover" />
+            <h2 class="pp-title">{s.title.value}</h2>
+            {!!lesson.courseTitle && <div class="pp-podcast">{lesson.courseTitle}</div>}
+            <PodRunCard s={s} />
+          </div>
           : !paras ? <div class="player-skeleton"><div class="skeleton line" /><div class="skeleton line wide" /><div class="skeleton line" /></div>
           : !url ? <p class="empty">У этого урока нет аудио на LingQ.</p>
           : <>

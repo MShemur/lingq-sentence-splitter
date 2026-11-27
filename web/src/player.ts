@@ -4,7 +4,7 @@ import * as api from './lingq'
 import type { Lesson } from './lingq'
 import * as audio from './audio'
 import { ReaderSession } from './reader/session'
-import { say, stack, type Screen } from './app'
+import { say, stack, tabHistory, type Screen } from './app'
 import { ensurePodSession, isPodKey, podNow } from './podplay'
 import type { Bookmark } from './bookmarks'
 import { log, logError } from './applog'
@@ -19,9 +19,19 @@ function session(lang: string, l: Lesson) {
 }
 
 /** Bottom tabs of the main screen: Библиотека / Плеер. */
-export function switchTab(k: 'courses' | 'player' | 'podcasts', root?: Screen) {
+export function switchTab(k: 'courses' | 'player' | 'podcasts', root?: Screen, fromTab = false) {
   const list = stack.value
   if (list.length === 1 && list[0].k === k) return
+  // opened from inside a screen (a podcast list, a lesson, the mini player): back returns there, never to the import
+  // screen; a bottom-bar tap starts afresh (back on a tab root then goes to the library)
+  if (fromTab) tabHistory.length = 0
+  else {
+    const keep = list.filter((x) => x.k !== 'import')
+    if (keep.length && !(keep.length === 1 && keep[0].k === k)) {
+      tabHistory.push(keep)
+      if (tabHistory.length > 20) tabHistory.shift()
+    }
+  }
   stack.value = [root ?? ({ k } as Screen)]
   const depth = typeof history.state?.depth === 'number' ? history.state.depth : 0
   if (depth > 0) try { history.go(-depth) } catch { /* ignore */ }

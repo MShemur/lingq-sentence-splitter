@@ -102,8 +102,16 @@ export function backTo(pred: (s: Screen) => boolean): Promise<void> {
   })
 }
 
+/** Stacks left when a tab was opened from inside a screen (player.ts switchTab); back on a tab root returns to them. */
+export const tabHistory: Screen[][] = []
+
 export function back() {
-  if (stack.value.length <= 1) return
+  if (stack.value.length <= 1) {
+    const h = tabHistory.pop()
+    if (h) { log('nav', `← ${screenName(h[h.length - 1])}`); stack.value = h }
+    else if (stack.value[0]?.k !== 'courses') { log('nav', '← courses'); stack.value = [{ k: 'courses' } as Screen] }
+    return
+  }
   log('nav', `← ${screenName(stack.value[stack.value.length - 2])}`)
   if (history.state?.depth === stack.value.length - 1) history.back()
   else stack.value = stack.value.slice(0, -1)

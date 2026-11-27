@@ -325,7 +325,10 @@ fun SettingsReading(state: AppState) {
         )
 
         GroupHeader("Режим")
-        Text("Книжный режим", style = MaterialTheme.typography.titleSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.Icon(AppIcons.Book, contentDescription = null, Modifier.padding(end = 8.dp), tint = MaterialTheme.colorScheme.primary)
+            Text("Книжный режим", style = MaterialTheme.typography.titleSmall)
+        }
         Row(
             Modifier.fillMaxWidth().clickable { state.applyPrefs { readerBook = !state.book } }.padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,

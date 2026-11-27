@@ -582,6 +582,7 @@ export function SettingsReading() {
       </div>
       <Group>Режим</Group>
       <label class="switch-row">
+        <Icon name="book" size={20} />
         <span class="grow radio-title">Книжный режим</span>
         <input type="checkbox" class="switch" checked={prefs.readerBook.value === '1'}
           onChange={(e) => { prefs.readerBook.value = (e.target as HTMLInputElement).checked ? '1' : '0' }} />

@@ -273,10 +273,10 @@ function ReaderActions({ s }: { s: ReaderSession }) {
           <Menu onClose={close}>
             <div class="menu-group">Текст</div>
             <MenuFontRow size={Number(prefs.readerFont.value)} onChange={(d) => s.changeFont(d)} />
-            <MenuItem icon={isBook() ? 'check' : undefined} onClick={() => {
+            <MenuItem icon="book" onClick={() => {
               close(); s.bookBar.value = false; s.bookMenu.value = null
               prefs.readerBook.value = isBook() ? '0' : '1'
-            }}>Книжный режим</MenuItem>
+            }}>Книжный режим{isBook() && <span style={{ marginLeft: 'auto', paddingLeft: '12px', display: 'inline-flex' }}><Icon name="check" size={20} /></span>}</MenuItem>
             {s.pdfLink.value && (
               <MenuItem icon={s.showPdf.value ? 'list' : 'file'} onClick={() => { close(); s.showPdf.value = !s.showPdf.value }}>
                 {s.showPdf.value ? 'Показать текстом' : 'Показать страницы PDF'}
@@ -555,7 +555,9 @@ function TextView({ s, paras }: { s: ReaderSession; paras: Sent[][] }) {
     // is at least 48px, one with a caption may shrink to 0 so that its caption never goes below the page).
     // Set on the measuring box and on the pager alike, so a picture is laid out here as on the page.
     const fsPx = Number(prefs.readerFont.value) || 18
-    const picMaxH = Math.max(0, h - fsPx * 1.6 * lineMul())
+    // three text lines stay free under the pictures: a book's caption is often the text paragraph right after the
+    // picture (up to 3 lines), and it must stay on the same page instead of breaking onto the next one
+    const picMaxH = Math.max(0, h - fsPx * 1.6 * lineMul() * 3 - paraGapPx(book))
     // a caption's real height: at most 3 lines (CSS line clamp) of 0.62em at line-height 1.3, plus its 0.35em margin above
     const capEm = fsPx * 0.62
     const capRoom = capEm * 1.3 * 3 + capEm * 0.35
