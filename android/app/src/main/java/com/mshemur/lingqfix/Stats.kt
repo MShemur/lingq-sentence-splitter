@@ -305,8 +305,8 @@ private fun DaysChart(st: ReadingStats, now: LocalDate) {
     val listenMins = vals.map { it[2] / 60f }
     val max = maxOf(mins.maxOrNull() ?: 0f, 10f)
     var picked by remember { mutableStateOf(dates.size - 1) }
-    val readColor = MaterialTheme.colorScheme.primary
-    val listenColor = MaterialTheme.colorScheme.tertiary
+    // fixed colours: the theme may be grey (dynamic colours from a grey wallpaper), the chart must stay readable
+    val listenColor = StatListen
     val gapColor = MaterialTheme.colorScheme.surfaceContainerLow
     val base = MaterialTheme.colorScheme.outlineVariant
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
@@ -334,7 +334,7 @@ private fun DaysChart(st: ReadingStats, now: LocalDate) {
                         if (h > 0f) {
                             val left = slot * i + (slot - w) / 2
                             val top = size.height - h
-                            val a = if (i == picked) 1f else 0.45f
+                            val a = if (i == picked) 1f else 0.7f
                             // listening is the top part of the bar; the whole bar is rounded at the data end only
                             val lh = if (m > 0f) h * (listenMins[i] / m) else 0f
                             val p = Path().apply {
@@ -376,6 +376,10 @@ private fun DaysChart(st: ReadingStats, now: LocalDate) {
     }
 }
 
+/** Chart colours (fixed, not from the theme): reading green, listening orange. */
+private val StatRead = androidx.compose.ui.graphics.Color(0xFF2EA043)
+private val StatListen = androidx.compose.ui.graphics.Color(0xFFF08C00)
+
 /** Minutes of a day -> shade 0..4 of the activity calendar. */
 private fun level(sec: Int): Int {
     val m = sec / 60
@@ -401,7 +405,7 @@ private fun ActivityCalendar(st: ReadingStats, now: LocalDate) {
     }
     var picked by remember { mutableStateOf(now) }
     val empty = MaterialTheme.colorScheme.surfaceContainerHighest
-    val fill = MaterialTheme.colorScheme.primary
+    val fill = StatRead
     val shades = listOf(empty, fill.copy(alpha = 0.3f), fill.copy(alpha = 0.5f), fill.copy(alpha = 0.75f), fill)
     val ring = MaterialTheme.colorScheme.onSurface
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
