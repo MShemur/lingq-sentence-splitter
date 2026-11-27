@@ -79,6 +79,7 @@ object ListenTranslate {
     /** Double press: the sentence sounding now (the one before if it has only just begun). */
     fun speakCurrent(ctx: Context) {
         val key = AudioEngine.key ?: return
+        if (isPodKey(key)) { speakPod(ctx, key); return }
         val lang = key.substringBefore('_')
         val id = key.substringAfter('_').toIntOrNull() ?: return
         val pos = AudioEngine.nowMs()
@@ -104,6 +105,40 @@ object ListenTranslate {
                 say(ctx, tr.ifBlank { "Перевода нет" })
             } catch (e: Throwable) {
                 AppLog.error("listen", "Перевод по двойному нажатию", e)
+                say(ctx, "Перевод не получился")
+            }
+        }
+    }
+
+    /**
+     * A podcast episode: its sentences come from the AI transcript (Pod.sents, or the one saved on the phone),
+     * translations from the episode's own cache (the player uses the same file), else the translator.
+     */
+    private fun speakPod(ctx: Context, key: String) {
+        val pos = AudioEngine.nowMs()
+        resumeAfter = AudioEngine.playing
+        resumeAt = -1L
+        AudioEngine.pause()
+        speaking = true
+        val app = app(ctx)
+        AppLog.add("listen", "Подкаст: перевод предложения на ${pos / 1000} с")
+        app.scope.launch {
+            try {
+                val list = (if (Pod.now.value?.key == key && Pod.sents.isNotEmpty()) Pod.sents.toList()
+                    else withContext(Dispatchers.IO) { Pod.loadTranscript(app.ctx, key) }.orEmpty()).filter { it.start >= 0 }
+                if (list.isEmpty()) { say(ctx, "У выпуска ещё нет текста. Нажмите Run AI"); return@launch }
+                var i = list.indexOfLast { it.start <= pos }.coerceAtLeast(0)
+                if (i > 0 && pos - list[i].start < 1500) i--
+                val s = list[i]
+                resumeAt = s.start
+                val cache = TranslationCache(podFile(app.ctx, key, "tr_${app.trLang}.json"))
+                val saved = withContext(Dispatchers.IO) { cache.load() }
+                val tr = saved[s.text] ?: translate(app, app.lang, s.text).also { t ->
+                    if (t.isNotBlank()) withContext(Dispatchers.IO) { cache.save(saved + (s.text to t)) }
+                }
+                say(ctx, tr.ifBlank { "Перевода нет" })
+            } catch (e: Throwable) {
+                AppLog.error("listen", "Подкаст: перевод по кнопке", e)
                 say(ctx, "Перевод не получился")
             }
         }

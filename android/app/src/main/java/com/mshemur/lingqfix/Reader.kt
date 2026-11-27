@@ -404,7 +404,7 @@ internal const val NO_AI_LOCAL = "Для переводов в PDF-книге н
 fun podLessonId(key: String): Int = -(0x40000000 + (key.hashCode() and 0x3fffffff)) - 1
 
 /** Files of a podcast episode's reader data in filesDir/pod (next to its transcript <key>.json). */
-private fun podFile(ctx: Context, key: String, suffix: String) = File(File(ctx.filesDir, "pod").apply { mkdirs() }, "$key.$suffix")
+internal fun podFile(ctx: Context, key: String, suffix: String) = File(File(ctx.filesDir, "pod").apply { mkdirs() }, "$key.$suffix")
 
 /** Transcript -> sentences: id = position + 1 (stable while the transcript grows), 5 sentences per paragraph. */
 private fun podParagraphs(list: List<PodSent>): List<List<Sent>> =
