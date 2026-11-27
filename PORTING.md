@@ -40,6 +40,20 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   importer/session.ts (picsOf, bookPics.save), reader/session.ts (pics), reader/Reader.tsx (Pics, PicViewer), styles.css.
 ## Done
 
+- note feedback/20261127-042852-web -> android v1.155-v1.158, web v1.89 (both platforms):
+  1) Pictures in in-app notes: up to 4, scaled to 1600 px JPEG 0.8, uploaded to the sync branch as
+  feedback/<stamp>-<web|android>-<n>.jpg, note JSON field "images": [...] (always present). 2) Chapter merge (EPUB
+  import) opens a sheet first: planned groups (chapters < 300 words chained into the next ≥ 300 one, a trailing small
+  one into the previous; ✕ «не объединять» splits the run and keeps that chapter apart), «Объединить (N)»; merged rows
+  show «объединено: …»; undo restores the whole list. 3) Podcast player like Snipd: subscriptions as cover tiles,
+  minimal feed (title, date · duration, «AI» badge when a transcript is saved), tap = stream and play at once (track key
+  "pod_…", no LingQ lesson; mini player / Player tab open the podcast player), player screen with cover, −15/+30,
+  speed, transcript view (current sentence by time, tap = seek); «Run AI» downloads the MP3 (web via /fetch) and
+  transcribes with the chosen STT provider, the text appears after each ~8-min part (sentences recomputed over all
+  words, Fixer merge); saved per episode (web IndexedDB 'satzloop-pod', Android filesDir/pod/<key>.json); ⋮ «Загрузить
+  как урок» uses the saved transcript instead of transcribing again. Files: web podplay.ts, podai.ts,
+  screens/PodPlayer.tsx, Podcasts.tsx; Android PodPlayer.kt, PodAi.kt, Podcasts.kt, BgJobs.kt, Transcribe.kt (onPart).
+
 - user 26.11.2026 + note feedback/20261126-033025-web -> android v1.150, web v1.85 (both platforms):
   1) Text-to-speech «Озвучка» (Settings → Сервисы, after «Распознавание речи»): providers system voice (free, default;
   Android TextToSpeech, web speechSynthesis), Gemini (geminiKey; generateContent with responseModalities AUDIO,
