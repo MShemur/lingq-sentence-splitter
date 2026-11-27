@@ -272,11 +272,7 @@ fun SettingsTts(state: AppState) {
                 val shownModels = sortSpeechModels(orModels.filter { m ->
                     q.isEmpty() || q.lowercase() in m.name.lowercase() || q.lowercase() in m.id.lowercase()
                 })
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    shownModels.forEach { m ->
-                        FilterChip(selected = model == m.id, label = { Text(speechLabel(m)) }, onClick = { model = m.id; p.setTtsModel("openrouter", m.id) })
-                    }
-                }
+                Choices(shownModels.map { it.id to speechLabel(it) }, model, "Модель") { id -> model = id; p.setTtsModel("openrouter", id) }
                 if (orModels.isEmpty()) Hint("Список моделей пуст.")
                 else if (shownModels.isEmpty()) Hint("Нет моделей по запросу «$q».")
                 TextButton(onClick = { loadOrModels() }) { Text("Обновить список моделей") }
@@ -285,11 +281,7 @@ fun SettingsTts(state: AppState) {
 
             Text("Голос", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
             if (orVoices.isNotEmpty()) {
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    orVoices.forEach { v ->
-                        FilterChip(selected = voice == v, label = { Text(v) }, onClick = { voice = v; p.setTtsVoice("openrouter", v) })
-                    }
-                }
+                Choices(orVoices.map { it to it }, voice, "Голос") { v -> voice = v; p.setTtsVoice("openrouter", v) }
             } else {
                 OutlinedTextField(
                     voice, { v -> voice = v.trim(); p.setTtsVoice("openrouter", v) }, Modifier.fillMaxWidth(),
@@ -301,11 +293,7 @@ fun SettingsTts(state: AppState) {
         if (prov == "gemini" || prov == "openai") {
             Text("Голос", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
             val voices = if (prov == "gemini") TTS_VOICES_GEMINI else TTS_VOICES_OPENAI
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                voices.forEach { v ->
-                    FilterChip(selected = voice == v, label = { Text(v) }, onClick = { voice = v; p.setTtsVoice(prov, v) })
-                }
-            }
+            Choices(voices.map { it to it }, voice, "Голос") { v -> voice = v; p.setTtsVoice(prov, v) }
         }
 
         if (prov == "gemini") {
@@ -315,11 +303,7 @@ fun SettingsTts(state: AppState) {
             else if (loading) CircularProgressIndicator()
             else {
                 val speechModels = allModels.filter { "tts" in it }
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    speechModels.forEach { m ->
-                        FilterChip(selected = shown == m, label = { Text(m) }, onClick = { model = m; p.setTtsModel("gemini", m) })
-                    }
-                }
+                Choices(speechModels.map { it to it }, shown, "Модель") { m -> model = m; p.setTtsModel("gemini", m) }
                 if (speechModels.isEmpty()) Hint("На этом ключе нет моделей озвучки.")
                 TextButton(onClick = { loadModels() }) { Text("Обновить список моделей") }
             }
@@ -328,11 +312,7 @@ fun SettingsTts(state: AppState) {
         if (prov == "openai") {
             Text("Модель", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
             val shown = model.ifBlank { TTS_MODEL_DEFAULT["openai"].orEmpty() }
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TTS_MODELS_OPENAI.forEach { m ->
-                    FilterChip(selected = shown == m, label = { Text(m) }, onClick = { model = m; p.setTtsModel("openai", m) })
-                }
-            }
+            Choices(TTS_MODELS_OPENAI.map { it to it }, shown, "Модель") { m -> model = m; p.setTtsModel("openai", m) }
         }
 
         Text(
@@ -643,5 +623,40 @@ fun SettingsPlayer(state: AppState) {
             onClick = { AudioCache.clear(ctx); mb = 0; state.say("Кэш аудио очищен") },
             enabled = mb > 0, modifier = Modifier.fillMaxWidth(),
         ) { Text("Очистить кэш аудио") }
+    }
+}
+
+/** A pick among [opts] (id to label): up to 5 as chips wrapping onto several lines, 6 and more as a drop-down list. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun Choices(opts: List<Pair<String, String>>, selected: String, title: String, onPick: (String) -> Unit) {
+    if (opts.isEmpty()) return
+    if (opts.size <= 5) {
+        androidx.compose.foundation.layout.FlowRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            opts.forEach { (id, label) -> FilterChip(selected = selected == id, label = { Text(label) }, onClick = { onPick(id) }) }
+        }
+        return
+    }
+    var open by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = { open = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                opts.firstOrNull { it.first == selected }?.second ?: "$title: не выбран",
+                Modifier.weight(1f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.heightIn(max = 420.dp)) {
+            opts.forEach { (id, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = { onPick(id); open = false },
+                    trailingIcon = if (selected == id) ({ Icon(Icons.Filled.Star, contentDescription = null) }) else null,
+                )
+            }
+        }
     }
 }

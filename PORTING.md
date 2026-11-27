@@ -16,6 +16,14 @@ Platform-specific things (APK updates, iPad gestures) are not listed.
   rounded 16, pill «Подписаться» / tonal «Вы подписаны ✓», rows: uppercase date, title 2 lines bold, duration + AI chip,
   round play/pause button on the right, current row highlighted. Port the look to the web.
 
+- note 20261127-071253-android -> android v1.164 (AppState.kt back / switchTab history): «назад» = the screen seen
+  before. A tab opened from inside a screen (player from the podcast list / a feed / a lesson / the mini player) keeps
+  the previous stack; back restores it. Bottom-bar taps clear that history (back on a tab root → library). Back never
+  lands on the import screen (source / course choice) from a lesson opened out of it. Check the web player / podcasts
+  back the same way.
+- note 20261127-071028-android -> android v1.164 (Settings.kt Choices): model / voice choices in Озвучка: up to 5 as
+  chips wrapping onto several lines, 6 and more as a drop-down list. Same rule on the web if it differs.
+
 - user request 18.11.2026 (both platforms, Android does it now): PDF-книга without LingQ. Import no longer creates a
   LingQ lesson: the book stays on the device (doc + page words as now), split into sentences locally (same
   abbreviation rules as Fixer / lingq_fix_splits.py), word / phrase / sentence translations come straight from Gemini

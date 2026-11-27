@@ -241,10 +241,23 @@ class AppState(val ctx: Context) {
         loadCourses(force = true)
         go(Screen.Reader(ReaderSession(this, lang, l)))
     }
-    /** Back: pops the stack; a tab root other than the library (Плеер, Подкасты) goes to the library, the library closes nothing here. */
+    /**
+     * Back = the screen seen before: pops the stack; a tab opened from inside a screen (the player from a podcast
+     * list, a lesson, the mini player…) returns to that screen; a tab root otherwise goes to the library.
+     * The import screen (source and course choice) is never returned to from a lesson opened out of it.
+     */
     fun back(): Boolean = when {
-        stack.size > 1 -> { stack.removeAt(stack.lastIndex); AppLog.add("nav", "← ${screenName(stack.last())}"); true }
-        stack.size == 1 && stack[0] != Screen.ReaderCourses -> { switchTab(Screen.ReaderCourses); true }
+        stack.size > 1 -> {
+            val left = stack.removeAt(stack.lastIndex)
+            if (left is Screen.Reader) while (stack.size > 1 && stack.last() is Screen.Import) stack.removeAt(stack.lastIndex)
+            AppLog.add("nav", "← ${screenName(stack.last())}"); true
+        }
+        history.isNotEmpty() -> {
+            val h = history.removeAt(history.lastIndex)
+            stack.clear(); stack.addAll(h)
+            AppLog.add("nav", "← ${screenName(stack.last())}"); true
+        }
+        stack.size == 1 && stack[0] != Screen.ReaderCourses -> { switchTab(Screen.ReaderCourses, fromTab = true); true }
         else -> false
     }
     fun say(msg: String) { AppLog.add("msg", msg); scope.launch { snackbar.showSnackbar(msg) } }
@@ -347,11 +360,23 @@ class AppState(val ctx: Context) {
     /** Bottom tabs of the main screen: Библиотека / Плеер. */
     /** The "Подкасты" tab keeps its search and list while switching tabs. */
     private var podTab: PodcastSession? = null
+    /** Stacks left when a tab was opened from inside a screen; [back] returns to them. Bottom-bar taps clear it. */
+    private val history = ArrayList<List<Screen>>()
+    val hasHistory get() = history.isNotEmpty()
     fun podcastTab(): PodcastSession = podTab ?: PodcastSession(this, ImportSession(this)).also { podTab = it }
 
     /** The player tab (a podcast episode plays in it too, as a session of its own: see [openSounding]). */
-    fun switchTab(s: Screen, lesson: Boolean = false) {
+    fun switchTab(s: Screen, lesson: Boolean = false, fromTab: Boolean = false) {
         if (stack.size == 1 && stack[0] == s) return
+        if (fromTab) history.clear()
+        else {
+            // opened from inside a screen: back returns there (without the import screen)
+            val keep = stack.filter { it !is Screen.Import }
+            if (keep.isNotEmpty() && !(keep.size == 1 && keep[0] == s)) {
+                history.add(keep.toList())
+                if (history.size > 20) history.removeAt(0)
+            }
+        }
         stack.clear(); stack.add(s)
         AppLog.add("nav", "Вкладка ${s.javaClass.simpleName}")
     }

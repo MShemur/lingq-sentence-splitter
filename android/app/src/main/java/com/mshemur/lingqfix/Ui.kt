@@ -158,7 +158,7 @@ fun App(state: AppState) {
       androidx.compose.runtime.CompositionLocalProvider(LocalHighlight provides highlightColors(state.highlight, darkPage, state.wordBg)) {
         val screen = state.screen
         // system back: pops the stack; at the root of Плеер / Подкасты it goes to the library (closes nothing there)
-        BackHandler(enabled = state.stack.size > 1 || screen != Screen.ReaderCourses) { state.back() }
+        BackHandler(enabled = state.stack.size > 1 || screen != Screen.ReaderCourses || state.hasHistory) { state.back() }
         Box(
             Modifier.fillMaxSize().pointerInput(Unit) {
                 // any touch keeps the screen awake while reading (see KeepScreenOn)
@@ -321,16 +321,16 @@ fun App(state: AppState) {
 private fun MainTabs(state: AppState, screen: Screen) {
     NavigationBar {
         NavigationBarItem(
-            selected = screen == Screen.ReaderCourses, onClick = { state.switchTab(Screen.ReaderCourses) },
+            selected = screen == Screen.ReaderCourses, onClick = { state.switchTab(Screen.ReaderCourses, fromTab = true) },
             icon = { Icon(Icons.Filled.Home, contentDescription = null) }, label = { Text("Библиотека") },
         )
         NavigationBarItem(
-            selected = screen == Screen.Player, onClick = { state.switchTab(Screen.Player) },
+            selected = screen == Screen.Player, onClick = { state.switchTab(Screen.Player, fromTab = true) },
             icon = { Icon(AppIcons.Headphones, contentDescription = null) }, label = { Text("Плеер") },
         )
         NavigationBarItem(
             selected = screen is Screen.Podcasts && state.stack.size == 1,
-            onClick = { if (!(screen is Screen.Podcasts && state.stack.size == 1)) state.switchTab(Screen.Podcasts(state.podcastTab())) },
+            onClick = { if (!(screen is Screen.Podcasts && state.stack.size == 1)) state.switchTab(Screen.Podcasts(state.podcastTab()), fromTab = true) },
             icon = { Icon(AppIcons.Podcasts, contentDescription = null) }, label = { Text("Подкасты") },
         )
     }
