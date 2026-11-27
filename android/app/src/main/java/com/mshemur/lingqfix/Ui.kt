@@ -773,7 +773,10 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                 TextButton(onClick = { s.items.forEach { it.selected = true } }) { Text("Выбрать все") }
                 TextButton(onClick = { s.items.forEach { it.selected = false } }) { Text("Снять все") }
             }
-            if (s.items.size > 1) TextButton(onClick = { s.mergeSmallChapters() }) { Text("Объединить мелкие главы") }
+            if (s.items.size > 1) Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { s.openMerge(null) }) { Text("Объединить мелкие главы") }
+                if (s.mergeUndo != null) TextButton(onClick = { s.undoMerge() }) { Text("Отменить") }
+            }
             s.items.forEachIndexed { index, item ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (s.items.size > 1) Checkbox(checked = item.selected, onCheckedChange = { v -> item.selected = v })
@@ -786,9 +789,61 @@ private fun ImportScreen(state: AppState, s: ImportSession) {
                             "${item.words} слов", style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline,
                         )
+                        if (item.merged.isNotEmpty()) Text(
+                            "объединено: ${item.merged.joinToString(", ")}", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
                     }
-                    if (index < s.items.lastIndex) IconButton(onClick = { s.mergeWithNext(index) }) {
+                    if (index < s.items.lastIndex) IconButton(onClick = { s.openMerge(index) }) {
                         Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Объединить со следующей")
+                    }
+                }
+            }
+            s.mergeSheet?.let { sheet ->
+                val plan = s.mergePlan(sheet.pair, sheet.skip)
+                val total = plan.sumOf { it.ids.size - 1 }
+                ModalBottomSheet(onDismissRequest = { s.mergeSheet = null }) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("Объединить главы", style = MaterialTheme.typography.titleMedium)
+                        if (plan.isEmpty()) Text(
+                            if (sheet.pair == null) "Мелких глав нет" else "Нечего объединять",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        plan.forEach { g ->
+                            val target = s.items[g.keep]
+                            Text(
+                                "${target.title} (${target.words} слов)",
+                                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
+                            )
+                            g.ids.filter { it != g.keep }.forEach { id ->
+                                val ch = s.items[id]
+                                Row(
+                                    Modifier.fillMaxWidth().padding(start = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(ch.title, style = MaterialTheme.typography.bodySmall)
+                                        Text(
+                                            "${ch.words} слов", style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.outline,
+                                        )
+                                    }
+                                    IconButton(onClick = { s.mergeSheet = sheet.copy(skip = sheet.skip + id) }) {
+                                        Icon(Icons.Filled.Clear, contentDescription = "не объединять", modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                        Row(
+                            Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(onClick = { s.mergeSheet = null }) { Text("Отмена") }
+                            Button(onClick = { s.applyMerge() }, enabled = plan.isNotEmpty()) { Text("Объединить ($total)") }
+                        }
                     }
                 }
             }

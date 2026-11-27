@@ -827,13 +827,28 @@ class ImportItem(title: String, text: String, selected: Boolean) {
     var title by mutableStateOf(title)
     var text by mutableStateOf(text)
     var selected by mutableStateOf(selected)
+    /** Titles of the chapters merged into this one (shown as "объединено: ..."). */
+    var merged by mutableStateOf<List<String>>(emptyList())
     val words get() = countWords(text)
+
+    /** Independent copy (for the undo snapshot). */
+    fun copyItem(): ImportItem = ImportItem(title, text, selected).also { it.merged = merged }
 }
+
+/** One group of the merge plan: [keep] is the chapter whose title stays; [ids] are all chapters of the group in text order. */
+class MergeGroup(val keep: Int, val ids: List<Int>)
+
+/** Open "Объединить главы" sheet: [pair] = chapter i + i+1 (null = all small chapters); [skip] = chapters taken out of the plan. */
+data class MergeSheet(val pair: Int?, val skip: Set<Int> = emptySet())
 
 /** Upload of a file / pasted text to a course, optionally fixing the sentence split right away. */
 class ImportSession(private val app: AppState) {
     var sourceName by mutableStateOf("")
     val items = mutableStateListOf<ImportItem>()
+    /** The "Объединить главы" sheet (null = closed). */
+    var mergeSheet by mutableStateOf<MergeSheet?>(null)
+    /** Chapters as they were before the last merge (for "Отменить"); null = nothing to undo. */
+    var mergeUndo by mutableStateOf<List<ImportItem>?>(null)
     var isBook by mutableStateOf(false)
     var loading by mutableStateOf(false)
     var pasteMode by mutableStateOf(false)
@@ -859,7 +874,7 @@ class ImportSession(private val app: AppState) {
     /** After an upload: back to an empty form for the next lesson. */
     fun newImport() {
         finished = false; log.clear(); fixes.clear(); uploaded.clear(); error = null
-        pasteText = ""; items.clear(); dropAudio(); cover = null; pdfDraft = null
+        pasteText = ""; items.clear(); mergeUndo = null; dropAudio(); cover = null; pdfDraft = null
     }
 
     // --- reading the source: file, PDF (text layer or OCR), photos ---
@@ -959,7 +974,7 @@ class ImportSession(private val app: AppState) {
         val base = name.substringBeforeLast('.')
         val title = if (pages.size == total) base else "$base, стр. ${pagesLabel(pages)}"
         // since v1.137 the book stays on the phone: no import form, no LingQ lesson
-        pasteMode = false; isBook = false; items.clear()
+        pasteMode = false; isBook = false; items.clear(); mergeUndo = null
         val words = countWords(text)
         AppLog.add("import", "PDF-книга $doc: ${pages.size} из $total стр., слов $words (без подписей $mainWords), Gemini: $ordered стр." +
             if (ai != null && ordered < recognised.count { it.words.isNotEmpty() }) " — на остальных порядок ML Kit" else "")
@@ -969,7 +984,7 @@ class ImportSession(private val app: AppState) {
     }
 
     private fun setSingle(title: String, text: String) {
-        pasteMode = true; isBook = false; items.clear()
+        pasteMode = true; isBook = false; items.clear(); mergeUndo = null
         pasteTitle = title; pasteText = text
     }
 
@@ -1033,7 +1048,7 @@ class ImportSession(private val app: AppState) {
         audioPick = null
         val keepCover = cover
         startLoad("Вырезаю кусок…")
-        pasteMode = false; items.clear()
+        pasteMode = false; items.clear(); mergeUndo = null
         app.scope.launch {
             try {
                 val base = pk.name.substringBeforeLast('.')
@@ -1243,7 +1258,7 @@ class ImportSession(private val app: AppState) {
                     if (texts.size == 1) setSingle(texts[0].title.ifBlank { n.substringBeforeLast('.') }, texts[0].text)
                     else {
                         isBook = true
-                        items.clear()
+                        items.clear(); mergeUndo = null
                         // Short EPUB parts (cover, title page, imprint) are not preselected.
                         items.addAll(texts.map { ImportItem(it.title.ifBlank { n }, it.text, countWords(it.text) >= 100) })
                     }
@@ -1261,39 +1276,67 @@ class ImportSession(private val app: AppState) {
 
     fun selectedCount() = if (pasteMode) (if (pasteText.isBlank()) 0 else 1) else items.count { it.selected }
 
-    /** Merges chapter [i] + 1 into chapter [i] (text joined by an empty line); the title of [i] stays. */
-    fun mergeWithNext(i: Int) {
-        val a = items.getOrNull(i) ?: return
-        val b = items.getOrNull(i + 1) ?: return
-        a.text = a.text + "\n\n" + b.text
-        a.selected = true
-        items.removeAt(i + 1)
+    /**
+     * Plan of the merge sheet. [pair] = chapter i + i+1 (the chapter i keeps its title, text joined by an empty line).
+     * Otherwise every chapter under 300 words is chained into the next one (the next keeps its title),
+     * a small last chapter goes into the previous one. Chapters in [skip] are taken out: they stay separate.
+     */
+    fun mergePlan(pair: Int?, skip: Set<Int>): List<MergeGroup> {
+        if (pair != null) {
+            if (pair < 0 || pair + 1 > items.lastIndex || pair in skip || pair + 1 in skip) return emptyList()
+            return listOf(MergeGroup(pair, listOf(pair, pair + 1)))
+        }
+        class Seg(val keep: Int, val ids: MutableList<Int>, var words: Int, val locked: Boolean)
+        val seg = items.indices.mapTo(mutableListOf<Seg>()) { Seg(it, mutableListOf(it), items[it].words, it in skip) }
+        var i = 0
+        while (seg.size > 1 && i < seg.size) {
+            val cur = seg[i]
+            if (cur.locked || cur.words >= 300) { i++; continue }
+            if (i < seg.lastIndex && !seg[i + 1].locked) {
+                val next = seg[i + 1]
+                next.ids.addAll(0, cur.ids); next.words += cur.words
+                seg.removeAt(i)
+            } else if (i > 0 && !seg[i - 1].locked) {
+                val prev = seg[i - 1]
+                prev.ids.addAll(cur.ids); prev.words += cur.words
+                seg.removeAt(i)
+            } else i++
+        }
+        return seg.filter { it.ids.size > 1 }.map { MergeGroup(it.keep, it.ids.toList()) }
     }
 
-    /**
-     * Merges every chapter under 300 words into the next one (its text goes first, the next keeps its title);
-     * a small last chapter goes into the previous one. Shows how many chapters were merged.
-     */
-    fun mergeSmallChapters() {
-        var merged = 0
-        var i = 0
-        while (items.size > 1 && i < items.size) {
-            val cur = items[i]
-            if (cur.words >= 300) { i++; continue }
-            if (i < items.lastIndex) {
-                val next = items[i + 1]
-                next.text = cur.text + "\n\n" + next.text
-                next.selected = true
-                items.removeAt(i)
-            } else {
-                val prev = items[i - 1]
-                prev.text = prev.text + "\n\n" + cur.text
-                prev.selected = true
-                items.removeAt(i)
-            }
-            merged++
+    /** Opens the merge sheet: for one chapter pair ([pair] = i, merges i+1 into it) or for all small chapters (null). */
+    fun openMerge(pair: Int?) { mergeSheet = MergeSheet(pair) }
+
+    /** Merges the groups of the open sheet (undo snapshot first), then closes it. */
+    fun applyMerge() {
+        val sheet = mergeSheet ?: return
+        val groups = mergePlan(sheet.pair, sheet.skip)
+        if (groups.isEmpty()) return
+        val snapshot = items.map { it.copyItem() }
+        val absorbed = mutableSetOf<Int>()
+        for (g in groups) {
+            val keepItem = items[g.keep]
+            val others = g.ids.filter { it != g.keep }
+            val joined = g.ids.joinToString("\n\n") { items[it].text }
+            val names = others.flatMap { listOf(items[it].title) + items[it].merged }
+            keepItem.text = joined
+            keepItem.merged = keepItem.merged + names
+            keepItem.selected = true
+            absorbed += others
         }
-        app.say("Объединено глав: $merged")
+        val kept = items.filterIndexed { i, _ -> i !in absorbed }
+        items.clear(); items.addAll(kept)
+        mergeUndo = snapshot
+        mergeSheet = null
+        app.say("Объединено глав: ${absorbed.size}")
+    }
+
+    /** Restores the chapters as they were before the last merge. */
+    fun undoMerge() {
+        val snapshot = mergeUndo ?: return
+        items.clear(); items.addAll(snapshot.map { it.copyItem() })
+        mergeUndo = null
     }
 
     fun run() {
