@@ -3,8 +3,8 @@
   "device": "android",
   "version": "1.165",
   "text": "почему-то статистика не цветная плохо видно особенно на столбчатом графике",
-  "status": "new",
+  "status": "work",
   "images": [
-    "feedback\/20261127-114511-android-1.jpg"
+    "feedback/20261127-114511-android-1.jpg"
   ]
 }
