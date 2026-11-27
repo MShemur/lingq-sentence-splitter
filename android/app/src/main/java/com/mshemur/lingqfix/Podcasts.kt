@@ -9,12 +9,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -29,7 +34,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -41,11 +45,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -545,30 +553,38 @@ private fun fmtDur(s: Int) = when {
     else -> "${(s + 30) / 60} мин"
 }
 
+/** A podcast as a square cover tile; the badge = new episodes. */
 @Composable
-private fun PodcastRow(p: Podcast, badge: String?, onClick: () -> Unit) {
-    ListItem(
-        leadingContent = { Cover(p.image, p.title, Modifier.size(56.dp)) },
-        headlineContent = { Text(p.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-        supportingContent = { if (p.author.isNotBlank()) Text(p.author, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        trailingContent = if (badge != null) {
-            {
-                Box(
-                    Modifier.background(MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
-                ) { Text(badge, color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall) }
-            }
-        } else null,
-        modifier = Modifier.clickable(onClick = onClick),
-    )
+private fun PodTile(p: Podcast, badge: Int, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Box(Modifier.fillMaxWidth()) {
+            Cover(p.image, p.title, Modifier.fillMaxWidth())
+            if (badge > 0) Box(
+                Modifier.align(Alignment.TopEnd).padding(6.dp)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 7.dp, vertical = 1.dp),
+            ) { Text("$badge", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall) }
+        }
+        Text(
+            p.title, Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp),
+            style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
-/** Search, subscriptions, suggestions. */
+/** Search, subscriptions as cover tiles (tap = the feed). */
 @Composable
 fun PodcastsScreen(state: AppState, s: PodcastSession) {
     LaunchedEffect(Unit) { s.reloadSubs(); s.refreshNew() }
-    LazyColumn(Modifier.fillMaxSize()) {
-        item {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 104.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column(Modifier.padding(top = 12.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     s.query, { s.query = it }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp),
                     label = { Text("Название подкаста или ссылка на RSS") },
@@ -590,27 +606,19 @@ fun PodcastsScreen(state: AppState, s: PodcastSession) {
         }
         val res = s.results
         if (res != null) {
-            item { Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Найдено: ${res.size}", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                TextButton(onClick = { s.results = null; s.query = "" }) { Text("Мои подкасты") }
-            } }
-            items(res, key = { "r" + it.feed }) { p -> PodcastRow(p, null) { s.openFeed(p) } }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Найдено: ${res.size}", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                    TextButton(onClick = { s.results = null; s.query = "" }) { Text("Мои подкасты") }
+                }
+            }
+            gridItems(res, key = { "r" + it.feed }) { p -> PodTile(p, 0) { s.openFeed(p) } }
         } else {
-            item {
-                Text(
-                    "Мои подкасты", Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
-                )
+            if (s.subs.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                Text("Пока нет подписок", Modifier.padding(horizontal = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (s.subs.isEmpty()) item {
-                Text(
-                    "Пока нет. Найдите подкаст и нажмите «Подписаться» — новые выпуски будут отмечены здесь.",
-                    Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            items(s.subs, key = { "s" + it.podcast.feed }) { sub ->
-                val n = s.newCount[sub.podcast.feed] ?: 0
-                PodcastRow(sub.podcast, if (n > 0) "$n нов." else null) { s.openFeed(sub.podcast) }
+            gridItems(s.subs, key = { "s" + it.podcast.feed }) { sub ->
+                PodTile(sub.podcast, s.newCount[sub.podcast.feed] ?: 0) { s.openFeed(sub.podcast) }
             }
         }
     }
@@ -621,16 +629,36 @@ fun PodcastsScreen(state: AppState, s: PodcastSession) {
 fun PodcastFeedScreen(s: PodcastSession) {
     val p = s.podcast ?: return
     s.sheet?.let { j -> EpisodeSheet(s.app, j) { s.sheet = null } }
+    FeedBody(s, p)
+}
+
+@Composable
+private fun FeedBody(s: PodcastSession, p: Podcast) {
+    val ctx = s.app.ctx
+    val eps = s.episodes
+    // Pod keys of the episodes; the AI badge = a transcript saved for the episode (read once per list, off the main thread)
+    val keys = remember(eps, p.feed) { eps.orEmpty().map { Pod.key(p.feed, it.guid.ifBlank { it.audio }) } }
+    val aiKeys by produceState(emptySet<String>(), keys) {
+        value = withContext(Dispatchers.IO) { keys.filter { Pod.loadTranscript(ctx, it) != null }.toSet() }
+    }
+    val playing = Pod.now.value?.key
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Cover(p.image, p.title, Modifier.width(88.dp))
-                Column(Modifier.weight(1f).padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(p.title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                    if (p.author.isNotBlank()) Hint(p.author)
-                    if (s.subscribed) OutlinedButton(onClick = { s.toggleSub() }) { Text("Вы подписаны ✓") }
-                    else FilledTonalButton(onClick = { s.toggleSub() }) { Text("Подписаться") }
-                }
+            Column(
+                Modifier.fillMaxWidth().padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Cover(p.image, p.title, Modifier.fillMaxWidth(0.55f))
+                Text(
+                    p.title, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.titleLarge,
+                    textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                )
+                if (p.author.isNotBlank()) Text(
+                    p.author, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                if (s.subscribed) OutlinedButton(onClick = { s.toggleSub() }) { Text("Вы подписаны ✓") }
+                else FilledTonalButton(onClick = { s.toggleSub() }) { Text("Подписаться") }
             }
         }
         s.downloading?.let { ep ->
@@ -651,7 +679,6 @@ fun PodcastFeedScreen(s: PodcastSession) {
             }
         }
         s.error?.let { e -> item { Text(e, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) } }
-        val eps = s.episodes
         if (eps == null && s.error == null) item {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -659,30 +686,31 @@ fun PodcastFeedScreen(s: PodcastSession) {
             }
         }
         if (eps != null) {
-            item {
-                Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    Hint("Выпусков: ${eps.size}. Нажмите на выпуск: он сразу начнёт скачиваться, а вы выберете курс; дальше всё идёт в фоне.")
-                }
-            }
-            items(eps, key = { it.audio }) { ep ->
+            itemsIndexed(eps, key = { _, ep -> ep.audio }) { i, ep ->
+                val k = keys.getOrElse(i) { "" }
+                val on = k.isNotEmpty() && k == playing
                 val isNew = ep.date > s.seenBefore
-                ListItem(
-                    leadingContent = if (isNew) {
-                        { Box(Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary)) }
-                    } else null,
-                    headlineContent = { Text(ep.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                    supportingContent = {
-                        Column {
-                            Text(
-                                listOf(fmtDate(ep.date), fmtDur(ep.duration), if (ep.transcript.isNotBlank()) "есть расшифровка" else if (ep.textUrl.isNotBlank()) "есть текст (без времени)" else "")
-                                    .filter { it.isNotBlank() }.joinToString(" · "),
-                                style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
-                            )
-                            if (ep.description.isNotBlank()) Text(ep.description, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                val meta = listOf(fmtDate(ep.date), fmtDur(ep.duration)).filter { it.isNotBlank() }.joinToString(" · ")
+                Row(
+                    Modifier.fillMaxWidth().clickable { Pod.play(s.app, Pod.of(ep, p)) }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            ep.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            fontWeight = if (on) FontWeight.SemiBold else null,
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (k in aiKeys) Box(
+                                Modifier.background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 6.dp, vertical = 1.dp),
+                            ) { Text("AI", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer) }
                         }
-                    },
-                    modifier = Modifier.clickable { Pod.play(s.app, Pod.of(ep, p)) },
-                )
+                    }
+                    if (isNew) Box(Modifier.padding(start = 10.dp).size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+                }
                 HorizontalDivider()
             }
         }

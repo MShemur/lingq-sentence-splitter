@@ -218,9 +218,13 @@ object Stt {
     private val http = LingqApi.http.newBuilder()
         .readTimeout(15, TimeUnit.MINUTES).writeTimeout(15, TimeUnit.MINUTES).build()
 
-    /** Recognises [uri] (file [name]) in language [lang]; [status] reports progress. */
+    /**
+     * Recognises [uri] (file [name]) in language [lang]; [status] reports progress. [onPart] gets the words of every
+     * finished piece with absolute times (once for a direct request): part is 1-based, parts = all pieces.
+     */
     suspend fun transcribe(
         ctx: Context, uri: Uri, name: String, lang: String, p: SttProvider, key: String, model: String,
+        onPart: ((words: List<TWord>, part: Int, parts: Int) -> Unit)? = null,
         status: (String) -> Unit,
     ): Transcript {
         if (key.isBlank()) throw ApiException("не задан ключ ${p.name} (⚙ Настройки → Распознавание речи)")
@@ -239,6 +243,7 @@ object Stt {
             status("Распознаю: ${p.name}…")
             val (s, w) = withContext(Dispatchers.IO) { send(p, key, m, lang, UriBody(ctx, uri), name) }
             segs += s; words += w
+            onPart?.invoke(w, 1, 1)
         } else {
             // too big for one request (or a format the service does not take): 16 kHz mono WAV pieces of ~8 min
             val dir = File(ctx.cacheDir, "stt").apply { deleteRecursively(); mkdirs() }
@@ -257,7 +262,9 @@ object Stt {
                         try { send(p, key, m, lang, wav.asRequestBody("audio/wav".toMediaType()), "part$i.wav") } finally { wav.delete() }
                     }
                     segs += s.map { it.copy(start = it.start + offset, end = it.end + offset) }
-                    words += w.map { it.copy(start = it.start + offset, end = it.end + offset) }
+                    val wAbs = w.map { it.copy(start = it.start + offset, end = it.end + offset) }
+                    words += wAbs
+                    onPart?.invoke(wAbs, i + 1, cuts.size - 1)
                 }
             } finally {
                 dir.deleteRecursively()

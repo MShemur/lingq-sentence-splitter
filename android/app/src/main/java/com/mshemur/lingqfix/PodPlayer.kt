@@ -28,6 +28,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -145,7 +146,10 @@ object Pod {
     /** "Загрузить как урок": the episode goes to LingQ through the "В LingQ" sheet, as from the feed. */
     fun toLesson(app: AppState, ep: PodEpisode) {
         val (e, p) = asEpisode(ep)
-        val j = BgJob(app, e, p)
+        // a transcript already saved in the player (Run AI) goes in as it is: no second recognition
+        val saved = loadTranscript(app.ctx, ep.key)?.takeIf { it.isNotEmpty() }
+            ?.map { TSeg(it.text, it.start / 1000.0, maxOf(it.start, it.end) / 1000.0) }
+        val j = BgJob(app, e, p, saved = saved)
         app.bgJobs.add(0, j)
         sheet.value = j
     }
@@ -213,6 +217,7 @@ private fun PodBody(state: AppState, ep: PodEpisode) {
     var drag by remember(ep.key) { mutableStateOf<Float?>(null) }
     val sents = Pod.sents
     val hasText = sents.isNotEmpty()
+    val busy = PodAi.isRunning(ep.key)
     val digits = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum")
 
     // a place in the episode; the episode starts first when it is not the one loaded
@@ -272,6 +277,7 @@ private fun PodBody(state: AppState, ep: PodEpisode) {
             val idx = sents.indexOfLast { it.start <= cur }
             val list = rememberLazyListState()
             LaunchedEffect(idx) { if (idx >= 0) list.animateScrollToItem(maxOf(0, idx - 1)) }
+            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 6.dp))
             if (Pod.status.value.isNotBlank()) Text(
                 Pod.status.value, Modifier.padding(top = 6.dp),
                 style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -295,9 +301,11 @@ private fun PodBody(state: AppState, ep: PodEpisode) {
             Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Center) {
                 Button(
                     onClick = { PodAi.run(state) },
+                    enabled = !busy,
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32), contentColor = Color.White),
                 ) { Text("Run AI", style = MaterialTheme.typography.titleMedium) }
+                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
                 if (Pod.status.value.isNotBlank()) Text(
                     Pod.status.value, Modifier.padding(top = 12.dp),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,

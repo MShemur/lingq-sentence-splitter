@@ -66,7 +66,11 @@ class JobTarget(
  * the destination is chosen meanwhile; then a headless [ImportSession] recognises (or takes the transcript),
  * uploads, fixes, sets the times and the level. An error stays in the row until the user closes it.
  */
-class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?, restored: org.json.JSONObject? = null) {
+class BgJob(
+    private val app: AppState, val ep: Episode, val pod: Podcast?, restored: org.json.JSONObject? = null,
+    /** A transcript saved in the podcast player (Run AI): used as it is, instead of the feed's one and of recognition. */
+    val saved: List<TSeg>? = null,
+) {
     val id = restored?.optLong("id") ?: System.nanoTime()
     val lang = restored?.optString("lang") ?: app.lang
     var status by mutableStateOf("Скачиваю…")
@@ -110,7 +114,7 @@ class BgJob(private val app: AppState, val ep: Episode, val pod: Podcast?, resto
                     if (target == null || status.startsWith("Скачиваю"))
                         status = "Скачиваю: ${d / 1_000_000} из ${if (t > 0) "${t / 1_000_000}" else "?"} МБ"
                 }
-                val tr = if (ep.transcript.isBlank()) null else runCatching {
+                val tr = if (saved != null) saved else if (ep.transcript.isBlank()) null else runCatching {
                     withContext(Dispatchers.IO) { PodcastApi.transcript(ep.transcript, ep.transcriptType) }
                 }.onFailure { AppLog.error("podcast", "Расшифровка", it) }.getOrNull()?.takeIf { it.isNotEmpty() }
                 val text = if (tr != null || ep.textUrl.isBlank()) null else runCatching {
@@ -221,7 +225,8 @@ fun EpisodeSheet(state: AppState, j: BgJob, onClose: () -> Unit) {
     var course by remember(same?.id) { mutableStateOf(same) }
     var newTitle by remember { mutableStateOf(podTitle) }
     var len by remember { mutableStateOf<Int?>(null) }
-    val hasTr = j.ep.transcript.isNotBlank()
+    val savedTr = j.saved != null
+    val hasTr = savedTr || j.ep.transcript.isNotBlank()
     val hasText = !hasTr && j.ep.textUrl.isNotBlank()
     var useTr by remember { mutableStateOf(hasTr) }
     // the podcast's own text has no times: off unless switched on (recognition gives text and times)
@@ -276,7 +281,10 @@ fun EpisodeSheet(state: AppState, j: BgJob, onClose: () -> Unit) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 LENGTHS.forEach { (t, v) -> FilterChip(len == v, onClick = { len = v }, label = { Text(t) }) }
             }
-            if (hasTr) Row(verticalAlignment = Alignment.CenterVertically) {
+            if (savedTr) Text(
+                "Расшифровка уже есть — будет использована",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary,
+            ) else if (hasTr) Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Готовая расшифровка подкаста")
                     Hint(if (useTr) "Бесплатно, без распознавания" else "Распознает сервис из настроек")
